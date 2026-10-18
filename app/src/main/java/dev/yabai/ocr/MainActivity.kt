@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.format.DateFormat
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
@@ -21,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import dev.yabai.ocr.service.FloatingOcrService
+import java.util.Date
 
 /**
  * Settings and permissions screen. Does no real work itself: it collects the two permissions the
@@ -30,6 +32,7 @@ import dev.yabai.ocr.service.FloatingOcrService
 class MainActivity : AppCompatActivity() {
 
     private lateinit var settings: AppSettings
+    private lateinit var usage: UsageTracker
 
     private lateinit var statusText: TextView
     private lateinit var overlayStatus: TextView
@@ -37,11 +40,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
 
+    private lateinit var usageToday: TextView
+    private lateinit var usageTotal: TextView
+    private lateinit var usageLast: TextView
+    private lateinit var usageLimit: TextView
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val statusPoll = object : Runnable {
         override fun run() {
             refreshRunningState()
+            refreshUsage()
             handler.postDelayed(this, 1000L)
         }
     }
@@ -89,6 +98,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         settings = AppSettings(this)
+        usage = UsageTracker(this)
 
         statusText = findViewById(R.id.statusText)
         overlayStatus = findViewById(R.id.overlayStatus)
@@ -96,8 +106,18 @@ class MainActivity : AppCompatActivity() {
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
 
+        usageToday = findViewById(R.id.usageToday)
+        usageTotal = findViewById(R.id.usageTotal)
+        usageLast = findViewById(R.id.usageLast)
+        usageLimit = findViewById(R.id.usageLimit)
+
         findViewById<Button>(R.id.btnOverlayPermission).setOnClickListener { requestOverlayPermission() }
         findViewById<Button>(R.id.btnNotificationPermission).setOnClickListener { requestNotifications() }
+        findViewById<Button>(R.id.btnResetUsage).setOnClickListener {
+            usage.reset()
+            refreshUsage()
+            toast(getString(R.string.usage_reset_done))
+        }
 
         bindEngineSelector()
         bindBehaviourSwitches()
@@ -110,6 +130,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refreshPermissions()
         refreshRunningState()
+        refreshUsage()
         handler.postDelayed(statusPoll, 1000L)
     }
 
@@ -226,6 +247,66 @@ class MainActivity : AppCompatActivity() {
         view.setTextColor(
             ContextCompat.getColor(this, if (granted) R.color.accent else R.color.text_secondary),
         )
+    }
+
+    // --- Lens usage ----------------------------------------------------------------------------
+
+    private fun refreshUsage() {
+        val snap = usage.snapshot()
+        val timeFormat = DateFormat.getTimeFormat(this)
+        val dateFormat = DateFormat.getDateFormat(this)
+
+        usageToday.setText(getString(R.string.usage_today, snap.todayCount))
+
+        usageTotal.text = if (snap.firstAtMillis == 0L) {
+            getString(R.string.usage_total, snap.totalCount)
+        } else {
+            getString(R.string.usage_total, snap.totalCount) +
+                " · " +
+                getString(R.string.usage_since, dateFormat.format(Date(snap.firstAtMillis)))
+        }
+
+        usageLast.text = if (snap.lastAtMillis == 0L) {
+            getString(R.string.usage_none)
+        } else {
+            val when_ = dateFormat.format(Date(snap.lastAtMillis)) +
+                " " +
+                timeFormat.format(Date(snap.lastAtMillis))
+            getString(
+                R.string.usage_last,
+                when_,
+                getString(if (snap.lastOk) R.string.usage_ok else R.string.usage_error),
+            )
+        }
+
+        val remaining = snap.rateLimitRemainingSeconds()
+        when {
+            remaining > 0L -> {
+                usageLimit.visibility = View.VISIBLE
+                usageLimit.text = getString(
+                    R.string.usage_limit_with_delay,
+                    snap.lastHttpStatus,
+                    formatDuration(remaining),
+                )
+            }
+
+            snap.isRefusal() -> {
+                usageLimit.visibility = View.VISIBLE
+                usageLimit.text = getString(R.string.usage_limit_no_delay, snap.lastHttpStatus)
+            }
+
+            else -> usageLimit.visibility = View.GONE
+        }
+    }
+
+    private fun formatDuration(totalSeconds: Long): String {
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return when {
+            minutes <= 0L -> "$seconds s"
+            seconds == 0L -> "$minutes min"
+            else -> "$minutes min $seconds s"
+        }
     }
 
     private fun hasNotificationPermission(): Boolean {

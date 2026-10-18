@@ -35,5 +35,12 @@ data class LensResult(
 class LensException(
     message: String,
     val httpStatus: Int = -1,
+    /**
+     * Value of the `Retry-After` header in seconds, when the server sent one.
+     *
+     * Google only sends this on the responses that refuse us (429/403); a successful call carries
+     * no rate-limit information at all.
+     */
+    val retryAfterSeconds: Int? = null,
     override val cause: Throwable? = null,
 ) : RuntimeException(message, cause)

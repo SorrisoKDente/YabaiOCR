@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.util.Log
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.EngineChoice
+import dev.yabai.ocr.UsageTracker
+import dev.yabai.ocr.core.lens.LensException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -13,8 +15,14 @@ import kotlinx.coroutines.withContext
  *
  * The Lens engine is cached because it owns an OkHttp client and a cookie jar; it is only rebuilt
  * when one of the settings that change the request (language, max dimension, upscaling) move.
+ *
+ * Every Lens attempt is reported to [usage], which is the only place that can know how much we have
+ * been calling Google — the API itself exposes no quota.
  */
-class OcrDispatcher(private val settings: AppSettings) {
+class OcrDispatcher(
+    private val settings: AppSettings,
+    private val usage: UsageTracker,
+) {
 
     private data class LensKey(
         val language: String,
@@ -43,7 +51,7 @@ class OcrDispatcher(private val settings: AppSettings) {
         return withContext(Dispatchers.Default) {
             when (choice) {
                 EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
-                EngineChoice.LENS -> lens().recognize(bitmap)
+                EngineChoice.LENS -> recognizeWithLens(bitmap)
                 EngineChoice.AUTO -> recognizeAuto(bitmap)
             }
         }
@@ -60,17 +68,49 @@ class OcrDispatcher(private val settings: AppSettings) {
 
     private suspend fun recognizeAuto(bitmap: Bitmap): OcrOutcome {
         val outcome = try {
-            lens().recognize(bitmap)
+            recognizeWithLens(bitmap)
         } catch (t: Throwable) {
             Log.w(TAG, "Lens failed, falling back to ML Kit", t)
-            return offlineFallback(bitmap)
+            return offlineFallback(bitmap, warning = rateLimitWarning(t))
         }
 
-        return if (outcome.text.isNotBlank()) outcome else offlineFallback(bitmap)
+        return if (outcome.text.isNotBlank()) {
+            outcome
+        } else {
+            offlineFallback(bitmap, warning = null)
+        }
     }
 
-    private suspend fun offlineFallback(bitmap: Bitmap): OcrOutcome =
-        offlineEngine.recognize(bitmap).copy(fallback = true)
+    private suspend fun offlineFallback(bitmap: Bitmap, warning: String?): OcrOutcome =
+        offlineEngine.recognize(bitmap).copy(fallback = true, warning = warning)
+
+    /**
+     * Turns a refusal from Google into something the result panel can explain, because
+     * "Lens indisponível" alone would hide the one signal that actually tells the user why.
+     */
+    private fun rateLimitWarning(error: Throwable): String? {
+        val status = (error as? LensException)?.httpStatus ?: return null
+        return when (status) {
+            HTTP_TOO_MANY_REQUESTS -> "Limite de uso do Google Lens atingido (HTTP 429)."
+            HTTP_FORBIDDEN -> "O Google recusou a requisição (HTTP 403)."
+            else -> null
+        }
+    }
+
+    private suspend fun recognizeWithLens(bitmap: Bitmap): OcrOutcome = try {
+        val outcome = lens().recognize(bitmap)
+        usage.recordLensCall(ok = true, httpStatus = 200)
+        outcome
+    } catch (t: Throwable) {
+        val lensError = t as? LensException
+        usage.recordLensCall(
+            ok = false,
+            httpStatus = lensError?.httpStatus ?: -1,
+            retryAfterSeconds = lensError?.retryAfterSeconds,
+            message = t.message,
+        )
+        throw t
+    }
 
     private fun lens(): LensOcrEngine {
         val key = LensKey(settings.language, settings.maxDimension, settings.upscaleSmall)
@@ -86,5 +126,7 @@ class OcrDispatcher(private val settings: AppSettings) {
 
     companion object {
         private const val TAG = "OcrDispatcher"
+        private const val HTTP_TOO_MANY_REQUESTS = 429
+        private const val HTTP_FORBIDDEN = 403
     }
 }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">yabai OCR</string>
+    <string name="app_name">Yabai OCR</string>
 
-    <string name="hero_title">yabai OCR</string>
+    <string name="hero_title">Yabai OCR</string>
     <string name="hero_subtitle">Leia japonês em qualquer app. A bolha flutua por cima da tela, você toca, escolhe a área e o texto vai para a área de transferência.</string>
 
     <string name="section_permissions">1. Permissões</string>
@@ -62,8 +62,8 @@
     <string name="recognizing">Reconhecendo…</string>
 
     <string name="notification_channel_name">Captura de tela ativa</string>
-    <string name="notification_channel_desc">Mostra quando o yabai OCR está capturando a tela.</string>
-    <string name="notification_title">yabai OCR ativo</string>
+    <string name="notification_channel_desc">Mostra quando o Yabai OCR está capturando a tela.</string>
+    <string name="notification_title">Yabai OCR ativo</string>
     <string name="notification_text">Toque na bolha para ler o texto da tela.</string>
     <string name="notification_stop">Parar</string>
 
@@ -73,4 +73,18 @@
 
     <string name="status_running">Ativo</string>
     <string name="status_stopped">Parado</string>
+
+    <string name="section_usage">5. Uso do Google Lens</string>
+    <string name="usage_today">Hoje: %1$d</string>
+    <string name="usage_total">Total: %1$d</string>
+    <string name="usage_since">Contando desde %1$s</string>
+    <string name="usage_last">Última requisição: %1$s — %2$s</string>
+    <string name="usage_ok">ok</string>
+    <string name="usage_error">erro</string>
+    <string name="usage_none">Nenhuma requisição ao Lens registrada ainda.</string>
+    <string name="usage_limit_with_delay">Google recusou (HTTP %1$d). Nova tentativa em %2$s.</string>
+    <string name="usage_limit_no_delay">Google recusou (HTTP %1$d).</string>
+    <string name="usage_note">O Google não informa quanto resta da cota deste endpoint: as respostas não trazem nenhum cabeçalho de limite, então não existe um número de «disponível» para mostrar. Estes contadores são medidos aqui no aparelho. O único sinal real de limite é o Google passar a recusar as requisições (HTTP 429), que aparece acima junto com o tempo de espera que ele pedir.</string>
+    <string name="usage_reset">Zerar contador</string>
+    <string name="usage_reset_done">Contador zerado</string>
 </resources>

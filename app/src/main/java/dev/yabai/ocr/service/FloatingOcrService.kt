@@ -29,6 +29,7 @@ import androidx.core.app.ServiceCompat
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.MainActivity
 import dev.yabai.ocr.R
+import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.ocr.OcrDispatcher
 import dev.yabai.ocr.overlay.OverlayController
@@ -71,7 +72,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         super.onCreate()
         isRunning = true
         settings = AppSettings(this)
-        dispatcher = OcrDispatcher(settings)
+        dispatcher = OcrDispatcher(settings, UsageTracker(this))
         overlays = OverlayController(this).apply {
             callbacks = this@FloatingOcrService
         }

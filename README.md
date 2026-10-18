@@ -1,4 +1,4 @@
-# yabai OCR
+# Yabai OCR
 
 Bolha flutuante que lê **japonês** em qualquer app: você toca, escolhe a área (ou a tela inteira),
 o texto é reconhecido e copiado para a área de transferência.
@@ -13,7 +13,7 @@ APK) assume como reserva.
 
 1. Copie o APK para o celular (ou use `adb install`).
 2. Abra o APK e permita a instalação de fontes desconhecidas, se o Android pedir.
-3. Abra **yabai OCR**.
+3. Abra **Yabai OCR**.
 
 APK pronto:
 
@@ -68,6 +68,34 @@ Dicas para acertar de primeira:
 
 ---
 
+## Uso do Google Lens (e a verdade sobre a cota)
+
+A tela do app tem uma seção **“5. Uso do Google Lens”** com:
+
+- quantas requisições ao Lens foram feitas **hoje** e no **total**;
+- a data da primeira requisição e o resultado da última;
+- um aviso vermelho quando o Google **recusa** a requisição (HTTP 429/403), com a contagem
+  regressiva do `Retry-After` quando o servidor manda esse campo.
+
+O que **não** existe, e por isso não está lá:
+
+> **Não há como ver “quanto resta” da cota.** O endpoint responde com os cabeçalhos genéricos do
+> frontend do Google — nenhum `X-RateLimit-*`, nenhum `Remaining`, nenhum `Reset`. Também não há
+> documentação: é uma API interna do Chromium, não um produto com contrato. Verifiquei isso numa
+> requisição real (HTTP 200, resposta de 2169 bytes) e o único cabeçalho relevante era
+> `Server-Timing`. A própria biblioteca de referência (`chrome-lens-ocr`) não documenta limite algum.
+
+Ou seja: os números da tela são **medidos aqui no aparelho**, não lidos do Google. Na prática eles
+bastam, porque o único sinal real de limite é o Google começar a recusar — e isso o app mostra na
+hora, tanto na tela de uso quanto no painel de resultado (que passa a dizer *“Limite de uso do Google
+Lens atingido (HTTP 429)”* em vez de um vago “Lens indisponível”).
+
+Não há um “reset diário” observável: nenhuma resposta informa quando a cota volta. O contador
+“hoje” zera à meia-noite apenas para você acompanhar o seu próprio ritmo. O botão **Zerar contador**
+limpa tudo.
+
+---
+
 ## Estrutura do projeto
 
 ```
@@ -79,10 +107,11 @@ core/   Kotlin JVM puro — nada de Android aqui
   jp/JapaneseText.kt        normalização de espaço CJK-aware
 
 app/    o app Android
-  MainActivity.kt           permissões + ajustes
+  MainActivity.kt           permissões + ajustes + painel de uso
   AppSettings.kt            preferências compartilhadas
+  UsageTracker.kt           contador local de requisições ao Lens (o Google não expõe cota)
   capture/ScreenCaptureSession.kt   um VirtualDisplay de longa duração + ImageReader
-  ocr/OcrDispatcher.kt      escolhe o motor e implementa o modo automático
+  ocr/OcrDispatcher.kt      escolhe o motor, implementa o modo automático e contabiliza o uso
   ocr/LensOcrEngine.kt      Lens via core
   ocr/MlKitOcrEngine.kt     ML Kit japonês offline
   ocr/ImagePreparer.kt      reescala e codifica em PNG

@@ -9,6 +9,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -100,6 +101,7 @@ class LensClient(
                         throw LensException(
                             "Lens request failed: HTTP ${response.code}${if (body.isBlank()) "" else " - ${body.take(200)}"}",
                             httpStatus = response.code,
+                            retryAfterSeconds = parseRetryAfter(response),
                         )
                     }
                     val bytes = response.body?.bytes()
@@ -137,6 +139,20 @@ class LensClient(
         return millis * 1_000_000L + suffix
     }
 
+    /**
+     * Reads `Retry-After` in either of its two legal forms: delay-seconds or an HTTP-date.
+     *
+     * Returns null when the header is absent — which is the normal case for a successful call.
+     */
+    private fun parseRetryAfter(response: Response): Int? {
+        val raw = response.header("Retry-After")?.trim().orEmpty()
+        raw.toIntOrNull()?.let { return it.coerceIn(0, MAX_RETRY_AFTER_SECONDS) }
+
+        val date = runCatching { response.headers.getDate("Retry-After") }.getOrNull() ?: return null
+        val seconds = (date.time - clock()) / 1000L
+        return seconds.coerceIn(0L, MAX_RETRY_AFTER_SECONDS.toLong()).toInt()
+    }
+
     override fun close() {
         client.dispatcher.executorService.shutdown()
         client.connectionPool.evictAll()
@@ -148,5 +164,8 @@ class LensClient(
         const val DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+        /** A day is already absurd for a retry hint; this is just to keep a bad value sane. */
+        private const val MAX_RETRY_AFTER_SECONDS = 86_400
     }
 }

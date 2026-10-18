@@ -9,6 +9,7 @@
     <color name="text_primary">#FFFFFFFF</color>
     <color name="text_secondary">#FFAAB0BD</color>
     <color name="divider">#22FFFFFF</color>
+    <color name="warn">#FFFF6B6B</color>
 
     <color name="ic_launcher_background">#FF1B1D24</color>
 </resources>
