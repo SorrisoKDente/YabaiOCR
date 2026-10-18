@@ -35,7 +35,7 @@
     <string name="stop_button">Parar OCR flutuante</string>
 
     <string name="howto_title">Como usar</string>
-    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha um dos ícones que aparecem abaixo dela: «Tela inteira», «Selecionar área», «Ajustes» ou «Encerrar».\n• Em «Tela inteira», as caixas marcam cada trecho: toque em um deles para copiar/traduzir só aquilo, ou em «Texto todo».\n• Em «Selecionar área», arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto e gruda na borda mais próxima.\n• Para desligar, arraste a bolha até o ✕ no centro de baixo e confirme.</string>
+    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha um dos ícones que aparecem abaixo dela: «Tela inteira», «Selecionar área», «Ajustes» ou «Encerrar».\n• Em «Tela inteira», as caixas marcam cada trecho: toque em um deles para copiar/traduzir só aquilo, ou em «Texto todo».\n• Em «Selecionar área», arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto e gruda na borda mais próxima.\n• Para desligar, arraste a bolha até o ✕ no centro de baixo e confirme.\n• No painel, o chevron de uma seção recolhe só aquela seção; o do cabeçalho deixa o painel numa linha só, com a tradução à vista.</string>
 
     <string name="overlay_full_screen">Tela inteira</string>
     <string name="overlay_select_area">Selecionar área</string>
@@ -68,6 +68,10 @@
     <string name="result_translation_label">Tradução</string>
     <string name="result_dictionary_label">Dicionário</string>
     <string name="result_kanji_label">Kanji</string>
+    <string name="result_fold">Recolher o painel</string>
+    <string name="result_unfold">Expandir o painel</string>
+    <string name="result_fold_section">Recolher a seção</string>
+    <string name="result_unfold_section">Mostrar a seção</string>
 
     <string name="capture_failed">Falha ao capturar a tela. Tente novamente.</string>
     <string name="capture_restart_needed">A tela girou e a captura precisa ser reiniciada. Toque em «Iniciar OCR flutuante» novamente.</string>

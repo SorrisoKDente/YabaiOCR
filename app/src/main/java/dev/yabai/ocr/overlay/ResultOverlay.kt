@@ -1,20 +1,24 @@
 package dev.yabai.ocr.overlay
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.InputType
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.View.MeasureSpec
+import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -120,6 +124,21 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     private var showLines: Boolean = false
     private var segmentLines: List<String> = emptyList()
 
+    /**
+     * Sections the user folded away, by key rather than by title: the dictionary title carries a word
+     * count that changes with every re-analysis, so it cannot be the name of a remembered choice.
+     */
+    private val foldedSections = mutableSetOf<String>()
+
+    /** Whether the whole card is folded into a strip that keeps showing the answer. */
+    private var minimised = false
+
+    /** The one row a minimised card keeps, and therefore the anchor for folding it. */
+    private var headerRow: View? = null
+
+    /** Kept because [rebuildHeader] has to rebuild the header without the original arguments. */
+    private var lastMeta: String = ""
+
     private val analyseHandler = Handler(Looper.getMainLooper())
 
     /**
@@ -187,6 +206,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     fun showLoading() {
         card.removeAllViews()
         translationText = null
+        // No header in this card, so nothing can be folded: leave both the state and the stale view
+        // reference of a previous panel behind rather than folding this spinner away.
+        headerRow = null
+        minimised = false
         card.addView(
             LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -222,6 +245,19 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         translationText = null
         lastAnalysedText = text
 
+        // A new capture opens unfolded. Folding is about the answer already in front of the user, and
+        // a panel that came up collapsed would hide the very thing they just asked for.
+        minimised = false
+        foldedSections.clear()
+        headerRow = null
+
+        // Before the header: a folded header carries the text itself.
+        originalEditor.setText(text)
+        originalEditor.setSelection(originalEditor.text.length)
+        originalEditor.setBackground(
+            roundedBackground(0x14FFFFFF, dp(10).toFloat(), 0x22FFFFFF),
+        )
+
         card.addView(buildHeader(meta))
 
         notesContainer.removeAllViews()
@@ -233,17 +269,18 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 .apply { setPadding(dp(2), dp(8), dp(2), dp(4)) },
         )
 
-        originalEditor.setText(text)
-        originalEditor.setSelection(originalEditor.text.length)
-        originalEditor.setBackground(
-            roundedBackground(0x14FFFFFF, dp(10).toFloat(), 0x22FFFFFF),
-        )
         card.addView(
             originalEditor,
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT),
         )
 
 
+        // These views outlive the card they were put in — they are fields, not fresh views — and a
+        // previous card may still hold them. Adding a view that already has a parent is an error, not
+        // a move, so a second capture on the same panel would fail without this.
+        for (view in listOf(translationSection, wordsSection, btCopyOriginal, btCopyTranslation)) {
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
         translationSection.removeAllViews()
         wordsSection.removeAllViews()
 
@@ -299,10 +336,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         btCopyTranslation.visibility = View.GONE
         copies.addView(btCopyTranslation, wrapWithMargin())
         card.addView(copies)
+
+        applyFold()
     }
 
     fun showError(message: String, offlineAvailable: Boolean) {
         card.removeAllViews()
+        // This card has no header either, so it cannot be folded.
+        headerRow = null
+        minimised = false
         translationText = null
         card.addView(
             textLabel(message, 16f, context.getColor(R.color.text_primary))
@@ -339,17 +381,23 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             is TranslationState.Done -> {
                 if (state.text.isBlank()) return
                 translationText = state.text
-                translationSection.addView(sectionTitle(context.getString(R.string.result_translation_label)))
                 translationSection.addView(
-                    textLabel(state.text, 17f, context.getColor(R.color.text_primary)).apply {
-                        setTextIsSelectable(true)
-                        setLineSpacing(dp(4).toFloat(), 1f)
-                        setPadding(dp(2), dp(4), dp(2), dp(10))
+                    section(SECTION_TRANSLATION, context.getString(R.string.result_translation_label)) { body ->
+                        body.addView(
+                            textLabel(state.text, 17f, context.getColor(R.color.text_primary)).apply {
+                                setTextIsSelectable(true)
+                                setLineSpacing(dp(4).toFloat(), 1f)
+                                setPadding(dp(2), dp(4), dp(2), dp(10))
+                            },
+                        )
                     },
                 )
                 btCopyTranslation.visibility = View.VISIBLE
             }
         }
+
+        // A folded card shows this translation on its one line, so the line is now out of date.
+        if (minimised) rebuildHeader()
     }
 
     fun setWords(state: WordsState) {
@@ -357,50 +405,59 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         when (state) {
             is WordsState.Hidden -> Unit
             is WordsState.Working -> wordsSection.addView(busyRow(context.getString(R.string.dictionary_working)))
-            is WordsState.Failed -> {
-                wordsSection.addView(sectionTitle(context.getString(R.string.result_dictionary_label)))
-                wordsSection.addView(noteView(state.message))
-            }
+            is WordsState.Failed -> wordsSection.addView(
+                section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
+                    body.addView(noteView(state.message))
+                },
+            )
 
             is WordsState.Done -> renderWords(state)
         }
+        if (minimised) rebuildHeader()
     }
 
     private fun renderWords(state: WordsState.Done) {
         if (state.dictionaryCount == 0) {
-            wordsSection.addView(sectionTitle(context.getString(R.string.result_dictionary_label)))
-            wordsSection.addView(noteView(context.getString(R.string.dictionary_none_installed)))
+            wordsSection.addView(
+                section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
+                    body.addView(noteView(context.getString(R.string.dictionary_none_installed)))
+                },
+            )
             return
         }
 
         if (state.kanji.isNotEmpty()) {
-            wordsSection.addView(sectionTitle(context.getString(R.string.result_kanji_label)))
-            for (kanji in state.kanji) {
-                wordsSection.addView(kanjiView(kanji))
-            }
+            wordsSection.addView(
+                section(SECTION_KANJI, context.getString(R.string.result_kanji_label)) { body ->
+                    for (kanji in state.kanji) body.addView(kanjiView(kanji))
+                },
+            )
         }
 
         if (state.matches.isEmpty()) {
-            wordsSection.addView(sectionTitle(context.getString(R.string.result_dictionary_label)))
-            wordsSection.addView(noteView(context.getString(R.string.dictionary_no_match)))
+            wordsSection.addView(
+                section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
+                    body.addView(noteView(context.getString(R.string.dictionary_no_match)))
+                },
+            )
             return
         }
 
         val shown = state.matches.take(MAX_WORDS)
         wordsSection.addView(
-            sectionTitle(
+            section(
+                SECTION_DICTIONARY,
                 context.getString(R.string.result_dictionary_label) +
                     "  " + context.getString(R.string.dictionary_word_count, state.matches.size),
-            ),
+            ) { body ->
+                for (match in shown) body.addView(wordView(match))
+                if (state.matches.size > shown.size) {
+                    body.addView(
+                        noteView(context.getString(R.string.dictionary_truncated, shown.size, state.matches.size)),
+                    )
+                }
+            },
         )
-        for (match in shown) {
-            wordsSection.addView(wordView(match))
-        }
-        if (state.matches.size > shown.size) {
-            wordsSection.addView(
-                noteView(context.getString(R.string.dictionary_truncated, shown.size, state.matches.size)),
-            )
-        }
     }
 
     private fun wordView(match: TokenMatch): View {
@@ -458,24 +515,156 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     // --- small pieces --------------------------------------------------------------------------
 
-    private fun buildHeader(meta: String): View = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        addView(
-            textLabel(context.getString(R.string.result_title), 17f, context.getColor(R.color.text_primary), bold = true),
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-        )
-        addView(textLabel(meta, 12f, context.getColor(R.color.text_secondary)))
-        addView(
-            context.actionButton("✕", background = 0x00000000) { callbacks?.onDismiss() }
-                .apply { setPadding(dp(10), dp(4), dp(4), dp(4)) },
-        )
+    /**
+     * The top row: the title, the metadata, the fold control and the ✕. When the card is minimised
+     * this row is all that is left of it, so the title and the metadata step aside for the answer.
+     */
+    private fun buildHeader(meta: String): View {
+        lastMeta = meta
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            if (minimised) {
+                addView(
+                    textLabel(stripText(), 13f, context.getColor(R.color.text_primary)).apply {
+                        maxLines = 1
+                        ellipsize = TextUtils.TruncateAt.END
+                    },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+                )
+            } else {
+                addView(
+                    textLabel(context.getString(R.string.result_title), 17f, context.getColor(R.color.text_primary), bold = true),
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+                )
+                addView(textLabel(meta, 12f, context.getColor(R.color.text_secondary)))
+            }
+            addView(
+                chevron(
+                    rotation = if (minimised) 0f else PANEL_FOLD_ROTATION,
+                    labelRes = if (minimised) R.string.result_unfold else R.string.result_fold,
+                ).apply { setOnClickListener { toggleMinimised() } },
+            )
+            addView(
+                context.actionButton("✕", background = 0x00000000) { callbacks?.onDismiss() }
+                    .apply { setPadding(dp(10), dp(4), dp(4), dp(4)) },
+            )
+        }
+        headerRow = row
+        return row
     }
 
-    private fun sectionTitle(text: String): TextView =
-        textLabel(text, 12f, context.getColor(R.color.accent), bold = true).apply {
-            setPadding(dp(2), dp(12), dp(2), dp(2))
+    // --- folding -------------------------------------------------------------------------------
+
+    /**
+     * One folding block of the panel: a header with an indicator, and the body it hides.
+     *
+     * The dictionary block can run to sixty entries while the translation is often the only thing
+     * wanted, so each block folds on its own. The choice is remembered by [key] — a re-analysis
+     * rebuilds every block, and the user should not have to fold the same section twice — and the key
+     * is deliberately not the title, because the dictionary title carries a word count that changes.
+     */
+    private fun section(key: String, title: String, fill: (LinearLayout) -> Unit): View {
+        val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        fill(body)
+
+        val folded = foldedSections.contains(key)
+        body.visibility = if (folded) View.GONE else View.VISIBLE
+        val indicator = chevron(
+            rotation = if (folded) FOLDED_ROTATION else 0f,
+            labelRes = if (folded) R.string.result_unfold_section else R.string.result_fold_section,
+        )
+
+        val header = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            // Clickable, and tagged with the key: the panel is built in code, so this is what the
+            // tests have to hold on to. The label is not an action button and carries no button tag.
+            isClickable = true
+            isFocusable = true
+            tag = key
+            setPadding(dp(2), dp(8), dp(2), dp(2))
+            addView(indicator)
+            addView(
+                textLabel(title, 12f, context.getColor(R.color.accent), bold = true)
+                    .apply { setPadding(dp(6), 0, 0, 0) },
+            )
+            setOnClickListener {
+                val nowFolded = body.visibility == View.VISIBLE
+                body.visibility = if (nowFolded) View.GONE else View.VISIBLE
+                indicator.rotation = if (nowFolded) FOLDED_ROTATION else 0f
+                indicator.contentDescription = context.getString(
+                    if (nowFolded) R.string.result_unfold_section else R.string.result_fold_section,
+                )
+                if (nowFolded) foldedSections.add(key) else foldedSections.remove(key)
+            }
         }
+
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(header)
+            addView(body)
+        }
+    }
+
+    /** The little chevron that says which way a block will move. */
+    private fun chevron(rotation: Float, labelRes: Int): ImageView = ImageView(context).apply {
+        setImageResource(R.drawable.ic_chevron)
+        imageTintList = ColorStateList.valueOf(context.getColor(R.color.text_secondary))
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        contentDescription = context.getString(labelRes)
+        this.rotation = rotation
+        val size = dp(22)
+        layoutParams = LinearLayout.LayoutParams(size, size)
+    }
+
+    /**
+     * Folds the whole card into its header, which then carries the answer instead of the title.
+     *
+     * The card hangs from the top of the screen and grows until the screen runs out, and in manga the
+     * text that matters is usually underneath it. One line of translation plus a control to bring the
+     * rest back is worth more than a panel that covers half the page.
+     */
+    private fun toggleMinimised() {
+        if (headerRow == null) return
+        minimised = !minimised
+        rebuildHeader()
+        applyFold()
+    }
+
+    /** Rebuilds the header, the one row whose content depends on the folded state. */
+    private fun rebuildHeader() {
+        val old = headerRow ?: return
+        val index = card.indexOfChild(old)
+        if (index < 0) return
+        card.removeViewAt(index)
+        card.addView(buildHeader(lastMeta), index)
+    }
+
+    /**
+     * Hides every row of the card but the header while it is minimised.
+     *
+     * A folded *section* hides its own body and is no business of this function. Every row of the card
+     * is either shown or not added at all — none of them carries a visibility of its own — so showing
+     * them all is a correct way back.
+     */
+    private fun applyFold() {
+        val header = headerRow ?: return
+        for (index in 0 until card.childCount) {
+            val child = card.getChildAt(index)
+            child.visibility = if (minimised && child !== header) View.GONE else View.VISIBLE
+        }
+    }
+
+    /**
+     * What a folded card shows on its one line: the translation when there is one, because that is
+     * what the panel is usually opened for, and the recognised text when there is not.
+     */
+    private fun stripText(): CharSequence {
+        val text = translationText?.takeIf { it.isNotBlank() } ?: originalEditor.text.toString()
+        val line = text.replace('\n', ' ').replace(Regex(" {2,}"), " ").trim()
+        return line.ifBlank { context.getString(R.string.result_title) }
+    }
 
     private fun busyRow(text: String): View = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -618,5 +807,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         )
 
         fun reasonLabel(reason: String): String = REASON_LABELS[reason] ?: reason
+
+        /** Fold state keys. Titles cannot be keys: the dictionary one carries a word count. */
+        private const val SECTION_TRANSLATION = "translation"
+        private const val SECTION_KANJI = "kanji"
+        private const val SECTION_DICTIONARY = "dictionary"
+
+        /** Folded sections point their chevron to the right; a folded panel points it up. */
+        private const val FOLDED_ROTATION = -90f
+        private const val PANEL_FOLD_ROTATION = 180f
     }
 }

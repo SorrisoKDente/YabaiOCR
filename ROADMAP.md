@@ -83,7 +83,7 @@ foi conferido removendo a guarda: ele falha, ou seja, prende mesmo o `showResult
 | --- | --- | --- | --- |
 | F1 | `[x]` | Menu em **ícones** numa linha abaixo da bolha | fácil |
 | F2 | `[x]` | **Fechar arrastando a bolha** até um ✕ no centro de baixo | fácil |
-| F3 | `[ ]` | **Minimizar/recolher** as seções do painel | fácil |
+| F3 | `[x]` | **Minimizar/recolher** as seções do painel | fácil |
 
 ### F1 — Menu em ícones  `[x]` (18/10/2026)
 
@@ -169,10 +169,55 @@ Conferido contra o código quebrado: com o drop encerrando direto (sem perguntar
 `the service was closed without asking`; com o alvo virando «qualquer sobreposição de retângulo», o
 segundo falha com `beside the cross`. Não são testes vazios.
 
-### F3 — Minimizar o painel  `[ ]`
+### F3 — Minimizar o painel  `[x]` (18/10/2026)
 
-Cabeçalho clicável recolhe/expande as seções (tradução, dicionário, kanji). Um segundo passo deixa o
-painel inteiro numa tira de uma linha. Hoje o painel cresce até o limite da tela e só rola.
+Duas dobras independentes:
+
+- **Cada seção dobra sozinha.** O título de «Tradução», «Kanji» e «Dicionário» é clicável e tem um
+  chevron; a seção vira uma linha e o resto do painel não se mexe. O «Dicionário» é o caso que
+  importa — são até 60 entradas — e é ele que costuma empurrar a tradução para fora da tela.
+- **O painel inteiro vira uma tira.** O chevron do cabeçalho esconde tudo menos o cabeçalho, que
+  passa a mostrar **a tradução** (ou o texto reconhecido, quando ainda não há tradução) numa linha
+  só, com reticências. Uma linha de resposta é o que permite ler o mangá embaixo com a tradução à
+  vista — é também a base do M2.
+
+Decisões que valem registrar:
+
+- A seção é escondida com `GONE`, não `INVISIBLE`: recolher tem de **devolver a tela**, não só tirar o
+  texto de vista. O teste de altura existe exatamente para isso.
+- O estado de cada seção é lembrado por uma **chave**, não pelo título: o título do dicionário carrega
+  uma contagem de palavras que muda a cada re-análise.
+- A dobra sobrevive à re-análise que a edição dispara (as seções são reconstruídas no lugar), mas
+  **uma captura nova abre tudo aberto**.
+- O título da seção **não** é um botão de ação (não tem `ACTION_BUTTON_TAG`), então o teste do B1 que
+  prende a lista exata de botões continua valendo; o controle de dobra é uma imagem, não um botão.
+- O chevron é um vetor só (`ic_chevron`), girado: para baixo = aberto, para a direita = seção
+  recolhida, para cima = painel recolhido.
+- As seções são **campos** do painel, não views novas, e o cartão que estava sendo substituído ainda
+  as segurava: uma view que já tem pai não pode ser adicionada de novo, então uma segunda captura no
+  mesmo painel estourava. `showResult` agora desprende as quatro antes de montar o cartão — foi o
+  teste «a new capture opens unfolded» que apareceu com o erro.
+
+**Testes de regressão:** `app/src/test/java/dev/yabai/ocr/overlay/PanelFoldTest.kt`:
+
+| teste | o que ele prende |
+| --- | --- |
+| `folding a section shortens the card and unfolding brings it back` | recolher o dicionário **devolve altura**, e desrecolher devolve tudo |
+| `a folded section stays folded when the text is looked up again` | a escolha sobrevive à re-análise da edição |
+| `the whole card folds to a strip that still shows the translation` | o painel vira uma linha **e a linha é a tradução**; abrir traz o resto |
+| `a new capture opens unfolded` | captura nova não abre recolhida (e o painel pode ser reusado) |
+
+O primeiro roda numa **tela alta** (`h1600dp`) de propósito: numa tela de 640px o conteúdo já é maior
+que o orçamento do painel, então o cartão fica saturado e a altura não muda mesmo recolhendo — o que
+muda é o que aparece. Na tela alta o número se mexe e o teste mede.
+
+Conferido contra o código quebrado: com a seção escondida com `INVISIBLE`, o primeiro falha com
+`folding the dictionary saved no height: 1315 → 1315`; sem lembrar a dobra, o segundo falha com
+`the fold was forgotten`; com a dobra do painel não escondendo nada, o terceiro falha com
+`row 1 of the card is still on screen`; com a tira mostrando o título em vez da resposta, o terceiro
+falha com `expected:<[Perguntei ao funcionário e ele disse que saiu por aí.]> but
+was:<[Texto reconhecido]>`; mantendo a dobra entre capturas, o quarto falha com
+`expected:<0> but was:<8>`. Não são testes vazios.
 
 ---
 

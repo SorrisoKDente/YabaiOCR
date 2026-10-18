@@ -61,6 +61,9 @@ Detalhes úteis:
   espaço abaixo ela aparece **em cima** da bolha.
 - Na faixa, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.
 - Toque longo no texto seleciona, como em qualquer TextView.
+- **A seção dobra sozinha:** toque no título «Tradução», «Kanji» ou «Dicionário» (ou no chevron ao
+  lado) e só aquela seção se recolhe. O chevron do cabeçalho do painel dobra o painel **inteiro**
+  numa linha só, que passa a mostrar a tradução.
 - Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
   painel.
 
@@ -82,6 +85,22 @@ OCR erra kanji, e quando erra você normalmente sabe qual era. O texto reconheci
 **edição**: corrija à mão e **0,8 s depois da última tecla** a consulta ao dicionário e a tradução são
 refeitas sozinhas, com o texto corrigido. Não é preciso capturar a tela de novo — e as seções mostram
 «Traduzindo…»/«Consultando…» enquanto trabalham, para não parecer que nada aconteceu.
+
+### Recolher o painel
+
+O painel cresce de cima para baixo e, num mangá com um kanji diferente por quadro, a seção do
+dicionário fica maior do que a tela — e o que interessa (a tradução) sai de vista, ou o texto que você
+quer ler fica escondido atrás do painel. Por isso o painel dobra:
+
+| O que você toca | O que acontece |
+| --- | --- |
+| O título de uma seção («Tradução», «Kanji», «Dicionário») | Só aquela seção se recolhe, virando uma linha. As outras ficam como estão. |
+| O chevron ao lado do título do painel | O painel inteiro vira **uma linha**, mostrando a tradução numa tira — o mangá embaixo continua à vista. Toque de novo para abrir. |
+
+A escolha de cada seção é lembrada enquanto o painel está aberto, inclusive nas re-análises que a
+edição do texto dispara: você recolhe o dicionário uma vez e ele continua recolhido. **Uma captura
+nova abre tudo aberto** — um painel que nasce recolhido esconderia justamente a resposta que você
+pediu.
 
 ### Dicionários
 
