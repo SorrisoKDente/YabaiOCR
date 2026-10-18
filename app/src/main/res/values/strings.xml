@@ -29,6 +29,7 @@
     <string name="setting_show_segments">Listar o texto linha por linha</string>
     <string name="setting_pick_text">Escolher o trecho da tela (como o Google Lens)</string>
     <string name="setting_upscale">Ampliar recortes pequenos (ajuda em letras miúdas)</string>
+    <string name="setting_show_image">Mostrar a imagem capturada ao lado do texto</string>
 
     <string name="start_button">Iniciar OCR flutuante</string>
     <string name="start_button_running">OCR flutuante ativo — toque para reabrir os ajustes</string>
@@ -65,6 +66,8 @@
     <string name="result_copy_original">Copiar original</string>
     <string name="result_copy_translation">Copiar tradução</string>
     <string name="result_repick">◀ Trechos</string>
+    <string name="result_image">Imagem</string>
+    <string name="result_image_description">Imagem capturada, de onde o texto foi reconhecido</string>
     <string name="result_translation_label">Tradução</string>
     <string name="result_dictionary_label">Dicionário</string>
     <string name="result_kanji_label">Kanji</string>

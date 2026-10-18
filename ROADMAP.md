@@ -226,7 +226,7 @@ was:<[Texto reconhecido]>`; mantendo a dobra entre capturas, o quarto falha com
 | # | Estado | Item | Dificuldade |
 | --- | --- | --- | --- |
 | M1 | `[ ]` | Escolher **qual dicionário** usar, direto no painel | médio |
-| M2 | `[ ]` | Comparar **lado a lado com a imagem** capturada | médio |
+| M2 | `[x]` | Comparar **lado a lado com a imagem** capturada | médio |
 
 ### M1 — Trocar de dicionário no painel  `[ ]`
 
@@ -234,11 +234,57 @@ Um seletor no cabeçalho da seção «Dicionário» com os dicionários instalad
 consulta todos os habilitados, na ordem de prioridade definida na tela de dicionários; passa a aceitar
 uma máscara por consulta, guardada como ajuste.
 
-### M2 — Imagem lado a lado  `[ ]`
+### M2 — Imagem lado a lado  `[x]` (18/10/2026)
 
-O recorte capturado não é guardado hoje: vai para o OCR e é descartado. Guardar o bitmap, mostrá-lo
-num `ImageView` ao lado do texto e liberá-lo ao fechar o painel. Também depende de F3 (o painel
-precisa saber ficar estreito).
+O recorte que ia para o OCR era descartado assim que a análise começava. Agora ele fica guardado
+enquanto o painel está aberto, e pode aparecer **ao lado do texto reconhecido** — que é onde a imagem
+serve para alguma coisa: quando o OCR troca um kanji, é ela que diz qual era.
+
+- **A imagem é o que o texto é.** Numa captura de área é o recorte; num trecho escolhido no «tela
+  inteira» é **aquele trecho**, não a tela toda — uma página em miniatura ao lado de uma linha não
+  serviria para conferir kanji nenhum. A caixa que o motor devolve já está nas coordenadas do
+  recorte, então o corte sai direto dela, sem conta inversa (`BlockImage.from`).
+- **Botão «Imagem» na linha de ações**, e só quando há imagem para mostrar. É um **toggle**, e a
+  escolha é um ajuste (`showImage`), então quem quer o lado a lado todos os dias liga uma vez; a
+  mesma caixa existe nas configurações e as duas escrevem a mesma flag.
+- **Ligado por padrão: não.** O que perde largura com a imagem é o texto reconhecido — justamente o
+  campo que se edita para consertar o erro do OCR. Sem imagem, o painel fica exatamente como estava.
+- **Quem manda no tamanho é a própria imagem**, não uma divisão fixa: `adjustViewBounds` dentro de um
+  teto de 120×200dp, e nunca ampliando. Coluna de mangá é alta e estreita, tela inteira é larga; com
+  meia-largura fixa uma das duas ficaria com um buraco do lado. O texto fica com o que sobra.
+- **Ligar e desligar reconstrói só a linha do texto**, não o cartão: a tradução, o dicionário e o que
+  está dobrado continuam valendo, e a análise não recomeça.
+- **O bitmap é solto, não reciclado**, ao fechar o painel (e em `onDestroy`). Reciclar um bitmap que
+  uma view ainda aponta estoura no desenho seguinte; largar a referência é tudo o que o coletor
+  precisa para devolver uma tela inteira de pixels.
+- A imagem é mais uma linha do cartão, então **a dobra do painel (F3) a esconde junto** com o resto,
+  e o orçamento de altura do B1 passa a contá-la — o `freeHeightForScroller` mede o que está lá, não
+  uma constante.
+
+**Testes de regressão:** `app/src/test/java/dev/yabai/ocr/overlay/ImagePanelTest.kt` (6) e
+`app/src/test/java/dev/yabai/ocr/util/BlockImageTest.kt` (4):
+
+| teste | o que ele prende |
+| --- | --- |
+| `the image sits beside the recognised text, not above it` | imagem e texto na **mesma linha**, imagem à esquerda, dentro do teto e sem distorção |
+| `without the image the text keeps the whole width` | sem imagem (desligada ou inexistente) o texto fica com a largura inteira |
+| `the image can be turned on and off while the panel is open` | ligar tira largura do texto, desligar devolve, e nem o texto nem a tradução se perdem |
+| `the image is offered as a button only when there is one` | a lista exata de botões com imagem, e sem imagem nenhum botão «Imagem» |
+| `the image button asks the app to remember the choice` | o botão avisa o app, que é quem grava o ajuste |
+| `a very tall capture does not push the panel off the screen` | teto de altura: uma captura 300×3000 não empurra o painel para fora |
+| `the box the text came from is what gets cut out` | o corte é a caixa, nas coordenadas do recorte |
+| `a box that is not there is the whole frame` | caixa ausente ou vazia cai no quadro inteiro |
+| `a box that hangs off the edge is clipped` | caixa que passa da borda é recortada, não recusada |
+| `a box that is nowhere near the frame is the whole frame` | caixa de outro tamanho não deixa o usuário sem imagem |
+
+Conferido contra o código quebrado: com a linha virando vertical, o primeiro falha com
+`the picture is not to the left of the text`; com o `ImageView` criado mesmo sem imagem, o segundo
+falha com `the panel is showing an image`; sem reconstruir a linha ao alternar, o terceiro falha com
+`no image appeared`; com o botão não avisando ninguém, o quinto falha com `expected:<[image]> but
+was:<[]>`. Sem o teto de altura, o sexto falha com `the image is taller than its cap` (e o primeiro,
+com `the picture is taller than its cap: 340`); com o corte sempre devolvendo o quadro inteiro, os
+testes de `BlockImage` falham com `expected:<100> but was:<400>` e `expected:<20> but was:<400>`. Não
+são testes vazios.
 
 ---
 

@@ -64,6 +64,8 @@ Detalhes úteis:
 - **A seção dobra sozinha:** toque no título «Tradução», «Kanji» ou «Dicionário» (ou no chevron ao
   lado) e só aquela seção se recolhe. O chevron do cabeçalho do painel dobra o painel **inteiro**
   numa linha só, que passa a mostrar a tradução.
+- **Imagem** no painel põe o recorte capturado ao lado do texto reconhecido, para conferir o kanji
+  que o OCR trocou. A escolha fica guardada nos ajustes.
 - Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
   painel.
 
@@ -85,6 +87,26 @@ OCR erra kanji, e quando erra você normalmente sabe qual era. O texto reconheci
 **edição**: corrija à mão e **0,8 s depois da última tecla** a consulta ao dicionário e a tradução são
 refeitas sozinhas, com o texto corrigido. Não é preciso capturar a tela de novo — e as seções mostram
 «Traduzindo…»/«Consultando…» enquanto trabalham, para não parecer que nada aconteceu.
+
+### Ver a imagem capturada
+
+Quando o OCR troca um kanji, quem tira a dúvida é a imagem: o painel diz **淀** e a página diz qual
+era. Por isso o painel pode mostrar, **ao lado do texto reconhecido**, o pedaço de tela de onde
+aquele texto saiu:
+
+| O que você toca | O que acontece |
+| --- | --- |
+| **Imagem** (na linha de ações do painel) | O recorte aparece à esquerda do texto reconhecido e o botão fica destacado. Toque de novo para esconder. |
+
+- A escolha é **lembrada** e vale para as próximas capturas; a mesma caixa existe nos ajustes
+  («Mostrar a imagem capturada ao lado do texto»). Vem **desligada** de fábrica: o que perde largura
+  com a imagem é o texto reconhecido — justamente o campo que você edita.
+- Numa **captura de área** a imagem é o recorte inteiro. Quando o texto vem de um trecho escolhido no
+  «tela inteira», a imagem é **aquele trecho**, não a tela toda: uma página em miniatura não ajudaria
+  a conferir kanji nenhum.
+- O tamanho quem manda é a própria imagem (nunca ampliada, no máximo 120×200 dp), e o texto fica com
+  o que sobra; uma coluna estreita de mangá quase não tira largura do texto. Se o painel estiver
+  dobrado, a imagem some junto com o resto.
 
 ### Recolher o painel
 

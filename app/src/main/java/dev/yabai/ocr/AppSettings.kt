@@ -63,6 +63,18 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_TRANSLATE, true)
         set(value) = prefs.edit { putBoolean(KEY_TRANSLATE, value) }
 
+    /**
+     * Show the captured image beside the recognised text.
+     *
+     * Off by default: the image takes a share of the panel's width, and what loses it is the
+     * recognised text — precisely the field the user edits to fix an OCR mistake. Whoever wants the
+     * comparison keeps it on, and the button in the panel and the switch in the settings write the
+     * same flag, so the two can never disagree.
+     */
+    var showImage: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_IMAGE, false)
+        set(value) = prefs.edit { putBoolean(KEY_SHOW_IMAGE, value) }
+
     /** Target language for the offline translation, as an ML Kit tag ("pt", "en"). */
     var translateTarget: String
         get() = prefs.getString(KEY_TRANSLATE_TARGET, "pt") ?: "pt"
@@ -82,5 +94,6 @@ class AppSettings(context: Context) {
         private const val KEY_DICTIONARY = "dictionary_lookup"
         private const val KEY_TRANSLATE = "translate_sentence"
         private const val KEY_TRANSLATE_TARGET = "translate_target"
+        private const val KEY_SHOW_IMAGE = "show_image"
     }
 }

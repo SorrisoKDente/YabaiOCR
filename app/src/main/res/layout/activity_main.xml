@@ -265,6 +265,13 @@
                 android:layout_height="wrap_content"
                 android:text="@string/setting_upscale"
                 android:textColor="@color/text_primary" />
+
+            <CheckBox
+                android:id="@+id/checkShowImage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_show_image"
+                android:textColor="@color/text_primary" />
         </LinearLayout>
 
         <!-- 4. Start -->

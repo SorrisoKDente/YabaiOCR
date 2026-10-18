@@ -3,6 +3,7 @@ package dev.yabai.ocr.overlay
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -53,6 +54,9 @@ class OverlayController(private val context: Context) {
 
         /** The user wants the boxes back, to pick a different piece of the same capture. */
         fun onRepickRequested()
+
+        /** The user wants the captured image shown beside the text, or hidden again. */
+        fun onImageToggleRequested()
     }
 
     var callbacks: Callbacks? = null
@@ -621,6 +625,10 @@ class OverlayController(private val context: Context) {
                     this@OverlayController.callbacks?.onRetryOfflineRequested()
                 }
 
+                override fun onImageToggle() {
+                    this@OverlayController.callbacks?.onImageToggleRequested()
+                }
+
                 override fun onDismiss() {
                     hideResult()
                     this@OverlayController.callbacks?.onResultDismissed()
@@ -651,7 +659,12 @@ class OverlayController(private val context: Context) {
         ensureResultPanel()?.showLoading()
     }
 
-    /** Rebuilds the panel for a finished capture; the analysis sections fill in afterwards. */
+    /**
+     * Rebuilds the panel for a finished capture; the analysis sections fill in afterwards.
+     *
+     * [image] is the frame the text was recognised from, when there is one, and [showImage] says
+     * whether the user wants it on screen — the panel needs both to offer the toggle.
+     */
     fun showResult(
         text: String,
         meta: String,
@@ -660,8 +673,15 @@ class OverlayController(private val context: Context) {
         showLines: Boolean,
         lines: List<String>,
         canRepick: Boolean,
+        image: Bitmap? = null,
+        showImage: Boolean = false,
     ) {
-        ensureResultPanel()?.showResult(text, meta, notes, offlineAvailable, showLines, lines, canRepick)
+        ensureResultPanel()?.showResult(text, meta, notes, offlineAvailable, showLines, lines, canRepick, image, showImage)
+    }
+
+    /** Shows or hides the captured image in the panel that is already open. */
+    fun setResultImage(shown: Boolean) {
+        resultView?.setImageShown(shown)
     }
 
     fun showResultTranslation(state: ResultOverlay.TranslationState) {

@@ -261,6 +261,7 @@ class ResultOverlayLayoutTest {
 
             override fun onRepick() = Unit
             override fun onRetryOffline() = Unit
+            override fun onImageToggle() = Unit
             override fun onDismiss() = Unit
         }
 

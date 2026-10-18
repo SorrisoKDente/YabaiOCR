@@ -2,6 +2,7 @@ package dev.yabai.ocr.overlay
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
@@ -53,6 +54,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         /** Goes back to the boxes drawn over the screen, to pick a different piece of the capture. */
         fun onRepick()
         fun onRetryOffline()
+
+        /** Shows or hides the captured image beside the text; the choice is remembered. */
+        fun onImageToggle()
         fun onDismiss()
     }
 
@@ -138,6 +142,21 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     /** Kept because [rebuildHeader] has to rebuild the header without the original arguments. */
     private var lastMeta: String = ""
+
+    /**
+     * The frame the text was recognised from, and whether the user wants it on screen.
+     *
+     * The bitmap is not owned here — the service keeps it for the whole life of the result and drops
+     * it when the panel closes — so this is only a reference to draw, never something to recycle.
+     */
+    private var image: Bitmap? = null
+    private var imageShown = false
+
+    /** The row holding the image and the editor, so it can be rebuilt in place when the image toggles. */
+    private var textRow: View? = null
+
+    /** The toggle itself, so its «on» colour can follow the layout. */
+    private var imageButton: TextView? = null
 
     private val analyseHandler = Handler(Looper.getMainLooper())
 
@@ -238,6 +257,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         showLines: Boolean,
         segmentLines: List<String>,
         canRepick: Boolean,
+        image: Bitmap? = null,
+        showImage: Boolean = false,
     ) {
         card.removeAllViews()
         this.showLines = showLines
@@ -250,6 +271,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         minimised = false
         foldedSections.clear()
         headerRow = null
+
+        this.image = image
+        // Showing a picture that is not there is not a state the panel can be in.
+        imageShown = showImage && image != null
+        textRow = null
+        imageButton = null
 
         // Before the header: a folded header carries the text itself.
         originalEditor.setText(text)
@@ -270,7 +297,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         )
 
         card.addView(
-            originalEditor,
+            buildTextRow(),
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT),
         )
 
@@ -315,6 +342,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 ) { callbacks?.onRepick() },
                 wrapWithMargin(start = 0),
             )
+        }
+        if (image != null) {
+            // A toggle: what it does is visible in the layout the moment it is pressed, and the choice
+            // is written to the settings so the next panel opens the way the user left this one.
+            imageButton = context.actionButton(
+                context.getString(R.string.result_image),
+                background = imageButtonBackground(),
+            ) { callbacks?.onImageToggle() }
+            actions.addView(imageButton, wrapWithMargin())
         }
         if (offlineAvailable) {
             actions.addView(
@@ -553,6 +589,81 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         headerRow = row
         return row
     }
+
+    // --- the captured image ---------------------------------------------------------------------
+
+    /**
+     * Puts the captured image beside the recognised text, or takes it away again.
+     *
+     * The row is rebuilt in place rather than the whole card: the text, the translation, the
+     * dictionary and which sections are folded are all still good, and rebuilding the card would
+     * throw them away — and start the lookups over.
+     */
+    fun setImageShown(shown: Boolean) {
+        val wanted = shown && image != null
+        if (wanted == imageShown) return
+        imageShown = wanted
+        rebuildTextRow()
+        refreshImageButton()
+    }
+
+    /**
+     * The recognised text, with the frame it came from beside it when the user wants to compare them.
+     *
+     * The picture is sized by the picture itself, up to a cap, and the text takes what is left: a
+     * manga column is tall and narrow, a whole screen is tall and wide, and a fixed half-and-half
+     * split would either squeeze the text for nothing or leave a hole where the picture is not.
+     */
+    private fun buildTextRow(): View {
+        // The editor is a field, so the row it is taken out of may still hold it, and a view that
+        // already has a parent cannot be added to another one.
+        (originalEditor.parent as? ViewGroup)?.removeView(originalEditor)
+
+        val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        val picture = image
+        if (imageShown && picture != null) {
+            row.addView(
+                ImageView(context).apply {
+                    setImageBitmap(picture)
+                    contentDescription = context.getString(R.string.result_image_description)
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    // Never enlarged, only shrunk to fit: a small crop shown at its own size beats the
+                    // same few pixels smeared across a third of the panel.
+                    adjustViewBounds = true
+                    maxWidth = dp(IMAGE_MAX_WIDTH_DP)
+                    maxHeight = dp(IMAGE_MAX_HEIGHT_DP)
+                    setPadding(0, dp(2), dp(8), dp(2))
+                },
+            )
+        }
+        row.addView(
+            originalEditor,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+        )
+        textRow = row
+        return row
+    }
+
+    private fun rebuildTextRow() {
+        val old = textRow ?: return
+        val index = card.indexOfChild(old)
+        if (index < 0) return
+        card.removeViewAt(index)
+        card.addView(
+            buildTextRow(),
+            index,
+            LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT),
+        )
+        applyFold()
+    }
+
+    /** The toggle reads as «on» while the picture is on screen, because that is what it toggles. */
+    private fun refreshImageButton() {
+        imageButton?.setBackground(roundedBackground(imageButtonBackground(), dp(12).toFloat()))
+    }
+
+    private fun imageButtonBackground(): Int =
+        if (imageShown) context.getColor(R.color.accent_dark) else ACTION_BUTTON_BACKGROUND
 
     // --- folding -------------------------------------------------------------------------------
 
@@ -816,5 +927,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         /** Folded sections point their chevron to the right; a folded panel points it up. */
         private const val FOLDED_ROTATION = -90f
         private const val PANEL_FOLD_ROTATION = 180f
+
+        /**
+         * How much of the panel the captured image may take. Wide enough for a manga column, short
+         * enough that the text beside it keeps the larger share of the width.
+         */
+        private const val IMAGE_MAX_WIDTH_DP = 120
+        private const val IMAGE_MAX_HEIGHT_DP = 200
     }
 }

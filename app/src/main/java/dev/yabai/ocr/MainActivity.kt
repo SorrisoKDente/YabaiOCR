@@ -177,6 +177,11 @@ class MainActivity : AppCompatActivity() {
 
         val upscale = findViewById<CheckBox>(R.id.checkUpscale).apply { isChecked = settings.upscaleSmall }
         upscale.setOnCheckedChangeListener { _, checked -> settings.upscaleSmall = checked }
+
+        // The same flag the panel's «Imagem» button writes: whoever turns it on in one place finds it
+        // on in the other.
+        val showImage = findViewById<CheckBox>(R.id.checkShowImage).apply { isChecked = settings.showImage }
+        showImage.setOnCheckedChangeListener { _, checked -> settings.showImage = checked }
     }
 
     private fun bindTranslationAndDictionaries() {

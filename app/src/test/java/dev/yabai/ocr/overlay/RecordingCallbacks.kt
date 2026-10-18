@@ -68,4 +68,8 @@ class RecordingCallbacks(private val asked: MutableList<String> = ArrayList()) :
     override fun onRepickRequested() {
         asked.add("repick")
     }
+
+    override fun onImageToggleRequested() {
+        asked.add("image")
+    }
 }

@@ -26,6 +26,9 @@ fun roundedBackground(color: Int, radiusDp: Float, strokeColor: Int? = null): Gr
  */
 const val ACTION_BUTTON_TAG = "yabai.actionButton"
 
+/** The fill of a plain button, as opposed to one that is currently «on» and reads as pressed. */
+const val ACTION_BUTTON_BACKGROUND = 0x22FFFFFF
+
 /**
  * Plain TextView styled as a button.
  *
@@ -35,7 +38,7 @@ const val ACTION_BUTTON_TAG = "yabai.actionButton"
 fun Context.actionButton(
     label: String,
     textColor: Int = Color.WHITE,
-    background: Int = 0x22FFFFFF,
+    background: Int = ACTION_BUTTON_BACKGROUND,
     onClick: (() -> Unit)? = null,
 ): TextView = TextView(this).apply {
     text = label
@@ -74,7 +77,7 @@ fun Context.textLabel(
 fun View.actionButton(
     label: String,
     textColor: Int = Color.WHITE,
-    background: Int = 0x22FFFFFF,
+    background: Int = ACTION_BUTTON_BACKGROUND,
     onClick: (() -> Unit)? = null,
 ): TextView = context.actionButton(label, textColor, background, onClick)
 

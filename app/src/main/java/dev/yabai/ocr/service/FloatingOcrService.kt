@@ -37,6 +37,7 @@ import dev.yabai.ocr.ocr.OcrOutcome
 import dev.yabai.ocr.overlay.OverlayController
 import dev.yabai.ocr.overlay.ResultOverlay
 import dev.yabai.ocr.translate.OfflineTranslator
+import dev.yabai.ocr.util.BlockImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -90,8 +91,29 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private var lastOutcome: OcrOutcome? = null
     private var lastForceOffline = false
 
-    /** One selectable piece of a whole-screen capture, placed on screen. */
-    private data class PendingBlock(val text: String, val rect: Rect, val lines: List<String>)
+    /**
+     * The frame the last result came from, kept only while that result is on screen so the image can
+     * be shown beside the text.
+     *
+     * Dropped — not recycled — when the panel closes: a recycled bitmap that a view still points at
+     * crashes on the next draw, and dropping the reference is all it takes for the collector to take
+     * a full screen's worth of pixels back.
+     */
+    private var lastCrop: Bitmap? = null
+
+    /**
+     * One selectable piece of a whole-screen capture.
+     *
+     * [rect] is where the box goes on screen, which is what the picker draws and hit-tests; [cropRect]
+     * is the same box in the pixels of the captured frame, which is what the panel shows as the image
+     * beside the text. Both come from the engine's own box, so neither is guessed from the other.
+     */
+    private data class PendingBlock(
+        val text: String,
+        val rect: Rect,
+        val cropRect: Rect,
+        val lines: List<String>,
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -138,6 +160,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         DictionaryRepository.get(this).release()
         translator?.close()
         translator = null
+        lastCrop = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
@@ -252,12 +275,21 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         val block = pendingBlocks.getOrNull(index) ?: return
         val outcome = lastOutcome ?: return
         overlays.hideTextPicker()
-        showResultFor(outcome, block.text, block.lines, canRepick = true)
+        // The image beside the text is the box the user picked, not the whole screen: at panel size a
+        // full page is a thumbnail, and the point of the image is checking one kanji.
+        val crop = lastCrop
+        showResultFor(
+            outcome,
+            block.text,
+            block.lines,
+            canRepick = true,
+            image = if (crop == null) null else BlockImage.from(crop, block.cropRect),
+        )
     }
 
     override fun onPickAllRequested() {
         val outcome = lastOutcome ?: return
-        showResultFor(outcome, outcome.text, outcome.lines, canRepick = pendingBlocks.isNotEmpty())
+        showResultFor(outcome, outcome.text, outcome.lines, canRepick = pendingBlocks.isNotEmpty(), image = lastCrop)
     }
 
     override fun onRepickRequested() {
@@ -265,7 +297,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         if (!overlays.showTextPicker(pickerRects())) {
             // The boxes are gone (the screen changed, or the service was restarted): fall back to the
             // whole capture, which is still in memory.
-            showResultFor(outcome, outcome.text, outcome.lines, canRepick = false)
+            showResultFor(outcome, outcome.text, outcome.lines, canRepick = false, image = lastCrop)
         }
     }
 
@@ -274,6 +306,18 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     override fun onResultDismissed() {
         analysisJob?.cancel()
         analysisJob = null
+        // The panel is gone, and with it the only reason to hold a full screen of pixels.
+        lastCrop = null
+    }
+
+    /**
+     * The user turned the captured image on or off from the panel. It is a setting rather than a
+     * per-panel choice — whoever wants the comparison wants it every time — so the panel that is
+     * open follows the flag the next one will be built from.
+     */
+    override fun onImageToggleRequested() {
+        settings.showImage = !settings.showImage
+        overlays.setResultImage(settings.showImage)
     }
 
     private fun pickerRects(): List<Rect> = pendingBlocks.map { it.rect }
@@ -318,6 +362,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 }
 
                 val crop = withContext(Dispatchers.Default) { cropToRegion(shot, region) }
+                // Kept for the panel's image, and replaced — dropping the reference to the previous
+                // one — on every capture.
+                lastCrop = crop
 
                 overlays.showResultLoading()
                 val outcome = dispatcher.recognize(crop, forceOffline)
@@ -339,7 +386,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
                 // Panel first, analysis after: the text is readable immediately and the dictionary
                 // and translation drop in when they are ready.
-                showResultFor(outcome, outcome.text, outcome.lines, canRepick = false)
+                showResultFor(outcome, outcome.text, outcome.lines, canRepick = false, image = crop)
             } catch (t: Throwable) {
                 Log.e(TAG, "capture pipeline failed", t)
                 showError(t.message ?: getString(R.string.result_failed))
@@ -359,8 +406,17 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      *
      * The clipboard is written here rather than at capture time so that, when the text comes from a
      * pick, what gets copied is the piece the user chose and not the whole screenshot.
+     *
+     * [image] is the frame the text came from, which is not always the whole crop: a picked box gets
+     * its own piece of it.
      */
-    private fun showResultFor(outcome: OcrOutcome, text: String, lines: List<String>, canRepick: Boolean) {
+    private fun showResultFor(
+        outcome: OcrOutcome,
+        text: String,
+        lines: List<String>,
+        canRepick: Boolean,
+        image: Bitmap?,
+    ) {
         if (settings.autoCopy && text.isNotBlank()) {
             copyToClipboard(text)
             toast(getString(R.string.result_copied))
@@ -373,6 +429,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             showLines = settings.showSegments,
             lines = lines,
             canRepick = canRepick,
+            image = image,
+            showImage = settings.showImage,
         )
         analyse(text)
     }
@@ -408,6 +466,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             PendingBlock(
                 text = block.text,
                 rect = onScreen,
+                cropRect = rect,
                 lines = block.lines,
             )
         }
