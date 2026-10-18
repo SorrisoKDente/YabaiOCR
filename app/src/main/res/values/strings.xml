@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">yabai OCR</string>
+
+    <string name="hero_title">yabai OCR</string>
+    <string name="hero_subtitle">Leia japonês em qualquer app. A bolha flutua por cima da tela, você toca, escolhe a área e o texto vai para a área de transferência.</string>
+
+    <string name="section_permissions">1. Permissões</string>
+    <string name="section_engine">2. Motor de reconhecimento</string>
+    <string name="section_behaviour">3. Comportamento</string>
+    <string name="section_start">4. Iniciar</string>
+
+    <string name="permission_overlay">Sobrepor outros apps</string>
+    <string name="permission_overlay_desc">Necessário para a bolha flutuante.</string>
+    <string name="permission_notifications">Notificações</string>
+    <string name="permission_notifications_desc">O sistema exige uma notificação enquanto a captura está ativa.</string>
+    <string name="permission_granted">Concedida</string>
+    <string name="permission_missing">Não concedida</string>
+    <string name="permission_grant">Conceder</string>
+
+    <string name="engine_auto">Automático — Lens com ML Kit de reserva</string>
+    <string name="engine_auto_desc">Usa o Google Lens (mais preciso) e cai para o ML Kit offline se não houver internet.</string>
+    <string name="engine_lens">Somente Google Lens</string>
+    <string name="engine_lens_desc">Precisão máxima, exige internet.</string>
+    <string name="engine_mlkit">Somente ML Kit (offline)</string>
+    <string name="engine_mlkit_desc">Funciona sem internet. Bom em texto impresso, perde em mangá/vertical.</string>
+
+    <string name="setting_auto_copy">Copiar automaticamente ao reconhecer</string>
+    <string name="setting_show_segments">Listar o texto linha por linha</string>
+    <string name="setting_upscale">Ampliar recortes pequenos (ajuda em letras miúdas)</string>
+
+    <string name="start_button">Iniciar OCR flutuante</string>
+    <string name="start_button_running">OCR flutuante ativo — toque para reabrir os ajustes</string>
+    <string name="stop_button">Parar OCR flutuante</string>
+
+    <string name="howto_title">Como usar</string>
+    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha «Tela inteira» ou «Selecionar área».\n• Arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto.</string>
+
+    <string name="overlay_full_screen">Tela inteira</string>
+    <string name="overlay_select_area">Selecionar área</string>
+    <string name="overlay_close_service">Encerrar</string>
+    <string name="overlay_settings">Ajustes</string>
+
+    <string name="region_hint">Arraste para marcar a área com o texto</string>
+    <string name="region_cancel">Cancelar</string>
+    <string name="region_full">Tela inteira</string>
+    <string name="region_confirm">Reconhecer</string>
+
+    <string name="result_title">Texto reconhecido</string>
+    <string name="result_copy">Copiar</string>
+    <string name="result_copy_close">Copiar e fechar</string>
+    <string name="result_retry_offline">Tentar offline</string>
+    <string name="result_close">Fechar</string>
+    <string name="result_empty">Nenhum texto encontrado.</string>
+    <string name="result_copied">Texto copiado</string>
+    <string name="result_failed">Não foi possível reconhecer o texto.</string>
+    <string name="result_fallback_note">Lens indisponível — resultado do ML Kit offline.</string>
+    <string name="result_seconds">%1$s · %2$d ms</string>
+
+    <string name="capture_failed">Falha ao capturar a tela. Tente novamente.</string>
+    <string name="capture_restart_needed">A tela girou e a captura precisa ser reiniciada. Toque em «Iniciar OCR flutuante» novamente.</string>
+    <string name="recognizing">Reconhecendo…</string>
+
+    <string name="notification_channel_name">Captura de tela ativa</string>
+    <string name="notification_channel_desc">Mostra quando o yabai OCR está capturando a tela.</string>
+    <string name="notification_title">yabai OCR ativo</string>
+    <string name="notification_text">Toque na bolha para ler o texto da tela.</string>
+    <string name="notification_stop">Parar</string>
+
+    <string name="need_overlay_permission">Conceda a permissão de sobreposição para continuar.</string>
+    <string name="need_notification_permission">Conceda a permissão de notificações para continuar.</string>
+    <string name="projection_denied">Captura de tela recusada.</string>
+
+    <string name="status_running">Ativo</string>
+    <string name="status_stopped">Parado</string>
+</resources>

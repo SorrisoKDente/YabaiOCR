@@ -1,0 +1,50 @@
+{
+  "language": "ja",
+  "segments": [
+    {
+      "text": "淀みなき拳で",
+      "box": {
+        "x": 584,
+        "y": 71,
+        "width": 69,
+        "height": 399
+      }
+    },
+    {
+      "text": "淀",
+      "box": {
+        "x": 53,
+        "y": 90,
+        "width": 129,
+        "height": 102
+      }
+    },
+    {
+      "text": "アニメ第3期第2クール2027年放送決定",
+      "box": {
+        "x": 175,
+        "y": 88,
+        "width": 46,
+        "height": 788
+      }
+    },
+    {
+      "text": "STORY by ONE & ART by YUSUKE MUR.",
+      "box": {
+        "x": 62,
+        "y": 882,
+        "width": 743,
+        "height": 43
+      }
+    },
+    {
+      "text": "29巻 きっとまいく!",
+      "box": {
+        "x": 60,
+        "y": 946,
+        "width": 649,
+        "height": 56
+      }
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+package dev.yabai.ocr.overlay
+
+import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.widget.LinearLayout
+import android.widget.TextView
+import dev.yabai.ocr.R
+import dev.yabai.ocr.util.dp
+
+/** Rounded solid background. */
+fun roundedBackground(color: Int, radiusDp: Float, strokeColor: Int? = null): GradientDrawable =
+    GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        setColor(color)
+        cornerRadius = radiusDp
+        if (strokeColor != null) setStroke(1, strokeColor)
+    }
+
+/**
+ * Plain TextView styled as a button.
+ *
+ * Deliberately not a MaterialButton: these views live in service-owned windows, and avoiding
+ * Material widgets here means the overlay can never blow up on theme mismatch.
+ */
+fun Context.actionButton(
+    label: String,
+    textColor: Int = Color.WHITE,
+    background: Int = 0x22FFFFFF,
+    onClick: (() -> Unit)? = null,
+): TextView = TextView(this).apply {
+    text = label
+    setTextColor(textColor)
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+    gravity = Gravity.CENTER
+    val h = dp(14)
+    val v = dp(10)
+    setPadding(h, v, h, v)
+    isClickable = true
+    isFocusable = true
+    // `setBackground` rather than the `background` property: the parameter of the same name wins
+    // name resolution inside this lambda, which would silently assign an Int to a Drawable slot.
+    setBackground(roundedBackground(background, dp(12).toFloat()))
+    if (onClick != null) setOnClickListener { onClick() }
+}
+
+/** A vertically stacked iconless row, used by the floating menu. */
+fun Context.menuRow(label: String, hint: String?, textColor: Int, onClick: () -> Unit): LinearLayout =
+    LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        isClickable = true
+        isFocusable = true
+        val h = dp(18)
+        setPadding(h, dp(13), h, dp(13))
+        val outValue = TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+        setBackgroundResource(outValue.resourceId)
+
+        addView(TextView(this@menuRow).apply {
+            text = label
+            setTextColor(textColor)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        })
+
+        if (hint != null) {
+            addView(TextView(this@menuRow).apply {
+                text = hint
+                setTextColor(context.getColor(R.color.text_secondary))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setPadding(0, dp(2), 0, 0)
+            })
+        }
+
+        setOnClickListener { onClick() }
+    }
+
+fun Context.hairLine(): android.view.View = android.view.View(this).apply {
+    layoutParams = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        dp(1),
+    )
+    setBackgroundColor(context.getColor(R.color.divider))
+}
+
+fun Context.textLabel(
+    content: CharSequence,
+    sizeSp: Float,
+    color: Int,
+    bold: Boolean = false,
+): TextView = TextView(this).apply {
+    text = content
+    setTextColor(color)
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+    if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+}
+
+/*
+ * View-shaped overloads for the factories above: the overlay views are `…Layout(context).apply { … }`
+ * bodies, where the receiver is a View and not a Context.
+ */
+
+fun View.actionButton(
+    label: String,
+    textColor: Int = Color.WHITE,
+    background: Int = 0x22FFFFFF,
+    onClick: (() -> Unit)? = null,
+): TextView = context.actionButton(label, textColor, background, onClick)
+
+fun View.menuRow(label: String, hint: String?, textColor: Int, onClick: () -> Unit): LinearLayout =
+    context.menuRow(label, hint, textColor, onClick)
+
+fun View.hairLine(): android.view.View = context.hairLine()
+
+fun View.textLabel(
+    content: CharSequence,
+    sizeSp: Float,
+    color: Int,
+    bold: Boolean = false,
+): TextView = context.textLabel(content, sizeSp, color, bold)
