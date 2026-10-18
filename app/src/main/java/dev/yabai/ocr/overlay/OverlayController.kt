@@ -2,15 +2,19 @@ package dev.yabai.ocr.overlay
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -54,7 +58,21 @@ class OverlayController(private val context: Context) {
     var callbacks: Callbacks? = null
 
     private val windowManager = context.getSystemService(WindowManager::class.java)
-    private val bubbleSize = dp(58)
+    internal val bubbleSize = dp(58)
+
+    /**
+     * The ✕ the bubble is dragged onto to close the service: its side, and how far it sits from the
+     * bottom of the screen.
+     */
+    private val closeTargetSize = dp(64)
+    private val closeTargetMargin = dp(40)
+
+    /** Side of one icon button in the action strip, and the gap between two of them. */
+    private val menuItemSize = dp(46)
+    private val menuItemGap = dp(2)
+
+    /** «Encerrar» keeps the red the text row it replaced used to have. */
+    private val menuStopColor = 0xFFFF6B6B.toInt()
 
     /** Local shorthand so the layout code below stays readable. */
     private fun dp(value: Number): Int = context.dp(value)
@@ -62,15 +80,12 @@ class OverlayController(private val context: Context) {
     private var bubbleView: View? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var menuView: View? = null
+    private var closeTargetView: ImageView? = null
+    private var closeTargetArmed = false
+    private var confirmView: View? = null
     private var regionView: RegionOverlay? = null
     private var resultView: ResultOverlay? = null
     private var pickerView: TextPickerOverlay? = null
-
-    /**
-     * Whether a whole-screen capture will offer the recognised boxes to pick from. Only used to word
-     * the menu hint honestly; the setting itself is read by the capture pipeline.
-     */
-    var picksText: () -> Boolean = { true }
 
     private var downRawX = 0f
     private var downRawY = 0f
@@ -100,11 +115,10 @@ class OverlayController(private val context: Context) {
         bubble.addView(icon, FrameLayout.LayoutParams(dp(58), dp(58), Gravity.CENTER))
         bubble.setOnTouchListener { view, event -> onBubbleTouch(view, event) }
 
-        val metrics = context.resources.displayMetrics
         val params = baseParams(bubbleSize, bubbleSize).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = metrics.widthPixels - bubbleSize - dp(6)
-            y = (metrics.heightPixels * 0.38f).roundToInt()
+            x = defaultBubbleX()
+            y = defaultBubbleY()
         }
 
         bubbleView = bubble
@@ -138,23 +152,36 @@ class OverlayController(private val context: Context) {
                 if (!dragging && (abs(dx) > dp(6) || abs(dy) > dp(6))) {
                     dragging = true
                     hideMenu()
+                    // The ✕ only comes up once the finger is really moving: a tap still opens the menu.
+                    showCloseTarget()
                 }
                 if (dragging) {
                     params.x = startX + dx.toInt()
                     params.y = startY + dy.toInt()
                     clampBubble(params)
                     updateWindow(view, params)
+                    armCloseTarget(isOverCloseTarget(params.x, params.y))
                 }
                 return true
             }
 
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            MotionEvent.ACTION_UP -> {
                 if (dragging) {
-                    snapToEdge(params)
-                    updateWindow(view, params)
+                    endDrag(params.x, params.y)
                 } else {
                     view.performClick()
                     toggleMenu()
+                }
+                dragging = false
+                return true
+            }
+
+            // The gesture was taken away (a new window, a system panel): put everything back without
+            // asking anything, because the user never let go.
+            MotionEvent.ACTION_CANCEL -> {
+                if (dragging) {
+                    hideCloseTarget()
+                    putBubbleOnEdge()
                 }
                 dragging = false
                 return true
@@ -185,78 +212,28 @@ class OverlayController(private val context: Context) {
     fun showMenu() {
         if (menuView != null || !canDrawOverlays()) return
 
+        // No dimming scrim any more: the strip belongs to the bubble, and the user is usually looking
+        // at the text underneath it. A tap anywhere else still closes the menu.
         val root = FrameLayout(context).apply {
-            setBackgroundColor(0x73000000)
             isClickable = true
             setOnClickListener { hideMenu() }
         }
 
-        val card = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            background = roundedBackground(context.getColor(R.color.panel_bg), dp(18).toFloat(), 0x22FFFFFF)
-            isClickable = true
-
-            addView(
-                context.menuRow(
-                    context.getString(R.string.overlay_full_screen),
-                    context.getString(
-                        if (picksText()) {
-                            R.string.overlay_full_screen_hint
-                        } else {
-                            R.string.overlay_full_screen_hint_direct
-                        },
-                    ),
-                    Color.WHITE,
-                ) {
-                    hideMenu()
-                    callbacks?.onFullScreenRequested()
-                },
-            )
-            addView(context.hairLine())
-            addView(
-                context.menuRow(
-                    context.getString(R.string.overlay_select_area),
-                    context.getString(R.string.overlay_select_area_hint),
-                    Color.WHITE,
-                ) {
-                    hideMenu()
-                    callbacks?.onRegionRequested()
-                },
-            )
-            addView(context.hairLine())
-            addView(
-                context.menuRow(
-                    context.getString(R.string.overlay_settings),
-                    null,
-                    context.getColor(R.color.text_secondary),
-                ) {
-                    hideMenu()
-                    callbacks?.onOpenSettingsRequested()
-                },
-            )
-            addView(context.hairLine())
-            addView(
-                context.menuRow(
-                    context.getString(R.string.overlay_close_service),
-                    null,
-                    0xFFFF6B6B.toInt(),
-                ) {
-                    hideMenu()
-                    callbacks?.onStopRequested()
-                },
-            )
-        }
-
+        val strip = buildMenuStrip()
+        val (x, y) = menuAnchor(
+            bubbleX = bubbleParams?.x ?: defaultBubbleX(),
+            bubbleY = bubbleParams?.y ?: defaultBubbleY(),
+            strip = strip,
+        )
         root.addView(
-            card,
+            strip,
             FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.START,
             ).apply {
-                marginStart = dp(12)
-                marginEnd = dp(12)
-                bottomMargin = dp(28)
+                leftMargin = x
+                topMargin = y
             },
         )
 
@@ -264,10 +241,298 @@ class OverlayController(private val context: Context) {
         addWindow(root, baseParams(MATCH_PARENT, MATCH_PARENT))
     }
 
+    /**
+     * The four actions as a row of icons. They live under the bubble instead of in a card at the
+     * bottom of the screen: they are the bubble's menu, and icons keep them off the text that is
+     * usually about to be captured.
+     *
+     * Each icon carries its wording in the content description, which is what an accessibility
+     * service reads out — there is no label on screen to read.
+     */
+    internal fun buildMenuStrip(): LinearLayout {
+        val strip = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = roundedBackground(context.getColor(R.color.panel_bg), dp(16).toFloat(), 0x22FFFFFF)
+            elevation = dp(8).toFloat()
+            val pad = dp(4)
+            setPadding(pad, pad, pad, pad)
+            // A tap on the strip's own padding is a tap on the menu, not a tap outside it.
+            isClickable = true
+        }
+
+        fun add(iconRes: Int, labelRes: Int, tint: Int = Color.WHITE, action: () -> Unit) {
+            val icon = menuIcon(iconRes, labelRes, tint) {
+                // Every action closes the menu, whether or not it opens something else.
+                hideMenu()
+                action()
+            }
+            icon.layoutParams = LinearLayout.LayoutParams(menuItemSize, menuItemSize).apply {
+                if (strip.childCount > 0) marginStart = menuItemGap
+            }
+            strip.addView(icon)
+        }
+
+        add(R.drawable.ic_menu_whole_screen, R.string.overlay_full_screen) { callbacks?.onFullScreenRequested() }
+        add(R.drawable.ic_menu_region, R.string.overlay_select_area) { callbacks?.onRegionRequested() }
+        add(R.drawable.ic_menu_settings, R.string.overlay_settings) { callbacks?.onOpenSettingsRequested() }
+        add(R.drawable.ic_menu_stop, R.string.overlay_close_service, menuStopColor) { callbacks?.onStopRequested() }
+        return strip
+    }
+
+    /** One square icon button of the action strip. */
+    private fun menuIcon(
+        iconRes: Int,
+        labelRes: Int,
+        tint: Int = Color.WHITE,
+        onClick: () -> Unit,
+    ): ImageView = ImageView(context).apply {
+        setImageResource(iconRes)
+        imageTintList = ColorStateList.valueOf(tint)
+        contentDescription = context.getString(labelRes)
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        val pad = (menuItemSize - dp(24)) / 2
+        setPadding(pad, pad, pad, pad)
+        isClickable = true
+        isFocusable = true
+        val ripple = TypedValue()
+        if (context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true)) {
+            setBackgroundResource(ripple.resourceId)
+        }
+        setOnClickListener { onClick() }
+    }
+
+    /**
+     * Where the action strip goes: centred under the bubble, pulled back on screen when the bubble
+     * sits near an edge, and moved above the bubble when there is no room below.
+     *
+     * The strip is measured here rather than described by a constant, so a fifth icon — or a wider
+     * one — cannot make the strip hang off the screen.
+     */
+    internal fun menuAnchor(bubbleX: Int, bubbleY: Int, strip: View): Pair<Int, Int> {
+        strip.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        val screen = context.resources.displayMetrics
+        val margin = dp(4)
+        val gap = dp(8)
+
+        val maxX = (screen.widthPixels - strip.measuredWidth - margin).coerceAtLeast(margin)
+        val x = (bubbleX + bubbleSize / 2 - strip.measuredWidth / 2).coerceIn(margin, maxX)
+
+        val below = bubbleY + bubbleSize + gap
+        val y = if (below + strip.measuredHeight <= screen.heightPixels - margin) {
+            below
+        } else {
+            (bubbleY - gap - strip.measuredHeight).coerceAtLeast(margin)
+        }
+        return x to y
+    }
+
+    private fun defaultBubbleX(): Int = context.resources.displayMetrics.widthPixels - bubbleSize - dp(6)
+
+    private fun defaultBubbleY(): Int = (context.resources.displayMetrics.heightPixels * 0.38f).roundToInt()
+
     fun hideMenu() {
         val view = menuView ?: return
         removeWindow(view)
         menuView = null
+    }
+
+    // --- drag to close -------------------------------------------------------------------------
+
+    /**
+     * Where the ✕ sits: centred, just above the bottom of the screen.
+     *
+     * In screen coordinates, the same space [bubbleParams] uses.
+     */
+    internal fun closeTargetRect(): Rect {
+        val screen = context.resources.displayMetrics
+        val left = (screen.widthPixels - closeTargetSize) / 2
+        val top = screen.heightPixels - closeTargetSize - closeTargetMargin
+        return Rect(left, top, left + closeTargetSize, top + closeTargetSize)
+    }
+
+    /**
+     * Whether a bubble whose top-left corner is at ([bubbleX], [bubbleY]) counts as dropped on the ✕.
+     *
+     * The test is the circle the user sees: the bubble *centre* has to land inside the target, so the
+     * highlight that comes up while dragging cannot lie about whether letting go will ask to close.
+     * Judging by the centre also makes the drop forgiving — half the bubble can hang outside the ✕.
+     */
+    internal fun isOverCloseTarget(bubbleX: Int, bubbleY: Int): Boolean {
+        val target = closeTargetRect()
+        val dx = bubbleX + bubbleSize / 2f - target.exactCenterX()
+        val dy = bubbleY + bubbleSize / 2f - target.exactCenterY()
+        val radius = closeTargetSize / 2f
+        return dx * dx + dy * dy <= radius * radius
+    }
+
+    internal fun isCloseTargetVisible(): Boolean = closeTargetView != null
+
+    internal fun isCloseConfirmVisible(): Boolean = confirmView != null
+
+    private fun showCloseTarget() {
+        if (closeTargetView != null) return
+        val target = buildCloseTarget()
+        val rect = closeTargetRect()
+        closeTargetView = target
+        closeTargetArmed = false
+        addWindow(
+            target,
+            baseParams(closeTargetSize, closeTargetSize).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = rect.left
+                y = rect.top
+                // Passive: the drag in progress belongs to the bubble, and the ✕ never takes a tap.
+                flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            },
+        )
+    }
+
+    private fun hideCloseTarget() {
+        val target = closeTargetView ?: return
+        removeWindow(target)
+        closeTargetView = null
+        closeTargetArmed = false
+    }
+
+    /** The ✕ as it first appears: a red cross on a dark disc, dark enough to read over any app. */
+    internal fun buildCloseTarget(): ImageView = ImageView(context).apply {
+        setImageResource(R.drawable.ic_menu_stop)
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        val pad = (closeTargetSize - dp(28)) / 2
+        setPadding(pad, pad, pad, pad)
+        background = closeTargetBackground(armed = false)
+        imageTintList = ColorStateList.valueOf(menuStopColor)
+        contentDescription = context.getString(R.string.overlay_drop_to_close)
+    }
+
+    /**
+     * Turns the ✕ solid red the moment the bubble is on it, so that letting go is a decision the user
+     * sees coming rather than an accident they understand afterwards.
+     */
+    private fun armCloseTarget(armed: Boolean) {
+        val target = closeTargetView ?: return
+        if (armed == closeTargetArmed) return
+        closeTargetArmed = armed
+        target.background = closeTargetBackground(armed)
+        target.imageTintList = ColorStateList.valueOf(if (armed) Color.WHITE else menuStopColor)
+    }
+
+    private fun closeTargetBackground(armed: Boolean): GradientDrawable = if (armed) {
+        roundedBackground(0xFFE23B3B.toInt(), closeTargetSize / 2f)
+    } else {
+        roundedBackground(0xCC1B1D24.toInt(), closeTargetSize / 2f, 0x55FFFFFF)
+    }
+
+    /**
+     * The end of a drag: the bubble was let go with its corner at ([bubbleX], [bubbleY]).
+     *
+     * A drop on the ✕ is only a *question*. Closing a floating reader is not something to do by
+     * accident, so the service keeps running until the user answers. Anywhere else the bubble goes
+     * back to the nearest edge, which is where it lives between uses.
+     */
+    internal fun endDrag(bubbleX: Int, bubbleY: Int) {
+        val overTarget = isOverCloseTarget(bubbleX, bubbleY)
+        hideCloseTarget()
+        if (overTarget) {
+            showCloseConfirm()
+            return
+        }
+        val params = bubbleParams ?: return
+        params.x = bubbleX
+        params.y = bubbleY
+        snapToEdge(params)
+        bubbleView?.let { updateWindow(it, params) }
+    }
+
+    /**
+     * «Encerrar o OCR flutuante?» — the last step, in a card that stands exactly where the ✕ was, so
+     * the answer is under the finger that just let go.
+     */
+    private fun showCloseConfirm() {
+        if (confirmView != null) return
+        val root = FrameLayout(context).apply {
+            // A tap outside is a «não»: the question goes away and the bubble goes back to its edge.
+            isClickable = true
+            setOnClickListener {
+                hideCloseConfirm()
+                putBubbleOnEdge()
+            }
+        }
+        root.addView(
+            buildCloseConfirm(),
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+            ).apply {
+                marginStart = dp(12)
+                marginEnd = dp(12)
+                bottomMargin = closeTargetMargin + closeTargetSize + dp(10)
+            },
+        )
+        confirmView = root
+        addWindow(root, baseParams(MATCH_PARENT, MATCH_PARENT))
+    }
+
+    fun hideCloseConfirm() {
+        val view = confirmView ?: return
+        removeWindow(view)
+        confirmView = null
+    }
+
+    /** The question plus its two answers. «Encerrar» keeps the red of the menu's ✕ as text only. */
+    internal fun buildCloseConfirm(): LinearLayout {
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(context.getColor(R.color.panel_bg), dp(16).toFloat(), 0x22FFFFFF)
+            elevation = dp(8).toFloat()
+            setPadding(dp(16), dp(14), dp(16), dp(8))
+            isClickable = true
+        }
+        card.addView(
+            context.textLabel(context.getString(R.string.overlay_close_confirm), 14f, Color.WHITE),
+        )
+
+        val answers = FlowLayout(context)
+        answers.setPadding(0, dp(10), 0, 0)
+        answers.addView(
+            context.actionButton(context.getString(R.string.region_cancel)) {
+                hideCloseConfirm()
+                putBubbleOnEdge()
+            },
+            answerParams(start = 0),
+        )
+        answers.addView(
+            // Red as text, not as a filled button: the point of asking is that closing should not be
+            // the easy answer. A loud red button would sell exactly the opposite.
+            context.actionButton(
+                context.getString(R.string.overlay_close_service),
+                textColor = context.getColor(R.color.warn),
+            ) {
+                hideCloseConfirm()
+                callbacks?.onStopRequested()
+            },
+            answerParams(start = dp(6)),
+        )
+        card.addView(answers)
+        return card
+    }
+
+    /** Room between the two answers, the same 6dp the result panel puts between its buttons. */
+    private fun answerParams(start: Int): ViewGroup.MarginLayoutParams =
+        ViewGroup.MarginLayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { marginStart = start }
+
+    /** Puts the bubble back on the edge it belongs to: the answer to a drag that closed nothing. */
+    private fun putBubbleOnEdge() {
+        val params = bubbleParams ?: return
+        snapToEdge(params)
+        bubbleView?.let { updateWindow(it, params) }
     }
 
     // --- region selector -----------------------------------------------------------------------
@@ -432,6 +697,8 @@ class OverlayController(private val context: Context) {
      */
     fun hideAllForCapture() {
         hideMenu()
+        hideCloseTarget()
+        hideCloseConfirm()
         hideRegionSelector()
         hideTextPicker()
         hideResult()
@@ -444,6 +711,8 @@ class OverlayController(private val context: Context) {
 
     fun destroy() {
         hideMenu()
+        hideCloseTarget()
+        hideCloseConfirm()
         hideRegionSelector()
         hideTextPicker()
         hideResult()

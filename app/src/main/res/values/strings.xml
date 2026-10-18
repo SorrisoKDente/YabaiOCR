@@ -35,15 +35,14 @@
     <string name="stop_button">Parar OCR flutuante</string>
 
     <string name="howto_title">Como usar</string>
-    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha «Tela inteira» ou «Selecionar área».\n• Em «Tela inteira», as caixas marcam cada trecho: toque em um deles para copiar/traduzir só aquilo, ou em «Texto todo».\n• Em «Selecionar área», arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto.</string>
+    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha um dos ícones que aparecem abaixo dela: «Tela inteira», «Selecionar área», «Ajustes» ou «Encerrar».\n• Em «Tela inteira», as caixas marcam cada trecho: toque em um deles para copiar/traduzir só aquilo, ou em «Texto todo».\n• Em «Selecionar área», arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto e gruda na borda mais próxima.\n• Para desligar, arraste a bolha até o ✕ no centro de baixo e confirme.</string>
 
     <string name="overlay_full_screen">Tela inteira</string>
-    <string name="overlay_full_screen_hint">Mostra caixas na tela para você escolher o trecho</string>
-    <string name="overlay_full_screen_hint_direct">Reconhece todo o texto da tela de uma vez</string>
     <string name="overlay_select_area">Selecionar área</string>
-    <string name="overlay_select_area_hint">Arraste para marcar só o texto que interessa</string>
     <string name="overlay_close_service">Encerrar</string>
     <string name="overlay_settings">Ajustes</string>
+    <string name="overlay_drop_to_close">Solte aqui para encerrar o OCR flutuante</string>
+    <string name="overlay_close_confirm">Encerrar o OCR flutuante?</string>
 
     <string name="region_hint">Arraste para marcar a área com o texto</string>
     <string name="region_cancel">Cancelar</string>
@@ -61,11 +60,10 @@
     <string name="result_failed">Não foi possível reconhecer o texto.</string>
     <string name="result_note_fallback">Lens indisponível — resultado do ML Kit offline.</string>
     <string name="result_meta_ms">%1$d ms</string>
-    <string name="result_original_label">Texto reconhecido (toque para corrigir)</string>
+    <string name="result_original_label">Texto reconhecido (toque para corrigir; a análise se atualiza)</string>
     <string name="result_original_hint">Texto reconhecido</string>
     <string name="result_copy_original">Copiar original</string>
     <string name="result_copy_translation">Copiar tradução</string>
-    <string name="result_analyse">Analisar</string>
     <string name="result_repick">◀ Trechos</string>
     <string name="result_translation_label">Tradução</string>
     <string name="result_dictionary_label">Dicionário</string>

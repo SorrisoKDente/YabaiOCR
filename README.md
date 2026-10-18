@@ -37,10 +37,12 @@ para ~52 MB.
 2. (Opcional) Conceda **Notificações** — o Android exige uma notificação enquanto a captura está ativa.
 3. Toque em **Iniciar OCR flutuante** e aceite o aviso de captura de tela do sistema.
 4. Abra o app onde está o texto (mangá, jogo, site…).
-5. Toque na bolha e escolha:
-   - **Tela inteira** — reconhece tudo que está na tela e **desenha uma caixa sobre cada trecho**
-     encontrado;
-   - **Selecionar área** — arraste para marcar a região e toque em **Reconhecer**.
+5. Toque na bolha: os quatro ícones do menu aparecem **numa faixa logo abaixo dela**.
+   - **Tela inteira** (cantos de tela) — reconhece tudo que está na tela e **desenha uma caixa sobre
+     cada trecho** encontrado;
+   - **Selecionar área** (marcas de corte) — arraste para marcar a região e toque em **Reconhecer**.
+   - **Ajustes** (controles) e **Encerrar** (✕ vermelho) completam a faixa; os nomes aparecem na
+     descrição de cada ícone, para leitores de tela.
 6. Na tela inteira, **toque no trecho** que interessa: só ele vai para o painel (e para a área de
    transferência). **Texto todo** manda a tela inteira, **Cancelar** desfaz. Quando o painel está
    aberto, **◀ Trechos** traz as caixas de volta sem gastar outra consulta ao Google.
@@ -50,9 +52,14 @@ para ~52 MB.
 Detalhes úteis:
 
 - A bolha pode ser **arrastada** para qualquer canto e "gruda" na borda mais próxima.
-- Toque na bolha **enquanto o painel de resultado está aberto** para abrir o menu, ou toque fora do
-  painel para fechá-lo.
-- No menu da bolha, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.
+- Para **encerrar**, arraste a bolha até o ✕ que aparece no centro de baixo: ele fica vermelho quando
+  a bolha está em cima e, ao soltar, o app pergunta antes de desligar. Soltar em qualquer outro lugar
+  devolve a bolha para a borda mais próxima.
+- Toque na bolha **enquanto o painel de resultado está aberto** para abrir os ícones, ou toque em
+  qualquer outro lugar da tela para fechá-los.
+- A faixa de ícones fica centrada sob a bolha; perto da borda ela encosta na tela, e quando não há
+  espaço abaixo ela aparece **em cima** da bolha.
+- Na faixa, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.
 - Toque longo no texto seleciona, como em qualquer TextView.
 - Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
   painel.
@@ -72,8 +79,9 @@ enquanto você lê:
 ### O texto é editável
 
 OCR erra kanji, e quando erra você normalmente sabe qual era. O texto reconhecido é um campo de
-**edição**: corrija à mão e toque em **Analisar** para refazer a consulta ao dicionário e a tradução
-com o texto corrigido. Não é preciso capturar a tela de novo.
+**edição**: corrija à mão e **0,8 s depois da última tecla** a consulta ao dicionário e a tradução são
+refeitas sozinhas, com o texto corrigido. Não é preciso capturar a tela de novo — e as seções mostram
+«Traduzindo…»/«Consultando…» enquanto trabalham, para não parecer que nada aconteceu.
 
 ### Dicionários
 
@@ -210,7 +218,11 @@ app/    o app Android
   translate/OfflineTranslator.kt  ML Kit tradutor offline
   overlay/…                 bolha, menu, seletor de área, caixas para escolher o trecho e painel de
                             resultado (Views puras)
+  overlay/FlowLayout.kt     linha de botões que quebra em vez de espremer (painel de resultado)
+  overlay/ResultOverlay.kt  o painel; o teto do scroller é medido, não um número fixo
   service/FloatingOcrService.kt     o serviço que costura tudo
+
+  app/src/test/…            testes de layout das telas, com Robolectric (sem aparelho)
 ```
 
 Notas de implementação que valem saber antes de mexer:
@@ -260,6 +272,13 @@ Existe um teste que fala com o endpoint de verdade, desligado por padrão:
 
 ```powershell
 gradle :core:test -Plive=1
+```
+
+As telas do `app` também têm testes, que **não precisam de aparelho**: o Robolectric monta o painel, mede
+no tamanho de uma tela de celular e confere que nada sai cortado nem empurrado para fora.
+
+```powershell
+gradle :app:testDebugUnitTest
 ```
 
 Para reduzir o tamanho do APK, `app/build.gradle.kts` limita as ABIs a `arm64-v8a` (x86 só serve para

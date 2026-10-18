@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Four corner brackets: the whole screen, told in the least ink possible. -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M3,10 L3,3 L10,3 M14,3 L21,3 L21,10 M21,14 L21,21 L14,21 M10,21 L3,21 L3,14"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+</vector>

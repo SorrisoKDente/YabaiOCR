@@ -2,6 +2,8 @@ package dev.yabai.ocr.overlay
 
 import android.content.Context
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -9,6 +11,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
+import android.view.View.MeasureSpec
+import android.view.ViewGroup.MarginLayoutParams
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -104,14 +108,38 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         if (text.isNullOrBlank()) return@actionButton
         callbacks?.onCopyTranslation(text)
     }
-    private val btAnalyse = context.actionButton(context.getString(R.string.result_analyse)) {
-        callbacks?.onAnalyse(originalEditor.text.toString())
-    }
 
     private var translationText: String? = null
+
+    /**
+     * The text the sections on screen describe. Kept so that an edit which ends where it started does
+     * not buy a second, identical lookup.
+     */
     private var lastAnalysedText: String = ""
+
     private var showLines: Boolean = false
     private var segmentLines: List<String> = emptyList()
+
+    private val analyseHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Re-runs dictionary and translation once the user stops editing.
+     *
+     * A corrected kanji is only useful if it gets looked up again, and the panel is the only part of
+     * the app that knows when typing stopped. The delay keeps a sentence from being analysed on every
+     * keystroke; the comparison keeps an edit that ends where it began from buying the same answer
+     * twice.
+     */
+    private val analyseSoon = Runnable {
+        val text = originalEditor.text.toString()
+        if (text.trim() != lastAnalysedText.trim()) {
+            lastAnalysedText = text
+            callbacks?.onAnalyse(text)
+        }
+    }
+
+    /** The scrolling middle section of the current card, excluded from the chrome measurement. */
+    private var scroller: MaxHeightScrollView? = null
 
     init {
         addView(
@@ -138,15 +166,20 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
             override fun afterTextChanged(s: Editable?) {
-                btAnalyse.setBackground(
-                    roundedBackground(
-                        if (s?.toString()?.trim() != lastAnalysedText.trim()) context.getColor(R.color.accent)
-                        else 0x22FFFFFF,
-                        dp(12).toFloat(),
-                    ),
-                )
+                // Everything on screen was derived from the old text, so it is out of date now. Wait
+                // for a pause before asking again: a lookup per keystroke would thrash both the
+                // dictionary and the on-device translator.
+                analyseHandler.removeCallbacks(analyseSoon)
+                analyseHandler.postDelayed(analyseSoon, ANALYSE_DELAY_MS)
             }
         })
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        // The panel is taken out of the window whenever it goes away, so this is also the dismissal
+        // path: nothing should be looked up for a panel the user has already closed.
+        analyseHandler.removeCallbacks(analyseSoon)
     }
 
     // --- entry points --------------------------------------------------------------------------
@@ -210,30 +243,30 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT),
         )
 
-        if (showLines && segmentLines.isNotEmpty()) {
-            card.addView(
-                textLabel(segmentLines.joinToString("\n"), 12f, context.getColor(R.color.text_secondary))
-                    .apply { setPadding(dp(2), dp(6), dp(2), 0) },
-            )
-        }
 
         translationSection.removeAllViews()
         wordsSection.removeAllViews()
 
-        val scroller = MaxHeightScrollView(context, maxContentHeight()).apply {
+        val scrolling = MaxHeightScrollView(context, ::freeHeightForScroller).apply {
             addView(
                 LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
+                    if (showLines && segmentLines.isNotEmpty()) {
+                        addView(
+                            textLabel(segmentLines.joinToString("\n"), 12f, context.getColor(R.color.text_secondary))
+                                .apply { setPadding(dp(2), dp(6), dp(2), 0) },
+                        )
+                    }
                     addView(translationSection)
                     addView(wordsSection)
                 },
             )
         }
-        card.addView(scroller, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        scroller = scrolling
+        card.addView(scrolling, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 
-        val actions = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
+        val actions = FlowLayout(context).apply {
+            alignEnd = true
             setPadding(0, dp(8), 0, 0)
         }
         if (canRepick) {
@@ -245,9 +278,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 ) { callbacks?.onRepick() },
                 wrapWithMargin(start = 0),
             )
-            actions.addView(btAnalyse, wrapWithMargin())
-        } else {
-            actions.addView(btAnalyse, wrapWithMargin(start = 0))
         }
         if (offlineAvailable) {
             actions.addView(
@@ -261,17 +291,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         )
         card.addView(actions)
 
-        val copies = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
+        val copies = FlowLayout(context).apply {
+            alignEnd = true
             setPadding(0, dp(6), 0, 0)
         }
         copies.addView(btCopyOriginal, wrapWithMargin(start = 0))
         btCopyTranslation.visibility = View.GONE
         copies.addView(btCopyTranslation, wrapWithMargin())
         card.addView(copies)
-
-        btAnalyse.setBackground(roundedBackground(0x22FFFFFF, dp(12).toFloat()))
     }
 
     fun showError(message: String, offlineAvailable: Boolean) {
@@ -281,18 +308,16 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             textLabel(message, 16f, context.getColor(R.color.text_primary))
                 .apply { setPadding(dp(2), dp(6), dp(2), dp(12)) },
         )
-        val buttons = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
-        }
+        val buttons = FlowLayout(context).apply { alignEnd = true }
         if (offlineAvailable) {
             buttons.addView(
                 context.actionButton(context.getString(R.string.result_retry_offline)) { callbacks?.onRetryOffline() },
+                wrapWithMargin(start = 0),
             )
         }
         buttons.addView(
             context.actionButton(context.getString(R.string.result_close)) { callbacks?.onDismiss() },
-            wrapWithMargin(),
+            wrapWithMargin(if (offlineAvailable) dp(6) else 0),
         )
         card.addView(buttons)
     }
@@ -467,25 +492,46 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             setPadding(dp(2), dp(6), dp(2), 0)
         }
 
-    private fun wrapWithMargin(start: Int = dp(6)): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
+    private fun wrapWithMargin(start: Int = dp(6)): MarginLayoutParams =
+        MarginLayoutParams(
+            LayoutParams.WRAP_CONTENT,
+            LayoutParams.WRAP_CONTENT,
         ).apply { marginStart = start }
 
     /**
-     * How tall the scrolling middle section may get.
+     * How tall the scrolling middle section may get: whatever the screen has left once the parts of
+     * the card that cannot scroll have taken their share.
      *
-     * The card itself does not scroll: only the dictionary and translation sections do. So the cap
-     * has to leave room for everything that is outside the scroller — the header, the notes, the
-     * edited text and the two button rows — or the copy buttons would end up past the bottom of the
-     * window with no way to reach them.
+     * This used to be a constant guess (`FIXED_CHROME_DP`) at the height of the header, the editor
+     * and the two button rows. A guess goes stale the moment anything about the card changes: a long
+     * OCR result makes the editor taller, and a narrow screen makes the button row wrap onto a second
+     * line. The symptom is always the same -- the copy buttons end up past the bottom of the screen,
+     * where nothing can reach them. Measuring the neighbours costs one extra pass and cannot go
+     * stale. [width] is the width the scroller itself was handed, which is the card's inner width.
      */
-    private fun maxContentHeight(): Int {
+    private fun freeHeightForScroller(width: Int): Int {
         val available = context.resources.displayMetrics.heightPixels -
             systemBarHeight("status_bar_height", fallbackDp = 24) -
-            systemBarHeight("navigation_bar_height", fallbackDp = 48)
-        return (available - dp(FIXED_CHROME_DP)).coerceAtLeast(dp(96))
+            systemBarHeight("navigation_bar_height", fallbackDp = 48) -
+            dp(CARD_TOP_MARGIN_DP)
+
+        var chrome = card.paddingTop + card.paddingBottom
+        for (index in 0 until card.childCount) {
+            val child = card.getChildAt(index)
+            // Skipped: the scroller, whose budget this is, and anything the user cannot see.
+            if (child === scroller || child.visibility != View.VISIBLE) continue
+            val params = child.layoutParams as? MarginLayoutParams
+            child.measure(
+                MeasureSpec.makeMeasureSpec(
+                    width,
+                    if (params?.width == LayoutParams.MATCH_PARENT) MeasureSpec.EXACTLY else MeasureSpec.AT_MOST,
+                ),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+            )
+            chrome += child.measuredHeight + (params?.topMargin ?: 0) + (params?.bottomMargin ?: 0)
+        }
+
+        return (available - chrome).coerceAtLeast(dp(MIN_CONTENT_DP))
     }
 
     private fun systemBarHeight(name: String, fallbackDp: Int): Int {
@@ -493,10 +539,20 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         return if (id > 0) context.resources.getDimensionPixelSize(id) else dp(fallbackDp)
     }
 
-    private class MaxHeightScrollView(context: Context, private val maxHeight: Int) : ScrollView(context) {
+    /**
+     * A [ScrollView] that takes at most `cap` pixels of height, asked afresh on every measure pass.
+     *
+     * The cap has to be a function rather than a number: how much room is left for the scrolling
+     * section depends on how tall the parts that cannot scroll turned out to be, and those are only
+     * known once they have been measured, which happens while this view is being measured.
+     */
+    private class MaxHeightScrollView(
+        context: Context,
+        private val cap: (width: Int) -> Int,
+    ) : ScrollView(context) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            val cap = MeasureSpec.makeMeasureSpec(maxHeight, MeasureSpec.AT_MOST)
-            super.onMeasure(widthMeasureSpec, cap)
+            val limit = MeasureSpec.makeMeasureSpec(cap(MeasureSpec.getSize(widthMeasureSpec)), MeasureSpec.AT_MOST)
+            super.onMeasure(widthMeasureSpec, limit)
         }
     }
 
@@ -505,12 +561,18 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         private const val MAX_WORDS = 60
         private const val MAX_DEFINITION_CHARS = 400
 
+        /** The card is inset from the top of its window; the height budget has to account for it. */
+        private const val CARD_TOP_MARGIN_DP = 6
+
+        /** Never squeeze the scrolling section to nothing: a couple of lines always stay visible. */
+        private const val MIN_CONTENT_DP = 96
+
         /**
-         * Worst-case height of everything below and above the scroller in the result card, plus the
-         * card's own margins: header, optional notes, section label, an eight-line editor, the action
-         * row and the copy row.
+         * How long the panel waits after the last keystroke before looking the corrected text up
+         * again. Long enough that typing a sentence does not start a lookup per character, short
+         * enough that it feels like a reaction to the edit.
          */
-        private const val FIXED_CHROME_DP = 260
+        private const val ANALYSE_DELAY_MS = 800L
 
         /**
          * The rule table names inflections in English ("polite past"). Naming them in the language

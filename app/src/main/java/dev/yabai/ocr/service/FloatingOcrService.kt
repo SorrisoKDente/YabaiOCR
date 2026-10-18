@@ -100,7 +100,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         dispatcher = OcrDispatcher(settings, UsageTracker(this))
         overlays = OverlayController(this).apply {
             callbacks = this@FloatingOcrService
-            picksText = { settings.pickText }
         }
     }
 

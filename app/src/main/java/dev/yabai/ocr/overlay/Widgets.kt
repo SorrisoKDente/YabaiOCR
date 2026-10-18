@@ -6,9 +6,7 @@ import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
-import android.widget.LinearLayout
 import android.widget.TextView
-import dev.yabai.ocr.R
 import dev.yabai.ocr.util.dp
 
 /** Rounded solid background. */
@@ -19,6 +17,14 @@ fun roundedBackground(color: Int, radiusDp: Float, strokeColor: Int? = null): Gr
         cornerRadius = radiusDp
         if (strokeColor != null) setStroke(1, strokeColor)
     }
+
+/**
+ * Tag carried by every button built by [actionButton].
+ *
+ * The panels are built in code, so a layout test has no ids to look up. Tagging the buttons at the
+ * one place they are made is cheaper — and less brittle — than guessing from their styling.
+ */
+const val ACTION_BUTTON_TAG = "yabai.actionButton"
 
 /**
  * Plain TextView styled as a button.
@@ -41,48 +47,11 @@ fun Context.actionButton(
     setPadding(h, v, h, v)
     isClickable = true
     isFocusable = true
+    tag = ACTION_BUTTON_TAG
     // `setBackground` rather than the `background` property: the parameter of the same name wins
     // name resolution inside this lambda, which would silently assign an Int to a Drawable slot.
     setBackground(roundedBackground(background, dp(12).toFloat()))
     if (onClick != null) setOnClickListener { onClick() }
-}
-
-/** A vertically stacked iconless row, used by the floating menu. */
-fun Context.menuRow(label: String, hint: String?, textColor: Int, onClick: () -> Unit): LinearLayout =
-    LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        isClickable = true
-        isFocusable = true
-        val h = dp(18)
-        setPadding(h, dp(13), h, dp(13))
-        val outValue = TypedValue()
-        theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
-        setBackgroundResource(outValue.resourceId)
-
-        addView(TextView(this@menuRow).apply {
-            text = label
-            setTextColor(textColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-        })
-
-        if (hint != null) {
-            addView(TextView(this@menuRow).apply {
-                text = hint
-                setTextColor(context.getColor(R.color.text_secondary))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setPadding(0, dp(2), 0, 0)
-            })
-        }
-
-        setOnClickListener { onClick() }
-    }
-
-fun Context.hairLine(): android.view.View = android.view.View(this).apply {
-    layoutParams = LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT,
-        dp(1),
-    )
-    setBackgroundColor(context.getColor(R.color.divider))
 }
 
 fun Context.textLabel(
@@ -108,11 +77,6 @@ fun View.actionButton(
     background: Int = 0x22FFFFFF,
     onClick: (() -> Unit)? = null,
 ): TextView = context.actionButton(label, textColor, background, onClick)
-
-fun View.menuRow(label: String, hint: String?, textColor: Int, onClick: () -> Unit): LinearLayout =
-    context.menuRow(label, hint, textColor, onClick)
-
-fun View.hairLine(): android.view.View = context.hairLine()
 
 fun View.textLabel(
     content: CharSequence,

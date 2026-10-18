@@ -56,6 +56,12 @@ android {
         viewBinding = false
     }
 
+    testOptions {
+        // The overlay layouts are built in code and measured in Robolectric tests, which need the
+        // real resources (strings, colours, themes) to resolve.
+        unitTests.isIncludeAndroidResources = true
+    }
+
     packaging {
         resources {
             excludes += setOf(
@@ -94,4 +100,9 @@ dependencies {
     implementation(libs.mlkit.translate)
 
     implementation(libs.okhttp)
+
+    // Runs the overlay views on the JVM: the panels are built in code, so the only way to check a
+    // layout without a device is to measure it here.
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }
