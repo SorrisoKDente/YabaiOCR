@@ -253,6 +253,13 @@
                 android:textColor="@color/text_primary" />
 
             <CheckBox
+                android:id="@+id/checkPickText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_pick_text"
+                android:textColor="@color/text_primary" />
+
+            <CheckBox
                 android:id="@+id/checkUpscale"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -286,7 +293,93 @@
             android:text="@string/stop_button"
             android:visibility="gone" />
 
-        <!-- 5. Usage -->
+        <!-- 5. Translation and dictionaries -->
+        <TextView
+            style="@style/SectionHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="@string/section_translation" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_panel"
+            android:orientation="vertical"
+            android:padding="10dp">
+
+            <CheckBox
+                android:id="@+id/checkDictionary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_dictionary"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/dictionarySummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="34dp"
+                android:text="@string/dictionary_summary_none"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnManageDictionaries"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/dictionary_manage_button" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="10dp"
+                android:background="@color/divider" />
+
+            <CheckBox
+                android:id="@+id/checkTranslate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/setting_translate"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="34dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/setting_translate_target"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <RadioGroup
+                android:id="@+id/translateTargetGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="24dp"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:id="@+id/translatePt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/translate_target_pt"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/translateEn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:text="@string/translate_target_en"
+                    android:textColor="@color/text_primary" />
+            </RadioGroup>
+        </LinearLayout>
+
+        <!-- 6. Usage -->
         <TextView
             style="@style/SectionHeader"
             android:layout_width="wrap_content"

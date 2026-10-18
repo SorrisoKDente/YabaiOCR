@@ -16,9 +16,10 @@ android {
 
         ndk {
             // The bundled ML Kit model ships native code for four ABIs and that is most of the
-            // APK. Phones are ARM; x86/x86_64 only matter for emulators, so drop them.
-            // Remove this block if you need to run on an x86 emulator.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            // APK. Phones are ARM, x86/x86_64 only matter for emulators, and the 32-bit ARM slice
+            // is only needed for phones older than 2016: keeping just arm64-v8a removes about
+            // 18 MB. Add "armeabi-v7a" back if you need to install on a 32-bit device.
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -88,4 +89,9 @@ dependencies {
 
     // On-device Japanese OCR: bundled model, works with no network and no Play Services.
     implementation(libs.mlkit.text.recognition.japanese)
+
+    // On-device translation once the language model has been fetched (offline from then on).
+    implementation(libs.mlkit.translate)
+
+    implementation(libs.okhttp)
 }

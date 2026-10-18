@@ -35,6 +35,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".DictionaryActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:exported="false"
+            android:label="@string/dictionary_title"
+            android:parentActivityName=".MainActivity" />
+
         <service
             android:name=".service.FloatingOcrService"
             android:exported="false"

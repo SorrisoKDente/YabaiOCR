@@ -41,8 +41,25 @@ class MlKitOcrEngine : OcrEngine {
             .map { line -> line.text.trim() }
             .filter { it.isNotEmpty() }
 
+        // ML Kit reports boxes in the bitmap's own pixels, which is already the space the picker
+        // needs a crop-relative box in. A block is already a paragraph, so, unlike Lens, nothing has
+        // to be merged here; the lines inside one are just wrapped text and are joined back together
+        // the same way Lens's columns are.
+        val blocks = text.textBlocks.mapNotNull { block ->
+            val blockLines = block.lines.map { it.text.trim() }.filter { it.isNotEmpty() }
+            val content = JapaneseText.normalize(
+                if (blockLines.isEmpty()) block.text.trim() else blockLines.joinToString(" "),
+            ).trim()
+            if (content.isEmpty()) return@mapNotNull null
+            OcrBlock(content, blockLines, block.boundingBox)
+        }
+
         val joined = JapaneseText.normalize(
-            if (lines.isEmpty()) text.text.trim() else lines.joinToString("\n"),
+            if (blocks.isEmpty()) {
+                if (lines.isEmpty()) text.text.trim() else lines.joinToString("\n")
+            } else {
+                blocks.joinToString("\n") { it.text }
+            },
         )
 
         return OcrOutcome(
@@ -51,6 +68,7 @@ class MlKitOcrEngine : OcrEngine {
             engineLabel = label,
             language = text.textBlocks.firstNotNullOfOrNull { it.recognizedLanguage },
             elapsedMs = SystemClock.elapsedRealtime() - started,
+            blocks = blocks,
         )
     }
 

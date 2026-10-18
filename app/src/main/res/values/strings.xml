@@ -27,6 +27,7 @@
 
     <string name="setting_auto_copy">Copiar automaticamente ao reconhecer</string>
     <string name="setting_show_segments">Listar o texto linha por linha</string>
+    <string name="setting_pick_text">Escolher o trecho da tela (como o Google Lens)</string>
     <string name="setting_upscale">Ampliar recortes pequenos (ajuda em letras miúdas)</string>
 
     <string name="start_button">Iniciar OCR flutuante</string>
@@ -34,10 +35,13 @@
     <string name="stop_button">Parar OCR flutuante</string>
 
     <string name="howto_title">Como usar</string>
-    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha «Tela inteira» ou «Selecionar área».\n• Arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto.</string>
+    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha «Tela inteira» ou «Selecionar área».\n• Em «Tela inteira», as caixas marcam cada trecho: toque em um deles para copiar/traduzir só aquilo, ou em «Texto todo».\n• Em «Selecionar área», arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto.</string>
 
     <string name="overlay_full_screen">Tela inteira</string>
+    <string name="overlay_full_screen_hint">Mostra caixas na tela para você escolher o trecho</string>
+    <string name="overlay_full_screen_hint_direct">Reconhece todo o texto da tela de uma vez</string>
     <string name="overlay_select_area">Selecionar área</string>
+    <string name="overlay_select_area_hint">Arraste para marcar só o texto que interessa</string>
     <string name="overlay_close_service">Encerrar</string>
     <string name="overlay_settings">Ajustes</string>
 
@@ -46,16 +50,26 @@
     <string name="region_full">Tela inteira</string>
     <string name="region_confirm">Reconhecer</string>
 
+    <string name="picker_hint">Toque em um trecho para copiar ou traduzir</string>
+    <string name="picker_all">Texto todo</string>
+    <string name="picker_cancel">Cancelar</string>
+
     <string name="result_title">Texto reconhecido</string>
-    <string name="result_copy">Copiar</string>
-    <string name="result_copy_close">Copiar e fechar</string>
     <string name="result_retry_offline">Tentar offline</string>
     <string name="result_close">Fechar</string>
-    <string name="result_empty">Nenhum texto encontrado.</string>
     <string name="result_copied">Texto copiado</string>
     <string name="result_failed">Não foi possível reconhecer o texto.</string>
-    <string name="result_fallback_note">Lens indisponível — resultado do ML Kit offline.</string>
-    <string name="result_seconds">%1$s · %2$d ms</string>
+    <string name="result_note_fallback">Lens indisponível — resultado do ML Kit offline.</string>
+    <string name="result_meta_ms">%1$d ms</string>
+    <string name="result_original_label">Texto reconhecido (toque para corrigir)</string>
+    <string name="result_original_hint">Texto reconhecido</string>
+    <string name="result_copy_original">Copiar original</string>
+    <string name="result_copy_translation">Copiar tradução</string>
+    <string name="result_analyse">Analisar</string>
+    <string name="result_repick">◀ Trechos</string>
+    <string name="result_translation_label">Tradução</string>
+    <string name="result_dictionary_label">Dicionário</string>
+    <string name="result_kanji_label">Kanji</string>
 
     <string name="capture_failed">Falha ao capturar a tela. Tente novamente.</string>
     <string name="capture_restart_needed">A tela girou e a captura precisa ser reiniciada. Toque em «Iniciar OCR flutuante» novamente.</string>
@@ -74,7 +88,7 @@
     <string name="status_running">Ativo</string>
     <string name="status_stopped">Parado</string>
 
-    <string name="section_usage">5. Uso do Google Lens</string>
+    <string name="section_usage">6. Uso do Google Lens</string>
     <string name="usage_today">Hoje: %1$d</string>
     <string name="usage_total">Total: %1$d</string>
     <string name="usage_since">Contando desde %1$s</string>
@@ -87,4 +101,49 @@
     <string name="usage_note">O Google não informa quanto resta da cota deste endpoint: as respostas não trazem nenhum cabeçalho de limite, então não existe um número de «disponível» para mostrar. Estes contadores são medidos aqui no aparelho. O único sinal real de limite é o Google passar a recusar as requisições (HTTP 429), que aparece acima junto com o tempo de espera que ele pedir.</string>
     <string name="usage_reset">Zerar contador</string>
     <string name="usage_reset_done">Contador zerado</string>
+
+    <string name="translate_working">Traduzindo no aparelho…</string>
+    <string name="translate_failed">Não foi possível traduzir. Na primeira vez o app precisa baixar o modelo do idioma (cerca de 30 MB) e o Google Play Services precisa estar disponível.</string>
+    <string name="dictionary_working">Procurando no dicionário…</string>
+    <string name="dictionary_failed">Não foi possível consultar o dicionário.</string>
+    <string name="dictionary_none_installed">Nenhum dicionário instalado. Abra os ajustes e baixe um na seção «Dicionários».</string>
+    <string name="dictionary_no_match">Nenhuma palavra deste texto foi encontrada nos dicionários instalados.</string>
+    <string name="dictionary_word_count">%1$d palavras</string>
+    <string name="dictionary_truncated">Mostrando %1$d de %2$d palavras encontradas.</string>
+
+    <string name="section_translation">5. Tradução e dicionários</string>
+    <string name="setting_dictionary">Consultar os dicionários instalados</string>
+    <string name="setting_translate">Traduzir a frase com o modelo offline</string>
+    <string name="setting_translate_target">Idioma da tradução</string>
+    <string name="translate_target_pt">Português</string>
+    <string name="translate_target_en">Inglês</string>
+    <string name="dictionary_manage_button">Gerenciar dicionários</string>
+    <string name="dictionary_summary_none">Nenhum dicionário instalado</string>
+    <string name="dictionary_summary">%1$d instalados · %2$d ativos</string>
+
+    <string name="dictionary_title">Dicionários</string>
+    <string name="dictionary_subtitle">Dicionários no formato Yomitan/Yomichan. O app baixa o arquivo, converte uma vez e depois consulta tudo sem internet.</string>
+    <string name="dictionary_installed_section">Instalados</string>
+    <string name="dictionary_available_section">Disponíveis para baixar</string>
+    <string name="dictionary_import_section">Importar arquivo</string>
+    <string name="dictionary_import_hint">Já tem um dicionário .zip no formato Yomitan? Escolha o arquivo e ele será convertido aqui.</string>
+    <string name="dictionary_import_button">Escolher arquivo .zip</string>
+    <string name="dictionary_installed_empty">Nada instalado ainda. Baixe um dicionário abaixo.</string>
+    <string name="dictionary_terms">%1$s verbetes</string>
+    <string name="dictionary_kanji_count">%1$s kanji</string>
+    <string name="dictionary_download">Baixar</string>
+    <string name="dictionary_downloading">Baixando… %1$s</string>
+    <string name="dictionary_installing">Convertendo… %1$s</string>
+    <string name="dictionary_installed_done">«%1$s» instalado</string>
+    <string name="dictionary_delete">Remover</string>
+    <string name="dictionary_cancel">Cancelar</string>
+    <string name="dictionary_delete_confirm">Remover «%1$s»? Os arquivos do dicionário serão apagados do aparelho.</string>
+    <string name="dictionary_up">Subir</string>
+    <string name="dictionary_down">Descer</string>
+    <string name="dictionary_enable">Ativo</string>
+    <string name="dictionary_priority_hint">A ordem define a prioridade: quando dois dicionários têm a mesma palavra, o de cima aparece primeiro.</string>
+    <string name="dictionary_import_failed">Falha ao importar: %1$s</string>
+    <string name="dictionary_download_failed">Falha ao baixar: %1$s</string>
+    <string name="dictionary_attribution">Fonte: %1$s</string>
+    <string name="dictionary_release">Revisão %1$s</string>
 </resources>

@@ -19,8 +19,15 @@ APK pronto:
 
 | Arquivo | Uso |
 | --- | --- |
-| `app/build/outputs/apk/release/app-release.apk` | **Use este.** Assinado com a chave de debug, instala direto. |
+| `app/build/outputs/apk/release/app-release.apk` | **Use este.** Assinado com a chave de debug, instala direto. ~35 MB. |
 | `app/build/outputs/apk/debug/app-debug.apk` | Versão de desenvolvimento (pacote `dev.yabai.ocr.debug`, pode conviver com a outra). |
+
+São 35 MB porque o APK traz, embutidos, o motor de OCR japonês do ML Kit (funciona sem internet) e o
+motor de tradução neural do ML Kit (os *modelos* de idioma, esses sim, são baixados depois). As
+bibliotecas nativas para `arm64-v8a` respondem por quase tudo isso, e o bloco
+`ndk { abiFilters … }` em `app/build.gradle.kts` deixa só essa ABI — todo celular de 2016 para cá é
+64 bits. Se precisar instalar num aparelho 32 bits, acrescente `"armeabi-v7a"` à lista e o APK sobe
+para ~52 MB.
 
 ---
 
@@ -31,9 +38,13 @@ APK pronto:
 3. Toque em **Iniciar OCR flutuante** e aceite o aviso de captura de tela do sistema.
 4. Abra o app onde está o texto (mangá, jogo, site…).
 5. Toque na bolha e escolha:
-   - **Tela inteira** — reconhece tudo que está na tela;
+   - **Tela inteira** — reconhece tudo que está na tela e **desenha uma caixa sobre cada trecho**
+     encontrado;
    - **Selecionar área** — arraste para marcar a região e toque em **Reconhecer**.
-6. O texto aparece no painel. Se **Copiar automaticamente** estiver ligado, já foi para a área de
+6. Na tela inteira, **toque no trecho** que interessa: só ele vai para o painel (e para a área de
+   transferência). **Texto todo** manda a tela inteira, **Cancelar** desfaz. Quando o painel está
+   aberto, **◀ Trechos** traz as caixas de volta sem gastar outra consulta ao Google.
+7. O texto aparece no painel. Se **Copiar automaticamente** estiver ligado, já foi para a área de
    transferência; senão toque em **Copiar**.
 
 Detalhes úteis:
@@ -43,6 +54,70 @@ Detalhes úteis:
   painel para fechá-lo.
 - No menu da bolha, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.
 - Toque longo no texto seleciona, como em qualquer TextView.
+- Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
+  painel.
+
+---
+
+## Ler a palavra: dicionário offline e tradução
+
+O painel de resultado não mostra só o texto. Abaixo dele vêm duas seções que se preenchem sozinhas
+enquanto você lê:
+
+- **Dicionário** — o texto reconhecido é segmentado em palavras (japonês não tem espaço, então isso é
+  feito por busca no próprio dicionário) e cada palavra ganha leitura, classe e definição. Verbos
+  conjugados são devolvidos à forma de dicionário: `食べました → 食べる 【polite past】`.
+- **Tradução** — a frase inteira, pelo modelo **offline** do ML Kit (japonês → português ou inglês).
+
+### O texto é editável
+
+OCR erra kanji, e quando erra você normalmente sabe qual era. O texto reconhecido é um campo de
+**edição**: corrija à mão e toque em **Analisar** para refazer a consulta ao dicionário e a tradução
+com o texto corrigido. Não é preciso capturar a tela de novo.
+
+### Dicionários
+
+Nenhum dicionário vem dentro do APK (o menor útil tem 300 KB e o maior 37 MB, e cada um tem sua
+licença). Você baixa ou importa em **Gerenciar dicionários**:
+
+| Caminho | Como funciona |
+| --- | --- |
+| Lista do app | Baixa o `.zip` oficial mais recente, converte uma vez e instala. Tem barra de progresso. |
+| **Importar arquivo** | Escolhe qualquer `.zip` no formato **Yomitan/Yomichan** pelo seletor do sistema e converte igual. |
+
+O que está na lista:
+
+| Dicionário | Idiomas | Tamanho |
+| --- | --- | --- |
+| JMdict | inglês | 15 MB |
+| Jitendex | inglês | 37 MB |
+| JMnedict (nomes próprios) | inglês | 11 MB |
+| Wikcionário japonês → português | português | 0,4 MB |
+| Wikcionário japonês (monolíngue) | japonês | 12 MB |
+| Wikcionário japonês → inglês | inglês | 21 MB |
+| KANJIDIC | inglês | 0,7 MB |
+| KANJIDIC | português | 0,3 MB |
+
+Vários podem ficar ativos ao mesmo tempo. Quando duas palavras batem, a ordem da lista decide: o de
+cima aparece primeiro, e as demais opções vêm empilhadas abaixo — como no Yomichan. Dá para ativar,
+desativar, reordenar e remover.
+
+Duas ressalvas honestas:
+
+- **Não existe JMdict em português.** As definições em português vêm do Wikcionário lusófono (8 mil
+  verbetes) e do KANJIDIC em português (só os ~2 mil kanji usuais). Um kanji raro como **淀** só tem
+  significado em inglês — lá está (`pool (in river)`, 音 テン/デン, 訓 よど.む). Para o sentido em
+  português, conte com a **tradução** da frase.
+- **Cada dicionário ativo custa memória.** Só o índice de chaves fica na RAM (o resto é lido do
+  arquivo sob demanda): cerca de 17 MB para o JMdict, 18 MB para o Jitendex, 21 MB para o JMnedict,
+  29 MB para o Wikcionário inglês. Todos juntos passam de 80 MB. Se o celular tiver pouca memória,
+  deixe ativos só os que você usa.
+
+### Tradução offline
+
+A primeira tradução baixa o modelo do idioma (cerca de **30 MB**), via Google Play Services; depois
+disso funciona em modo avião. Por isso o primeiro uso precisa de internet e de Play Services. Se o
+modelo não puder ser baixado, o painel diz exatamente isso em vez de ficar mudo.
 
 ---
 
@@ -54,7 +129,13 @@ Três ajustes controlam o resultado:
 | --- | --- | --- |
 | Motor | **Automático** | Usa Lens e cai para o ML Kit se o Lens falhar ou não devolver texto. |
 | Ampliar recortes pequenos | ligado | Recortes com menos de 420 px no lado maior são ampliados até 2×. Ajuda bastante em furigana e letras miúdas. |
+| Escolher o trecho da tela | ligado | Depois de reconhecer a tela inteira, desenha uma caixa sobre cada trecho e espera você escolher. Desligado, o texto todo vai direto para o painel. |
 | Listar o texto linha por linha | desligado | Mostra o resultado exatamente como o motor o segmentou, sem juntar em um parágrafo. |
+
+O Lens entrega o texto em **colunas soltas**: um balão de três colunas chega como três textos
+separados. O `core` junta de volta as colunas que formam o mesmo bloco (mesma direção, faixa em comum
+e vão menor que um caractere), o que é o que faz um balão virar uma frase traduzível em vez de três
+fragmentos — e é também o que define o tamanho das caixas da tela inteira.
 
 Além disso, a imagem é enviada com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`)
 e o idioma anunciado é `ja`. Diminuir para ~1200 deixa o upload mais leve; aumentar ajuda em telas
@@ -63,14 +144,15 @@ grandes com texto fino.
 Dicas para acertar de primeira:
 
 - **Recorte justo > tela inteira.** Marque só o balão/bloco de texto: menos ruído, resultado melhor.
-- Em mangá vertical, selecione a coluna inteira (ou o balão todo), não uma linha solta.
+- Em mangá vertical, com **Tela inteira** basta tocar no balão: as colunas dele já foram juntadas em um
+  trecho só. Com **Selecionar área**, marque o balão inteiro, não uma coluna solta.
 - Se o resultado vier vazio, **Tentar offline** aparece no painel e roda o ML Kit na mesma área.
 
 ---
 
 ## Uso do Google Lens (e a verdade sobre a cota)
 
-A tela do app tem uma seção **“5. Uso do Google Lens”** com:
+A tela do app tem uma seção **“6. Uso do Google Lens”** com:
 
 - quantas requisições ao Lens foram feitas **hoje** e no **total**;
 - a data da primeira requisição e o resultado da última;
@@ -105,9 +187,16 @@ core/   Kotlin JVM puro — nada de Android aqui
   lens/LensClient.kt        cliente OkHttp (cookie jar, retries) + recognizeSuspend
   lens/LensResultBuilder.kt objetos/parágrafos/linhas → segmentos com caixas em pixels
   jp/JapaneseText.kt        normalização de espaço CJK-aware
+  dict/DictionaryCompiler.kt  .zip do Yomitan → formato compacto em disco
+  dict/CompactDictionary.kt   leitura do formato compacto (índice na RAM, verbete no disco)
+  dict/LookupEngine.kt        segmentação por maior correspondência + quebra de kanji
+  dict/Deinflector.kt         conjugações → forma de dicionário (tabela do Yomichan)
+  dict/GlossaryRenderer.kt    structured-content dos dicionários modernos → texto
+  resources/deinflect.json    matriz de regras (Yomichan, MIT)
 
 app/    o app Android
   MainActivity.kt           permissões + ajustes + painel de uso
+  DictionaryActivity.kt     baixar/importar/ativar/reordenar/remover dicionários
   AppSettings.kt            preferências compartilhadas
   UsageTracker.kt           contador local de requisições ao Lens (o Google não expõe cota)
   capture/ScreenCaptureSession.kt   um VirtualDisplay de longa duração + ImageReader
@@ -115,7 +204,12 @@ app/    o app Android
   ocr/LensOcrEngine.kt      Lens via core
   ocr/MlKitOcrEngine.kt     ML Kit japonês offline
   ocr/ImagePreparer.kt      reescala e codifica em PNG
-  overlay/…                 bolha, menu, seletor de área e painel de resultado (Views puras)
+  dict/DictionaryCatalog.kt    o que o app oferece para baixar
+  dict/DictionaryRepository.kt instalação no disco + um LookupEngine em cache
+  dict/DictionaryDownloader.kt download com progresso (e o descritor do Wikcionário)
+  translate/OfflineTranslator.kt  ML Kit tradutor offline
+  overlay/…                 bolha, menu, seletor de área, caixas para escolher o trecho e painel de
+                            resultado (Views puras)
   service/FloatingOcrService.kt     o serviço que costura tudo
 ```
 
@@ -150,14 +244,27 @@ Os testes do `core` (parsing offline, regressão sobre uma resposta real gravada
 gradle :core:test
 ```
 
+Há uma bateria de testes que compila **dicionários de verdade** (JMdict, Jitendex, JMnedict,
+KANJIDIC, Wikcionário), mede quanta memória cada índice ocupa e confere que uma busca responde. Ela é
+opcional e aponta para uma pasta com os `.zip` baixados:
+
+```powershell
+gradle :core:test -Pdicts="C:\caminho\para\os\dicionarios"
+```
+
+Os nomes de arquivo esperados são os mesmos da lista do app (`JMdict_english.zip`,
+`jitendex-yomitan.zip`, `JMnedict.zip`, `KANJIDIC_english.zip`, `KANJIDIC_portuguese.zip`,
+`kty-ja-pt.zip`, `kty-ja-ja.zip`, `kty-ja-en.zip`); o que faltar é simplesmente ignorado.
+
 Existe um teste que fala com o endpoint de verdade, desligado por padrão:
 
 ```powershell
 gradle :core:test -Plive=1
 ```
 
-Para reduzir o tamanho do APK, `app/build.gradle.kts` limita as ABIs a `arm64-v8a` e `armeabi-v7a`
-(x86 só serve para emulador). Remova o bloco `ndk { … }` se precisar rodar em emulador x86.
+Para reduzir o tamanho do APK, `app/build.gradle.kts` limita as ABIs a `arm64-v8a` (x86 só serve para
+emulador, e `armeabi-v7a` só para aparelhos 32 bits). Acrescente as ABIs que faltarem à lista em
+`ndk { abiFilters … }` — só saiba que ela responde por quase todo o tamanho do APK.
 
 ---
 

@@ -31,13 +31,19 @@ import dev.yabai.ocr.MainActivity
 import dev.yabai.ocr.R
 import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.capture.ScreenCaptureSession
+import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.ocr.OcrDispatcher
+import dev.yabai.ocr.ocr.OcrOutcome
 import dev.yabai.ocr.overlay.OverlayController
+import dev.yabai.ocr.overlay.ResultOverlay
+import dev.yabai.ocr.translate.OfflineTranslator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -68,6 +74,25 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private var lastRegion: Rect? = null
     private var busy = false
 
+    /** Sentence translation and dictionary lookup run after the panel is already on screen. */
+    private var translator: OfflineTranslator? = null
+    private var analysisJob: Job? = null
+    private var lastAnalysedText: String? = null
+
+    /**
+     * The text boxes of the last whole-screen capture.
+     *
+     * Kept after the picker closes so the result panel can offer "trechos" again without paying for
+     * another Lens call — those are rate limited, and re-running OCR would also just reproduce the
+     * same segmentation.
+     */
+    private var pendingBlocks: List<PendingBlock> = emptyList()
+    private var lastOutcome: OcrOutcome? = null
+    private var lastForceOffline = false
+
+    /** One selectable piece of a whole-screen capture, placed on screen. */
+    private data class PendingBlock(val text: String, val rect: Rect, val lines: List<String>)
+
     override fun onCreate() {
         super.onCreate()
         isRunning = true
@@ -75,6 +100,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         dispatcher = OcrDispatcher(settings, UsageTracker(this))
         overlays = OverlayController(this).apply {
             callbacks = this@FloatingOcrService
+            picksText = { settings.pickText }
         }
     }
 
@@ -103,11 +129,16 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
     override fun onDestroy() {
         isRunning = false
+        analysisJob?.cancel()
         scope.cancel()
         handler.removeCallbacksAndMessages(null)
         overlays.destroy()
         teardownCapture()
         dispatcher.close()
+        // Dictionaries are a few megabytes of index each; drop them with the service.
+        DictionaryRepository.get(this).release()
+        translator?.close()
+        translator = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
@@ -209,9 +240,44 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         if (closeAfter) overlays.hideResult()
     }
 
+    /**
+     * The user corrected the recognised text and asked for another pass. Only the analysis is redone:
+     * the screenshot is gone by now, and re-running OCR would just reproduce the same mistake.
+     */
+    override fun onAnalyseRequested(text: String) {
+        if (text.isBlank()) return
+        analyse(text)
+    }
+
+    override fun onBlockPicked(index: Int) {
+        val block = pendingBlocks.getOrNull(index) ?: return
+        val outcome = lastOutcome ?: return
+        overlays.hideTextPicker()
+        showResultFor(outcome, block.text, block.lines, canRepick = true)
+    }
+
+    override fun onPickAllRequested() {
+        val outcome = lastOutcome ?: return
+        showResultFor(outcome, outcome.text, outcome.lines, canRepick = pendingBlocks.isNotEmpty())
+    }
+
+    override fun onRepickRequested() {
+        val outcome = lastOutcome ?: return
+        if (!overlays.showTextPicker(pickerRects())) {
+            // The boxes are gone (the screen changed, or the service was restarted): fall back to the
+            // whole capture, which is still in memory.
+            showResultFor(outcome, outcome.text, outcome.lines, canRepick = false)
+        }
+    }
+
     override fun onRetryOfflineRequested() = requestCapture(lastRegion, forceOffline = true)
 
-    override fun onResultDismissed() = Unit
+    override fun onResultDismissed() {
+        analysisJob?.cancel()
+        analysisJob = null
+    }
+
+    private fun pickerRects(): List<Rect> = pendingBlocks.map { it.rect }
 
     // --- capture pipeline ----------------------------------------------------------------------
 
@@ -225,6 +291,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
         busy = true
         lastRegion = region
+        // A new capture supersedes the boxes of the previous one.
+        pendingBlocks = emptyList()
 
         scope.launch {
             var armed = false
@@ -254,17 +322,25 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
                 overlays.showResultLoading()
                 val outcome = dispatcher.recognize(crop, forceOffline)
+                lastOutcome = outcome
+                lastForceOffline = forceOffline
 
-                if (settings.autoCopy && outcome.text.isNotBlank()) {
-                    copyToClipboard(outcome.text)
-                    toast(getString(R.string.result_copied))
+                // A whole-screen capture gets the Lens treatment: the recognised paragraphs are drawn
+                // as boxes over the live screen and the user picks one. A region capture already is a
+                // selection, and a screen with a single paragraph has nothing to pick between, so
+                // both of those go straight to the panel.
+                if (region == null && settings.pickText && outcome.blocks.size > 1) {
+                    pendingBlocks = placeBlocks(outcome, shot)
+                    if (pendingBlocks.isNotEmpty() && overlays.showTextPicker(pickerRects())) {
+                        overlays.hideResult()
+                        return@launch
+                    }
+                    pendingBlocks = emptyList()
                 }
 
-                overlays.showResult(
-                    outcome = outcome,
-                    showLines = settings.showSegments,
-                    offlineAvailable = dispatcher.offlineAvailable(forceOffline),
-                )
+                // Panel first, analysis after: the text is readable immediately and the dictionary
+                // and translation drop in when they are ready.
+                showResultFor(outcome, outcome.text, outcome.lines, canRepick = false)
             } catch (t: Throwable) {
                 Log.e(TAG, "capture pipeline failed", t)
                 showError(t.message ?: getString(R.string.result_failed))
@@ -274,6 +350,148 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 busy = false
             }
         }
+    }
+
+    /**
+     * Pushes [text] into the result panel and kicks off the dictionary and translation work.
+     *
+     * The metadata, the warning notes and the engine still come from the capture that produced
+     * [text] — including when the user picked a single box out of a whole-screen capture.
+     *
+     * The clipboard is written here rather than at capture time so that, when the text comes from a
+     * pick, what gets copied is the piece the user chose and not the whole screenshot.
+     */
+    private fun showResultFor(outcome: OcrOutcome, text: String, lines: List<String>, canRepick: Boolean) {
+        if (settings.autoCopy && text.isNotBlank()) {
+            copyToClipboard(text)
+            toast(getString(R.string.result_copied))
+        }
+        overlays.showResult(
+            text = text,
+            meta = buildMeta(outcome),
+            notes = buildNotes(outcome),
+            offlineAvailable = dispatcher.offlineAvailable(lastForceOffline),
+            showLines = settings.showSegments,
+            lines = lines,
+            canRepick = canRepick,
+        )
+        analyse(text)
+    }
+
+    /**
+     * Maps the boxes an engine reported onto the screen.
+     *
+     * Only called for a whole-screen capture, so the crop the engine saw *is* the captured frame and
+     * the only correction needed is undoing the scaling between the frame and the display.
+     */
+    private fun placeBlocks(outcome: OcrOutcome, shot: Bitmap): List<PendingBlock> {
+        val metrics = realDisplayMetrics()
+        val scaleX = metrics.widthPixels.toFloat() / shot.width.coerceAtLeast(1)
+        val scaleY = metrics.heightPixels.toFloat() / shot.height.coerceAtLeast(1)
+        val screen = Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
+        // A line of text is around 16 dp tall on a phone, so anything much under that is a fragment
+        // rather than something worth offering. The picker itself inflates every box by a few dp when
+        // hit-testing, which is what makes a box this small comfortable to tap.
+        val minTapSize = (12 * resources.displayMetrics.density).roundToInt()
+
+        return outcome.blocks.mapNotNull { block ->
+            val rect = block.rect ?: return@mapNotNull null
+            val onScreen = Rect(
+                (rect.left * scaleX).roundToInt(),
+                (rect.top * scaleY).roundToInt(),
+                (rect.right * scaleX).roundToInt(),
+                (rect.bottom * scaleY).roundToInt(),
+            )
+            // Boxes Lens pushed off the edge of the picture, or that are too small to hit with a
+            // finger, are not offered as tap targets. Their text is still part of "tudo".
+            if (!onScreen.intersect(screen)) return@mapNotNull null
+            if (onScreen.width() < minTapSize || onScreen.height() < minTapSize) return@mapNotNull null
+            PendingBlock(
+                text = block.text,
+                rect = onScreen,
+                lines = block.lines,
+            )
+        }
+    }
+
+    private fun buildMeta(outcome: OcrOutcome): String {
+        val language = outcome.language?.takeIf { it.isNotBlank() }
+        return buildList {
+            add(outcome.engineLabel)
+            add(getString(R.string.result_meta_ms, outcome.elapsedMs))
+            if (language != null) add(language)
+        }.joinToString(" · ")
+    }
+
+    private fun buildNotes(outcome: OcrOutcome): List<String> = buildList {
+        if (outcome.fallback) add(getString(R.string.result_note_fallback))
+        outcome.warning?.takeIf { it.isNotBlank() }?.let { add(it) }
+    }
+
+    /**
+     * Runs the dictionary lookup and the sentence translation for [text], one after the other in
+     * whichever order they finish, and pushes each result into the panel as it lands.
+     */
+    private fun analyse(text: String) {
+        analysisJob?.cancel()
+        if (text.isBlank()) {
+            lastAnalysedText = null
+            return
+        }
+        lastAnalysedText = text
+
+        val wantDictionary = settings.dictionaryLookup
+        val wantTranslation = settings.translateSentence
+        val target = settings.translateTarget
+
+        overlays.showResultWords(if (wantDictionary) ResultOverlay.WordsState.Working else ResultOverlay.WordsState.Hidden)
+        overlays.showResultTranslation(
+            if (wantTranslation) ResultOverlay.TranslationState.Working else ResultOverlay.TranslationState.Hidden,
+        )
+
+        analysisJob = scope.launch {
+            if (wantDictionary) {
+                launch {
+                    val state = runDictionary(text)
+                    if (isActive && lastAnalysedText == text) overlays.showResultWords(state)
+                }
+            }
+            if (wantTranslation) {
+                launch {
+                    val state = runTranslation(text, target)
+                    if (isActive && lastAnalysedText == text) overlays.showResultTranslation(state)
+                }
+            }
+        }
+    }
+
+    private suspend fun runDictionary(text: String): ResultOverlay.WordsState = try {
+        val repository = DictionaryRepository.get(this)
+        withContext(Dispatchers.Default) {
+            val engine = repository.lookupEngine()
+            if (engine == null) {
+                ResultOverlay.WordsState.Done(emptyList(), emptyList(), 0)
+            } else {
+                ResultOverlay.WordsState.Done(
+                    matches = engine.lookup(text),
+                    kanji = engine.kanjiBreakdown(text),
+                    dictionaryCount = repository.enabledCount(),
+                )
+            }
+        }
+    } catch (t: Throwable) {
+        Log.e(TAG, "dictionary lookup failed", t)
+        ResultOverlay.WordsState.Failed(t.message ?: getString(R.string.dictionary_failed))
+    }
+
+    private suspend fun runTranslation(text: String, target: String): ResultOverlay.TranslationState = try {
+        val instance = translator ?: OfflineTranslator(this).also { translator = it }
+        ResultOverlay.TranslationState.Done(instance.translate(text, target))
+    } catch (t: Throwable) {
+        Log.w(TAG, "offline translation failed", t)
+        ResultOverlay.TranslationState.Failed(
+            getString(R.string.translate_failed) + "\n" + (t.message ?: t.javaClass.simpleName),
+        )
     }
 
     /**

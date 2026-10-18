@@ -16,7 +16,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import dev.yabai.ocr.R
-import dev.yabai.ocr.ocr.OcrOutcome
 import dev.yabai.ocr.util.dp
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -38,8 +37,18 @@ class OverlayController(private val context: Context) {
         fun onStopRequested()
         fun onOpenSettingsRequested()
         fun onCopyRequested(text: String, closeAfter: Boolean)
+        fun onAnalyseRequested(text: String)
         fun onRetryOfflineRequested()
         fun onResultDismissed()
+
+        /** The user tapped one of the recognised text boxes after a whole-screen capture. */
+        fun onBlockPicked(index: Int)
+
+        /** The user asked for the whole capture instead of a single box. */
+        fun onPickAllRequested()
+
+        /** The user wants the boxes back, to pick a different piece of the same capture. */
+        fun onRepickRequested()
     }
 
     var callbacks: Callbacks? = null
@@ -55,6 +64,13 @@ class OverlayController(private val context: Context) {
     private var menuView: View? = null
     private var regionView: RegionOverlay? = null
     private var resultView: ResultOverlay? = null
+    private var pickerView: TextPickerOverlay? = null
+
+    /**
+     * Whether a whole-screen capture will offer the recognised boxes to pick from. Only used to word
+     * the menu hint honestly; the setting itself is read by the capture pipeline.
+     */
+    var picksText: () -> Boolean = { true }
 
     private var downRawX = 0f
     private var downRawY = 0f
@@ -183,7 +199,13 @@ class OverlayController(private val context: Context) {
             addView(
                 context.menuRow(
                     context.getString(R.string.overlay_full_screen),
-                    null,
+                    context.getString(
+                        if (picksText()) {
+                            R.string.overlay_full_screen_hint
+                        } else {
+                            R.string.overlay_full_screen_hint_direct
+                        },
+                    ),
                     Color.WHITE,
                 ) {
                     hideMenu()
@@ -194,7 +216,7 @@ class OverlayController(private val context: Context) {
             addView(
                 context.menuRow(
                     context.getString(R.string.overlay_select_area),
-                    null,
+                    context.getString(R.string.overlay_select_area_hint),
                     Color.WHITE,
                 ) {
                     hideMenu()
@@ -272,6 +294,39 @@ class OverlayController(private val context: Context) {
         regionView = null
     }
 
+    // --- text picker ---------------------------------------------------------------------------
+
+    /**
+     * Draws the recognised paragraphs as boxes over the live screen.
+     *
+     * @return false when there is nothing to pick, so the caller can go straight to the result panel.
+     */
+    fun showTextPicker(rects: List<Rect>): Boolean {
+        if (rects.isEmpty() || !canDrawOverlays()) return false
+        hideTextPicker()
+
+        val overlay = TextPickerOverlay(context).apply {
+            onPick = { index -> callbacks?.onBlockPicked(index) }
+            onPickAll = {
+                hideTextPicker()
+                callbacks?.onPickAllRequested()
+            }
+            onCancel = { hideTextPicker() }
+        }
+        // A full-screen, non-focusable window: it swallows every touch (which is the point during
+        // selection) but never takes input focus away from the app underneath.
+        if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT))) return false
+        overlay.show(rects)
+        pickerView = overlay
+        return true
+    }
+
+    fun hideTextPicker() {
+        val view = pickerView ?: return
+        removeWindow(view)
+        pickerView = null
+    }
+
     // --- result panel --------------------------------------------------------------------------
 
     private fun ensureResultPanel(): ResultOverlay? {
@@ -280,8 +335,21 @@ class OverlayController(private val context: Context) {
 
         val panel = ResultOverlay(context).apply {
             callbacks = object : ResultOverlay.Callbacks {
-                override fun onCopy(text: String, closeAfter: Boolean) {
-                    this@OverlayController.callbacks?.onCopyRequested(text, closeAfter)
+                override fun onCopyOriginal(text: String) {
+                    this@OverlayController.callbacks?.onCopyRequested(text, closeAfter = false)
+                }
+
+                override fun onCopyTranslation(text: String) {
+                    this@OverlayController.callbacks?.onCopyRequested(text, closeAfter = false)
+                }
+
+                override fun onAnalyse(text: String) {
+                    this@OverlayController.callbacks?.onAnalyseRequested(text)
+                }
+
+                override fun onRepick() {
+                    hideResult()
+                    this@OverlayController.callbacks?.onRepickRequested()
                 }
 
                 override fun onRetryOffline() {
@@ -295,8 +363,22 @@ class OverlayController(private val context: Context) {
             }
         }
         resultView = panel
-        // Focusable: text selection and the BACK key need it.
-        addWindow(panel, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))
+        // Focusable: the recognised text is editable and the BACK key needs to reach the panel.
+        //
+        // The window is exactly as tall as the card and pinned to the top, which has two effects: the
+        // on-screen keyboard never covers the editor, and touches below the card fall through to the
+        // app underneath so the bubble stays reachable while a result is open.
+        addWindow(
+            panel,
+            baseParams(MATCH_PARENT, WRAP_CONTENT, focusable = true).apply {
+                gravity = Gravity.TOP
+                y = statusBarHeight()
+                // The panel takes input focus so the text can be edited and BACK closes it, and a
+                // focused EditText normally drags the keyboard up with it. It should only appear
+                // when the user actually taps the field.
+                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            },
+        )
         return panel
     }
 
@@ -304,12 +386,34 @@ class OverlayController(private val context: Context) {
         ensureResultPanel()?.showLoading()
     }
 
-    fun showResult(outcome: OcrOutcome, showLines: Boolean, offlineAvailable: Boolean) {
-        ensureResultPanel()?.showOutcome(outcome, showLines, offlineAvailable)
+    /** Rebuilds the panel for a finished capture; the analysis sections fill in afterwards. */
+    fun showResult(
+        text: String,
+        meta: String,
+        notes: List<String>,
+        offlineAvailable: Boolean,
+        showLines: Boolean,
+        lines: List<String>,
+        canRepick: Boolean,
+    ) {
+        ensureResultPanel()?.showResult(text, meta, notes, offlineAvailable, showLines, lines, canRepick)
+    }
+
+    fun showResultTranslation(state: ResultOverlay.TranslationState) {
+        resultView?.setTranslation(state)
+    }
+
+    fun showResultWords(state: ResultOverlay.WordsState) {
+        resultView?.setWords(state)
     }
 
     fun showResultError(message: String, offlineAvailable: Boolean) {
         ensureResultPanel()?.showError(message, offlineAvailable)
+    }
+
+    private fun statusBarHeight(): Int {
+        val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) context.resources.getDimensionPixelSize(id) else dp(24)
     }
 
     fun hideResult() {
@@ -329,6 +433,7 @@ class OverlayController(private val context: Context) {
     fun hideAllForCapture() {
         hideMenu()
         hideRegionSelector()
+        hideTextPicker()
         hideResult()
         bubbleView?.visibility = View.GONE
     }
@@ -340,6 +445,7 @@ class OverlayController(private val context: Context) {
     fun destroy() {
         hideMenu()
         hideRegionSelector()
+        hideTextPicker()
         hideResult()
         hideBubble()
     }
@@ -354,7 +460,14 @@ class OverlayController(private val context: Context) {
         width,
         height,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-        (if (focusable) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) or
+        if (focusable) {
+            // A focusable window is touch-modal unless told otherwise, which would make the whole
+            // screen belong to the result panel and stop the bubble underneath from ever being
+            // tapped again. The panel is a small card, so everything outside it has to fall through.
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+        } else {
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        } or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
@@ -364,11 +477,13 @@ class OverlayController(private val context: Context) {
             WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
     }
 
-    private fun addWindow(view: View, params: WindowManager.LayoutParams) {
-        try {
+    private fun addWindow(view: View, params: WindowManager.LayoutParams): Boolean {
+        return try {
             windowManager.addView(view, params)
+            true
         } catch (t: Throwable) {
             Log.e(TAG, "could not add overlay window", t)
+            false
         }
     }
 
@@ -391,5 +506,6 @@ class OverlayController(private val context: Context) {
     companion object {
         private const val TAG = "OverlayController"
         private const val MATCH_PARENT = WindowManager.LayoutParams.MATCH_PARENT
+        private const val WRAP_CONTENT = WindowManager.LayoutParams.WRAP_CONTENT
     }
 }

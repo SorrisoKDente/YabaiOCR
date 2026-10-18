@@ -331,17 +331,25 @@ object LensProto {
     ) {
         val isNormalized: Boolean get() = coordinateType == COORDINATE_TYPE_NORMALIZED
 
+        /**
+         * Converts to pixels, clamped to the image.
+         *
+         * Lens reports a centre and a size, so the arithmetic routinely puts a box a few pixels past
+         * the right or bottom edge. A box that claims to start outside the picture is not usable as a
+         * tap target, so it is cut to the image here, once, for every consumer.
+         */
         fun toPixels(imageWidth: Int, imageHeight: Int): PixelBox {
-            val w = (width * imageWidth)
-            val h = (height * imageHeight)
-            val x = (centerX * imageWidth) - (w / 2f)
-            val y = (centerY * imageHeight) - (h / 2f)
-            return PixelBox(
-                x = Math.round(x),
-                y = Math.round(y),
-                width = Math.round(w),
-                height = Math.round(h),
-            )
+            val w = Math.round(width * imageWidth)
+            val h = Math.round(height * imageHeight)
+            val rawX = Math.round((centerX * imageWidth) - (w / 2f))
+            val rawY = Math.round((centerY * imageHeight) - (h / 2f))
+
+            val left = rawX.coerceIn(0, imageWidth)
+            val top = rawY.coerceIn(0, imageHeight)
+            val right = (rawX + w).coerceIn(left, imageWidth)
+            val bottom = (rawY + h).coerceIn(top, imageHeight)
+
+            return PixelBox(left, top, right - left, bottom - top)
         }
     }
 }

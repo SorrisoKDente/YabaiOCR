@@ -17,10 +17,21 @@ data class PixelBox(val x: Int, val y: Int, val width: Int, val height: Int) {
 /** A recognised line of text plus where it sits in the submitted image. */
 data class LensSegment(val text: String, val box: PixelBox?)
 
+/**
+ * One text block — in manga, one speech balloon — plus where it sits.
+ *
+ * This is what the on-screen picker offers: Lens splits a page down to single columns, and a column
+ * is too thin to tap and only a fragment of a sentence. [lines] are those columns as Lens reported
+ * them and [text] is them joined back into the sentence they make up.
+ */
+data class LensBlock(val text: String, val lines: List<String>, val box: PixelBox?)
+
 data class LensResult(
     /** BCP-47-ish language reported by Lens, e.g. "ja". Empty when unknown. */
     val language: String,
     val segments: List<LensSegment>,
+    /** One entry per paragraph, in reading order. */
+    val blocks: List<LensBlock>,
     /** Wall-clock duration of the whole round trip, for the UI. */
     val elapsedMs: Long,
 ) {

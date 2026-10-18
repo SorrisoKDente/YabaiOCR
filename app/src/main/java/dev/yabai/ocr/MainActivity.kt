@@ -21,6 +21,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.service.FloatingOcrService
 import java.util.Date
 
@@ -44,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var usageTotal: TextView
     private lateinit var usageLast: TextView
     private lateinit var usageLimit: TextView
+    private lateinit var dictionarySummary: TextView
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -110,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         usageTotal = findViewById(R.id.usageTotal)
         usageLast = findViewById(R.id.usageLast)
         usageLimit = findViewById(R.id.usageLimit)
+        dictionarySummary = findViewById(R.id.dictionarySummary)
 
         findViewById<Button>(R.id.btnOverlayPermission).setOnClickListener { requestOverlayPermission() }
         findViewById<Button>(R.id.btnNotificationPermission).setOnClickListener { requestNotifications() }
@@ -121,6 +124,7 @@ class MainActivity : AppCompatActivity() {
 
         bindEngineSelector()
         bindBehaviourSwitches()
+        bindTranslationAndDictionaries()
 
         btnStart.setOnClickListener { onStartClicked() }
         btnStop.setOnClickListener { stopService() }
@@ -131,6 +135,7 @@ class MainActivity : AppCompatActivity() {
         refreshPermissions()
         refreshRunningState()
         refreshUsage()
+        refreshDictionarySummary()
         handler.postDelayed(statusPoll, 1000L)
     }
 
@@ -167,8 +172,43 @@ class MainActivity : AppCompatActivity() {
         }
         showSegments.setOnCheckedChangeListener { _, checked -> settings.showSegments = checked }
 
+        val pickText = findViewById<CheckBox>(R.id.checkPickText).apply { isChecked = settings.pickText }
+        pickText.setOnCheckedChangeListener { _, checked -> settings.pickText = checked }
+
         val upscale = findViewById<CheckBox>(R.id.checkUpscale).apply { isChecked = settings.upscaleSmall }
         upscale.setOnCheckedChangeListener { _, checked -> settings.upscaleSmall = checked }
+    }
+
+    private fun bindTranslationAndDictionaries() {
+        val dictionary = findViewById<CheckBox>(R.id.checkDictionary).apply {
+            isChecked = settings.dictionaryLookup
+        }
+        dictionary.setOnCheckedChangeListener { _, checked -> settings.dictionaryLookup = checked }
+
+        val translate = findViewById<CheckBox>(R.id.checkTranslate).apply {
+            isChecked = settings.translateSentence
+        }
+        translate.setOnCheckedChangeListener { _, checked -> settings.translateSentence = checked }
+
+        val targets = findViewById<RadioGroup>(R.id.translateTargetGroup)
+        targets.check(if (settings.translateTarget == "en") R.id.translateEn else R.id.translatePt)
+        targets.setOnCheckedChangeListener { _, id ->
+            settings.translateTarget = if (id == R.id.translateEn) "en" else "pt"
+        }
+
+        findViewById<Button>(R.id.btnManageDictionaries).setOnClickListener {
+            startActivity(DictionaryActivity.intent(this))
+        }
+    }
+
+    /** Keeps the dictionary line under the checkbox honest after installs or removals. */
+    private fun refreshDictionarySummary() {
+        val installed = DictionaryRepository.get(this).installed()
+        dictionarySummary.text = if (installed.isEmpty()) {
+            getString(R.string.dictionary_summary_none)
+        } else {
+            getString(R.string.dictionary_summary, installed.size, installed.count { it.enabled })
+        }
     }
 
     // --- actions -------------------------------------------------------------------------------

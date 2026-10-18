@@ -108,10 +108,11 @@ class LensClient(
                         ?: throw LensException("Lens returned an empty body", response.code)
 
                     val parsed = LensProto.parseResponse(bytes, image.width, image.height)
-                    val (language, segments) = LensResultBuilder.build(parsed, image.width, image.height)
+                    val built = LensResultBuilder.build(parsed, image.width, image.height)
                     return LensResult(
-                        language = language,
-                        segments = segments,
+                        language = built.language,
+                        segments = built.segments,
+                        blocks = built.blocks,
                         elapsedMs = clock() - started,
                     )
                 }
