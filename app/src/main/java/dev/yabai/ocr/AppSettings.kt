@@ -58,6 +58,18 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_DICTIONARY, true)
         set(value) = prefs.edit { putBoolean(KEY_DICTIONARY, value) }
 
+    /**
+     * The one dictionary the panel was narrowed to, by **title**, or "" for all of them.
+     *
+     * The title, and not the repository id, because that is what a match carries and what the panel
+     * has to show; and a title that no longer belongs to an enabled dictionary is dropped rather
+     * than honoured (see [dev.yabai.ocr.dict.DictionaryRepository.resolveFilter]) — a filter that
+     * matches nothing would look exactly like a broken dictionary.
+     */
+    var dictionaryFilter: String
+        get() = prefs.getString(KEY_DICTIONARY_FILTER, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_DICTIONARY_FILTER, value) }
+
     /** Translate the whole recognised sentence with the offline ML Kit model. */
     var translateSentence: Boolean
         get() = prefs.getBoolean(KEY_TRANSLATE, true)
@@ -92,6 +104,7 @@ class AppSettings(context: Context) {
         private const val KEY_MAX_DIMENSION = "max_dimension"
         private const val KEY_LANGUAGE = "language"
         private const val KEY_DICTIONARY = "dictionary_lookup"
+        private const val KEY_DICTIONARY_FILTER = "dictionary_filter"
         private const val KEY_TRANSLATE = "translate_sentence"
         private const val KEY_TRANSLATE_TARGET = "translate_target"
         private const val KEY_SHOW_IMAGE = "show_image"

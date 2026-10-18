@@ -306,6 +306,95 @@ class DictionaryCompileTest {
         }
     }
 
+    /**
+     * The panel's selector: a lookup narrowed to one dictionary must not be answered by another.
+     *
+     * This is what keeps «só o JMdict» meaning something when four dictionaries are installed.
+     */
+    @Test
+    fun `a lookup only consults the dictionaries it was told to`() {
+        val jmdict = compileInto("JMdict_english_without_proper_names.zip")
+        val names = compileInto("JMnedict.zip")
+        assumeTrue("dictionary fixtures not available", jmdict != null && names != null)
+
+        jmdict!!.first.use { jmdictDictionary ->
+            names!!.first.use { namesDictionary ->
+                val engine = LookupEngine(listOf(jmdictDictionary, namesDictionary))
+                val jmdictTitle = jmdictDictionary.info.title
+                val namesTitle = namesDictionary.info.title
+
+                // A word both dictionaries know — normally the *first* one answers it, which is what
+                // makes the selector visible at all: with the mask, the other one has to.
+                val word = listOf("東京", "日本", "山田", "ポケモン", "猫")
+                    .firstOrNull { candidate ->
+                        namesDictionary.termEntries(candidate).isNotEmpty() &&
+                            jmdictDictionary.termEntries(candidate).isNotEmpty()
+                    }
+                assumeTrue("no sample word is in both dictionaries", word != null)
+
+                val everyone = engine.lookup(word!!)
+                assertEquals(
+                    "$word is in both, so the first dictionary should answer",
+                    jmdictTitle,
+                    everyone.firstOrNull()?.dictionaryTitle,
+                )
+
+                val namesOnly = engine.lookup(word, only = setOf(namesTitle))
+                assertEquals(
+                    "the named dictionary should have answered",
+                    namesTitle,
+                    namesOnly.firstOrNull()?.dictionaryTitle,
+                )
+                assertTrue(
+                    "every hit must come from the named dictionary",
+                    namesOnly.all { it.dictionaryTitle == namesTitle },
+                )
+
+                val jmdictOnly = engine.lookup(word, only = setOf(jmdictTitle))
+                assertTrue(
+                    "every hit must come from the named dictionary",
+                    jmdictOnly.all { it.dictionaryTitle == jmdictTitle },
+                )
+
+                // Naming nothing means every dictionary, and naming one that is not there is not an
+                // error — it is simply no words.
+                assertEquals(everyone, engine.lookup(word, only = emptySet()))
+                assertTrue(engine.lookup(word, only = setOf("dicionário que não existe")).isEmpty())
+            }
+        }
+    }
+
+    /**
+     * The kanji block follows the same choice, or the section would contradict the words above it.
+     *
+     * 淀 is exactly the case: the English KANJIDIC has it, the Portuguese one (jouyou only) does not.
+     */
+    @Test
+    fun `the kanji breakdown follows the same choice`() {
+        val english = compileInto("KANJIDIC_english.zip")
+        val portuguese = compileInto("KANJIDIC_portuguese.zip")
+        assumeTrue("kanji fixtures not available", english != null && portuguese != null)
+
+        english!!.first.use { englishKanji ->
+            portuguese!!.first.use { portugueseKanji ->
+                val engine = LookupEngine(listOf(englishKanji, portugueseKanji))
+                val englishTitle = englishKanji.info.title
+                val portugueseTitle = portugueseKanji.info.title
+
+                assertTrue("淀 should be found with both on", engine.kanjiBreakdown("淀").isNotEmpty())
+                assertTrue(
+                    "the English build carries 淀",
+                    engine.kanjiBreakdown("淀", only = setOf(englishTitle)).isNotEmpty(),
+                )
+                assertTrue(
+                    "the Portuguese build has no 淀: " +
+                        engine.kanjiBreakdown("淀", only = setOf(portugueseTitle)).size,
+                    engine.kanjiBreakdown("淀", only = setOf(portugueseTitle)).isEmpty(),
+                )
+            }
+        }
+    }
+
     private fun suspendUnit(text: String, engine: LookupEngine, check: (List<TokenMatch>) -> Unit) {
         val matches = engine.lookup(text)
         println("$text -> ${matches.map { "${it.surface}=${it.entry.term}" }}")

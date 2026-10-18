@@ -11,11 +11,16 @@ package dev.yabai.ocr.core.dict
  * The order matters for correctness, not just speed. 食べて is not a dictionary word, but it looks
  * enough like one that searching by length alone would happily cut 食べています in half; trying the
  * full surface first lets the deinflector turn the whole thing into 食べる.
+ *
+ * The engine holds every dictionary it was built with; a lookup can be narrowed to one of them by
+ * title, which is how the panel's selector changes its mind without reloading a single index.
  */
 class LookupEngine(private val dictionaries: List<CompactDictionary>) {
 
-    fun lookup(text: String, maxMatches: Int = 600): List<TokenMatch> {
-        if (dictionaries.isEmpty() || text.isBlank()) return emptyList()
+    /** [only] narrows the search to those dictionary titles; empty means every dictionary held. */
+    fun lookup(text: String, maxMatches: Int = 600, only: Set<String> = emptySet()): List<TokenMatch> {
+        val usable = selected(only)
+        if (usable.isEmpty() || text.isBlank()) return emptyList()
 
         val matches = ArrayList<TokenMatch>(64)
         val deinflectionCache = HashMap<String, List<Deinflector.Result>>()
@@ -29,7 +34,7 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
                 continue
             }
 
-            val match = findMatch(text, index, deinflectionCache)
+            val match = findMatch(text, index, usable, deinflectionCache)
             if (match != null) {
                 matches.add(match)
                 index = match.end
@@ -45,13 +50,18 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
      *
      * Showing a reading and stroke count for every kanji in a whole page of manga would bury the
      * definitions the panel exists to show; showing it for the one character you deliberately
-     * framed is exactly what you want.
+     * framed is exactly what you want. [only] narrows it exactly like [lookup] does, so the kanji
+     * section can never answer from a dictionary the dictionary section was told to leave out.
      */
-    fun kanjiBreakdown(text: String, maxEntries: Int = 8): List<KanjiEntry> {
+    fun kanjiBreakdown(
+        text: String,
+        maxEntries: Int = 8,
+        only: Set<String> = emptySet(),
+    ): List<KanjiEntry> {
         val trimmed = text.trim()
         if (trimmed.length != 1) return emptyList()
         val out = ArrayList<KanjiEntry>(2)
-        for (dictionary in dictionaries) {
+        for (dictionary in selected(only)) {
             if (out.size >= maxEntries) break
             val entry = dictionary.kanjiEntry(trimmed) ?: continue
             out.add(entry)
@@ -63,6 +73,10 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
     fun contributedTitles(matches: List<TokenMatch>): List<String> =
         matches.map { it.dictionaryTitle }.distinct()
 
+    /** The dictionaries a lookup may consult: the named ones, or all of them when none is named. */
+    private fun selected(only: Set<String>): List<CompactDictionary> =
+        if (only.isEmpty()) dictionaries else dictionaries.filter { it.info.title in only }
+
     /** Releases the blob file handles held by the dictionaries. */
     fun close() {
         for (dictionary in dictionaries) runCatching { dictionary.close() }
@@ -71,6 +85,7 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
     private fun findMatch(
         text: String,
         start: Int,
+        usable: List<CompactDictionary>,
         cache: HashMap<String, List<Deinflector.Result>>,
     ): TokenMatch? {
         // A word never crosses punctuation, and stopping at the end of the run also keeps the
@@ -95,13 +110,13 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
             if (isCleanSlice(text, start, start + length)) {
                 val surface = text.substring(start, start + length)
 
-                exactMatch(surface, start, length)?.let { return it }
+                exactMatch(surface, start, length, usable)?.let { return it }
 
                 if (length <= MAX_INFLECTED_LENGTH && endsWithKana(surface)) {
                     val candidates = cache.getOrPut(surface) { Deinflector.get().baseForms(surface) }
                     for (candidate in candidates) {
                         if (candidate.term.isEmpty()) continue
-                        inflectedMatch(surface, start, length, candidate)?.let { return it }
+                        inflectedMatch(surface, start, length, candidate, usable)?.let { return it }
                     }
                 }
             }
@@ -111,8 +126,13 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         return null
     }
 
-    private fun exactMatch(surface: String, start: Int, length: Int): TokenMatch? {
-        for (dictionary in dictionaries) {
+    private fun exactMatch(
+        surface: String,
+        start: Int,
+        length: Int,
+        usable: List<CompactDictionary>,
+    ): TokenMatch? {
+        for (dictionary in usable) {
             val entries = dictionary.termEntries(surface, allowedFlags = 0)
             if (entries.isEmpty()) continue
             return TokenMatch(
@@ -132,8 +152,9 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         start: Int,
         length: Int,
         candidate: Deinflector.Result,
+        usable: List<CompactDictionary>,
     ): TokenMatch? {
-        for (dictionary in dictionaries) {
+        for (dictionary in usable) {
             val entries = dictionary.termEntries(candidate.term, allowedFlags = candidate.rules)
             if (entries.isEmpty()) continue
             return TokenMatch(

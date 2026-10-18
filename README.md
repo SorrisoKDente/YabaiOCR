@@ -66,6 +66,8 @@ Detalhes úteis:
   numa linha só, que passa a mostrar a tradução.
 - **Imagem** no painel põe o recorte capturado ao lado do texto reconhecido, para conferir o kanji
   que o OCR trocou. A escolha fica guardada nos ajustes.
+- O nome do dicionário no cabeçalho da seção «Dicionário» abre a lista de dicionários ativos: dá para
+  consultar só um deles (ou **Todos**) sem sair do painel. A escolha também fica guardada.
 - Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
   painel.
 
@@ -108,6 +110,26 @@ aquele texto saiu:
   o que sobra; uma coluna estreita de mangá quase não tira largura do texto. Se o painel estiver
   dobrado, a imagem some junto com o resto.
 
+### Escolher o dicionário sem sair do painel
+
+Com vários dicionários ativos, a definição que aparece é a do **primeiro da lista** que conhece a
+palavra — e às vezes a que interessa é a do outro. O cabeçalho da seção «Dicionário» diz qual está
+respondendo e abre a lista com um toque:
+
+| O que você toca | O que acontece |
+| --- | --- |
+| O nome do dicionário ao lado de «Dicionário» | Abre a lista: **Todos** e cada dicionário ativo. O que está em uso vem destacado. |
+| Um nome da lista | A consulta é refeita na hora, só com aquele dicionário. O seletor fecha. |
+| **Todos** | Volta a consultar todos, na ordem de prioridade. |
+
+- A escolha é **lembrada** e vale para as próximas capturas — e a **tradução da frase não depende dela**,
+  então só o bloco do dicionário muda de conteúdo.
+- O seletor só aparece com **dois ou mais** dicionários ativos: com um só não há o que escolher. Quem
+  habilita e ordena os dicionários é **Gerenciar dicionários**, não o painel.
+- Se o dicionário escolhido for desativado ou removido depois, o filtro é **descartado** e o painel volta
+  a consultar todos — em vez de não achar palavra nenhuma para sempre.
+- O bloco **Kanji** segue a mesma escolha, para uma seção não contradizer a outra.
+
 ### Recolher o painel
 
 O painel cresce de cima para baixo e, num mangá com um kanji diferente por quadro, a seção do
@@ -149,7 +171,8 @@ O que está na lista:
 
 Vários podem ficar ativos ao mesmo tempo. Quando duas palavras batem, a ordem da lista decide: o de
 cima aparece primeiro, e as demais opções vêm empilhadas abaixo — como no Yomichan. Dá para ativar,
-desativar, reordenar e remover.
+desativar, reordenar e remover. Para consultar só um deles **sem mexer nesta lista**, use o seletor do
+cabeçalho do painel («Escolher o dicionário sem sair do painel»).
 
 Duas ressalvas honestas:
 

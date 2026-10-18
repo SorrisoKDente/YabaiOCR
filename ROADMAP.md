@@ -225,14 +225,76 @@ was:<[Texto reconhecido]>`; mantendo a dobra entre capturas, o quarto falha com
 
 | # | Estado | Item | Dificuldade |
 | --- | --- | --- | --- |
-| M1 | `[ ]` | Escolher **qual dicionário** usar, direto no painel | médio |
+| M1 | `[x]` | Escolher **qual dicionário** usar, direto no painel | médio |
 | M2 | `[x]` | Comparar **lado a lado com a imagem** capturada | médio |
 
-### M1 — Trocar de dicionário no painel  `[ ]`
+### M1 — Trocar de dicionário no painel  `[x]` (18/10/2026)
 
-Um seletor no cabeçalho da seção «Dicionário» com os dicionários instalados + «Todos». Hoje o motor
-consulta todos os habilitados, na ordem de prioridade definida na tela de dicionários; passa a aceitar
-uma máscara por consulta, guardada como ajuste.
+A pergunta «esta palavra está no outro dicionário?» não tinha resposta sem ir aos ajustes, desabilitar um
+dicionário, voltar e capturar de novo — e o ajuste ficava trocado para sempre. Agora o cabeçalho da seção
+«Dicionário» diz **qual** dicionário está respondendo e abre a lista com um toque.
+
+Como funciona:
+
+- O motor passou a aceitar uma **máscara por consulta** (`LookupEngine.lookup(texto, only = …)`) em vez de
+  consultar sempre todos os habilitados. O motor continua com todos carregados na memória: trocar de
+  dicionário não recarrega índice nenhum.
+- A máscara é um conjunto de **títulos**, não de ids do repositório. O painel tem de **mostrar** a escolha
+  e cada acerto já carrega o título; o id só existe na tela de dicionários. Conjunto vazio = todos, que é
+  o mesmo que «não filtrar» — não há um segundo estado «todos» para manter em dia.
+- «Todos» é a ausência de filtro (`null`), e a escolha é gravada como **ajuste** (`dictionaryFilter`), então
+  a próxima captura já começa filtrada. Quem grava é o app, não o painel: o painel só avisa
+  (`onDictionaryPicked`), e o app reanalisa. Uma escolha no painel e a edição do texto caem no mesmo
+  caminho de «a resposta está velha».
+- **Um dicionário só: sem seletor.** Com dois ou mais ele aparece (`titles.size > 1`). Com um, seria um
+  rótulo fantasiado de interruptor.
+- **A lista é dos habilitados**, não dos instalados. A diferença é a tela de dicionários: oferecer um
+  dicionário desabilitado aqui daria uma consulta que não devolve nada, sem dizer por quê. Habilitar
+  continua sendo trabalho daquela tela.
+- **Filtro que aponta para o nada é descartado**, não obedecido (`DictionaryRepository.resolveFilter`): se
+  o dicionário foi desabilitado ou removido depois, obedecer devolveria zero palavras em toda captura — o
+  que se parece exatamente com um dicionário quebrado. Descartar é o que traz o painel de volta para
+  «Todos».
+- **O bloco de kanji segue a mesma máscara**, senão a seção de cima contradiria a de baixo.
+- O seletor é um **cartão dentro do próprio painel** (uma linha que quebra, com as opções), não um popup:
+  o painel já é uma janela flutuante, e um popup precisaria de token próprio, poderia ser cortado pelas
+  bordas que o painel já respeita e não apareceria em teste de layout nenhum.
+- **Abrir o seletor desrecolhe a seção** (a lista mora no corpo, e corpo recolhido não se vê), e
+  **escolher fecha o seletor** — a pergunta foi respondida. A seção é redesenhada *antes* de avisar o app,
+  porque o app responde com «Consultando…» e um redesenho velho por cima disso apagaria o aviso. Foi o
+  teste que pegou as duas: `renderWords` passou a limpar a própria seção, já que agora ela se redesenha
+  sozinha (antes quem limpava era só o `setWords`, e o seletor empilhava uma segunda seção em cima).
+- O seletor é um botão de ação de verdade (`ACTION_BUTTON_TAG`), e o título da seção continua **não**
+  sendo: a lista exata de botões do B1 segue valendo (com um dicionário só, o seletor nem existe).
+- Vale registrar o que o teste do motor descobriu: entre dois dicionários, **quem responde primeiro é o
+  primeiro da lista de prioridade** — a máscara muda *qual* dicionário responde, não só «se» responde. É
+  o que torna a escolha visível: `東京` está no JMdict e no JMnedict, e sem máscara o JMnedict nunca
+  apareceria. Por isso a palavra de amostra é escolhida em tempo de execução entre as que estão **nos
+  dois** (`assumeTrue` se nenhuma estiver): os fixtures são arquivos baixados que mudam.
+
+**Testes de regressão:** `app/src/test/java/dev/yabai/ocr/overlay/DictionaryPickerTest.kt` (7) e duas
+adições ao `core/src/test/kotlin/dev/yabai/ocr/core/dict/DictionaryCompileTest.kt`:
+
+| teste | o que ele prende |
+| --- | --- |
+| `the header says which dictionary is answering` | o cabeçalho mostra a escolha; «Todos» quando não há filtro |
+| `one dictionary is nothing to choose between` | com um dicionário só não há seletor |
+| `the chooser is closed until it is asked for` | o seletor não ocupa espaço até ser tocado |
+| `the chooser offers all of them plus each installed dictionary` | «Todos» primeiro, depois cada um na ordem de prioridade |
+| `choosing a dictionary tells the app which one, and folds the chooser away` | a escolha é **entregue** ao app, e o seletor fecha |
+| `asking for all of them again is a choice too` | «Todos» também é uma escolha, não um cancelamento |
+| `opening the chooser unfolds a folded dictionary section` | abrir o seletor numa seção recolhida desrecolhe a seção |
+| `a lookup only consults the dictionaries it was told to` | a máscara troca **qual** dicionário responde; conjunto vazio = todos; título inexistente = nenhuma palavra, não erro |
+| `the kanji breakdown follows the same choice` | o bloco de kanji não contradiz as palavras acima (淀 só no KANJIDIC inglês) |
+
+Conferido contra o código quebrado, sete quebras, cada uma derrubando o teste a que pertence: seletor
+sempre visível → `the selector should stay out of the way expected null, but was:<android.widget.TextView…>`;
+rótulo ignorando a escolha → `expected:<[JMdict] ▾> but was:<[Todos] ▾>`; escolha não avisando o app →
+`expected:<[dictionary JMdict]> but was:<[]>` (e o de «Todos» junto); seletor não fechando →
+`the chooser stayed open after the answer was given`; abrir sem desrecolher → `expected:<0> but was:<8>`;
+motor ignorando a máscara → `the named dictionary should have answered expected:<JM[ne]dict [2026-10-17]>
+but was:<JM[]dict [2026-10-17]>`; kanji ignorando a máscara → `the Portuguese build has no 淀: 1`. Não
+são testes vazios.
 
 ### M2 — Imagem lado a lado  `[x]` (18/10/2026)
 
@@ -325,6 +387,7 @@ texto reconhecido.
 - B2 é trivial, mas a decisão é do usuário; entra logo depois.
 - F1/F2/F3 não dependem de nada e são só UI.
 - M2 depende de F3.
+- M1 não depende de nada: mexe no motor de consulta e no cabeçalho de uma seção só.
 - D2 depende de nada, mas é o mais arriscado dos dois «difíceis»; D1 é pré-requisito conceitual de
   nada, mas os dois mexem no mesmo lugar (`LensResultBuilder` / `JapaneseText`), então convém fazer
   D1 e D2 em sequência.

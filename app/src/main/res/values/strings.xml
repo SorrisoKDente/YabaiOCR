@@ -113,6 +113,8 @@
     <string name="dictionary_failed">Não foi possível consultar o dicionário.</string>
     <string name="dictionary_none_installed">Nenhum dicionário instalado. Abra os ajustes e baixe um na seção «Dicionários».</string>
     <string name="dictionary_no_match">Nenhuma palavra deste texto foi encontrada nos dicionários instalados.</string>
+    <string name="dictionary_all">Todos</string>
+    <string name="dictionary_pick">Escolher o dicionário</string>
     <string name="dictionary_word_count">%1$d palavras</string>
     <string name="dictionary_truncated">Mostrando %1$d de %2$d palavras encontradas.</string>
 

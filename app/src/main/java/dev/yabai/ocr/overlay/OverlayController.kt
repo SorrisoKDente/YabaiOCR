@@ -57,6 +57,9 @@ class OverlayController(private val context: Context) {
 
         /** The user wants the captured image shown beside the text, or hidden again. */
         fun onImageToggleRequested()
+
+        /** The user narrowed the dictionary lookup to one dictionary, or asked for all of them. */
+        fun onDictionaryPicked(title: String?)
     }
 
     var callbacks: Callbacks? = null
@@ -627,6 +630,10 @@ class OverlayController(private val context: Context) {
 
                 override fun onImageToggle() {
                     this@OverlayController.callbacks?.onImageToggleRequested()
+                }
+
+                override fun onDictionaryPicked(title: String?) {
+                    this@OverlayController.callbacks?.onDictionaryPicked(title)
                 }
 
                 override fun onDismiss() {

@@ -229,6 +229,10 @@ class ImagePanelTest {
                 asked.add("image")
             }
 
+            override fun onDictionaryPicked(title: String?) {
+                asked.add("dictionary ${title ?: "todos"}")
+            }
+
             override fun onDismiss() = Unit
         }
 

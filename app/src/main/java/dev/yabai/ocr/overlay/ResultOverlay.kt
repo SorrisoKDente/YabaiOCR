@@ -57,6 +57,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         /** Shows or hides the captured image beside the text; the choice is remembered. */
         fun onImageToggle()
+
+        /**
+         * The user picked a dictionary in the panel, or asked for all of them again ([title] null).
+         * The choice is a setting, and the lookup runs again with it.
+         */
+        fun onDictionaryPicked(title: String?)
         fun onDismiss()
     }
 
@@ -78,7 +84,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             val matches: List<TokenMatch>,
             val kanji: List<KanjiEntry>,
             val dictionaryCount: Int,
-        ) : WordsState
+            /** Titles of the enabled dictionaries, in priority order; the selector offers these. */
+            val titles: List<String> = emptyList(),
+            /** The one dictionary the lookup was narrowed to, or null for all of them. */
+            val selected: String? = null,
+        ) : WordsState {
+            /** One dictionary is nothing to choose between, so the selector stays out of the way. */
+            val pickable: Boolean get() = titles.size > 1
+        }
 
         data class Failed(val message: String) : WordsState
     }
@@ -157,6 +170,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     /** The toggle itself, so its «on» colour can follow the layout. */
     private var imageButton: TextView? = null
+
+    /** Whether the dictionary chooser is unfolded under the section title. */
+    private var pickerOpen = false
 
     private val analyseHandler = Handler(Looper.getMainLooper())
 
@@ -277,6 +293,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         imageShown = showImage && image != null
         textRow = null
         imageButton = null
+        pickerOpen = false
 
         // Before the header: a folded header carries the text itself.
         originalEditor.setText(text)
@@ -453,9 +470,13 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     }
 
     private fun renderWords(state: WordsState.Done) {
+        // The section can be rebuilt on its own — the chooser opening or closing does that — so it
+        // clears itself instead of relying on the caller having done it.
+        wordsSection.removeAllViews()
+
         if (state.dictionaryCount == 0) {
             wordsSection.addView(
-                section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
+                dictionarySection(state, context.getString(R.string.result_dictionary_label)) { body ->
                     body.addView(noteView(context.getString(R.string.dictionary_none_installed)))
                 },
             )
@@ -472,7 +493,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         if (state.matches.isEmpty()) {
             wordsSection.addView(
-                section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
+                dictionarySection(state, context.getString(R.string.result_dictionary_label)) { body ->
                     body.addView(noteView(context.getString(R.string.dictionary_no_match)))
                 },
             )
@@ -481,8 +502,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         val shown = state.matches.take(MAX_WORDS)
         wordsSection.addView(
-            section(
-                SECTION_DICTIONARY,
+            dictionarySection(
+                state,
                 context.getString(R.string.result_dictionary_label) +
                     "  " + context.getString(R.string.dictionary_word_count, state.matches.size),
             ) { body ->
@@ -495,6 +516,94 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             },
         )
     }
+
+    /**
+     * The dictionary block: the selector in its header and, while it is open, the dictionaries on top
+     * of the body.
+     *
+     * The chooser is part of the card rather than a popup because the panel *is* an overlay: a second
+     * window would need its own token, could be clipped by edges the panel already respects, and a
+     * layout test could not see it at all.
+     */
+    private fun dictionarySection(
+        state: WordsState.Done,
+        title: String,
+        fill: (LinearLayout) -> Unit,
+    ): View = section(SECTION_DICTIONARY, title, trailing = dictionaryPicker(state)) { body ->
+        if (pickerOpen) body.addView(dictionaryChooser(state))
+        fill(body)
+    }
+
+    /**
+     * The header control that says which dictionary is answering, and opens the chooser.
+     *
+     * Absent when there is nothing to choose from: with a single dictionary it would be a label
+     * dressed up as a switch.
+     */
+    private fun dictionaryPicker(state: WordsState.Done): View? {
+        if (!state.pickable) return null
+        val label = state.selected ?: context.getString(R.string.dictionary_all)
+        return context.actionButton(
+            "$label ▾",
+            textColor = context.getColor(R.color.accent),
+            background = 0x00000000,
+        ) {
+            pickerOpen = !pickerOpen
+            // The chooser lives in the body, and a folded body shows nothing at all.
+            if (pickerOpen) foldedSections.remove(SECTION_DICTIONARY)
+            renderWords(state)
+        }.apply {
+            contentDescription = context.getString(R.string.dictionary_pick)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            maxWidth = dp(PICKER_MAX_WIDTH_DP)
+            setPadding(dp(8), 0, 0, 0)
+        }
+    }
+
+    /** All of them first, then each dictionary by name, the one in use marked. */
+    private fun dictionaryChooser(state: WordsState.Done): View {
+        val row = FlowLayout(context).apply {
+            alignEnd = true
+            setPadding(0, dp(2), 0, dp(6))
+            // The panel is built in code and this row comes and goes, so the tag is the only handle
+            // a layout test has on it.
+            tag = DICTIONARY_CHOOSER_TAG
+        }
+        row.addView(
+            dictionaryChip(context.getString(R.string.dictionary_all), state.selected == null) {
+                pickDictionary(state, null)
+            },
+            wrapWithMargin(start = 0),
+        )
+        for (title in state.titles) {
+            row.addView(
+                dictionaryChip(title, state.selected == title) {
+                    pickDictionary(state, title)
+                },
+                wrapWithMargin(),
+            )
+        }
+        return row
+    }
+
+    /**
+     * The answer to «which dictionary» has just been given, so the chooser folds away — and the
+     * section is redrawn before the app is told, because the app answers with a «Consultando…» state
+     * that a stale redraw would otherwise paint over.
+     */
+    private fun pickDictionary(state: WordsState.Done, title: String?) {
+        pickerOpen = false
+        renderWords(state)
+        callbacks?.onDictionaryPicked(title)
+    }
+
+    private fun dictionaryChip(label: String, chosen: Boolean, onClick: () -> Unit): TextView =
+        context.actionButton(
+            label,
+            background = if (chosen) context.getColor(R.color.accent_dark) else ACTION_BUTTON_BACKGROUND,
+            onClick = onClick,
+        )
 
     private fun wordView(match: TokenMatch): View {
         val column = LinearLayout(context).apply {
@@ -675,7 +784,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * rebuilds every block, and the user should not have to fold the same section twice — and the key
      * is deliberately not the title, because the dictionary title carries a word count that changes.
      */
-    private fun section(key: String, title: String, fill: (LinearLayout) -> Unit): View {
+    private fun section(
+        key: String,
+        title: String,
+        trailing: View? = null,
+        fill: (LinearLayout) -> Unit,
+    ): View {
         val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         fill(body)
 
@@ -698,8 +812,25 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             addView(indicator)
             addView(
                 textLabel(title, 12f, context.getColor(R.color.accent), bold = true)
-                    .apply { setPadding(dp(6), 0, 0, 0) },
+                    .apply {
+                        setPadding(dp(6), 0, 0, 0)
+                        if (trailing != null) {
+                            // Something shares the header line with the title, so the title gives way
+                            // to it instead of pushing it off the edge.
+                            maxLines = 1
+                            ellipsize = TextUtils.TruncateAt.END
+                        }
+                    },
+                if (trailing == null) {
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    )
+                } else {
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                },
             )
+            if (trailing != null) addView(trailing)
             setOnClickListener {
                 val nowFolded = body.visibility == View.VISIBLE
                 body.visibility = if (nowFolded) View.GONE else View.VISIBLE
@@ -924,6 +1055,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         private const val SECTION_KANJI = "kanji"
         private const val SECTION_DICTIONARY = "dictionary"
 
+        /**
+         * Tag on the row of dictionaries the selector opens. The panel is built in code and the row
+         * comes and goes, so this is the only handle a layout test has on it.
+         */
+        const val DICTIONARY_CHOOSER_TAG = "yabai.dictionaryChooser"
+
         /** Folded sections point their chevron to the right; a folded panel points it up. */
         private const val FOLDED_ROTATION = -90f
         private const val PANEL_FOLD_ROTATION = 180f
@@ -934,5 +1071,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
          */
         private const val IMAGE_MAX_WIDTH_DP = 120
         private const val IMAGE_MAX_HEIGHT_DP = 200
+
+        /** Where the dictionary name in the section header stops, so the title beside it survives. */
+        private const val PICKER_MAX_WIDTH_DP = 150
     }
 }

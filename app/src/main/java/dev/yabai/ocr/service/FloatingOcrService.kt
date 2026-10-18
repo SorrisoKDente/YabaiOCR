@@ -320,6 +320,20 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         overlays.setResultImage(settings.showImage)
     }
 
+    /**
+     * The user narrowed the lookup to one dictionary, or asked for all of them again.
+     *
+     * The choice is a setting, so the next capture starts the same way, and the answer on screen is
+     * recomputed at once. That is the whole analysis, the same path an edit takes: the text did not
+     * change, but the answer did, and one path for «the answer is stale» is worth a translation that
+     * blinks «Traduzindo…» for the moment a local model call takes.
+     */
+    override fun onDictionaryPicked(title: String?) {
+        settings.dictionaryFilter = title.orEmpty()
+        val text = lastAnalysedText ?: return
+        analyse(text)
+    }
+
     private fun pickerRects(): List<Rect> = pendingBlocks.map { it.rect }
 
     // --- capture pipeline ----------------------------------------------------------------------
@@ -527,13 +541,25 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         val repository = DictionaryRepository.get(this)
         withContext(Dispatchers.Default) {
             val engine = repository.lookupEngine()
+            val titles = repository.enabledTitles()
             if (engine == null) {
-                ResultOverlay.WordsState.Done(emptyList(), emptyList(), 0)
+                ResultOverlay.WordsState.Done(emptyList(), emptyList(), 0, titles = titles)
             } else {
+                // The filter is a dictionary title. One that no enabled dictionary answers to is a
+                // leftover — the dictionary was disabled or removed — and honouring it would return
+                // no words at all for every capture from now on, which looks like a broken
+                // dictionary. Dropping it is what brings the panel back to «todos».
+                val filter = repository.resolveFilter(settings.dictionaryFilter)
+                if (filter == null && settings.dictionaryFilter.isNotBlank()) {
+                    settings.dictionaryFilter = ""
+                }
+                val only = filter?.let { setOf(it) }.orEmpty()
                 ResultOverlay.WordsState.Done(
-                    matches = engine.lookup(text),
-                    kanji = engine.kanjiBreakdown(text),
-                    dictionaryCount = repository.enabledCount(),
+                    matches = engine.lookup(text, only = only),
+                    kanji = engine.kanjiBreakdown(text, only = only),
+                    dictionaryCount = titles.size,
+                    titles = titles,
+                    selected = filter,
                 )
             }
         }

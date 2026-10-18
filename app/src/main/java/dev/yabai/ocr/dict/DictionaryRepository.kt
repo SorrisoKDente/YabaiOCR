@@ -54,6 +54,19 @@ class DictionaryRepository private constructor(private val appContext: Context) 
 
     fun enabledCount(): Int = installed().count { it.enabled }
 
+    /** Titles of the enabled dictionaries, in the user's priority order. */
+    fun enabledTitles(): List<String> = installed().filter { it.enabled }.map { it.info.title }
+
+    /**
+     * The dictionary a stored filter points at, or null for «todos».
+     *
+     * A filter whose dictionary has since been disabled or removed is not a filter any more: the
+     * engine would answer nothing at all, which looks like a broken dictionary rather than a stale
+     * setting, so it is dropped here and the next capture is wide open again.
+     */
+    fun resolveFilter(stored: String): String? =
+        stored.takeIf { it.isNotBlank() && enabledTitles().contains(it) }
+
     fun hasAny(): Boolean = installed().isNotEmpty()
 
     fun setEnabled(id: String, enabled: Boolean) = synchronized(lock) {

@@ -72,4 +72,8 @@ class RecordingCallbacks(private val asked: MutableList<String> = ArrayList()) :
     override fun onImageToggleRequested() {
         asked.add("image")
     }
+
+    override fun onDictionaryPicked(title: String?) {
+        asked.add("dictionary ${title ?: "todos"}")
+    }
 }
