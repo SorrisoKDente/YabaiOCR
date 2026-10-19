@@ -588,9 +588,10 @@ class OverlayController(private val context: Context) {
             }
             onCancel = { hideTextPicker() }
         }
-        // A full-screen, non-focusable window: it swallows every touch (which is the point during
-        // selection) but never takes input focus away from the app underneath.
-        if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT))) return false
+        // A full-screen window that swallows every touch, which is the point during selection.
+        // Focusable so BACK cancels the selection instead of reaching the app underneath; while the
+        // picker is up the app was not receiving touches anyway.
+        if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
         overlay.show(rects)
         pickerView = overlay
         return true
@@ -650,14 +651,16 @@ class OverlayController(private val context: Context) {
             }
         }
         resultView = panel
-        // Focusable: the recognised text is editable and the BACK key needs to reach the panel.
+        // Focusable: the recognised text is editable and BACK has to reach the panel.
         //
-        // The window is exactly as tall as the card and pinned to the top, which has two effects: the
-        // on-screen keyboard never covers the editor, and touches below the card fall through to the
-        // app underneath so the bubble stays reachable while a result is open.
+        // The window covers the screen even though the card hangs from the top: the empty area is the
+        // gesture. A tap there is the same as BACK — back to the boxes of a whole-screen capture, or
+        // out of the panel when there is nothing behind it (see `ResultOverlay.stepBack`). It used to
+        // be as tall as the card alone, which let touches through to the app underneath but left the
+        // gesture with nowhere to happen.
         addWindow(
             panel,
-            baseParams(MATCH_PARENT, WRAP_CONTENT, focusable = true).apply {
+            baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true).apply {
                 gravity = Gravity.TOP
                 y = statusBarHeight()
                 // The panel takes input focus so the text can be edited and BACK closes it, and a
@@ -784,9 +787,9 @@ class OverlayController(private val context: Context) {
         height,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
         if (focusable) {
-            // A focusable window is touch-modal unless told otherwise, which would make the whole
-            // screen belong to the result panel and stop the bubble underneath from ever being
-            // tapped again. The panel is a small card, so everything outside it has to fall through.
+            // A focusable window is touch-modal unless told otherwise: touches outside it would go
+            // to the window itself and never reach what is behind. Not every window here is
+            // full-screen — the confirm card and the menu are anchored — so the flag stays.
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
         } else {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE

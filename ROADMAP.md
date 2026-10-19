@@ -704,7 +704,7 @@ não espera por mais nada que não seja o print.
 | --- | --- | --- | --- |
 | N1 | `[x]` | **A precisão caiu**: um kanji que era reconhecido (淀) já não é | bug (a investigar) |
 | N2 | `[x]` | **«Perguntar à IA» não abre app nenhuma** | bug (trivial) |
-| N3 | `[ ]` | **VOLTAR / tocar fora** = «Trechos»; «Fechar» quando não há trechos | fácil |
+| N3 | `[x]` | **VOLTAR / tocar fora** = «Trechos»; «Fechar» quando não há trechos | fácil |
 | N4 | `[ ]` | **Ordem do furigana entre parênteses** saiu errada | fácil |
 | N5 | `[ ]` | **Furigana na página toda**, sem clicar num trecho | fácil |
 | N6 | `[ ]` | A bolha é **puxada para o ✕** quando chega perto | fácil |
@@ -808,6 +808,58 @@ O teste do seletor é separado de propósito: a flag no intent embrulhado não c
 Fica sem teste, e sabe-se porquê: o `FloatingOcrService.askAi` em si — o `startActivity` verdadeiro
 precisa de um aparelho. O que ele decide (que intents tentar) está em `AskAi`, testado; a ponte
 painel→serviço (`onAskAiRequested`) é a mesma do I1.
+
+---
+
+### N3 — VOLTAR / tocar fora  `[x]` (19/10/2026)
+
+Relato: «Clicar fora ou usar o botão de voltar do celular deve ser o equivalente a opção de "Trechos"
+quando tiver selecionado um texto em tela cheia ou se selecionou apenas um trecho específico; ele deve
+ser equivalente a opção de "Fechar"».
+
+O que estava, e vê-se no código:
+
+- O **BACK** do painel chamava sempre `onDismiss()` — fechava. Num texto escolhido de uma captura de
+  tela inteira, isso deitava fora a captura: para a ter de volta era preciso capturar outra vez, e
+  outra consulta ao Lens.
+- **Tocar fora não fazia nada.** A janela do painel tinha só a altura do cartão e ficava encostada ao
+  topo: a área fora dele não era do painel, era da app de baixo. O gesto não existia em lado nenhum.
+- O **seletor de trechos** não era focável, portanto o BACK atravessava-o e ia para a app de baixo
+  (no navegador, navegava uma página).
+
+Correção — «um passo atrás», um só sítio a decidir:
+
+- `ResultOverlay.stepBack()`: se o painel tem os trechos atrás de si (`canRepick`, que só é verdade
+  numa captura de tela inteira), BACK e o toque fora vão para «◀ Trechos»; sem nada atrás — um
+  recorte — fecham o painel. `showLoading`/`showError` põem `canGoBack = false` (não há resultado).
+- A janela do painel passou a cobrir o **ecrã inteiro**; a área vazia é o gesto. O cartão engole os
+  próprios toques (`isClickable`), senão um toque no cartão contava como «fora».
+- O seletor de trechos passou a ser **focável** e ouve o BACK: fecha como «Cancelar», em vez de o
+  BACK ir para a app de baixo.
+
+**Testes de regressão:** `overlay/BackAndOutsideTest` (7):
+
+| teste | o que prende |
+| --- | --- |
+| `back goes to the boxes when the panel came from a whole-screen capture` | BACK → «Trechos» quando há trechos atrás |
+| `back closes the panel when there is nothing behind it` | BACK → «Fechar» num recorte |
+| `a tap outside the card steps back` | o toque fora faz o mesmo que o BACK |
+| `a tap outside the card closes the panel when there is nothing behind it` | o mesmo, sem trechos atrás |
+| `a tap on the card is not a tap outside` | o cartão não se confunde com a área vazia |
+| `back leaves the segment picker` | BACK no seletor = «Cancelar» |
+| `the result window covers the screen` | a janela cobre o ecrã (sem isto, o toque fora não chega) |
+
+Conferido contra o código quebrado: **6/6 mutações apanhadas** (`n3_nonvacuous.ps1`) — BACK sempre a
+fechar, BACK sempre a ir aos trechos, toque fora sem efeito, cartão sem `isClickable`, janela de volta
+a `WRAP_CONTENT`, e o seletor sem o ouvinte de teclas. Cada uma falha exactamente o teste que a prende.
+
+**O que muda para quem usa:** com o painel aberto a tela pertence-lhe — a bolha deixa de ser
+alcançável enquanto o resultado está à frente. O caminho passa a ser um passo atrás primeiro. É o
+efeito directo do pedido: não há «fora» sem uma janela que ocupe a tela.
+
+**Fica de fora, e sabe-se:** o teclado. A janela é do topo e o cartão também, por isso o teclado não
+lhe passa por cima; mas isso é uma conta de janelas que só se vê num aparelho — não há teste para
+isso aqui.
 
 ---
 

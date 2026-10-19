@@ -45,7 +45,8 @@ para ~52 MB.
      descrição de cada ícone, para leitores de tela.
 6. Na tela inteira, **toque no trecho** que interessa: só ele vai para o painel (e para a área de
    transferência). **Texto todo** manda a tela inteira, **Cancelar** desfaz. Quando o painel está
-   aberto, **◀ Trechos** traz as caixas de volta sem gastar outra consulta ao Google.
+   aberto, **◀ Trechos** — como o **VOLTAR** do telefone ou um toque fora do cartão — traz as caixas
+   de volta sem gastar outra consulta ao Google. Num recorte, o mesmo gesto **fecha** o painel.
 7. O texto aparece no painel. Se **Copiar automaticamente** estiver ligado, já foi para a área de
    transferência; senão toque em **Copiar**.
 
@@ -55,8 +56,11 @@ Detalhes úteis:
 - Para **encerrar**, arraste a bolha até o ✕ que aparece no centro de baixo: ele fica vermelho quando
   a bolha está em cima e, ao soltar, o app pergunta antes de desligar. Soltar em qualquer outro lugar
   devolve a bolha para a borda mais próxima.
-- Toque na bolha **enquanto o painel de resultado está aberto** para abrir os ícones, ou toque em
-  qualquer outro lugar da tela para fechá-los.
+- Toque na bolha **para abrir os ícones**; com o menu aberto, toque em qualquer outro lugar da tela
+  para fechá-lo.
+- Com o **painel de resultado** aberto, a tela pertence ao painel: **VOLTAR** ou um toque fora do
+  cartão dá um passo atrás — se o texto veio de «Tela inteira», voltam as caixas; se veio de um
+  recorte, o painel fecha. Para chegar à bolha, saia primeiro do painel.
 - A faixa de ícones fica centrada sob a bolha; perto da borda ela encosta na tela, e quando não há
   espaço abaixo ela aparece **em cima** da bolha.
 - Na faixa, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.

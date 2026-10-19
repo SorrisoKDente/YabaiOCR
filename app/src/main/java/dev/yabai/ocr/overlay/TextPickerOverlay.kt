@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -36,6 +37,18 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
     init {
         setBackgroundColor(0x33000000)
         isClickable = true
+        // BACK leaves the selection the same way «Cancelar» does. The window is focusable while the
+        // picker is up (see `OverlayController.showTextPicker`), so the key arrives here instead of
+        // turning into a «back» in the app underneath.
+        isFocusableInTouchMode = true
+        setOnKeyListener { _, keyCode, event ->
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                onCancel?.invoke()
+                true
+            } else {
+                false
+            }
+        }
 
         addView(blocks, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
 

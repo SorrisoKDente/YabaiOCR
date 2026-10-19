@@ -40,8 +40,10 @@ import dev.yabai.ocr.util.dp
  *    only option would be to capture the screen again and hope.
  *  * the card hangs from the top. The on-screen keyboard occupies the bottom half, so an editor at
  *    the bottom would be typed into blind.
- *  * the window is only as tall as the card. Touches below it fall through to the app underneath,
- *    so the floating bubble stays reachable while a result is open.
+ *  * the panel owns the whole screen but is only drawn as a card at the top. The empty area is what
+ *    BACK means, physically: a tap there steps out of the panel (to the boxes of a whole-screen
+ *    capture, or out of it when there is nothing behind). That is also why the card itself swallows
+ *    its own taps.
  */
 class ResultOverlay(context: Context) : FrameLayout(context) {
 
@@ -114,7 +116,17 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         background = roundedBackground(context.getColor(R.color.panel_bg), dp(18).toFloat(), 0x33FFFFFF)
         setPadding(dp(16), dp(14), dp(16), dp(12))
         elevation = dp(12).toFloat()
+        // The card takes its own taps so that the root's «outside» listener never sees one. Without
+        // it, a tap on the card's padding would read as a tap outside it.
+        isClickable = true
     }
+
+    /**
+     * Whether there is a step behind the panel: the boxes of a whole-screen capture, which can be
+     * shown again without paying for another Lens call. BACK and a tap outside the card go there when
+     * there is one, and close the panel when there is not.
+     */
+    private var canGoBack = false
 
     private val notesContainer = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
@@ -224,11 +236,16 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             },
         )
 
-        // Focusable so text can be edited and BACK can close the panel instead of leaking through.
+        // Focusable so text can be edited and BACK can step out of the panel instead of leaking
+        // through to the app underneath. The empty area of the window belongs to the panel too, so a
+        // tap there is the same step; the window used to be only as tall as the card, and the gesture
+        // existed nowhere.
         isFocusableInTouchMode = true
+        isClickable = true
+        setOnClickListener { stepBack() }
         setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
-                callbacks?.onDismiss()
+                stepBack()
                 true
             } else {
                 false
@@ -255,11 +272,25 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         analyseHandler.removeCallbacks(analyseSoon)
     }
 
+    /**
+     * One step out of the panel, asked for by BACK or by a tap outside the card.
+     *
+     * The panel is not always the last thing on screen: after a whole-screen capture the boxes are
+     * still one tap away, and that is where the user came from. Closing the panel there would throw
+     * the capture away and cost another Lens call to get it back, so BACK goes to «◀ Trechos». With
+     * nothing behind the panel — a region capture — the same gesture is «Fechar».
+     */
+    private fun stepBack() {
+        if (canGoBack) callbacks?.onRepick() else callbacks?.onDismiss()
+    }
+
     // --- entry points --------------------------------------------------------------------------
 
     fun showLoading() {
         card.removeAllViews()
         translationText = null
+        // A spinner is not a result: there is no text behind it to go back to.
+        canGoBack = false
         // No header in this card, so nothing can be folded: leave both the state and the stale view
         // reference of a previous panel behind rather than folding this spinner away.
         headerRow = null
@@ -304,6 +335,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         this.segmentLines = segmentLines
         translationText = null
         lastAnalysedText = text
+        canGoBack = canRepick
 
         // A new capture opens unfolded. Folding is about the answer already in front of the user, and
         // a panel that came up collapsed would hide the very thing they just asked for.
@@ -451,6 +483,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     fun showError(message: String, offlineAvailable: Boolean) {
         card.removeAllViews()
+        // Nothing was recognised, so there is nothing to go back to.
+        canGoBack = false
         // This card has no header either, so it cannot be folded.
         headerRow = null
         minimised = false
