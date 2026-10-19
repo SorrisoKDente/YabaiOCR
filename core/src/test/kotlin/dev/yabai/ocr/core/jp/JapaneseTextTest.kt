@@ -39,6 +39,23 @@ class JapaneseTextTest {
     }
 
     @Test
+    fun `tells kana from kanji`() {
+        // A reading is kana and the characters it explains are kanji; that is the whole of the test.
+        assertTrue(JapaneseText.isKanaOnly("しょくいん"))
+        assertTrue(JapaneseText.isKanaOnly("ネオ"))
+        assertTrue(JapaneseText.isKanaOnly("コーヒー"))
+        assertTrue(!JapaneseText.isKanaOnly("職員"))
+        assertTrue(!JapaneseText.isKanaOnly("職員さん"))
+        assertTrue(!JapaneseText.isKanaOnly(""))
+        assertTrue(!JapaneseText.isKanaOnly("ストーリー1"))
+
+        assertTrue(JapaneseText.hasKanji("職員さんに聞いた"))
+        assertTrue(JapaneseText.hasKanji("淀"))
+        assertTrue(!JapaneseText.hasKanji("しょくいん"))
+        assertTrue(!JapaneseText.hasKanji("STORY by ONE"))
+    }
+
+    @Test
     fun `tidyLines drops blank lines`() {
         assertEquals("a\nb", JapaneseText.tidyLines("  a  \n\n   \nb\n"))
     }

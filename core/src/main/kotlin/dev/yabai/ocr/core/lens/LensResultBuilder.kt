@@ -8,6 +8,10 @@ package dev.yabai.ocr.core.lens
  * when the `text_separator` field is present (even if empty, which is what happens for Japanese),
  * that separator is appended verbatim. Only when the field is absent is a plain space inserted
  * between words, which is the Latin-script case.
+ *
+ * Furigana is the one thing that has to be taken back out of that join: a reading is reported as a
+ * line of its own and belongs to a kanji, not to the sentence. [RubyGeometry] finds it, and the
+ * caller says in [FuriganaMode] whether to drop it or keep it in parentheses.
  */
 object LensResultBuilder {
 
@@ -40,6 +44,7 @@ object LensResultBuilder {
         parsed: LensProto.ParsedResponse,
         imageWidth: Int,
         imageHeight: Int,
+        furigana: FuriganaMode = FuriganaMode.REMOVE,
     ): Built {
         val segments = ArrayList<LensSegment>()
         val lines = ArrayList<Line>()
@@ -59,37 +64,92 @@ object LensResultBuilder {
             }
         }
 
+        // A reading arrives as a line of its own and says nothing on its own: groupIntoBlocks ties it
+        // back to the line it explains before any sentence is put together from them.
         val language = parsed.language
             ?: parsed.paragraphs.firstNotNullOfOrNull { it.language }
             ?: ""
 
-        return Built(language, segments, groupIntoBlocks(lines))
+        return Built(language, segments, groupIntoBlocks(lines, furigana))
     }
 
     /**
-     * Groups the lines into the text blocks the picker offers.
+     * Groups the lines into the text blocks the picker offers, with the furigana of each block
+     * handled as [furigana] asks.
      */
-    internal fun groupIntoBlocks(lines: List<Line>): List<LensBlock> =
-        merge(lines).map { group ->
+    internal fun groupIntoBlocks(
+        lines: List<Line>,
+        furigana: FuriganaMode = FuriganaMode.REMOVE,
+    ): List<LensBlock> {
+        // A reading is reported as a line of its own: find those first, then leave them out of the
+        // sentence and (when asked) write them back after the characters they read.
+        val matches = RubyGeometry.matches(lines.map { it.text to it.box })
+        val readings = matches.mapTo(HashSet()) { it.reading }
+        val rubies = matches.groupBy({ it.base }, { it.ruby })
+
+        return merge(lines).mapNotNull { group ->
+            // A group that held nothing but readings has no sentence at all, so it is not offered as
+            // a block the user could pick.
+            val sentence = group
+                .filterNot { readings.contains(it) }
+                .joinToString(" ") { withReadings(lines[it], rubies[it].orEmpty(), furigana) }
+            if (sentence.isBlank()) return@mapNotNull null
+
             LensBlock(
                 // Columns are joined with a space rather than a newline: JapaneseText.normalize
                 // drops the spaces between two Japanese characters and keeps the ones between Latin
                 // words, which turns a balloon's columns back into the one sentence they are.
-                text = group.joinToString(" ") { it.text },
-                lines = group.map { it.text },
-                box = union(group.mapNotNull { it.box }),
+                text = sentence,
+                // The lines stay as Lens reported them — readings included — because this is the raw
+                // view of what the recogniser saw.
+                lines = group.map { lines[it].text },
+                box = union(group.mapNotNull { lines[it].box }),
             )
         }
+    }
 
     /**
-     * Groups the lines that belong to the same text block, so that the boxes offered on screen are
-     * speech balloons and paragraphs rather than the individual columns Lens splits them into.
+     * One line as it goes into the sentence: its own text, followed by the readings it carries —
+     * written in parentheses after the characters they cover — when the caller asked to keep them.
+     *
+     * `職員さんに聞いた` with the reading `しょくいん` over its first two characters becomes
+     * `職員（しょくいん）さんに聞いた`.
+     */
+    private fun withReadings(
+        line: Line,
+        rubies: List<RubyGeometry.Ruby>,
+        furigana: FuriganaMode,
+    ): String {
+        if (furigana == FuriganaMode.REMOVE || rubies.isEmpty()) return line.text
+        var text = line.text
+        // Back to front, so the positions of the readings still to be written stay valid.
+        for (ruby in rubies.sortedByDescending { it.start }) {
+            text = insertAfter(text, ruby.start + ruby.count, "（${ruby.text}）")
+        }
+        return text
+    }
+
+    /** Inserts [insertion] into [text] after [codePoints] characters. */
+    private fun insertAfter(text: String, codePoints: Int, insertion: String): String {
+        var chars = 0
+        var seen = 0
+        while (chars < text.length && seen < codePoints) {
+            chars += Character.charCount(text.codePointAt(chars))
+            seen++
+        }
+        return text.substring(0, chars) + insertion + text.substring(chars)
+    }
+
+    /**
+     * Groups the lines that belong to the same text block, by index, so that the boxes offered on
+     * screen are speech balloons and paragraphs rather than the individual columns Lens splits them
+     * into.
      *
      * Lines with no geometry cannot be placed, so they never join anything and stay on their own.
      */
-    private fun merge(lines: List<Line>): List<List<Line>> {
+    private fun merge(lines: List<Line>): List<List<Int>> {
         if (lines.isEmpty()) return emptyList()
-        if (lines.size == 1) return listOf(lines)
+        if (lines.size == 1) return listOf(listOf(0))
 
         val parent = IntArray(lines.size) { it }
 
@@ -116,8 +176,8 @@ object LensResultBuilder {
             }
         }
 
-        val groups = LinkedHashMap<Int, ArrayList<Line>>()
-        for (i in lines.indices) groups.getOrPut(root(i)) { ArrayList() } += lines[i]
+        val groups = LinkedHashMap<Int, ArrayList<Int>>()
+        for (i in lines.indices) groups.getOrPut(root(i)) { ArrayList() } += i
         return groups.values.toList()
     }
 

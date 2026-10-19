@@ -76,6 +76,30 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit { putBoolean(KEY_TRANSLATE, value) }
 
     /**
+     * Keep the furigana — the reading a manga prints beside a kanji — in the recognised text,
+     * written after the characters it belongs to, instead of dropping it.
+     *
+     * Off by default, because the reading is *not* part of the sentence: `しょくいん職員さん` is not
+     * a word anybody can look up, and it throws the translation off. Whoever wants the reading to
+     * stay (to read a word aloud, say) gets it where it was printed: `職員（しょくいん）さん`.
+     */
+    var furiganaInParentheses: Boolean
+        get() = prefs.getBoolean(KEY_FURIGANA, false)
+        set(value) = prefs.edit { putBoolean(KEY_FURIGANA, value) }
+
+    /**
+     * Write the reading of the kanji in the panel, after the characters it reads:
+     * `職員さんに聞いた` → `職員（しょくいん）さんに聞（き）いた`.
+     *
+     * This is the other half of the furigana question: manga does not print the reading most of the
+     * time, but the dictionary knows it anyway, because it already segmented the sentence. On by
+     * default — it is a reading aid and it costs one section, which folds away.
+     */
+    var showFurigana: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_FURIGANA, true)
+        set(value) = prefs.edit { putBoolean(KEY_SHOW_FURIGANA, value) }
+
+    /**
      * Show the captured image beside the recognised text.
      *
      * Off by default: the image takes a share of the panel's width, and what loses it is the
@@ -94,7 +118,24 @@ class AppSettings(context: Context) {
 
     companion object {
         const val PREFS_NAME = "yabai_ocr_settings"
-        const val DEFAULT_MAX_DIMENSION = 1600
+
+        /**
+         * The longest side an image is allowed to keep before it goes to Lens.
+         *
+         * 2400 — the long side of an ordinary phone screen — so a full-screen capture is not resized
+         * at all, and a bigger one is only brought down to that. Was 1600, which left a 1080x2400
+         * capture at 720x1600; measured against the real endpoint, the pages are the same but the
+         * kana printed beside a kanji (15 px at 720x1600 against 22 px at 1080x2400) are **not**
+         * recognised at the smaller size and are reported as a segment of their own at the larger
+         * one. That reading is exactly what «Manter o furigana entre parênteses» and the «Furigana»
+         * block work from, so losing it at the resize is losing the feature.
+         *
+         * What it costs, also measured: a full-screen page goes from 105 KB to 178 KB and takes
+         * about the same time (1.2 s); a capture of a photographed page goes to 2.4 MB and ~5 s, and
+         * the endpoint accepts it (200, text; 3.7 MB for a 1350x3000 crop, ~7 s). The ceiling is not
+         * the endpoint.
+         */
+        const val DEFAULT_MAX_DIMENSION = 2400
 
         private const val KEY_ENGINE = "engine"
         private const val KEY_AUTO_COPY = "auto_copy"
@@ -106,6 +147,8 @@ class AppSettings(context: Context) {
         private const val KEY_DICTIONARY = "dictionary_lookup"
         private const val KEY_DICTIONARY_FILTER = "dictionary_filter"
         private const val KEY_TRANSLATE = "translate_sentence"
+        private const val KEY_FURIGANA = "furigana_parentheses"
+        private const val KEY_SHOW_FURIGANA = "show_furigana"
         private const val KEY_TRANSLATE_TARGET = "translate_target"
         private const val KEY_SHOW_IMAGE = "show_image"
     }

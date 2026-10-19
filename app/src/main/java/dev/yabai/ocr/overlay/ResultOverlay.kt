@@ -25,6 +25,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import dev.yabai.ocr.R
+import dev.yabai.ocr.core.dict.Furigana
 import dev.yabai.ocr.core.dict.KanjiEntry
 import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.util.dp
@@ -88,6 +89,11 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             val titles: List<String> = emptyList(),
             /** The one dictionary the lookup was narrowed to, or null for all of them. */
             val selected: String? = null,
+            /**
+             * The sentence with a reading after every kanji the dictionaries can account for, or
+             * null when there is nothing to write (or the setting is off).
+             */
+            val furigana: Furigana.Annotated? = null,
         ) : WordsState {
             /** One dictionary is nothing to choose between, so the selector stays out of the way. */
             val pickable: Boolean get() = titles.size > 1
@@ -483,6 +489,26 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             return
         }
 
+        // The reading of the whole sentence, before the word list: whoever cannot read a kanji wants
+        // it beside the character, not three sections down. It is a reading of the text above, so it
+        // is selectable like every other text in the panel.
+        state.furigana?.takeIf { it.text.isNotBlank() }?.let { annotated ->
+            wordsSection.addView(
+                section(SECTION_FURIGANA, context.getString(R.string.result_furigana_label)) { body ->
+                    body.addView(
+                        textLabel(annotated.text, FURIGANA_TEXT_SIZE, context.getColor(R.color.text_primary))
+                            .apply {
+                                setPadding(dp(2), dp(4), dp(2), 0)
+                                setTextIsSelectable(true)
+                            },
+                    )
+                    if (annotated.uncertain > 0) {
+                        body.addView(noteView(context.getString(R.string.result_furigana_note)))
+                    }
+                },
+            )
+        }
+
         if (state.kanji.isNotEmpty()) {
             wordsSection.addView(
                 section(SECTION_KANJI, context.getString(R.string.result_kanji_label)) { body ->
@@ -490,7 +516,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 },
             )
         }
-
         if (state.matches.isEmpty()) {
             wordsSection.addView(
                 dictionarySection(state, context.getString(R.string.result_dictionary_label)) { body ->
@@ -1052,6 +1077,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         /** Fold state keys. Titles cannot be keys: the dictionary one carries a word count. */
         private const val SECTION_TRANSLATION = "translation"
+        private const val SECTION_FURIGANA = "furigana"
         private const val SECTION_KANJI = "kanji"
         private const val SECTION_DICTIONARY = "dictionary"
 
@@ -1074,5 +1100,11 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         /** Where the dictionary name in the section header stops, so the title beside it survives. */
         private const val PICKER_MAX_WIDTH_DP = 150
+
+        /**
+         * The annotated sentence is the one text in the panel that is read *in order* and out loud,
+         * so it is set a little larger than the word list.
+         */
+        private const val FURIGANA_TEXT_SIZE = 16f
     }
 }

@@ -125,11 +125,13 @@ class CompactDictionary private constructor(
         val reader = BlobReader(bytes)
         reader.int() // score
         reader.string() // the character itself
-        reader.string() // onyomi
-        reader.string() // kunyomi
+        val onYomi = reader.string()
+        val kunYomi = reader.string()
         val body = reader.rest()
         if (body.isBlank()) return null
-        return KanjiEntry(character, body)
+        // The readings are kept apart from the rendered body because the furigana pass needs them
+        // as readings, not as a line of text: 訓: た.べる is not something to write after a kanji.
+        return KanjiEntry(character, body, onYomi, kunYomi)
     }
 
     private fun decodeEntry(index: Index, id: Int): DictionaryEntry? {

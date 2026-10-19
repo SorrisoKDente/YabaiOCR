@@ -18,6 +18,10 @@ data class DictionaryEntry(
 data class KanjiEntry(
     val character: String,
     val body: String,
+    /** The on'yomi as the dictionary writes them (「・」-separated), or empty. */
+    val onYomi: String = "",
+    /** The kun'yomi as the dictionary writes them (「・」-separated), or empty. */
+    val kunYomi: String = "",
 )
 
 /** Everything read from the dictionary's `index.json`. */

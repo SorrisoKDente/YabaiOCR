@@ -69,6 +69,25 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         return out
     }
 
+    /**
+     * The sentence with a reading written after each kanji the dictionaries can account for:
+     *
+     *     職員さんに聞いた   →   職員（しょくいん）さんに聞（き）いた
+     *
+     * [matches] is the segmentation [lookup] already produced — the reading of a word is part of the
+     * hit, so nothing is looked up twice. Kanji that no word covered fall back to the kanji entries,
+     * which is the only guess in the whole path, and [only] narrows that fallback exactly like it
+     * narrows [lookup] and [kanjiBreakdown]: the panel cannot be told to read one dictionary and be
+     * answered by another.
+     */
+    fun withFurigana(
+        text: String,
+        matches: List<TokenMatch>,
+        only: Set<String> = emptySet(),
+    ): Furigana.Annotated? = Furigana.sentence(text, matches) { character ->
+        selected(only).firstNotNullOfOrNull { it.kanjiEntry(character) }
+    }
+
     /** Titles of the dictionaries that actually contributed at least one hit. */
     fun contributedTitles(matches: List<TokenMatch>): List<String> =
         matches.map { it.dictionaryTitle }.distinct()

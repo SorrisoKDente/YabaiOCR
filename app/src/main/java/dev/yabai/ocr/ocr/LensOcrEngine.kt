@@ -3,6 +3,7 @@ package dev.yabai.ocr.ocr
 import android.graphics.Bitmap
 import android.graphics.Rect
 import dev.yabai.ocr.core.jp.JapaneseText
+import dev.yabai.ocr.core.lens.FuriganaMode
 import dev.yabai.ocr.core.lens.LensClient
 import dev.yabai.ocr.core.lens.LensOptions
 import dev.yabai.ocr.core.lens.PixelBox
@@ -10,11 +11,15 @@ import dev.yabai.ocr.core.lens.PixelBox
 /**
  * Google Lens, the same engine family the Lens app uses. Highest accuracy on Japanese, including
  * vertical manga text, but it needs a network connection.
+ *
+ * [furigana] is the only thing here that does not travel to Google: Lens always reports the readings,
+ * and this is what the app does with them once they are back.
  */
 class LensOcrEngine(
     private val language: String,
     private val maxDimension: Int,
     private val upscaleSmall: Boolean,
+    private val furigana: FuriganaMode,
 ) : OcrEngine {
 
     override val label: String = "Google Lens"
@@ -24,7 +29,7 @@ class LensOcrEngine(
 
     override suspend fun recognize(bitmap: Bitmap): OcrOutcome {
         val image = ImagePreparer.encode(bitmap, maxDimension, upscaleSmall)
-        val result = client.recognizeSuspend(image, LensOptions(language = language))
+        val result = client.recognizeSuspend(image, LensOptions(language = language), furigana)
 
         val lines = result.segments.map { it.text }.filter { it.isNotBlank() }
 

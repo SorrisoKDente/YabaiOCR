@@ -67,7 +67,11 @@ class LensClient(
 
     private var requestCounter = 0L
 
-    fun recognize(image: EncodedImage, options: LensOptions = LensOptions()): LensResult {
+    fun recognize(
+        image: EncodedImage,
+        options: LensOptions = LensOptions(),
+        furigana: FuriganaMode = FuriganaMode.REMOVE,
+    ): LensResult {
         require(image.width > 0 && image.height > 0) { "image dimensions must be positive" }
         require(image.bytes.isNotEmpty()) { "image payload is empty" }
 
@@ -108,7 +112,7 @@ class LensClient(
                         ?: throw LensException("Lens returned an empty body", response.code)
 
                     val parsed = LensProto.parseResponse(bytes, image.width, image.height)
-                    val built = LensResultBuilder.build(parsed, image.width, image.height)
+                    val built = LensResultBuilder.build(parsed, image.width, image.height, furigana)
                     return LensResult(
                         language = built.language,
                         segments = built.segments,
@@ -129,8 +133,11 @@ class LensClient(
         throw lastError ?: LensException("Lens request failed")
     }
 
-    suspend fun recognizeSuspend(image: EncodedImage, options: LensOptions = LensOptions()): LensResult =
-        withContext(Dispatchers.IO) { recognize(image, options) }
+    suspend fun recognizeSuspend(
+        image: EncodedImage,
+        options: LensOptions = LensOptions(),
+        furigana: FuriganaMode = FuriganaMode.REMOVE,
+    ): LensResult = withContext(Dispatchers.IO) { recognize(image, options, furigana) }
 
     private fun nextUuid(): Long {
         // Mirrors `String(Date.now()) + String(random)`: a 19-digit-ish number, still < 2^63.

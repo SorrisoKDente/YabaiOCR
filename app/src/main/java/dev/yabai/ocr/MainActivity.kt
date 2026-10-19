@@ -182,6 +182,20 @@ class MainActivity : AppCompatActivity() {
         // on in the other.
         val showImage = findViewById<CheckBox>(R.id.checkShowImage).apply { isChecked = settings.showImage }
         showImage.setOnCheckedChangeListener { _, checked -> settings.showImage = checked }
+
+        // What to do with the readings Lens reports beside the kanji. Dropping them is the default
+        // because a reading is not part of the sentence; keeping them is for whoever wants to read
+        // the word aloud.
+        val furigana = findViewById<CheckBox>(R.id.checkFurigana).apply {
+            isChecked = settings.furiganaInParentheses
+        }
+        furigana.setOnCheckedChangeListener { _, checked -> settings.furiganaInParentheses = checked }
+
+        // The other direction: the readings the manga did *not* print, taken from the dictionaries.
+        val furiganaReadings = findViewById<CheckBox>(R.id.checkFuriganaReadings).apply {
+            isChecked = settings.showFurigana
+        }
+        furiganaReadings.setOnCheckedChangeListener { _, checked -> settings.showFurigana = checked }
     }
 
     private fun bindTranslationAndDictionaries() {

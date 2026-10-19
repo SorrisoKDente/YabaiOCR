@@ -354,30 +354,238 @@ são testes vazios.
 
 | # | Estado | Item | Dificuldade |
 | --- | --- | --- | --- |
-| D1 | `[ ]` | **Remover furigana** do texto reconhecido | difícil |
-| D2 | `[ ]` | **Adicionar furigana** aos kanji que não têm (estilo Dokuen) | difícil |
+| D1 | `[x]` | **Remover furigana** do texto reconhecido | difícil |
+| D2 | `[x]` | **Adicionar furigana** aos kanji que não têm (estilo Dokuen) | difícil |
 
-### D1 — Remover furigana  `[ ]`
+### D1 — Remover furigana  `[x]` (18/10/2026)
 
-Viável, por dois caminhos que se somam:
+A frase saía como `しょくいん職員さんに聞いた`: a leitura colada na palavra que ela explica. Não é texto
+perdido — é texto *errado*, e errado de um jeito que estraga as duas coisas que o app faz com ele: o
+`しょくいん職員` não está em dicionário nenhum, e a tradução recebe uma palavra inventada no meio da frase.
 
-1. **Geometria.** O `core` já decodifica a caixa de *cada palavra*, não só de cada linha. Furigana é
-   uma palavra cuja altura é ~metade da altura da linha e que está encostada num kanji — dá para
-   detectar e descartar antes de montar a frase.
-2. **Dicionário.** Um trecho em kana encostado num kanji que não forma palavra e cuja leitura bate
-   com a do kanji (KANJIDIC / JMdict) é furigana. Ex.: `しょくいん職員` → `職員（しょくいん）`.
+**O caminho que valeu foi a geometria**, e não por palpite: a primeira coisa feita aqui foi *medir* o que o
+Lens devolve para uma página com furigana. Foi desenhada uma página (`core/src/test/resources/test_furigana.png`,
+800×1000, texto vertical e horizontal, com e sem furigana), ela foi enviada **uma vez** ao endpoint de
+verdade, e a resposta foi gravada (`core/src/test/resources/lens_furigana.bin`, 1,7 kB) como fixture
+offline. O que a medição mostrou:
 
-O caminho 1 é barato e cobre a maior parte do mangá; o 2 é o que permite *preservar* a leitura em
-parênteses em vez de jogar fora.
+| | leitura | linha que ela explica | espessura | distância |
+| --- | --- | --- | --- | --- |
+| vertical | `16×92` | `45×375` | 36% | 8 px |
+| horizontal | `89×17` | `185×41` | 41% | 16 px |
 
-### D2 — Adicionar furigana  `[ ]`
+Ou seja: **o Lens reporta o furigana como uma linha própria**, e não como palavra dentro da linha. Isso
+explica o bug inteiro — a linha da leitura é fina e encosta na coluna do kanji, então a regra de junção que
+monta os balões (`MERGE_GAP_RATIO`) juntava as duas no mesmo bloco, e a frase saía com a leitura na frente
+(em japonês vertical o rubi fica à direita, e lendo-se da direita para a esquerda ele vem antes).
 
-Mais fácil que D1, porque o motor de dicionário já segmenta a frase e já sabe a leitura de cada
-palavra (`食べました → 食べる【たべる】`). Para cada termo encontrado, inserir a leitura do trecho em
-kanji; para kanji solto sem palavra, cair nas leituras do KANJIDIC (ambíguas, marcadas como tal).
-Saída em texto — `職員（しょくいん）` — ou em rubi de verdade, acima do kanji, num `TextView` com
-`Spannable`. O «tela inteira» e «selecionar área» valem como estão: é só mais uma camada sobre o
-texto reconhecido.
+O que foi feito:
+
+- `core/.../lens/RubyGeometry.kt` decide, **só por geometria**, se uma linha é leitura de outra. As quatro
+  regras saíram da tabela acima, com folga para o lado conservador: a leitura é **mais fina** que a linha
+  (≤ 60% da espessura, medido 36–41%), está **encostada** nela (vão ≤ 50% da espessura, medido 8 px de 45 e
+  16 px de 41), **cobre** os caracteres que lê (sobreposição ≥ 50% do comprimento da leitura, medido 95% e
+  100%) e **não passa** da linha por mais de um glifo (medido 5 px de 45). Além disso a leitura tem de ser
+  **só kana** e a linha explicada tem de ter **pelo menos um kanji** — que é o que impede as duas de
+  trocarem de papel (kana puro nunca é base).
+- **Onde a leitura entra é medido, não adivinhado.** A caixa da leitura, projetada no comprimento da linha,
+  diz **quais caracteres** ela lê: `しょくいん` cobre os dois primeiros de oito em `職員さんに聞いた`, então
+  a leitura guardada é `(início 0, 2 caracteres)` — e é isso que faz `職員（しょくいん）さん` em vez de
+  `（しょくいん）職員さん`. O arredondamento é para fora (início para baixo, fim para cima): errar para
+  menos grudaria a leitura no kanji errado.
+- **Dois modos** (`FuriganaMode`): `REMOVE` (padrão) tira a leitura da frase; `PARENTHESES` a mantém onde
+  ela foi impressa. É a escolha que o item pedia — «remover o furigana, **ou** manter entre parênteses» — e
+  quem decide é um ajuste na tela principal («Manter o furigana entre parênteses»), que viaja até o
+  `LensResultBuilder` pelo `FuriganaMode` do motor. O modo entrou na chave do cache do `LensOcrEngine`
+  (`LensKey`) junto de idioma/dimensão/ampliação: ele não muda a *requisição*, mas mudar o ajuste e a
+  próxima captura responder com o modo antigo seria pior do que recriar um cliente HTTP.
+- **O texto cru continua cru.** As linhas que o painel mostra em «texto cru do Lens» (`LensBlock.lines` e
+  `LensSegment`) continuam exatamente como o Lens reportou, leitura incluída. A limpeza é da *frase*: uma
+  lista de linhas que escondesse a leitura estaria mentindo sobre o que o OCR viu — e é justamente ali que
+  se confere se o OCR errou.
+- **Um grupo que era só leitura não vira trecho.** Se o balão tiver só a coluna do rubi (sem base detectada),
+  ele não é oferecido no seletor de trechos: um retângulo que ao ser tocado não devolve texto nenhum é um
+  botão que parece quebrado. A regra também deixa intacto o invariante que o M1 já prendia
+  (`segments == blocks.flatMap { lines }`).
+- **Não foi para o ML Kit.** O detector é geometria pura e poderia valer para as linhas do ML Kit offline,
+  mas não há como medir isso aqui (o ML Kit precisa do aparelho), e uma regra de corte aplicada sem medição
+  come texto de verdade. Fica registrado como o próximo passo *se* aparecer uma amostra.
+- **O segundo caminho do item (dicionário) não foi usado e continua de pé**: ele serviria para *confirmar* a
+  leitura contra o KANJIDIC quando a geometria está em dúvida. Com a regra conservadora — na dúvida, não
+  mexe — a confirmação por dicionário só acrescentaria recall, e é exatamente o que o **D2** precisa
+  (inserir leitura onde não há rubi nenhum, ali o dicionário é a única fonte).
+
+**Testes de regressão:** `core/src/test/kotlin/dev/yabai/ocr/core/lens/FuriganaTest.kt` (11) e uma adição ao
+`core/src/test/kotlin/dev/yabai/ocr/core/jp/JapaneseTextTest.kt`:
+
+| teste | o que ele prende |
+| --- | --- |
+| `a reading is not part of the sentence` | `しょくいん` sai da frase; os outros balões ficam iguais |
+| `a reading can be kept where it was printed` | `職員（しょくいん）さん…`, e o horizontal também, com a leitura **depois** dos caracteres que ela lê |
+| `a line without furigana is untouched in both modes` | detector não come linha sem rubi (nos dois modos) |
+| `the raw lines still show the reading` | o texto cru do Lens não foi limpo junto |
+| `the recording has the page it came from` | a gravação e a imagem são um par (800×1000) |
+| `a kana column of its own is not a reading` | duas colunas de balão (`もう` 29 px × `死んでいる` 37 px, de uma resposta real) não são rubi |
+| `a small kana line with nothing to explain keeps its kana` | kana fina longe de qualquer kanji continua no lugar |
+| `a small kana line across a gutter is not a reading` | kana fina, alinhada e cobrindo, mas do outro lado de uma sarjeta, é balão — não rubi |
+| `each reading lands after its own characters` | **duas** leituras na mesma linha, cada uma no lugar certo |
+| `a reading after a kanji outside the basic plane is not written inside it` | a posição é contada em **caracteres**, não em `char` (um kanji fora do BMP não é partido ao meio) |
+| `a line without a box is left alone` | linha sem caixa não é rubi nem destino de rubi |
+| `tells kana from kanji` (`JapaneseTextTest`) | `isKanaOnly`/`hasKanji`: os dois papéis não se confundem |
+
+Conferido contra o código quebrado, dez quebras, cada uma derrubando um teste de verdade: detecção desligada →
+`expected:<[職員さんに聞いた, …]> but was:<[しょくいん 職員さんに聞いた, …]>`; leitura não saindo da frase → o
+mesmo; texto cru perdendo a leitura → `expected:<[しょくいん, 職員さんに聞いた]> but was:<[職員さんに聞いた]>`;
+leitura escrita no início da linha → `expected:<[（しょくいんしつ）（しょくいん）職員室の職員]> …`; fim do
+intervalo arredondado para baixo → `expected:<[職員（しょくいん）さんに聞いた…]> but was:<[職（しょくいん）員さんに聞いた…]>`;
+leituras escritas por ordem crescente → `expected:<[職員室（しょくいんしつ）の職員（しょくいん）]> but
+was:<[職員室（しょ（しょくいん）くいんしつ）の職員]>`; espessura sem limite → `expected:<[もう 死んでいる]>
+but was:<[死んでいる]>`; sarjeta ignorada → `expected:<[しょくいん, 職員さんに聞いた]> but was:<[職員さんに聞いた]>`;
+modo `REMOVE` escrevendo a leitura → `expected:<[職員さんに聞いた…]> but was:<[職員（しょくいん）さんに聞いた…]>`;
+posição contada em `char` → `expected:<[職員𠮟（しかる）]> but was:<[職員?（しかる）?]>`. Não são testes vazios.
+
+### D2 — Adicionar furigana  `[x]` (18/10/2026)
+
+O mangá imprime a leitura de *alguns* kanji. Quando não imprime — que é a maioria das vezes — ela continua
+existindo, e o app já a tinha em casa: o motor de dicionário segmenta a frase e cada palavra que ele
+encontra traz a própria leitura. Agora o painel escreve essa leitura ao lado dos caracteres que ela lê,
+num bloco «Furigana» novo:
+
+```
+職員さんに聞いた   →   職員（しょくいん）さんに聞（き）いた
+```
+
+Numa frase de verdade, com o JMdict instalado e a segmentação real:
+
+```
+私は昨日、友達と一緒に寿司を食べました。
+  →  私（わたし）は昨日（さくじつ）、友達（ともだち）と一緒（いっしょ）に寿司（すし）を食（た）べました。
+```
+
+O que foi feito:
+
+- **A leitura não é procurada de novo.** O bloco é montado a partir dos acertos que o painel já tinha
+  (`WordsState.Done.matches`) — a leitura de uma palavra faz parte do acerto. É uma passagem sobre o
+  texto, não outra consulta, e é por isso que ligar o bloco não deixa o painel mais lento.
+- **Onde a leitura entra é resolvido por palavra**, em `core/.../dict/Furigana.kt` (`split`): percorre o
+  termo do dicionário, separa os trechos de kanji dos de kana e reparte a leitura pelo trecho seguinte
+  de kana. É o que dá `食（た）べました` em vez de `食（たべる）べました` — o `べました` está impresso na
+  frase, e a leitura que vai em cima do kanji é só o `た`. Palavras com dois trechos de kanji saem
+  certas (`申し込み` → `申（もう）し込（こ）み`), e a leitura em katakana casa com o kana em hiragana
+  (`食ベル` / `たべる`): são a mesma leitura.
+- **Quando a leitura não encaixa, não se escreve nada.** Se a leitura não for só kana, ou se o termo do
+  dicionário não tiver os mesmos kanji da frase (um acerto desinflectido que perdeu caracteres), o
+  trecho é deixado em paz. Uma leitura em cima do kanji errado ensina o caractere errado — é pior do
+  que não ter leitura nenhuma.
+- **Kanji que uma palavra já leu não recebe palpite por cima.** O bloco marca os caracteres que cada
+  acerto cobriu e não volta neles: `職（しょく）` não vira `職（しょく）（もと?）`.
+- **Só um kanji sozinho cai no KANJIDIC**, e sempre marcado: dois kanji colados lidos como se fossem uma
+  palavra seriam uma palavra que o dicionário não tem, exactamente o que não se inventa. As leituras
+  vêm do `KanjiEntry`, que agora **carrega** o on'yomi e o kun'yomi — o blob compacto já os tinha e o
+  leitor deitava-os fora. Ordem: **kun primeiro** (um kanji sozinho num texto japonês lê-se à japonesa
+  primeiro), ordenados até três, o `た.べる` do KANJIDIC reduzido ao `た` (o `べる` está na frase) e
+  separados por `・`. O que é palpite sai dentro dos parênteses com `?` e é **contado**
+  (`Annotated.uncertain`), e o painel mostra a nota que explica o `?` só quando há algum.
+- **O texto reconhecido não é tocado.** O bloco é uma leitura *do* texto, não o texto: escrever dentro
+  do campo editável envenenaria o dicionário e a tradução (é esse campo que alimenta os dois) e brigaria
+  com as correcções do usuário. Se a leitura já está impressa na frase — o rubi do mangá ou o
+  `職員（しょくいん）` que o D1 deixa — ela **não é escrita segunda vez**.
+- **O bloco é mais um item dobravel** do painel, acima da lista de palavras (quem não sabe ler um kanji
+  quer a leitura ao lado dele, não três secções abaixo) e o seu texto é **seleccionável**, como todo o
+  resto do painel.
+- **Saída em texto (`職員（しょくいん）`), não em rubi por cima do kanji.** O rubi de verdade precisa de
+  `Spannable` num `TextView` próprio, não é copiável como texto e não é o que o painel faz em lugar
+  nenhum; a convenção de parênteses é a que o D1 já tinha introduzido. Fica registado como refinamento
+  possível, não como pendência.
+- **A escolha do dicionário vale também aqui**: o bloco recebe o mesmo `only` que a consulta e o quadro
+  de kanji, então nunca é respondido por um dicionário que a secção de palavras foi mandada ignorar —
+  a mesma regra que o M1 prende do outro lado.
+- **Ajuste próprio** («Mostrar a leitura dos kanji»), **ligado** por omissão: é uma ajuda de leitura e
+  custa um bloco de uma linha, que dobra. O ajuste do D1 é o outro lado da mesma pergunta — o que fazer
+  com a leitura que o Lens **viu**; este é o que fazer com a que **ninguém viu**.
+- **O ML Kit não foi tocado**, pela mesma razão do D1: a leitura do bloco sai do dicionário, que o ML
+  Kit não consulta.
+
+**Testes de regressão:** `core/.../dict/FuriganaTest.kt` (21, sem dicionários — os acertos são
+construídos à mão, porque o que está em causa é onde a leitura entra e não se a consulta acha a palavra),
+três novos em `core/.../dict/DictionaryCompileTest.kt` (com os dicionários de verdade) e
+`app/.../overlay/FuriganaPanelTest.kt` (5):
+
+| teste | o que ele prende |
+| --- | --- |
+| `a verb keeps its okurigana out of the reading` | `食（た）べました`, não `食（たべる）べました` |
+| `each kanji run of a mixed word takes its own part of the reading` | `申し込み`, `有り難い`, `お客様` por trecho |
+| `a word without kanji has nothing to read` | palavra em kana não ganha leitura |
+| `a reading that does not line up with the word is refused` | leitura que não encaixa não é escrita |
+| `a katakana spelling lines up with a hiragana reading` | katakana e hiragana são a mesma leitura |
+| `a lone kanji reads kun first, without the okurigana` | kun antes de on, `た.べる` → `た`, até três |
+| `a reading that only repeats is written once` | leitura repetida não aparece duas vezes |
+| `what is not a reading is thrown away` | lixo no campo das leituras não vira leitura |
+| `every kanji run gets its reading after it` | a frase da regressão sai inteira, e `uncertain` é 0 |
+| `a kanji standing alone falls back to the kanji data, marked as the guess it is` | `淀（よど・テン・デン?）`, contado como palpite |
+| `two kanji in a row are never read as if they were a word` | dois kanji colados não recebem leitura inventada |
+| `a kanji a word already read is not read again from the kanji data` | o palpite não se sobrepõe à palavra |
+| `a word that covers part of a kanji run is written where it ends` | `職員（しょくいん）室` |
+| `a word whose dictionary spelling does not match the sentence is left alone` | leitura não é fixada sobre caracteres que não lê |
+| `a reading the sentence already prints is not written a second time` | nada de `職員（しょくいん）（しょくいん）` |
+| `a kanji outside the basic plane is not written inside itself` | posição contada em caracteres, não em `char` |
+| `a sentence with no kanji has nothing to annotate` | frase sem kanji não gera bloco |
+| `the reading of a sentence comes from the words it was segmented into` (dicionários) | a frase real do JMdict, `食（た）べました` incluído |
+| `a kanji no word covers falls back to the kanji entry, marked as a guess` (dicionários) | o palpite vem do KANJIDIC e sai marcado |
+| `the reading fallback follows the same dictionary choice` (dicionários) | o `only` vale também para o palpite |
+| `the reading of the sentence is written beside the kanji` (painel) | o bloco mostra a leitura, seleccionável |
+| `nothing to read means no block at all` (painel) | sem leitura não há bloco — e a frase não muda |
+| `a guessed reading is called out under the sentence` (painel) | a nota do `?` só aparece quando há palpite |
+| `the block folds, and stays folded when the text is looked up again` (painel) | o bloco dobra e não se desdobra sozinho |
+| `the block sits above the dictionary` (painel) | a ordem dos blocos é a decidida |
+
+Conferido contra o código quebrado, **dezasseis** quebras, cada uma derrubando um teste de verdade:
+detecção desligada → `expected:<職員（しょくいん）さんに聞（き）いた> but was:<null>`; okurigana entrando na
+leitura → `expected:<…聞（き[]）いた> but was:<…聞（き[く]）いた>`; leitura já impressa escrita de novo →
+`expected:<職員（しょくいん）[]さん…> but was:<職員（しょくいん）[（しょくいん）]さん…>`; qualquer parêntese
+engolindo a leitura → `expected:<…聞[（き）]いた> but was:<…聞[]いた>`; leitura fixada sobre caracteres que
+não lê → `expected null, but was:<Annotated(text=職（しょくいん）員室…)>`; palpite por cima de palavra →
+`expected:<職（しょく）[]> but was:<職（しょく）[（もと?）]>`; dois kanji colados lidos como palavra →
+`expected null, but was:<Annotated(text=滉洋（よみ?）…)>`; palpite contado como certeza →
+`expected:<1> but was:<0>`; on antes de kun → `expected:<[よど, テン]> but was:<[テン, よど]>`; katakana
+sem normalização → `expected:<[Run(kanji=食, reading=た)]> but was:<null>`; separador das leituras
+ignorado → `expected:<[た, く, ショク]> but was:<[た]>`; kanji fora do plano básico contado em `char` →
+`expected:<𠮟（しか）る> but was:<null>`; bloco fora do painel → `NullPointerException` na secção; nota do
+palpite a desaparecer → `expected:<[? — o dicionário não tem este kanji como palavra…]> but was:<[null]>`;
+leitura não seleccionável → `the reading has to be selectable to be copied`; dicionário antes do bloco →
+`expected the reading before the words, got [dictionary, furigana, dictionary]`. Não são testes vazios.
+
+---
+
+### Registo — a carga que vai para o Lens  (18/10/2026)
+
+A última pendência aberta do roadmap era o `DEFAULT_MAX_DIMENSION`, que estava em 1600 a aguentar uma
+captura de tela de 1080×2400 reduzida a 720×1600. Se a redução custava alguma coisa não se sabia; agora
+sabe-se, porque foi medido contra o endpoint real (a sonda usada foi o `LensLiveTest` com uma lista de
+cargas; a sonda foi apagada a seguir, as cargas eram ficheiros temporários):
+
+| carga | bytes | tempo | HTTP | trechos | leitura miúda |
+| --- | --- | --- | --- | --- | --- |
+| tela 1080×2400 reduzida (limite 1600 → 720×1600) | 104 702 | 1,2 s | 200 | 4–5 | **não** |
+| tela 1080×2400 nativa (limite 2400) | 177 897 | 0,9–1,3 s | 200 | 5 | **sim** (`よど` como trecho próprio) |
+| página fotografada 1080×2400 | 2 393 184 | 5,1 s | 200 | 5 | — |
+| recorte 1350×3000 (extremo do ajuste) | 3 718 338 | 6,9 s | 200 | 6 | — |
+
+As duas primeiras linhas são **a mesma página**, desenhada nítida nas duas densidades (texto a 30 px
+com leitura a 15 px, e texto a 45 px com leitura a 22 px). O resultado repetiu-se nas duas corridas:
+com a leitura a 15 px o Lens não a reconhece de todo; a 22 px, vem como trecho próprio. E é essa leitura
+que o D1 tira da frase e que o D2 escreve — a redução não custava bytes, custava a funcionalidade.
+
+- `DEFAULT_MAX_DIMENSION` passou de **1600** para **2400**: a tela de um telefone comum entra inteira,
+  sem reamostragem; uma tela maior continua a ser reduzida, mas só até 2400.
+- O que se paga: numa captura de tela +73 KB e o mesmo tempo; numa página fotografada 2,4 MB e ~5 s —
+  dentro do `callTimeout` de 20 s, e o endpoint aceita (3,7 MB, ~7 s, também aceite). O tecto não é o
+  endpoint.
+- Testes: `app/.../ocr/ImagePreparerTest.kt` (7) — a tela de telefone passa intacta no limite por
+  omissão, uma tela maior é reduzida mantendo as proporções, o recorte é ampliado mas só até duas
+  vezes e nunca além do limite, e a imagem vai em **PNG** com bytes dentro. Conferido contra o código
+  quebrado: voltar a 1600 → `expected:<1080> but was:<720>`; ampliação sem limite →
+  `expected:<600> but was:<800>`; envio em JPEG → `expected a PNG signature, got [-1, -40, -1, -32]`.
 
 ---
 
@@ -388,9 +596,19 @@ texto reconhecido.
 - F1/F2/F3 não dependem de nada e são só UI.
 - M2 depende de F3.
 - M1 não depende de nada: mexe no motor de consulta e no cabeçalho de uma seção só.
-- D2 depende de nada, mas é o mais arriscado dos dois «difíceis»; D1 é pré-requisito conceitual de
-  nada, mas os dois mexem no mesmo lugar (`LensResultBuilder` / `JapaneseText`), então convém fazer
-  D1 e D2 em sequência.
+- D2 depende de nada, mas é o mais arriscado dos dois «difíceis»; com o D1 pronto, a leitura em
+  parênteses já existe e o D2 é a mesma inserção com outra fonte de leitura (o dicionário em vez da
+  geometria), então convém fazê-lo logo em seguida.  `[x]` — feito em 18/10/2026.
+
+Com o D2 fechado, o roadmap está inteiro. O que ficou de fora e por quê:
+
+- **Rubi de verdade** (leitura impressa *acima* do kanji, com `Spannable`) em vez dos parênteses: a
+  saída em texto é copiável, seleccionável e é a convenção que o D1 já tinha, e o painel não usa
+  `Spannable` em lugar nenhum. Fica como refinamento, não como pendência.
+- **A leitura vinda da geometria do D1 alimentando o bloco**: desnecessário — se o mangá imprimiu o
+  rubi, a frase já o tem entre parênteses e o D2 não escreve por cima.
+- **A carga que vai para o Lens**: era a última dúvida aberta e está fechada com medições — ver
+  «Registo — a carga que vai para o Lens», acima.
 
 ---
 

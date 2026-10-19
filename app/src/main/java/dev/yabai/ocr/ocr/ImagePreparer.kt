@@ -9,9 +9,14 @@ import kotlin.math.roundToInt
 /**
  * Prepares a screenshot (or a crop of one) for OCR.
  *
- * Lens works best around 1200 px on the longest side, but phone full-screen grabs are 1080x2400,
- * so we downscale those. Crops, on the other hand, are often only a couple of hundred pixels tall
- * — those get a modest upscale, which measurably helps on small furigana.
+ * The longest side is capped at `maxDimension`, which by default is the long side of an ordinary
+ * phone screen (2400), so a full-screen grab goes through untouched. Reducing a whole page is not
+ * free: measured against the real endpoint, the kana printed beside a kanji stop being recognised
+ * once the page has been brought down to 720x1600, and those readings are half of what this app is
+ * for (see `AppSettings.DEFAULT_MAX_DIMENSION` for the numbers).
+ *
+ * Crops are the other way round: they are often only a couple of hundred pixels tall — those get a
+ * modest upscale, which measurably helps on small furigana.
  */
 object ImagePreparer {
 

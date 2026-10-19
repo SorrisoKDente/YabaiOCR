@@ -5,6 +5,7 @@ import android.util.Log
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.EngineChoice
 import dev.yabai.ocr.UsageTracker
+import dev.yabai.ocr.core.lens.FuriganaMode
 import dev.yabai.ocr.core.lens.LensException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,7 +15,9 @@ import kotlinx.coroutines.withContext
  * of the AUTO mode.
  *
  * The Lens engine is cached because it owns an OkHttp client and a cookie jar; it is only rebuilt
- * when one of the settings that change the request (language, max dimension, upscaling) move.
+ * when one of the settings it was built from (language, max dimension, upscaling, and what to do
+ * with furigana) moves. Only the first three change the request; the last one changes how the
+ * response is read, and it is in the key all the same so that a toggle can never be honoured late.
  *
  * Every Lens attempt is reported to [usage], which is the only place that can know how much we have
  * been calling Google — the API itself exposes no quota.
@@ -28,6 +31,7 @@ class OcrDispatcher(
         val language: String,
         val maxDimension: Int,
         val upscaleSmall: Boolean,
+        val furigana: FuriganaMode,
     )
 
     private val offlineLazy = lazy { MlKitOcrEngine() }
@@ -113,12 +117,21 @@ class OcrDispatcher(
     }
 
     private fun lens(): LensOcrEngine {
-        val key = LensKey(settings.language, settings.maxDimension, settings.upscaleSmall)
+        val key = LensKey(
+            language = settings.language,
+            maxDimension = settings.maxDimension,
+            upscaleSmall = settings.upscaleSmall,
+            furigana = if (settings.furiganaInParentheses) {
+                FuriganaMode.PARENTHESES
+            } else {
+                FuriganaMode.REMOVE
+            },
+        )
         val current = lensEngine
         if (current != null && lensKey == key) return current
 
         current?.close()
-        val fresh = LensOcrEngine(key.language, key.maxDimension, key.upscaleSmall)
+        val fresh = LensOcrEngine(key.language, key.maxDimension, key.upscaleSmall, key.furigana)
         lensEngine = fresh
         lensKey = key
         return fresh

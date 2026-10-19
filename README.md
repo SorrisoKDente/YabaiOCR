@@ -68,6 +68,11 @@ Detalhes úteis:
   que o OCR trocou. A escolha fica guardada nos ajustes.
 - O nome do dicionário no cabeçalho da seção «Dicionário» abre a lista de dicionários ativos: dá para
   consultar só um deles (ou **Todos**) sem sair do painel. A escolha também fica guardada.
+- As **leituras** (furigana) que o Lens devolve encostadas nos kanji são reconhecidas e tiradas da frase —
+  é o que impede o `しょくいん職員さん` de chegar ao dicionário. Nos ajustes dá para mantê-las onde foram
+  impressas: `職員（しょくいん）さん`.
+- Os kanji cuja leitura **não** está impressa ganham uma: o bloco «Furigana» escreve a leitura que o
+  dicionário já conhece ao lado dos caracteres (`聞（き）いた`), e a frase reconhecida não é alterada.
 - Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
   painel.
 
@@ -89,6 +94,67 @@ OCR erra kanji, e quando erra você normalmente sabe qual era. O texto reconheci
 **edição**: corrija à mão e **0,8 s depois da última tecla** a consulta ao dicionário e a tradução são
 refeitas sozinhas, com o texto corrigido. Não é preciso capturar a tela de novo — e as seções mostram
 «Traduzindo…»/«Consultando…» enquanto trabalham, para não parecer que nada aconteceu.
+
+### Furigana (a leitura ao lado do kanji)
+
+Mangá imprime a leitura dos kanji em kana miúdas encostadas neles — e o Lens reporta isso como **texto**,
+não como anotação. Sem tratamento, a frase sai com a leitura **colada na palavra que ela explica**:
+
+```
+しょくいん職員さんに聞いた          ← o que o OCR devolve
+職員さんに聞いた                   ← o que a frase é
+```
+
+Não é só feiúra: `しょくいん職員` não existe em dicionário nenhum, e a tradução recebe uma palavra
+inventada no meio da frase. O app reconhece a leitura **pela posição dela na página** (kana finas,
+encostadas num kanji, cobrindo só os caracteres que leem) e faz uma das duas coisas — a sua escolha:
+
+| Ajuste «Manter o furigana entre parênteses» | Resultado |
+| --- | --- |
+| **desligado** (padrão) | `職員さんに聞いた` — a leitura sai da frase, que é o que o dicionário e a tradução querem |
+| ligado | `職員（しょくいん）さんに聞いた` — a leitura fica **depois dos kanji que ela lê**, para ler em voz alta |
+
+Numa captura real a leitura veio assim: `しょくいんネオの職員さんに聞いたら外出したって`. O certo é o mesmo
+princípio — tirar a leitura de dentro da frase —, e é isso que o app faz, seja a frase curta ou longa.
+
+- Vale só para o **Lens**, que é quem reporta as leituras com posição. O ML Kit offline não tem amostra
+  medida e não é tocado: na dúvida, o app não mexe — linha não reconhecida fica como estava.
+- A leitura é detectada comparando **tamanho e distância** com a linha vizinha, e só se ela for **só
+  kana** ao lado de uma linha **com kanji**. Duas colunas de balão, mesmo que uma seja bem menor que a
+  outra, continuam sendo dois textos.
+- O **texto cru do Lens** (o painel em «texto linha por linha») continua mostrando a leitura: é ali que se
+  confere o que o OCR viu, e escondê-la seria falsear o resultado do OCR.
+
+#### E quando o mangá não imprime a leitura
+
+Aí o Lens não tem o que reportar — mas o dicionário sabe. Ele já dividiu a frase em palavras, e cada
+palavra que ele achou traz a própria leitura. O painel escreve essa leitura num bloco «Furigana», logo
+acima da lista de palavras:
+
+```
+職員さんに聞いた   →   職員（しょくいん）さんに聞（き）いた
+```
+
+Numa frase de verdade, com o JMdict:
+
+```
+私は昨日、友達と一緒に寿司を食べました。
+  →  私（わたし）は昨日（さくじつ）、友達（ともだち）と一緒（いっしょ）に寿司（すし）を食（た）べました。
+```
+
+- A leitura vai **só em cima do kanji**: `食（た）べました`, e não `食（たべる）べました` — o `べました`
+  já está impresso na frase. Uma leitura que não encaixa nos caracteres é **deixada de fora**: leitura
+  errada ensina o caracter errado.
+- Kanji que **nenhuma palavra** cobre e que está **sozinho** recebe as leituras do KANJIDIC, da japonesa
+  para a chinesa (`職員（しょくいん）` é palavra; `滉（こう・たか?）` é palpite). O `?` diz que ali são as
+  leituras do **kanji**, não de uma palavra; a nota embaixo do bloco só aparece quando há algum. Dois
+  kanji colados nunca são lidos como se fossem um só.
+- O bloco é uma leitura **do** texto reconhecido, não o texto: o campo onde você corrige o OCR continua
+  exactamente o que o OCR devolveu — é ele que alimenta o dicionário e a tradução.
+- Se a leitura **já estiver na frase** (o rubi que o app manteve entre parênteses, ou o que o mangá
+  imprimiu), ela não é escrita segunda vez.
+- Liga e desliga em **«Mostrar a leitura dos kanji»** (ligado de fábrica). O bloco dobra como os outros, e
+  o texto é seleccionável e copiável.
 
 ### Ver a imagem capturada
 
@@ -209,9 +275,14 @@ separados. O `core` junta de volta as colunas que formam o mesmo bloco (mesma di
 e vão menor que um caractere), o que é o que faz um balão virar uma frase traduzível em vez de três
 fragmentos — e é também o que define o tamanho das caixas da tela inteira.
 
-Além disso, a imagem é enviada com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`)
-e o idioma anunciado é `ja`. Diminuir para ~1200 deixa o upload mais leve; aumentar ajuda em telas
-grandes com texto fino.
+Além disso, a imagem é enviada com o lado maior em **2400 px** (`AppSettings.DEFAULT_MAX_DIMENSION`)
+e o idioma anunciado é `ja`. O valor é o lado longo de uma tela de telefone comum, e não é um palpite:
+com o lado maior reduzido para 1600 (720×1600, o que o app fazia antes), a leitura miúda encostada num
+kanji — 15 px de altura — **não é reconhecida**; a 1080×2400 (22 px) ela volta como um trecho próprio.
+Como é essa leitura que o furigana usa, a redução custava a funcionalidade, não só bytes. Medido no
+endpoint real: captura de tela 105 KB → 178 KB pelo mesmo tempo (~1 s); página fotografada 2,4 MB e
+~5 s, e o Lens aceita (um recorte de 3,7 MB também, ~7 s). Baixar o valor deixa o upload mais leve em
+ligação fraca; subir acima de 2400 só ajuda se a tela for maior que isso.
 
 Dicas para acertar de primeira:
 
@@ -258,10 +329,12 @@ core/   Kotlin JVM puro — nada de Android aqui
   lens/LensProto.kt         esquema do endpoint do Lens + montagem da requisição e parsing
   lens/LensClient.kt        cliente OkHttp (cookie jar, retries) + recognizeSuspend
   lens/LensResultBuilder.kt objetos/parágrafos/linhas → segmentos com caixas em pixels
+  lens/RubyGeometry.kt      geometria: que linha é leitura (furigana) de qual outra
   jp/JapaneseText.kt        normalização de espaço CJK-aware
   dict/DictionaryCompiler.kt  .zip do Yomitan → formato compacto em disco
   dict/CompactDictionary.kt   leitura do formato compacto (índice na RAM, verbete no disco)
   dict/LookupEngine.kt        segmentação por maior correspondência + quebra de kanji
+  dict/Furigana.kt           a leitura da palavra escrita ao lado dos kanji que ela lê
   dict/Deinflector.kt         conjugações → forma de dicionário (tabela do Yomichan)
   dict/GlossaryRenderer.kt    structured-content dos dicionários modernos → texto
   resources/deinflect.json    matriz de regras (Yomichan, MIT)

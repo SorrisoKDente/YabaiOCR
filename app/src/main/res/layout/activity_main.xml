@@ -272,6 +272,20 @@
                 android:layout_height="wrap_content"
                 android:text="@string/setting_show_image"
                 android:textColor="@color/text_primary" />
+
+            <CheckBox
+                android:id="@+id/checkFurigana"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_furigana"
+                android:textColor="@color/text_primary" />
+
+            <CheckBox
+                android:id="@+id/checkFuriganaReadings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_furigana_readings"
+                android:textColor="@color/text_primary" />
         </LinearLayout>
 
         <!-- 4. Start -->

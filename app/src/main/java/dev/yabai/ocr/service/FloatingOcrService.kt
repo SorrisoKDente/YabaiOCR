@@ -554,12 +554,16 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                     settings.dictionaryFilter = ""
                 }
                 val only = filter?.let { setOf(it) }.orEmpty()
+                val matches = engine.lookup(text, only = only)
                 ResultOverlay.WordsState.Done(
-                    matches = engine.lookup(text, only = only),
+                    matches = matches,
                     kanji = engine.kanjiBreakdown(text, only = only),
                     dictionaryCount = titles.size,
                     titles = titles,
                     selected = filter,
+                    // Written from the same segmentation the word list came from: the reading of a
+                    // word is part of the hit, so this costs a pass over the text, not a lookup.
+                    furigana = if (settings.showFurigana) engine.withFurigana(text, matches, only) else null,
                 )
             }
         }

@@ -395,6 +395,83 @@ class DictionaryCompileTest {
         }
     }
 
+    /**
+     * The reading of a sentence, written from the words the lookup already found.
+     *
+     * 食べました is the case that makes this worth having: the dictionary knows 食べる, and only 食
+     * takes the furigana — the `べました` is printed in the sentence. Anything that wrote たべる whole
+     * would be teaching the wrong characters.
+     */
+    @Test
+    fun `the reading of a sentence comes from the words it was segmented into`() {
+        val compiled = compileInto("JMdict_english_without_proper_names.zip")
+        assumeTrue("JMdict fixture not available", compiled != null)
+        compiled!!.first.use { jmdict ->
+            val engine = LookupEngine(listOf(jmdict))
+            val sentence = "私は昨日、友達と一緒に寿司を食べました。"
+
+            val annotated = engine.withFurigana(sentence, engine.lookup(sentence))
+            assumeTrue("nothing was annotated", annotated != null)
+            println("$sentence\n  -> ${annotated!!.text}")
+
+            assertTrue(
+                "the verb's okurigana must stay outside the reading: ${annotated.text}",
+                annotated.text.contains("食（た）べました"),
+            )
+            assertTrue("expected 寿司（すし）", annotated.text.contains("寿司（すし）"))
+            assertTrue("every reading here is a word's reading", annotated.uncertain == 0)
+        }
+    }
+
+    /**
+     * A kanji that is not a word at all falls back to the kanji entry — and is marked, because it is
+     * a guess: the dictionary has no idea how this character is being used here.
+     */
+    @Test
+    fun `a kanji no word covers falls back to the kanji entry, marked as a guess`() {
+        val compiled = compileInto("KANJIDIC_english.zip")
+        assumeTrue("KANJIDIC english fixture not available", compiled != null)
+        compiled!!.first.use { kanjidic ->
+            val engine = LookupEngine(listOf(kanjidic))
+            val readings = Furigana.readingsOf(kanjidic.kanjiEntry("淀")!!)
+            assumeTrue("淀 has no readings in this build", readings.isNotEmpty())
+
+            val annotated = engine.withFurigana("淀", emptyList())
+            println("淀 -> ${annotated?.text} (${annotated?.uncertain} palpite[s], leituras $readings)")
+
+            assertEquals("淀（${readings.joinToString("・")}?）", annotated?.text)
+            assertEquals(1, annotated?.uncertain)
+        }
+    }
+
+    /**
+     * The kanji fallback obeys the same dictionary choice as the words and the kanji block, or the
+     * panel would answer from a dictionary it was told to leave out.
+     */
+    @Test
+    fun `the reading fallback follows the same dictionary choice`() {
+        val english = compileInto("KANJIDIC_english.zip")
+        val portuguese = compileInto("KANJIDIC_portuguese.zip")
+        assumeTrue("kanji fixtures not available", english != null && portuguese != null)
+
+        english!!.first.use { englishKanji ->
+            portuguese!!.first.use { portugueseKanji ->
+                val engine = LookupEngine(listOf(englishKanji, portugueseKanji))
+                val englishTitle = englishKanji.info.title
+                val portugueseTitle = portugueseKanji.info.title
+
+                assertTrue(
+                    "the English build carries 淀",
+                    engine.withFurigana("淀", emptyList(), only = setOf(englishTitle))?.text?.contains("よど") == true,
+                )
+                assertNull(
+                    "the Portuguese build has no 淀 to read",
+                    engine.withFurigana("淀", emptyList(), only = setOf(portugueseTitle)),
+                )
+            }
+        }
+    }
+
     private fun suspendUnit(text: String, engine: LookupEngine, check: (List<TokenMatch>) -> Unit) {
         val matches = engine.lookup(text)
         println("$text -> ${matches.map { "${it.surface}=${it.entry.term}" }}")
