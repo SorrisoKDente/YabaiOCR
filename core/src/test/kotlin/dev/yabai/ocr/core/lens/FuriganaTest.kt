@@ -19,6 +19,10 @@ import java.io.ByteArrayInputStream
  * drawn for this purpose (vertical and horizontal text, with and without furigana). Recording it is
  * what turned "a reading is probably about half the glyph size" into numbers: a vertical reading came
  * back as a 16×92 box 8px from a 45×375 column, a horizontal one as 89×17 16px above a 185×41 row.
+ *
+ * The last three tests come from a second, real print (a balloon of five vertical columns a glyph
+ * apart, in the N4 report), where every reading has a column on each side and used to be written
+ * after the wrong one: the column it belongs to is the one it is printed *against*.
  */
 class FuriganaTest {
 
@@ -157,6 +161,78 @@ class FuriganaTest {
         )
 
         assertEquals(listOf("職員さんに聞いた", "しょくいん"), blocks.map { it.text })
+    }
+
+    /**
+     * A balloon from a printed page: five columns of vertical text a few pixels apart, each reading
+     * printed in the gutter to the right of the kanji it reads — which is also the gap between two
+     * columns, so every reading has a line on *each* side that fits the rules. The line on the left
+     * is the one that comes first in the sentence, and that is where readings used to be written: the
+     * print came out `ネオ（き）の職員さ（しょくいん）んに聞い（ヒドー）たら非童（がいしゅつ）帝くん…`,
+     * every reading after the wrong characters.
+     *
+     * `き` is squeezed right up against the previous column (one pixel into its box), and its own
+     * column is five pixels away: what places it is the side ruby is printed on, not being closest to
+     * it. The boxes are that balloon's proportions (columns of five to seven characters, a glyph
+     * apart, readings a third of the thickness), in pixels of a capture — and with the fix undone
+     * they reproduce the print's output character for character, which is what makes them worth
+     * trusting as the geometry of the case.
+     */
+    @Test
+    fun `a reading in a gutter belongs to the column it touches`() {
+        val blocks = blocks(
+            box(371, 400, 16, 205) to "しょくいん",
+            box(325, 100, 45, 700) to "ネオの職員さん",
+            box(310, 200, 16, 80) to "き",
+            box(260, 100, 45, 500) to "に聞いたら",
+            box(241, 100, 16, 300) to "ヒドー",
+            box(195, 100, 45, 500) to "非童帝くん",
+            box(176, 100, 16, 200) to "がいしゅつ",
+            box(130, 100, 45, 600) to "外出したって",
+            box(65, 100, 45, 500) to "いうから…",
+            mode = FuriganaMode.PARENTHESES,
+        )
+
+        assertEquals(
+            listOf(
+                "ネオの職員（しょくいん）さん に聞（き）いたら 非童帝（ヒドー）くん " +
+                    "外出（がいしゅつ）したって いうから…",
+            ),
+            blocks.map { it.text },
+        )
+    }
+
+    /**
+     * A reading is typeset fitted to the characters it reads, and "fitted" is a hair of a character:
+     * five kana beside two kanji come back as a box a few percent longer than the two. That hair used
+     * to be rounded up to a whole extra character — the same print had `職員さ（しょくいん）ん`.
+     */
+    @Test
+    fun `a reading a hair longer than its characters keeps them`() {
+        val blocks = blocks(
+            // Eight characters of 100px each: 職員 is the first two, and the reading ends at 205px.
+            box(0, 0, 45, 800) to "職員さんに聞いた",
+            box(49, 0, 16, 205) to "しょくいん",
+            mode = FuriganaMode.PARENTHESES,
+        )
+
+        assertEquals(listOf("職員（しょくいん）さんに聞いた"), blocks.map { it.text })
+    }
+
+    /**
+     * The ruby side decides *which* line a reading belongs to, not whether it is a reading: a page
+     * that prints its furigana on the other side is still read, exactly as before.
+     */
+    @Test
+    fun `a reading printed on the other side is still a reading`() {
+        val blocks = blocks(
+            box(0, 0, 45, 600) to "職員室の職員",
+            // Four pixels to the *left* of the column, over the last two characters.
+            box(-20, 400, 16, 200) to "しょくいん",
+            mode = FuriganaMode.PARENTHESES,
+        )
+
+        assertEquals(listOf("職員室の職員（しょくいん）"), blocks.map { it.text })
     }
 
     /**

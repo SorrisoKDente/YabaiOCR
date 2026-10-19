@@ -489,7 +489,9 @@ O que foi feito:
 - **O texto reconhecido não é tocado.** O bloco é uma leitura *do* texto, não o texto: escrever dentro
   do campo editável envenenaria o dicionário e a tradução (é esse campo que alimenta os dois) e brigaria
   com as correções do usuário. Se a leitura já está impressa na frase — o rubi do mangá ou o
-  `職員（しょくいん）` que o D1 deixa — ela **não é escrita uma segunda vez**.
+  `職員（しょくいん）` que o D1 deixa — ela **não é escrita uma segunda vez**. *(O N5, mais tarde, mudou
+  isto a pedido do usuário: a leitura passou a ser escrita no próprio texto — ver «N5» na seção 6, com a
+  proteção que impede a leitura de voltar como consulta e de apagar uma correção.)*
 - **O bloco é mais um item dobrável** do painel, acima da lista de palavras (quem não sabe ler um kanji
   quer a leitura ao lado dele, não três seções abaixo) e o seu texto é **selecionável**, como todo o
   resto do painel.
@@ -538,6 +540,9 @@ três novos em `core/.../dict/DictionaryCompileTest.kt` (com os dicionários de 
 | `a guessed reading is called out under the sentence` (painel) | a nota do `?` só aparece quando há palpite |
 | `the block folds, and stays folded when the text is looked up again` (painel) | o bloco dobra e não se desdobra sozinho |
 | `the block sits above the dictionary` (painel) | a ordem dos blocos é a decidida |
+
+*(Os cinco testes de painel acima foram reescritos no **N5** — o bloco virou texto — e hoje são sete em
+`FuriganaPanelTest`; os nomes desta tabela são os do D2, como estavam.)*
 
 Conferido contra o código quebrado, **dezesseis** quebras, cada uma derrubando um teste de verdade:
 detecção desligada → `expected:<職員（しょくいん）さんに聞（き）いた> but was:<null>`; okurigana entrando na
@@ -705,8 +710,8 @@ não espera por mais nada que não seja o print.
 | N1 | `[x]` | **A precisão caiu**: um kanji que era reconhecido (淀) já não é | bug (a investigar) |
 | N2 | `[x]` | **«Perguntar à IA» não abre app nenhuma** | bug (trivial) |
 | N3 | `[x]` | **VOLTAR / tocar fora** = «Trechos»; «Fechar» quando não há trechos | fácil |
-| N4 | `[ ]` | **Ordem do furigana entre parênteses** saiu errada | fácil |
-| N5 | `[ ]` | **Furigana na página toda**, sem clicar num trecho | fácil |
+| N4 | `[x]` | **Ordem do furigana entre parênteses** saiu errada | fácil |
+| N5 | `[x]` | **Furigana na página toda**, sem clicar num trecho | fácil |
 | N6 | `[ ]` | A bolha é **puxada para o ✕** quando chega perto | fácil |
 
 ### N1 — A precisão do OCR caiu  `[x]` (19/10/2026)
@@ -864,11 +869,126 @@ isso aqui.
 
 ---
 
+### N4 — Ordem do furigana entre parênteses  `[x]` (19/10/2026)
+
+Relato: «Opção do furigana entre parênteses está com uma ordem estranha como pode ver no print.» No
+print, o balão tem cinco colunas verticais — `ネオの職員さん` / `に聞いたら` / `非童帝くん` /
+`外出したって` / `いうから…`, na ordem em que se lê, da direita para a esquerda — e cada leitura está
+impressa na sarjeta à direita dos kanji que ela lê. Com o ajuste ligado, o painel escreveu:
+
+```
+ネオ（き）の職員さ（しょくいん）んに聞い（ヒドー）たら非童（がいしゅつ）帝くん外出したっていうから…
+```
+
+Três leituras foram parar na **coluna anterior da frase** (a que fica à direita do balão) e a quarta
+ficou na coluna certa, mas um caractere depois. Não é texto perdido — é texto errado, e são dois
+defeitos somados. O certo é o que o mangá escreve:
+
+```
+ネオの職員（しょくいん）さんに聞（き）いたら非童帝（ヒドー）くん外出（がいしゅつ）したっていうから…
+```
+
+**Defeito 1 — a coluna vizinha serve tanto quanto a certa.** O rubi é impresso na sarjeta entre a sua
+coluna e a anterior, então uma leitura tem candidatas dos **dois lados**: as duas são finas o bastante,
+as duas a encostam, as duas a cobrem por inteiro. O desempate era «a primeira que serve» — isto é, a
+coluna anterior, que já veio antes na frase. Daí `き` (leitura de 聞, na coluna 2) sair depois de `ネオ`,
+na coluna 1: `ネオ（き）の`.
+
+**Defeito 2 — o fim do intervalo arredondava para cima.** O rubi é composto ajustado aos kanji que lê,
+mas sobra sempre um fio além deles; com `ceil`, qualquer fio contava como o caractere seguinte. O
+`しょくいん` (cinco kana ajustadas aos dois kanji de 職員) passava um fio do fim de 員 e a leitura saía
+depois de さ: `職員さ（しょくいん）ん`.
+
+Correção, toda em `core/lens/RubyGeometry.kt`:
+
+- A escolha da coluna passou a ser **lado, depois cobertura, depois distância**. O lado é o lado em que
+  o rubi é impresso — **à direita de uma coluna, acima de uma linha** —, e é a única regra que separa «a
+  coluna que esta leitura lê» de «a coluna anterior da frase». Continua sendo **preferência, não
+  filtro**: rubi impresso do outro lado segue sendo lido como antes, em vez de voltar colado na frase.
+- O **fim** do intervalo passou a arredondar para o mais próximo, e o **início** continua arredondando
+  para baixo: perder o caractere onde a leitura começa grudaria a leitura no kanji errado — o oposto do
+  defeito 2.
+
+**Testes de regressão:** `core/lens/FuriganaTest` (3 novos, 14 no total):
+
+| teste | o que prende |
+| --- | --- |
+| `a reading in a gutter belongs to the column it touches` | o balão do print inteiro: as quatro leituras depois dos caracteres certos |
+| `a reading a hair longer than its characters keeps them` | o fio de rubi não vira um caractere (`職員（しょくいん）さん`) |
+| `a reading printed on the other side is still a reading` | o lado é preferência: rubi do outro lado continua sendo lido |
+
+Conferido contra o código quebrado: **3/3 mutações detectadas** (`n4_nonvacuous.ps1`) — voltar a escolher
+a primeira coluna que serve, voltar a arredondar o fim para cima, e transformar o lado do rubi em filtro.
+
+**Fica de fora, e por quê:** as caixas daquela página. O app não guarda a resposta do Lens e o print
+mostra só o painel, então os testes usam as **proporções daquele balão** (colunas de cinco a sete
+caracteres, a um glifo uma da outra, leituras com um terço da espessura), na escala de uma captura. O
+que dá para conferir — e foi conferido — é que, com a regra antiga, essas caixas reproduzem a saída do
+print **caractere por caractere** (inclusive `ネオ（き）の職員さ（しょくいん）んに聞い（ヒドー）たら非童
+（がいしゅつ）帝くん`); o que os testes prendem é a regra, não os pixels exatos daquela página.
+
+---
+
+### N5 — Furigana na página toda  `[x]` (19/10/2026)
+
+Relato: «Se selecionar a página toda e a opção de mostrar o furigana estiver habilitada, ele deve mostrar
+o furigana ao lado (ou acima, dependendo de como está a orientação do texto) sem ser necessário clicar em
+uma parte do texto.»
+
+O que estava, e se vê no código: a leitura que o dicionário sabe (D2) era escrita num **bloco «Furigana»
+próprio**, acima da lista de palavras. A leitura chegava, mas longe dos caracteres que a explicam: quem
+lia a página tinha de ir e voltar entre o texto reconhecido e o bloco.
+
+Correção: a leitura passou a ser escrita **no próprio texto reconhecido**, ao lado de cada kanji, e o
+bloco deixou de existir — é a opção escolhida pelo usuário entre as três apresentadas (abrir o painel com
+a página toda; mudar só quando o furigana está ligado; escrever a leitura no texto). O **fluxo de captura
+não muda**: com «Escolher o trecho da tela» ligado, a tela inteira continua indo primeiro ao seletor de
+trechos.
+
+- `ResultOverlay.applyReading`: escreve `WordsState.Done.furigana` no `originalEditor`; sem nada a
+  escrever, repõe o texto como veio (`cleanText`).
+- `writingText`: um `TextWatcher` não distingue a escrita do painel da do usuário. A escrita da leitura é
+  marcada, então não conta como edição nem compra uma consulta de um texto que o painel acabou de derivar
+  da resposta que já tem.
+- `userEdited`: depois da primeira tecla o texto é do usuário — uma consulta que chega depois não
+  sobrescreve a correção com a leitura da frase antiga.
+- `lastShownText` (era `lastAnalysedText`): o `analyseSoon` passou a comparar contra o que o painel
+  escreveu por último, que pode já ser o texto com a leitura.
+- A **nota do `?`** (palpite do KANJIDIC) subiu para o topo da lista de palavras, onde o bloco estava.
+- `WordsState.Hidden`/`Failed` repõem o texto: sem resposta não há leitura para fixar.
+- A seção «Furigana» e a string `result_furigana_label` saíram.
+
+O dicionário e a tradução continuam recebendo o **texto limpo**: a leitura entra *depois* da consulta, e o
+serviço analisa o texto que a captura produziu. Só uma edição manual muda isso — e aí o texto é do
+usuário. É a decisão do D2 («o texto reconhecido não é tocado») revista por este item.
+
+**Testes de regressão:** `app/overlay/FuriganaPanelTest` (7, reescritos dos 5 do bloco):
+
+| teste | o que prende |
+| --- | --- |
+| `the reading of the sentence is written into the recognised text` | a leitura vai para o texto, e não há seção «Furigana» |
+| `the reading of the whole page is written into the text` | o N5: a página toda, coluna a coluna |
+| `nothing to read puts the recognised text back` | uma consulta sem leitura não deixa leitura velha |
+| `a guessed reading is called out under the sentence` | a nota do `?` aparece só quando há palpite |
+| `an edit is not overwritten by a later lookup` | a correção do usuário manda |
+| `a new reading replaces the previous one` | a escrita do painel não conta como edição |
+| `writing the reading does not ask for another lookup` | escrever a leitura não dispara consulta |
+
+Conferido contra o código quebrado: **5/5 mutações detectadas** (`n5_nonvacuous.ps1`) — tirar a marca da
+escrita do painel, tirar a proteção da edição, não escrever a leitura, não repor o texto quando não há
+leitura, e calar a nota do palpite.
+
+**Fica de fora, e por quê:** o passo do seletor de trechos. Com «Escolher o trecho da tela» ligado, a
+leitura só aparece depois de escolher um trecho ou «Texto todo» — quem não quer esse passo desliga o
+ajuste. A opção escolhida foi escrever a leitura no texto, não mudar o fluxo.
+
+---
+
 ### Português do Brasil  `[x]` (19/10/2026)
 
 Pedido do usuário: os textos do projeto estavam em português de Portugal e deviam passar a português do
 Brasil. Nada de comportamento mudou — é só linguagem —, mas o que mudou fica listado para não se perder
-o rasto:
+o rastro:
 
 - **Vocabulário:** ecrã → tela, ficheiro → arquivo, miúda → pequena, sítio → lugar, registo → registro,
   por omissão → por padrão, tecto → teto, apanhadas → detectadas, partilhar → compartilhar,

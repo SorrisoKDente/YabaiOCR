@@ -100,7 +100,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             val selected: String? = null,
             /**
              * The sentence with a reading after every kanji the dictionaries can account for, or
-             * null when there is nothing to write (or the setting is off).
+             * null when there is nothing to write (or the setting is off). The panel writes it into
+             * the recognised text itself, beside the kanji it reads.
              */
             val furigana: Furigana.Annotated? = null,
         ) : WordsState {
@@ -164,10 +165,29 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     private var translationText: String? = null
 
     /**
-     * The text the sections on screen describe. Kept so that an edit which ends where it started does
-     * not buy a second, identical lookup.
+     * The text the editor was last given by the panel itself — the recognised text, or that text with
+     * the readings written into it. Kept so that a change the panel made (writing a reading, reverting
+     * one) and an edit that ends where it started do not buy a second, identical lookup.
+     */
+    private var lastShownText: String = ""
+
+    /**
+     * The text the user last sent to be looked up, without the readings the panel writes. Writing the
+     * readings into the editor must not make the dictionary read its own answer back.
      */
     private var lastAnalysedText: String = ""
+
+    /**
+     * The recognised text as it arrived, before any reading was written into it. It is what the panel
+     * shows again when a later lookup has nothing to read.
+     */
+    private var cleanText: String = ""
+
+    /** True once the user has typed in the editor: from then on the panel does not touch the text. */
+    private var userEdited: Boolean = false
+
+    /** True while the panel is writing into the editor, so its own change is not read as the user's. */
+    private var writingText: Boolean = false
 
     private var showLines: Boolean = false
     private var segmentLines: List<String> = emptyList()
@@ -217,7 +237,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      */
     private val analyseSoon = Runnable {
         val text = originalEditor.text.toString()
-        if (text.trim() != lastAnalysedText.trim()) {
+        if (text.trim() != lastShownText.trim()) {
+            lastShownText = text
             lastAnalysedText = text
             callbacks?.onAnalyse(text)
         }
@@ -256,6 +277,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
             override fun afterTextChanged(s: Editable?) {
+                // A reading the panel wrote is not a correction: asking the dictionary to read its
+                // own answer back would double every reading and never settle.
+                if (writingText) return
+                userEdited = true
                 // Everything on screen was derived from the old text, so it is out of date now. Wait
                 // for a pause before asking again: a lookup per keystroke would thrash both the
                 // dictionary and the on-device translator.
@@ -335,6 +360,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         this.segmentLines = segmentLines
         translationText = null
         lastAnalysedText = text
+        lastShownText = text
+        cleanText = text
+        userEdited = false
         canGoBack = canRepick
 
         // A new capture opens unfolded. Folding is about the answer already in front of the user, and
@@ -351,8 +379,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         pickerOpen = false
 
         // Before the header: a folded header carries the text itself.
-        originalEditor.setText(text)
-        originalEditor.setSelection(originalEditor.text.length)
+        showText(text)
         originalEditor.setBackground(
             roundedBackground(0x14FFFFFF, dp(10).toFloat(), 0x22FFFFFF),
         )
@@ -510,6 +537,34 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     /** The text the user is looking at, edited or not. */
     fun currentText(): String = originalEditor.text.toString()
 
+    /** Writes [text] into the editor as the panel's own change, not as the user's edit. */
+    private fun showText(text: String) {
+        writingText = true
+        try {
+            originalEditor.setText(text)
+            originalEditor.setSelection(originalEditor.text.length)
+        } finally {
+            writingText = false
+        }
+        lastShownText = text
+    }
+
+    /**
+     * Writes the readings into the recognised text itself, beside the kanji they read — or puts the
+     * recognised text back when a later lookup has nothing to write.
+     *
+     * This is the text the user was already reading, not a copy of it further down the panel: that is
+     * the whole point of the block the readings used to live in. When the user has typed, the text is
+     * theirs and is left alone — a lookup that lands after a correction must not replace the
+     * correction with a reading of the sentence as it was before.
+     */
+    private fun applyReading(annotated: Furigana.Annotated?) {
+        if (userEdited) return
+        val shown = annotated?.text?.takeIf { it.isNotBlank() } ?: cleanText
+        if (shown == originalEditor.text.toString()) return
+        showText(shown)
+    }
+
     // --- sections ------------------------------------------------------------------------------
 
     fun setTranslation(state: TranslationState) {
@@ -546,13 +601,18 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     fun setWords(state: WordsState) {
         wordsSection.removeAllViews()
         when (state) {
-            is WordsState.Hidden -> Unit
+            is WordsState.Hidden -> applyReading(null)
             is WordsState.Working -> wordsSection.addView(busyRow(context.getString(R.string.dictionary_working)))
-            is WordsState.Failed -> wordsSection.addView(
-                section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
-                    body.addView(noteView(state.message))
-                },
-            )
+            is WordsState.Failed -> {
+                wordsSection.addView(
+                    section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
+                        body.addView(noteView(state.message))
+                    },
+                )
+                // No answer means no reading: leaving the one from a previous lookup would pin it to
+                // a sentence that is no longer backed by anything.
+                applyReading(null)
+            }
 
             is WordsState.Done -> renderWords(state)
         }
@@ -564,6 +624,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // clears itself instead of relying on the caller having done it.
         wordsSection.removeAllViews()
 
+        // The reading belongs to the sentence above, not to a section of its own: it goes into the
+        // recognised text, beside the kanji it reads, the moment the lookup that produced it lands.
+        applyReading(state.furigana)
+        if ((state.furigana?.uncertain ?: 0) > 0) {
+            // A guess is still said out loud, under the words: what is between the parentheses came
+            // from the kanji data, not from a word, and the `?` in the text is what this explains.
+            wordsSection.addView(noteView(context.getString(R.string.result_furigana_note)))
+        }
+
         if (state.dictionaryCount == 0) {
             wordsSection.addView(
                 dictionarySection(state, context.getString(R.string.result_dictionary_label)) { body ->
@@ -571,26 +640,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 },
             )
             return
-        }
-
-        // The reading of the whole sentence, before the word list: whoever cannot read a kanji wants
-        // it beside the character, not three sections down. It is a reading of the text above, so it
-        // is selectable like every other text in the panel.
-        state.furigana?.takeIf { it.text.isNotBlank() }?.let { annotated ->
-            wordsSection.addView(
-                section(SECTION_FURIGANA, context.getString(R.string.result_furigana_label)) { body ->
-                    body.addView(
-                        textLabel(annotated.text, FURIGANA_TEXT_SIZE, context.getColor(R.color.text_primary))
-                            .apply {
-                                setPadding(dp(2), dp(4), dp(2), 0)
-                                setTextIsSelectable(true)
-                            },
-                    )
-                    if (annotated.uncertain > 0) {
-                        body.addView(noteView(context.getString(R.string.result_furigana_note)))
-                    }
-                },
-            )
         }
 
         if (state.kanji.isNotEmpty()) {
@@ -1161,7 +1210,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         /** Fold state keys. Titles cannot be keys: the dictionary one carries a word count. */
         private const val SECTION_TRANSLATION = "translation"
-        private const val SECTION_FURIGANA = "furigana"
         private const val SECTION_KANJI = "kanji"
         private const val SECTION_DICTIONARY = "dictionary"
 
@@ -1184,11 +1232,5 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         /** Where the dictionary name in the section header stops, so the title beside it survives. */
         private const val PICKER_MAX_WIDTH_DP = 150
-
-        /**
-         * The annotated sentence is the one text in the panel that is read *in order* and out loud,
-         * so it is set a little larger than the word list.
-         */
-        private const val FURIGANA_TEXT_SIZE = 16f
     }
 }

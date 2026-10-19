@@ -76,7 +76,6 @@
     <string name="result_translation_label">Tradução</string>
     <string name="result_dictionary_label">Dicionário</string>
     <string name="result_kanji_label">Kanji</string>
-    <string name="result_furigana_label">Furigana</string>
     <string name="result_furigana_note">\? — o dicionário não tem este kanji como palavra; o que está entre parênteses são as leituras do kanji, não de uma palavra.</string>
     <string name="result_fold">Recolher o painel</string>
     <string name="result_unfold">Expandir o painel</string>

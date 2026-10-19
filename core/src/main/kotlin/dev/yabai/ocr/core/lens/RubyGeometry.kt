@@ -1,6 +1,7 @@
 package dev.yabai.ocr.core.lens
 
 import dev.yabai.ocr.core.jp.JapaneseText
+import kotlin.math.roundToInt
 
 /**
  * Finds furigana among the lines a recogniser reported as separate boxes.
@@ -22,10 +23,24 @@ import dev.yabai.ocr.core.jp.JapaneseText
  * | it is printed touching it | 8px of 45 / 16px of 41 | ≤ 0.5 of the thickness |
  * | it sits over the characters it reads | 95% / 100% | ≥ 0.5 of the reading |
  * | it does not run past its line | 5px of 45 | ≤ 1 glyph |
+ * | it is printed on the ruby side | right of a column, above a row | preferred |
  *
  * Everything a reading must be is also something ordinary text rarely is (kana only, half the size,
  * glued to a line with a kanji in it), so the rules are deliberately conservative: a line that is
  * *not* recognised stays in the sentence exactly as before, which is the safe way to be wrong.
+ *
+ * Two of those rules are about **which** line a reading belongs to, and both were learned the hard
+ * way from a real print (vertical manga, five columns a few pixels apart, every reading printed in
+ * the gutter to the right of the kanji it reads). There, a reading has a column on each side, both
+ * thin enough, both touching, both covering it — the previous column is where ruby is printed, so
+ * every reading came out after the wrong characters. What tells them apart is the **side**: ruby is
+ * printed to the right of a column and above a row, never the other way round.
+ *
+ * The other rule is how much of the line a reading covers. A reading is typeset **fitted to the
+ * kanji it reads** — five kana squeezed beside two kanji are a little taller than the two, but only
+ * a hair — so the characters it reads are the ones it is **printed over**, not the ones a hair of
+ * overhang touches. Rounding outwards (floor on the start, ceil on the end) turns that hair into a
+ * whole extra character: five kana over 職員 became `職員さ（しょくいん）ん` in the same print.
  */
 internal object RubyGeometry {
 
@@ -38,6 +53,17 @@ internal object RubyGeometry {
     /** A reading that was recognised: line [reading] annotates line [base]. */
     class Match(val reading: Int, val base: Int, val ruby: Ruby)
 
+    /** A line that could carry a reading, and how well it fits. */
+    private class Candidate(val base: Int, val onRubySide: Boolean, val coverage: Int, val gap: Int) {
+
+        /** Ruby goes to the line it is printed against, then to the one it sits over most. */
+        fun beats(other: Candidate): Boolean = when {
+            onRubySide != other.onRubySide -> onRubySide
+            coverage != other.coverage -> coverage > other.coverage
+            else -> gap < other.gap
+        }
+    }
+
     fun matches(lines: List<Pair<String, PixelBox?>>): List<Match> {
         val found = ArrayList<Match>()
         for (reading in lines.indices) {
@@ -45,8 +71,10 @@ internal object RubyGeometry {
             val box = lines[reading].second ?: continue
             if (!JapaneseText.isKanaOnly(text)) continue
 
-            var best = -1
-            var bestCoverage = 0
+            // Several lines can sit close enough to pass the rules — the columns of one balloon are a
+            // few glyphs apart, and ruby is printed in the gutter between two of them. Picking the
+            // first one that fits is what wrote readings after the previous column's characters.
+            var best: Candidate? = null
             for (base in lines.indices) {
                 if (base == reading) continue
                 val baseText = lines[base].first
@@ -57,20 +85,42 @@ internal object RubyGeometry {
                 if (!isPrintedBeside(box, baseBox)) continue
                 if (!coversReading(box, baseBox)) continue
 
-                val coverage = overlap(box, baseBox)
-                if (coverage > bestCoverage) {
-                    bestCoverage = coverage
-                    best = base
-                }
+                val candidate = Candidate(
+                    base = base,
+                    onRubySide = onRubySide(box, baseBox),
+                    coverage = overlap(box, baseBox),
+                    gap = distance(box, baseBox),
+                )
+                if (best == null || candidate.beats(best)) best = candidate
             }
-            if (best < 0) continue
+            if (best == null) continue
             found += Match(
                 reading,
-                best,
-                rubyOver(text, box, lines[best].first, lines[best].second!!),
+                best.base,
+                rubyOver(text, box, lines[best.base].first, lines[best.base].second!!),
             )
         }
         return found
+    }
+
+    /**
+     * True when the reading is printed on the side ruby is printed on: to the right of a column,
+     * above a row. The other side is where the *next* line of the same balloon is, which is a line
+     * the reading does not belong to however close it looks. It is a preference and not a rule,
+     * because a reading printed on the other side is still better recognised than missed.
+     */
+    private fun onRubySide(reading: PixelBox, base: PixelBox): Boolean =
+        if (isVertical(reading)) {
+            2 * reading.x + reading.width > 2 * base.x + base.width
+        } else {
+            2 * reading.y + reading.height < 2 * base.y + base.height
+        }
+
+    /** How far apart the two boxes are across the line; 0 when they touch or overlap. */
+    private fun distance(reading: PixelBox, base: PixelBox): Int = if (isVertical(reading)) {
+        maxOf(base.x - reading.right, reading.x - base.right, 0)
+    } else {
+        maxOf(base.y - reading.bottom, reading.y - base.bottom, 0)
     }
 
     /** True when [reading] is smaller than [base] and touching it. */
@@ -103,8 +153,17 @@ internal object RubyGeometry {
      *
      * A line's box spans its characters evenly, so where the reading sits *along* the line says which
      * characters it reads: a reading printed over the first two of eight characters is the reading of
-     * those two, not of the whole line. Rounding outwards (floor on the start, ceil on the end) is
-     * what keeps a reading from being attached to too few characters.
+     * those two, not of the whole line.
+     *
+     * The two ends are rounded differently, on purpose:
+     *
+     *  * the **start** rounds down, so a reading that sits a hair before the characters it reads —
+     *    kana are smaller than kanji and are not typeset on the same baseline — still counts from the
+     *    first one. Rounding it up could drop the character it starts before, which attaches the
+     *    reading to the wrong kanji, the very thing this exists to avoid.
+     *  * the **end** rounds to the **nearest** boundary. A reading is typeset fitted to the characters
+     *    it reads, so it is a hair longer than them at most; rounding up turns that hair into a whole
+     *    extra character — five kana over 職員 came out as `職員さ（しょくいん）ん` in a real print.
      */
     private fun rubyOver(
         readingText: String,
@@ -119,8 +178,8 @@ internal object RubyGeometry {
 
         val from = (readingSpan.first - baseSpan.first).toFloat() / size
         val to = (readingSpan.last - baseSpan.first + 1).toFloat() / size
-        val start = floor(from * characters).coerceIn(0, characters - 1)
-        val end = ceil(to * characters).coerceIn(start + 1, characters)
+        val start = kotlin.math.floor(from * characters).toInt().coerceIn(0, characters - 1)
+        val end = (to * characters).roundToInt().coerceIn(start + 1, characters)
         return Ruby(readingText, start, end - start)
     }
 
@@ -143,10 +202,6 @@ internal object RubyGeometry {
 
     /** How far the box runs. */
     private fun length(box: PixelBox): Int = if (isVertical(box)) box.height else box.width
-
-    private fun floor(value: Float): Int = kotlin.math.floor(value).toInt()
-
-    private fun ceil(value: Float): Int = kotlin.math.ceil(value).toInt()
 
     private const val MAX_THICKNESS_PERCENT = 60
     private const val MAX_GAP_PERCENT = 50

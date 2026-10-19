@@ -78,8 +78,8 @@ Detalhes úteis:
 - As **leituras** (furigana) que o Lens devolve encostadas nos kanji são reconhecidas e tiradas da frase —
   é o que impede o `しょくいん職員さん` de chegar ao dicionário. Nos ajustes dá para mantê-las onde foram
   impressas: `職員（しょくいん）さん`.
-- Os kanji cuja leitura **não** está impressa ganham uma: o bloco «Furigana» escreve a leitura que o
-  dicionário já conhece ao lado dos caracteres (`聞（き）いた`), e a frase reconhecida não é alterada.
+- Os kanji cuja leitura **não** está impressa ganham uma: o dicionário já conhece a leitura e o painel
+  escreve-a **no próprio texto reconhecido**, ao lado dos caracteres (`聞（き）いた`).
 - Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
   painel.
 
@@ -123,25 +123,37 @@ encostadas num kanji, cobrindo só os caracteres que leem) e faz uma das duas co
 
 Numa captura real a leitura veio assim: `しょくいんネオの職員さんに聞いたら外出したって`. O certo é o mesmo
 princípio — tirar a leitura de dentro da frase —, e é isso que o app faz, seja a frase curta ou longa.
+Nesse mesmo balão (cinco colunas de texto vertical, cada leitura impressa na sarjeta à direita dos kanji
+que ela lê), com o ajuste ligado, era assim que a leitura voltava e é assim que ela volta:
+
+```
+ネオ（き）の職員さ（しょくいん）んに聞い（ヒドー）たら非童（がいしゅつ）帝くん…   ← antes: cada leitura depois da coluna errada
+ネオの職員（しょくいん）さんに聞（き）いたら非童帝（ヒドー）くん外出（がいしゅつ）したって…   ← agora: depois dos kanji que ela lê
+```
 
 - Vale só para o **Lens**, que é quem reporta as leituras com posição. O ML Kit offline não tem amostra
   medida e não é tocado: na dúvida, o app não mexe — linha não reconhecida fica como estava.
 - A leitura é detectada comparando **tamanho e distância** com a linha vizinha, e só se ela for **só
   kana** ao lado de uma linha **com kanji**. Duas colunas de balão, mesmo que uma seja bem menor que a
-  outra, continuam sendo dois textos.
+  outra, continuam sendo dois textos. Num balão de colunas coladas, a leitura vai para a coluna de que
+  ela está **do lado certo** — o rubi é impresso à direita de uma coluna (acima, numa linha horizontal)
+  —, e não para a coluna anterior da frase, que é para onde ela caía.
+- A leitura é escrita **depois dos caracteres que ela lê**, e só deles. O rubi é composto ajustado aos
+  kanji que lê, então sobra um fio além deles; esse fio não conta como outro caractere.
 - O **texto cru do Lens** (o painel em «texto linha por linha») continua mostrando a leitura: é ali que se
   confere o que o OCR viu, e escondê-la seria falsear o resultado do OCR.
 
 Uma nota sobre o **tamanho**: numa tela de telefone a imagem vai em 720×1600 (ver **Precisão**, abaixo),
 e a leitura impressa muito pequena — uns 15 px de altura — fica abaixo do que o Lens reporta nesse
-tamanho. Quando isso acontece não há o que tirar: a frase já sai limpa. A leitura continua disponível no
-bloco **Furigana** (escrito do dicionário) e num **recorte**, que é ampliado antes de ir.
+tamanho. Quando isso acontece não há o que tirar: a frase já sai limpa. A leitura continua disponível
+**no texto reconhecido** (escrita pelo dicionário) e num **recorte**, que é ampliado antes de ir.
 
 #### E quando o mangá não imprime a leitura
 
 Aí o Lens não tem o que reportar — mas o dicionário sabe. Ele já dividiu a frase em palavras, e cada
-palavra que ele achou traz a própria leitura. O painel escreve essa leitura num bloco «Furigana», logo
-acima da lista de palavras:
+palavra que ele achou traz a própria leitura. O painel escreve essa leitura **no próprio texto
+reconhecido**, ao lado de cada kanji — não num bloco à parte, que ficava longe dos caracteres que ele
+explica:
 
 ```
 職員さんに聞いた   →   職員（しょくいん）さんに聞（き）いた
@@ -159,14 +171,19 @@ Numa frase de verdade, com o JMdict:
   errada ensina o caracter errado.
 - Kanji que **nenhuma palavra** cobre e que está **sozinho** recebe as leituras do KANJIDIC, da japonesa
   para a chinesa (`職員（しょくいん）` é palavra; `滉（こう・たか?）` é palpite). O `?` diz que ali são as
-  leituras do **kanji**, não de uma palavra; a nota embaixo do bloco só aparece quando há algum. Dois
-  kanji colados nunca são lidos como se fossem um só.
-- O bloco é uma leitura **do** texto reconhecido, não o texto: o campo onde você corrige o OCR continua
-  exatamente o que o OCR devolveu — é ele que alimenta o dicionário e a tradução.
+  leituras do **kanji**, não de uma palavra; a nota que explica o `?` aparece acima da lista de palavras
+  e só quando há algum palpite. Dois kanji colados nunca são lidos como se fossem um só.
+- A leitura entra **depois** da consulta, sobre o texto que o OCR devolveu: escrevê-la não dispara uma
+  segunda consulta, e o dicionário e a tradução continuam a receber o texto limpo.
+- **Se você corrigir o texto, a correção manda.** Uma consulta que chega depois de uma edição não
+  sobrescreve o que você escreveu; a leitura nova só entra enquanto o campo ainda é o que o painel
+  escreveu.
+- Vale para a **página toda**: com «Texto todo» selecionado, a leitura sai ao lado de cada kanji do
+  texto inteiro — não é preciso escolher trecho por trecho.
 - Se a leitura **já estiver na frase** (o rubi que o app manteve entre parênteses, ou o que o mangá
   imprimiu), ela não é escrita uma segunda vez.
-- Liga e desliga em **«Mostrar a leitura dos kanji»** (ligado de fábrica). O bloco dobra como os outros, e
-  o texto é selecionável e copiável.
+- Liga e desliga em **«Mostrar a leitura dos kanji»** (ligado de fábrica). O texto reconhecido é
+  selecionável e copiável, como sempre.
 
 ### Ver a imagem capturada
 
@@ -328,9 +345,9 @@ Esse número foi medido duas vezes, e a segunda corrigiu a primeira:
   `淀みなき拳で。`. Medido no endpoint real mudando só o tamanho, e o aparelho confirmou o essencial:
   a caixa do trecho deixou de cobrir o 淀.
 
-A palavra que se perde não volta; a leitura impressa que o tamanho maior ganhava é redundante — o bloco
-**Furigana** escreve a leitura a partir do dicionário, e um **recorte**, onde a leitura pequena é olhada de
-perto, é ampliado e continua sendo lido. Por isso o limite é 1600.
+A palavra que se perde não volta; a leitura impressa que o tamanho maior ganhava é redundante — o painel
+escreve a leitura a partir do dicionário **no texto reconhecido**, e um **recorte**, onde a leitura pequena
+é olhada de perto, é ampliado e continua sendo lido. Por isso o limite é 1600.
 
 Dicas para acertar de primeira:
 
