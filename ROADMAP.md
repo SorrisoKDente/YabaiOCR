@@ -712,7 +712,7 @@ não espera por mais nada que não seja o print.
 | N3 | `[x]` | **VOLTAR / tocar fora** = «Trechos»; «Fechar» quando não há trechos | fácil |
 | N4 | `[x]` | **Ordem do furigana entre parênteses** saiu errada | fácil |
 | N5 | `[x]` | **Furigana na página toda**, sem clicar num trecho | fácil |
-| N6 | `[ ]` | A bolha é **puxada para o ✕** quando chega perto | fácil |
+| N6 | `[x]` | A bolha é **puxada para o ✕** quando chega perto | fácil |
 
 ### N1 — A precisão do OCR caiu  `[x]` (19/10/2026)
 
@@ -981,6 +981,50 @@ leitura, e calar a nota do palpite.
 **Fica de fora, e por quê:** o passo do seletor de trechos. Com «Escolher o trecho da tela» ligado, a
 leitura só aparece depois de escolher um trecho ou «Texto todo» — quem não quer esse passo desliga o
 ajuste. A opção escolhida foi escrever a leitura no texto, não mudar o fluxo.
+
+---
+
+### N6 — A bolha é puxada para o ✕  `[x]` (19/10/2026)
+
+Relato: «Ao arrastar para o botão "x" para fechar, quando estiver próximo do botão, ele deve ser
+"puxado" para o "x".»
+
+O que estava, e se vê no código: a bolha seguia o dedo **exatamente** até o ✕; só no fim, se o centro
+caísse dentro do alvo, o ✕ ficava vermelho e o soltar perguntava. Ou seja: o aviso de que soltar ali
+encerra chegava *depois* de o dedo ter de acertar o alvo por conta própria.
+
+Correção: enquanto o dedo está a menos de um `closePullRadius` (o dobro do ✕) do centro do alvo, a
+bolha é desenhada **puxada para o ✕**, por mais quanto mais perto — nada na borda do alcance, tudo em
+cima do alvo. E como o soltar é julgado sobre a posição *desenhada*, o que se vê chegar é o que acontece
+ao largar: o ✕ fica vermelho quando a bolha puxada está sobre ele, e soltar pergunta.
+
+- `OverlayController.pullTowardsCloseTarget`: a posição desenhada para um dedo em (x, y). A duas vezes o
+  tamanho do alvo não faz nada; em cima do alvo, centra a bolha nele. O puxão é quadrático
+  (`closeness²`), para continuar sendo uma dica até perto do alvo em vez de arrancar a bolha do dedo
+  cedo.
+- O `ACTION_MOVE` desenha o resultado do puxão; o `endDrag` continua julgando a posição que recebe — que
+  agora é a desenhada.
+- O vermelho do ✕ acende um pouco antes: é o mesmo teste, sobre a posição puxada.
+
+**Testes de regressão:** `app/overlay/DragToCloseTest` (5 novos, 12 no total):
+
+| teste | o que prende |
+| --- | --- |
+| `far from the cross the bubble follows the finger exactly` | fora do alcance nada muda — nem na borda dele |
+| `near the cross the bubble is drawn pulled towards it` | no meio do alcance, um quarto de aproximação (puxão quadrático) |
+| `right on the cross the bubble is drawn centred on it` | em cima do alvo, a bolha fica centrada nele |
+| `the pull never pushes the bubble away from the cross` | o puxão aproxima sempre, do mais longe para o mais perto |
+| `dragging near the cross draws the bubble onto it and the release asks` | o gesto inteiro, pelo listener de toque: dedo perto, bolha puxada, soltar pergunta |
+
+O último é o único que passa pelo `onBubbleTouch` de verdade (o `MotionEvent` vai para o `View` da
+bolha), e é ele que prende o puxão **chegar à tela** — não só existir.
+
+Conferido contra o código quebrado: **5/5 mutações detectadas** (`n6_nonvacuous.ps1`) — desligar o
+puxão, o handler voltar a usar a posição do dedo, o puxão empurrar para o lado contrário, puxão linear
+no lugar do quadrático, e puxão que passa do alvo.
+
+**Fica de fora, e por quê:** animação. O puxão só existe enquanto o dedo está em baixo; solto longe do
+✕, a bolha volta à borda como sempre (`snapToEdge`), e solto no ✕, quem aparece é a pergunta. Nada voa.
 
 ---
 

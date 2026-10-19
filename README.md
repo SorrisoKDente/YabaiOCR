@@ -53,9 +53,9 @@ para ~52 MB.
 Detalhes úteis:
 
 - A bolha pode ser **arrastada** para qualquer canto e "gruda" na borda mais próxima.
-- Para **encerrar**, arraste a bolha até o ✕ que aparece no centro de baixo: ele fica vermelho quando
-  a bolha está em cima e, ao soltar, o app pergunta antes de desligar. Soltar em qualquer outro lugar
-  devolve a bolha para a borda mais próxima.
+- Para **encerrar**, arraste a bolha até o ✕ que aparece no centro de baixo: perto dele a bolha é
+  **puxada para o ✕**, ele fica vermelho quando ela está em cima e, ao soltar, o app pergunta antes de
+  desligar. Soltar em qualquer outro lugar devolve a bolha para a borda mais próxima.
 - Toque na bolha **para abrir os ícones**; com o menu aberto, toque em qualquer outro lugar da tela
   para fechá-lo.
 - Com o **painel de resultado** aberto, a tela pertence ao painel: **VOLTAR** ou um toque fora do

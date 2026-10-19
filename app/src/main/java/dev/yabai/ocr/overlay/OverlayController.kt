@@ -6,6 +6,7 @@ import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -23,6 +24,7 @@ import android.widget.LinearLayout
 import dev.yabai.ocr.R
 import dev.yabai.ocr.util.dp
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 /**
@@ -76,6 +78,12 @@ class OverlayController(private val context: Context) {
      */
     private val closeTargetSize = dp(64)
     private val closeTargetMargin = dp(40)
+
+    /**
+     * How far from the ✕ the pull starts. Twice the target's own size: close enough that arriving at
+     * the ✕ feels magnetic, far enough that a drag past the bottom of the screen is not hijacked.
+     */
+    internal val closePullRadius = closeTargetSize * 2
 
     /** Side of one icon button in the action strip, and the gap between two of them. */
     private val menuItemSize = dp(46)
@@ -166,8 +174,12 @@ class OverlayController(private val context: Context) {
                     showCloseTarget()
                 }
                 if (dragging) {
-                    params.x = startX + dx.toInt()
-                    params.y = startY + dy.toInt()
+                    // The bubble follows the finger until the ✕ is close, and then it is drawn
+                    // pulled towards it: what is about to happen on release is visible before the
+                    // finger lifts, which is the whole point of the target turning red.
+                    val pulled = pullTowardsCloseTarget(startX + dx.toInt(), startY + dy.toInt())
+                    params.x = pulled.x
+                    params.y = pulled.y
                     clampBubble(params)
                     updateWindow(view, params)
                     armCloseTarget(isOverCloseTarget(params.x, params.y))
@@ -378,9 +390,43 @@ class OverlayController(private val context: Context) {
         return dx * dx + dy * dy <= radius * radius
     }
 
+    /**
+     * Where the bubble is actually drawn while the finger is at ([bubbleX], [bubbleY]).
+     *
+     * Far from the ✕ the answer is the finger's own position, unchanged. Inside [closePullRadius] the
+     * bubble is drawn *pulled* towards the ✕, by more and more as it gets closer — nothing at the edge
+     * of the reach, all of it right on the cross. The pull is what makes «letting go here closes» a
+     * thing the user can see coming, and it is also what the drop is judged on: the released position
+     * is the drawn one, so what armed the ✕ is what happens on release.
+     */
+    internal fun pullTowardsCloseTarget(bubbleX: Int, bubbleY: Int): Point {
+        val target = closeTargetRect()
+        val centreX = bubbleX + bubbleSize / 2f
+        val centreY = bubbleY + bubbleSize / 2f
+        val dx = target.exactCenterX() - centreX
+        val dy = target.exactCenterY() - centreY
+        val distance = hypot(dx, dy)
+        if (distance >= closePullRadius) return Point(bubbleX, bubbleY)
+
+        // 0 at the edge of the reach and 1 right on the ✕. Squared so the pull stays a hint until
+        // the bubble is genuinely at the target, instead of dragging it away from the finger early.
+        val closeness = 1f - distance / closePullRadius
+        val pull = closeness * closeness
+        return Point(
+            (centreX + dx * pull - bubbleSize / 2f).roundToInt(),
+            (centreY + dy * pull - bubbleSize / 2f).roundToInt(),
+        )
+    }
+
     internal fun isCloseTargetVisible(): Boolean = closeTargetView != null
 
     internal fun isCloseConfirmVisible(): Boolean = confirmView != null
+
+    /** The bubble's window, so a test can drive the drag gesture through the real touch listener. */
+    internal fun bubbleWindow(): View? = bubbleView
+
+    /** Where the bubble's window sits, in the same screen coordinates as [closeTargetRect]. */
+    internal fun bubbleOrigin(): Point = bubbleParams?.let { Point(it.x, it.y) } ?: Point(0, 0)
 
     private fun showCloseTarget() {
         if (closeTargetView != null) return
