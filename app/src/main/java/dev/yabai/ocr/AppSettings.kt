@@ -42,8 +42,9 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit { putBoolean(KEY_UPSCALE, value) }
 
     /**
-     * Longest side sent to Lens. The reference client uses 1200; a bit more headroom keeps small
-     * furigana legible when capturing a whole screen.
+     * Longest side sent to Lens. The reference client uses 1200; 1600 is the size a whole phone
+     * screen is brought down to, which is the size the recogniser was measured to read a stylised
+     * kanji at (see [DEFAULT_MAX_DIMENSION]).
      */
     var maxDimension: Int
         get() = prefs.getInt(KEY_MAX_DIMENSION, DEFAULT_MAX_DIMENSION)
@@ -151,20 +152,25 @@ class AppSettings(context: Context) {
         /**
          * The longest side an image is allowed to keep before it goes to Lens.
          *
-         * 2400 — the long side of an ordinary phone screen — so a full-screen capture is not resized
-         * at all, and a bigger one is only brought down to that. Was 1600, which left a 1080x2400
-         * capture at 720x1600; measured against the real endpoint, the pages are the same but the
-         * kana printed beside a kanji (15 px at 720x1600 against 22 px at 1080x2400) are **not**
-         * recognised at the smaller size and are reported as a segment of their own at the larger
-         * one. That reading is exactly what «Manter o furigana entre parênteses» and the «Furigana»
-         * block work from, so losing it at the resize is losing the feature.
+         * 1600, so a 1080x2400 phone screen goes as 720x1600. This was 2400 for one day, to keep the
+         * tiny furigana a page prints beside a kanji: at 720x1600 those readings are not recognised
+         * at all, at 1080x2400 they come back as a segment of their own. Measured on a **drawn**
+         * page, that was true — but a drawn page has no art under the lettering and no oversized
+         * stylised glyph, and a real manga page does.
          *
-         * What it costs, also measured: a full-screen page goes from 105 KB to 178 KB and takes
-         * about the same time (1.2 s); a capture of a photographed page goes to 2.4 MB and ~5 s, and
-         * the endpoint accepts it (200, text; 3.7 MB for a 1350x3000 crop, ~7 s). The ceiling is not
-         * the endpoint.
+         * Measured against the real endpoint on the page that reported the loss (two requests,
+         * adding only the resize in between): at 720x1600 the column comes back whole, reading
+         * `淀みなき拳で。`; at 1080x2400 the big stylised 淀 is **gone** from the recognition — the
+         * line reads `みなきまで。` and its box starts below the 淀. The same happened on the phone
+         * (the print shows the box covering `みなき拳で。` only). A word is not recoverable; the
+         * printed furigana the larger payload gained is redundant, since `Furigana` writes the
+         * reading from the dictionary anyway — and a *crop*, where a reading is looked at closely,
+         * is upscaled, so it is still read there.
+         *
+         * So the cap is 1600 and what the larger payload bought is given back on purpose. See
+         * `ROADMAP.md`, «N1 — A precisão do OCR caiu».
          */
-        const val DEFAULT_MAX_DIMENSION = 2400
+        const val DEFAULT_MAX_DIMENSION = 1600
 
         private const val KEY_ENGINE = "engine"
         private const val KEY_AUTO_COPY = "auto_copy"

@@ -23,8 +23,22 @@ object AskAi {
 
     const val MIME_TEXT = "text/plain"
 
+    /**
+     * The flag every share carries because none of them starts from an activity.
+     *
+     * The button lives in a floating window and the tap is handled by the foreground service, not by
+     * an `Activity`. Android only lets an activity-free context start one with this flag; without it
+     * `startActivity` throws `AndroidRuntimeException`, and a `runCatching` around it turns the
+     * exception into «nothing on this phone takes text» — for the chosen app and for the chooser
+     * alike, which is exactly how the bug looked. The bubble's «Ajustes» button has always carried it.
+     */
+    const val NEW_TASK = Intent.FLAG_ACTIVITY_NEW_TASK
+
     /** One app that can be handed a piece of text, as the settings list it. */
     data class Target(val label: String, val packageName: String)
+
+    /** Makes [intent] startable from the service. Applied to everything that is actually launched. */
+    private fun launchable(intent: Intent): Intent = intent.addFlags(NEW_TASK)
 
     /**
      * What actually leaves the panel: the prompt, when there is one, and then the text.
@@ -45,14 +59,21 @@ object AskAi {
      * picks, which is the same thing as asking for the chooser.
      */
     fun sendIntent(payload: String, packageName: String?): Intent =
-        Intent(Intent.ACTION_SEND)
-            .setType(MIME_TEXT)
-            .putExtra(Intent.EXTRA_TEXT, payload)
-            .apply { if (!packageName.isNullOrBlank()) setPackage(packageName) }
+        launchable(
+            Intent(Intent.ACTION_SEND)
+                .setType(MIME_TEXT)
+                .putExtra(Intent.EXTRA_TEXT, payload)
+                .apply { if (!packageName.isNullOrBlank()) setPackage(packageName) },
+        )
 
-    /** The system chooser, for whoever never picked an app (or whose app is no longer installed). */
+    /**
+     * The system chooser, for whoever never picked an app (or whose app is no longer installed).
+     *
+     * The flag goes on the chooser itself: the send intent it wraps travels as an extra, so the flags
+     * [sendIntent] puts on it never reach the window that is launched.
+     */
     fun chooserIntent(payload: String, title: String): Intent =
-        Intent.createChooser(sendIntent(payload, packageName = null), title)
+        launchable(Intent.createChooser(sendIntent(payload, packageName = null), title))
 
     /**
      * What to try, in order, for [payload]: the chosen app first, when there is one, and the system

@@ -85,6 +85,35 @@ class AskAiPanelTest {
         )
     }
 
+    /**
+     * A share that found nowhere to go is news for the panel, not for a toast: a toast raised by the
+     * service is drawn behind whatever app the user is looking at, which is how the failure went
+     * unseen in the first place.
+     */
+    @Test
+    fun `a note is written in the panel that is open`() {
+        val (controller, panel) = openPanel()
+        val note = context.getString(R.string.result_ai_no_app)
+
+        controller.showResultNote(note)
+        layout(panel, 320)
+
+        assertTrue("the note is not on screen", note in texts(panel))
+    }
+
+    /** Pressing again while the answer is still there is not news; the panel should not grow. */
+    @Test
+    fun `the same note is written once`() {
+        val (controller, panel) = openPanel()
+        val note = context.getString(R.string.result_ai_no_app)
+
+        controller.showResultNote(note)
+        controller.showResultNote(note)
+        layout(panel, 320)
+
+        assertEquals(1, texts(panel).count { it == note })
+    }
+
     // --- the panel under test -------------------------------------------------------------------
 
     /**
@@ -95,8 +124,8 @@ class AskAiPanelTest {
     fun `the question reaches the app through the controller`() {
         val asked = ArrayList<String>()
         val controller = OverlayController(context).apply { callbacks = RecordingCallbacks(asked) }
-        ShadowSettings.setCanDrawOverlays(true)
 
+        ShadowSettings.setCanDrawOverlays(true)
         controller.showResult(
             text = SENTENCE,
             meta = "Google Lens · 2348 ms · ja",
@@ -130,6 +159,25 @@ class AskAiPanelTest {
     }
 
     // --- helpers --------------------------------------------------------------------------------
+
+    /** A controller with a result panel on screen, the way the service leaves it after a capture. */
+    private fun openPanel(): Pair<OverlayController, ResultOverlay> {
+        val controller = OverlayController(context).apply { callbacks = RecordingCallbacks(ArrayList()) }
+        ShadowSettings.setCanDrawOverlays(true)
+        controller.showResult(
+            text = SENTENCE,
+            meta = "Google Lens · 2348 ms · ja",
+            notes = emptyList(),
+            offlineAvailable = true,
+            showLines = false,
+            lines = emptyList(),
+            canRepick = true,
+            canAskAi = true,
+        )
+        val panel = windows().filterIsInstance<ResultOverlay>().firstOrNull()
+            ?: error("the controller did not put a result panel on screen")
+        return controller to panel
+    }
 
     private fun panelCallbacks(asked: MutableList<String>): ResultOverlay.Callbacks =
         object : ResultOverlay.Callbacks {
@@ -182,6 +230,20 @@ class AskAiPanelTest {
             ?: error("the panel has no «$label» button")
 
     private fun labels(root: ViewGroup): List<String> = buttons(root).map { it.text.toString() }
+
+    /** Every string on screen, notes included. */
+    private fun texts(root: ViewGroup): List<String> {
+        val found = ArrayList<String>()
+        fun walk(group: ViewGroup) {
+            for (index in 0 until group.childCount) {
+                val child = group.getChildAt(index)
+                if (child is TextView) found.add(child.text.toString())
+                if (child is ViewGroup) walk(child)
+            }
+        }
+        walk(root)
+        return found
+    }
 
     /** Everything on screen, the way the window manager sees it. */
     private fun windows(): List<View> {

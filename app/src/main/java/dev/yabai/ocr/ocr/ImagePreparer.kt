@@ -9,11 +9,12 @@ import kotlin.math.roundToInt
 /**
  * Prepares a screenshot (or a crop of one) for OCR.
  *
- * The longest side is capped at `maxDimension`, which by default is the long side of an ordinary
- * phone screen (2400), so a full-screen grab goes through untouched. Reducing a whole page is not
- * free: measured against the real endpoint, the kana printed beside a kanji stop being recognised
- * once the page has been brought down to 720x1600, and those readings are half of what this app is
- * for (see `AppSettings.DEFAULT_MAX_DIMENSION` for the numbers).
+ * The longest side is capped at `maxDimension`, which by default brings a whole phone screen
+ * (1080x2400) down to 720x1600. That resize is not a loss: measured against the real endpoint, a
+ * page sent at its native size loses an oversized stylised kanji that the smaller one keeps — the
+ * recogniser reads the character as a picture, not as text, when it is sharp and big enough. A
+ * missing word is not recoverable, while the tiny printed reading the native size would gain is
+ * redundant (see `AppSettings.DEFAULT_MAX_DIMENSION`).
  *
  * Crops are the other way round: they are often only a couple of hundred pixels tall — those get a
  * modest upscale, which measurably helps on small furigana.

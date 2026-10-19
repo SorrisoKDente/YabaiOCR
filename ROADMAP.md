@@ -577,15 +577,25 @@ com a leitura a 15 px o Lens não a reconhece de todo; a 22 px, vem como trecho 
 que o D1 tira da frase e que o D2 escreve — a redução não custava bytes, custava a funcionalidade.
 
 - `DEFAULT_MAX_DIMENSION` passou de **1600** para **2400**: a tela de um telefone comum entra inteira,
-  sem reamostragem; uma tela maior continua a ser reduzida, mas só até 2400.
+  sem reamostragem; uma tela maior continua a ser reduzida, mas só até 2400. *Superado no mesmo dia —
+  ver a nota no fim da secção.*
 - O que se paga: numa captura de tela +73 KB e o mesmo tempo; numa página fotografada 2,4 MB e ~5 s —
   dentro do `callTimeout` de 20 s, e o endpoint aceita (3,7 MB, ~7 s, também aceite). O tecto não é o
   endpoint.
-- Testes: `app/.../ocr/ImagePreparerTest.kt` (7) — a tela de telefone passa intacta no limite por
-  omissão, uma tela maior é reduzida mantendo as proporções, o recorte é ampliado mas só até duas
-  vezes e nunca além do limite, e a imagem vai em **PNG** com bytes dentro. Conferido contra o código
-  quebrado: voltar a 1600 → `expected:<1080> but was:<720>`; ampliação sem limite →
-  `expected:<600> but was:<800>`; envio em JPEG → `expected a PNG signature, got [-1, -40, -1, -32]`.
+- Testes: `app/.../ocr/ImagePreparerTest.kt` (7) — a tela de telefone desce a 720×1600 no limite por
+  omissão (era «passa intacta» quando o limite era 2400), uma tela maior é reduzida mantendo as
+  proporções, o recorte é ampliado mas só até duas vezes e nunca além do limite, e a imagem vai em
+  **PNG** com bytes dentro. Conferido contra o código quebrado: subir o limite para 2400 →
+  `expected:<720> but was:<1080>`; ampliação sem limite → `expected:<600> but was:<800>`; envio em JPEG
+  → `expected a PNG signature, got [-1, -40, -1, -32]`.
+
+**19/10/2026 — o limite voltou a 1600, e esta medição ficou superada.** A conclusão acima foi tirada
+com uma página **desenhada**: fundo limpo, letra de imprensa, sem arte por baixo e sem a letra grande
+estilizada que abre um título de mangá. Numa página real (ver «N1 — A precisão do OCR caiu») o tamanho
+maior faz o Lens perder exactamente esse kanji. Como a palavra perdida não se recupera e a leitura
+impressa que o maior ganhava é redundante (o D2 escreve-a do dicionário, e um recorte é ampliado),
+ficou o kanji. O resto desta secção — o protocolo, os bytes, o tempo — continua válido; o que mudou é
+só a escolha do número.
 
 ---
 
@@ -681,6 +691,123 @@ O que fica **de fora**, e sabe-se:
   faltar (lista vazia no Android 11+) aparece no telefone, não aqui.
 - a ponte dos ajustes (`MainActivity`: gravar o prompt a cada tecla, escolher a app na lista) não tem
   teste pela mesma razão que o resto dos ajustes não tem: o projecto não tem testes de `MainActivity`.
+
+---
+
+## 6. Segunda ronda  (19/10/2026)
+
+Seis pontos relatados depois do I1, na ordem em que vão ser feitos: **bugs primeiro**, depois o que for
+mais fácil. O foco declarado do app é a **precisão** — o resto é secundário — e é por isso que o N1
+não espera por mais nada que não seja o print.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| N1 | `[x]` | **A precisão caiu**: um kanji que era reconhecido (淀) já não é | bug (a investigar) |
+| N2 | `[x]` | **«Perguntar à IA» não abre app nenhuma** | bug (trivial) |
+| N3 | `[ ]` | **VOLTAR / tocar fora** = «Trechos»; «Fechar» quando não há trechos | fácil |
+| N4 | `[ ]` | **Ordem do furigana entre parênteses** saiu errada | fácil |
+| N5 | `[ ]` | **Furigana na página toda**, sem clicar num trecho | fácil |
+| N6 | `[ ]` | A bolha é **puxada para o ✕** quando chega perto | fácil |
+
+### N1 — A precisão do OCR caiu  `[x]` (19/10/2026)
+
+Relato: um kanji que o app antes reconhecia — o **淀** — deixou de ser reconhecido. Os prints chegaram
+(antes, depois e a ordem do furigana); o do antes/depois mostra o essencial: no **antes** a caixa do
+trecho cobre `淀みなき拳で。` inteiro; no **depois** ela começa **abaixo** do 淀 e cobre só
+`みなき拳で。`. O kanji não foi «lido mal»: saiu do trecho.
+
+**Causa: a carga que vai para o Lens.** Era a única alteração recente que muda o que o motor *vê* —
+`DEFAULT_MAX_DIMENSION` de 1600 para 2400. Medido no endpoint real, na própria página do print, mudando
+só o tamanho:
+
+| carga | o que o Lens devolveu para a coluna |
+| --- | --- |
+| 720×1600 (limite antigo) | `淀みなき拳で。` — `PixelBox(x=50, y=319, 95×494)` |
+| 1080×2400 (limite novo) | `みなきまで。` — `PixelBox(x=91, y=637, 114×575)`, e o 淀 **não aparece em segmento nenhum** |
+
+Uma ressalva honesta sobre a segunda linha: o upload do print é 720×1600 (a imagem é reduzida ao subir),
+por isso o teste a 1080×2400 foi feito sobre uma **cópia ampliada** — não é exactamente o que o telefone
+viu, e é provável que a leitura `まで` seja artefacto dessa ampliação. O que o print **do aparelho** prova,
+e que a medição reproduz, é o que interessa: a coluna volta **sem o 淀** e a caixa começa onde a do print
+começa. Não é a segmentação a mudar — o texto é que perdeu o kanji.
+
+As outras três hipóteses ficam refutadas por construção:
+
+- **D1** só retira linhas cujo texto é kana puro; `淀` não é kana, não podia ser tomado por leitura.
+- **`placeBlocks`** descarta caixas minúsculas ou sem geometria; a 1080 não veio segmento nenhum com o
+  淀, não havia caixa para descartar.
+- **`upscaleSmall`** só toca em recortes abaixo de 420 px; a tela inteira nunca passa por lá.
+
+**A troca, e porque se escolheu o kanji.** O 2400 existia por uma medição anterior (ver «Registo — a
+carga que vai para o Lens»): numa **página desenhada**, a leitura miúda impressa (15 px a 720×1600
+contra 22 px a 1080×2400) só é reconhecida no tamanho maior. Numa página de mangá real o mesmo tamanho
+maior perde um kanji grande estilizado. Não há um tamanho que dê os dois. Ficou o kanji: uma palavra
+perdida não se recupera, e a leitura impressa que o maior ganhava é redundante — o **D2** escreve a
+leitura a partir do dicionário, e um **recorte** (onde a leitura miúda é olhada de perto) é ampliado e
+continua a ser lido. O usuário escolheu esta opção depois de ver a medição.
+
+**Correção:** `DEFAULT_MAX_DIMENSION` volta a **1600** — uma tela de 1080×2400 viaja como 720×1600. Só o
+número mudou; nenhuma outra decisão do caminho de OCR foi tocada.
+
+**Teste de regressão:** `ocr/ImagePreparerTest`:
+
+| teste | o que ele prende |
+| --- | --- |
+| `a phone screen is brought down at the default` | a tela de 1080×2400 chega ao Lens como 720×1600, e não nativa |
+
+Conferido contra o código quebrado: **2/2 mutações apanhadas** — voltar a constante para 2400 (a
+regressão exacta) e anular a conta da redução; cada uma falha exactamente o teste acima
+(`n1_nonvacuous.ps1`).
+
+**O que fica em aberto, e sabe-se porquê:**
+
+- O teste prende a **decisão** (o tamanho), não o comportamento do Lens — não há teste offline que prove
+  o que o endpoint devolve. A prova é a medição acima, com dois pedidos reais e datada.
+- Um bloco com texto mas **sem geometria** continua a não ser oferecido no «Tela inteira» (o
+  `placeBlocks` descarta-o). Não foi a causa aqui — o texto do 淀 nem chegou — mas é o mesmo sintoma e
+  continua por tratar.
+
+### N2 — «Perguntar à IA» não abre app nenhuma  `[x]` (19/10/2026)
+
+Relato: com uma app escolhida (DeepSeek) ou sem app nenhuma, o botão mostra sempre «Texto copiado, mas
+nenhuma app instalada aceita texto», não abre seletor nenhum, e a mensagem ainda por cima aparece
+atrás da janela do app que está aberto.
+
+Causa, que se vê no código sem precisar do aparelho: a partilha é lançada **a partir do serviço**, e um
+`Context` que não é uma `Activity` só pode lançar um intent com `FLAG_ACTIVITY_NEW_TASK`. Sem a flag, o
+`startActivity` lança uma excepção de runtime e o `runCatching` à volta transforma-a em «não abriu».
+Como nenhum dos dois candidatos (app escolhida, seletor) levava a flag, **os dois falhavam sempre** —
+e é isso que explica a mensagem aparecer igual nos dois casos. O botão «Ajustes» da bolha, que sempre
+funcionou, é o contra-exemplo: ele *tem* a flag.
+
+Correção:
+
+- `AskAi.NEW_TASK` e um único `launchable(intent)` aplicado a **tudo o que é lançado**, o seletor
+  incluído — a flag no intent que o seletor embrulha não serve, porque ele viaja como extra.
+- O aviso de falha passou a ser escrito **no painel** (`ResultOverlay.addNote`), logo abaixo do
+  cabeçalho, em vez de um toast do serviço, que é desenhado atrás da janela do app em primeiro plano.
+  O mesmo aviso pedido duas vezes é escrito uma vez.
+- O toast de sucesso saiu: quem confirma que abriu é a própria app que abriu. Só a falha total — nenhum
+  app do telefone aceita texto — fala.
+- Texto: «nenhuma app instalada» → «nenhum app instalado» (o substantivo é masculino), e o aviso diz
+  também que o texto já está na área de transferência. A nota dos ajustes acompanhou o género.
+
+**Testes de regressão:** `ai/AskAiTest` e `overlay/AskAiPanelTest`:
+
+| teste | o que ele prende |
+| --- | --- |
+| `every share can be started from the service` | a flag está no envio (com e sem app escolhida), no seletor e em cada candidato |
+| `a note is written in the panel that is open` | o aviso chega ao painel pelo controlador, não a um toast |
+| `the same note is written once` | pedir o mesmo aviso duas vezes não duplica a linha |
+
+Conferido contra o código antigo: **4/4 mutações apanhadas** —
+tirar a flag de todos os intents, tirá-la só do seletor, remover a deduplicação do aviso e fazer o
+`showResultNote` não fazer nada; cada uma falha exactamente o teste acima (`n2_nonvacuous.ps1`).
+O teste do seletor é separado de propósito: a flag no intent embrulhado não chega.
+
+Fica sem teste, e sabe-se porquê: o `FloatingOcrService.askAi` em si — o `startActivity` verdadeiro
+precisa de um aparelho. O que ele decide (que intents tentar) está em `AskAi`, testado; a ponte
+painel→serviço (`onAskAiRequested`) é a mesma do I1.
 
 ---
 

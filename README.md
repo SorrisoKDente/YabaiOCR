@@ -128,6 +128,11 @@ princípio — tirar a leitura de dentro da frase —, e é isso que o app faz, 
 - O **texto cru do Lens** (o painel em «texto linha por linha») continua mostrando a leitura: é ali que se
   confere o que o OCR viu, e escondê-la seria falsear o resultado do OCR.
 
+Uma nota sobre o **tamanho**: numa tela de telefone a imagem vai em 720×1600 (ver **Precisão**, abaixo),
+e a leitura impressa muito miúda — uns 15 px de altura — fica abaixo do que o Lens reporta nesse
+tamanho. Quando isso acontece não há o que tirar: a frase já sai limpa. A leitura continua disponível no
+bloco **Furigana** (escrito do dicionário) e num **recorte**, que é ampliado antes de ir.
+
 #### E quando o mangá não imprime a leitura
 
 Aí o Lens não tem o que reportar — mas o dicionário sabe. Ele já dividiu a frase em palavras, e cada
@@ -279,6 +284,10 @@ consequência agradável é que a lista de apps «suportadas» **é a lista do s
 app nova é o suficiente, e trocar de app preferida é uma escolha nos ajustes, não uma actualização do
 Yabai OCR.
 
+Se **nenhum** app do telefone aceitar texto, o painel diz isso mesmo — logo abaixo do cabeçalho, onde
+o aviso não pode ficar escondido atrás do app que está aberto — e o texto já está na área de
+transferência.
+
 Nos ajustes, a seção **«6. Perguntar a uma IA»** tem o botão (ligado/desligado), o campo da pergunta —
 apagado, ele manda só o texto — e a app que responde, escolhida de uma lista lida do aparelho. O nome
 da app é lido do telefone, não guardado: se você desinstalar a que tinha escolhido, o ajuste volta
@@ -302,14 +311,22 @@ separados. O `core` junta de volta as colunas que formam o mesmo bloco (mesma di
 e vão menor que um caractere), o que é o que faz um balão virar uma frase traduzível em vez de três
 fragmentos — e é também o que define o tamanho das caixas da tela inteira.
 
-Além disso, a imagem é enviada com o lado maior em **2400 px** (`AppSettings.DEFAULT_MAX_DIMENSION`)
-e o idioma anunciado é `ja`. O valor é o lado longo de uma tela de telefone comum, e não é um palpite:
-com o lado maior reduzido para 1600 (720×1600, o que o app fazia antes), a leitura miúda encostada num
-kanji — 15 px de altura — **não é reconhecida**; a 1080×2400 (22 px) ela volta como um trecho próprio.
-Como é essa leitura que o furigana usa, a redução custava a funcionalidade, não só bytes. Medido no
-endpoint real: captura de tela 105 KB → 178 KB pelo mesmo tempo (~1 s); página fotografada 2,4 MB e
-~5 s, e o Lens aceita (um recorte de 3,7 MB também, ~7 s). Baixar o valor deixa o upload mais leve em
-ligação fraca; subir acima de 2400 só ajuda se a tela for maior que isso.
+Além disso, a imagem vai com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`) e o
+idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1600.
+
+Esse número foi medido duas vezes, e a segunda corrigiu a primeira:
+
+- Numa **página desenhada** (fundo limpo, letra de imprensa), 1080×2400 lia a leitura miúda encostada ao
+  kanji (22 px de altura) que 720×1600 não lia (15 px).
+- Numa **página de mangá de verdade**, o contrário: a 1080×2400 o Lens **perde o kanji grande
+  estilizado** — o `淀` do título, desenhado à mão por cima da arte — e a coluna volta sem ele
+  (`みなきまで。` na cópia ampliada que foi medida); a 720×1600 a mesma coluna volta inteira,
+  `淀みなき拳で。`. Medido no endpoint real mudando só o tamanho, e o aparelho confirmou o essencial:
+  a caixa do trecho deixou de cobrir o 淀.
+
+A palavra que se perde não volta; a leitura impressa que o tamanho maior ganhava é redundante — o bloco
+**Furigana** escreve a leitura a partir do dicionário, e um **recorte**, onde a leitura miúda é olhada de
+perto, é ampliado e continua a ser lido. Por isso o limite é 1600.
 
 Dicas para acertar de primeira:
 

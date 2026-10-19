@@ -650,20 +650,22 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         if (payload.isBlank()) return
         copyToClipboard(text)
 
-        // `startActivity` from a service is allowed here for the same reason the bubble's own
-        // «Ajustes» button is: the app has a window on screen, the one the user just tapped.
+        // The share is started from here, a service, not from an Activity: every candidate carries
+        // FLAG_ACTIVITY_NEW_TASK, which `AskAi` puts on each of them. Without it `startActivity`
+        // throws and both the chosen app and the chooser fail — the old «no app accepts text» for
+        // every tap, whichever app was chosen.
         val candidates = AskAi.candidates(payload, settings.aiPackage, getString(R.string.result_ai_chooser))
         for ((index, intent) in candidates.withIndex()) {
             if (!runCatching { startActivity(intent) }.isSuccess) continue
             // Only the first candidate is the remembered app, so getting past it means that app is
             // gone: dropping the name costs one chooser now and saves one every time after.
             if (index > 0) settings.aiPackage = ""
-            toast(getString(R.string.result_ai_copied))
             return
         }
 
-        // Nothing on the phone takes text at all. The copy still happened, so say what worked.
-        toast(getString(R.string.result_ai_no_app))
+        // Nothing on the phone takes text at all. The copy still happened, so say what worked — in
+        // the panel, because a toast from here is drawn behind the app the user is looking at.
+        overlays.showResultNote(getString(R.string.result_ai_no_app))
     }
 
     // --- notification --------------------------------------------------------------------------

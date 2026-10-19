@@ -117,6 +117,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     }
 
     private val notesContainer = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+
+    /**
+     * The notes already written in [notesContainer], so a note that is added twice — a button pressed
+     * twice while the first answer is still on screen — is written once.
+     */
+    private val noteTexts = mutableListOf<String>()
     private val translationSection = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val wordsSection = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
@@ -322,7 +328,11 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         card.addView(buildHeader(meta))
 
         notesContainer.removeAllViews()
-        for (note in notes) notesContainer.addView(noteView(note))
+        noteTexts.clear()
+        for (note in notes) {
+            notesContainer.addView(noteView(note))
+            noteTexts += note
+        }
         if (notes.isNotEmpty()) card.addView(notesContainer)
 
         card.addView(
@@ -418,6 +428,25 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         card.addView(copies)
 
         applyFold()
+    }
+
+    /**
+     * Adds a note under the header of the panel that is already open.
+     *
+     * This is where something that happened *after* the capture is said, such as a share that found
+     * nowhere to go: a toast raised by the service is drawn behind the app the user is looking at, so
+     * the message would be invisible exactly when it matters. The same text asked for twice is
+     * written once — pressing the button again while the answer is still there is not news.
+     */
+    fun addNote(message: String) {
+        if (message.isBlank() || message in noteTexts) return
+        if (notesContainer.parent == null) {
+            // Under the header, where [showResult] puts the notes it was built with. A card with no
+            // header (loading, error) takes it at the top.
+            card.addView(notesContainer, if (card.childCount > 0) 1 else 0)
+        }
+        notesContainer.addView(noteView(message))
+        noteTexts += message
     }
 
     fun showError(message: String, offlineAvailable: Boolean) {

@@ -722,6 +722,14 @@ class OverlayController(private val context: Context) {
         ensureResultPanel()?.showError(message, offlineAvailable)
     }
 
+    /**
+     * Writes a note in the panel that is already open — see [ResultOverlay.addNote]. The service uses
+     * it for news that arrives after the capture, where a toast would be hidden behind another app.
+     */
+    fun showResultNote(message: String) {
+        resultView?.addNote(message)
+    }
+
     private fun statusBarHeight(): Int {
         val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (id > 0) context.resources.getDimensionPixelSize(id) else dp(24)

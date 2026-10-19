@@ -125,6 +125,28 @@ class AskAiTest {
         assertEquals(Intent.ACTION_CHOOSER, candidates[0].action)
     }
 
+    /**
+     * Every share is started by the service, never by an activity, and Android refuses that without
+     * `FLAG_ACTIVITY_NEW_TASK`. The flag has to be on each intent that is actually launched — the
+     * chooser included, because the send intent it wraps travels as an extra and its flags are not
+     * used. Without it both candidates failed and every tap ended in «no app accepts text».
+     */
+    @Test
+    fun `every share can be started from the service`() {
+        val tried = listOf(
+            AskAi.sendIntent("職員", "com.openai.chatgpt"),
+            AskAi.sendIntent("職員", null),
+            AskAi.chooserIntent("職員", "Perguntar a uma IA"),
+        ) + AskAi.candidates("職員", "com.openai.chatgpt", "Perguntar a uma IA")
+
+        for (intent in tried) {
+            assertTrue(
+                "${intent.action} cannot be started from a service without FLAG_ACTIVITY_NEW_TASK",
+                intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0,
+            )
+        }
+    }
+
     // --- the list of apps -----------------------------------------------------------------------
 
     @Test
