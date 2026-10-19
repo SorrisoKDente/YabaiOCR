@@ -71,7 +71,7 @@ Detalhes úteis:
 - **Imagem** no painel põe o recorte capturado ao lado do texto reconhecido, para conferir o kanji
   que o OCR trocou. A escolha fica guardada nos ajustes.
 - **Perguntar à IA** copia o texto e abre a app de IA que você escolheu nos ajustes, com a pergunta
-  já escrita. Não é uma integração com serviço nenhum: o texto é partilhado como qualquer outra
+  já escrita. Não é uma integração com serviço nenhum: o texto é compartilhado como qualquer outra
   coisa, e quem responde é a app que já está no telefone.
 - O nome do dicionário no cabeçalho da seção «Dicionário» abre a lista de dicionários ativos: dá para
   consultar só um deles (ou **Todos**) sem sair do painel. A escolha também fica guardada.
@@ -104,7 +104,7 @@ refeitas sozinhas, com o texto corrigido. Não é preciso capturar a tela de nov
 
 ### Furigana (a leitura ao lado do kanji)
 
-Mangá imprime a leitura dos kanji em kana miúdas encostadas neles — e o Lens reporta isso como **texto**,
+Mangá imprime a leitura dos kanji em kana pequenas encostadas neles — e o Lens reporta isso como **texto**,
 não como anotação. Sem tratamento, a frase sai com a leitura **colada na palavra que ela explica**:
 
 ```
@@ -133,7 +133,7 @@ princípio — tirar a leitura de dentro da frase —, e é isso que o app faz, 
   confere o que o OCR viu, e escondê-la seria falsear o resultado do OCR.
 
 Uma nota sobre o **tamanho**: numa tela de telefone a imagem vai em 720×1600 (ver **Precisão**, abaixo),
-e a leitura impressa muito miúda — uns 15 px de altura — fica abaixo do que o Lens reporta nesse
+e a leitura impressa muito pequena — uns 15 px de altura — fica abaixo do que o Lens reporta nesse
 tamanho. Quando isso acontece não há o que tirar: a frase já sai limpa. A leitura continua disponível no
 bloco **Furigana** (escrito do dicionário) e num **recorte**, que é ampliado antes de ir.
 
@@ -162,11 +162,11 @@ Numa frase de verdade, com o JMdict:
   leituras do **kanji**, não de uma palavra; a nota embaixo do bloco só aparece quando há algum. Dois
   kanji colados nunca são lidos como se fossem um só.
 - O bloco é uma leitura **do** texto reconhecido, não o texto: o campo onde você corrige o OCR continua
-  exactamente o que o OCR devolveu — é ele que alimenta o dicionário e a tradução.
+  exatamente o que o OCR devolveu — é ele que alimenta o dicionário e a tradução.
 - Se a leitura **já estiver na frase** (o rubi que o app manteve entre parênteses, ou o que o mangá
-  imprimiu), ela não é escrita segunda vez.
+  imprimiu), ela não é escrita uma segunda vez.
 - Liga e desliga em **«Mostrar a leitura dos kanji»** (ligado de fábrica). O bloco dobra como os outros, e
-  o texto é seleccionável e copiável.
+  o texto é selecionável e copiável.
 
 ### Ver a imagem capturada
 
@@ -282,10 +282,10 @@ assim», «e num mangá, que tom tem isso», «esta gíria existe mesmo». Para 
 | Abre a app de IA | A que você escolheu nos ajustes, com a pergunta já escrita. Sem escolha, ou se a app escolhida já não existe, quem aparece é o **seletor do Android**. |
 
 Aqui **não há integração com nenhum serviço de IA**: nada de chave, conta, cota ou custo, e o texto
-não passa por este app — ele é copiado e partilhado como qualquer outra coisa que se partilha
+não passa por este app — ele é copiado e compartilhado como qualquer outra coisa que se compartilha
 (`ACTION_SEND`), que é o que qualquer app de IA (ChatGPT, Gemini, Copilot, Claude…) já entende. A
 consequência agradável é que a lista de apps «suportadas» **é a lista do seu telefone**: instalar uma
-app nova é o suficiente, e trocar de app preferida é uma escolha nos ajustes, não uma actualização do
+app nova é o suficiente, e trocar de app preferida é uma escolha nos ajustes, não uma atualização do
 Yabai OCR.
 
 Se **nenhum** app do telefone aceitar texto, o painel diz isso mesmo — logo abaixo do cabeçalho, onde
@@ -306,7 +306,7 @@ Três ajustes controlam o resultado:
 | Ajuste | Padrão | O que faz |
 | --- | --- | --- |
 | Motor | **Automático** | Usa Lens e cai para o ML Kit se o Lens falhar ou não devolver texto. |
-| Ampliar recortes pequenos | ligado | Recortes com menos de 420 px no lado maior são ampliados até 2×. Ajuda bastante em furigana e letras miúdas. |
+| Ampliar recortes pequenos | ligado | Recortes com menos de 420 px no lado maior são ampliados até 2×. Ajuda bastante em furigana e letras pequenas. |
 | Escolher o trecho da tela | ligado | Depois de reconhecer a tela inteira, desenha uma caixa sobre cada trecho e espera você escolher. Desligado, o texto todo vai direto para o painel. |
 | Listar o texto linha por linha | desligado | Mostra o resultado exatamente como o motor o segmentou, sem juntar em um parágrafo. |
 
@@ -320,7 +320,7 @@ idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1
 
 Esse número foi medido duas vezes, e a segunda corrigiu a primeira:
 
-- Numa **página desenhada** (fundo limpo, letra de imprensa), 1080×2400 lia a leitura miúda encostada ao
+- Numa **página desenhada** (fundo limpo, letra de imprensa), 1080×2400 lia a leitura pequena encostada ao
   kanji (22 px de altura) que 720×1600 não lia (15 px).
 - Numa **página de mangá de verdade**, o contrário: a 1080×2400 o Lens **perde o kanji grande
   estilizado** — o `淀` do título, desenhado à mão por cima da arte — e a coluna volta sem ele
@@ -329,8 +329,8 @@ Esse número foi medido duas vezes, e a segunda corrigiu a primeira:
   a caixa do trecho deixou de cobrir o 淀.
 
 A palavra que se perde não volta; a leitura impressa que o tamanho maior ganhava é redundante — o bloco
-**Furigana** escreve a leitura a partir do dicionário, e um **recorte**, onde a leitura miúda é olhada de
-perto, é ampliado e continua a ser lido. Por isso o limite é 1600.
+**Furigana** escreve a leitura a partir do dicionário, e um **recorte**, onde a leitura pequena é olhada de
+perto, é ampliado e continua sendo lido. Por isso o limite é 1600.
 
 Dicas para acertar de primeira:
 
@@ -392,7 +392,7 @@ app/    o app Android
   DictionaryActivity.kt     baixar/importar/ativar/reordenar/remover dicionários
   AppSettings.kt            preferências compartilhadas
   UsageTracker.kt           contador local de requisições ao Lens (o Google não expõe cota)
-  ai/AskAi.kt               a pergunta e a partilha para uma app de IA (nenhuma API, nenhuma chave)
+  ai/AskAi.kt               a pergunta e o compartilhamento para uma app de IA (nenhuma API, nenhuma chave)
   capture/ScreenCaptureSession.kt   um VirtualDisplay de longa duração + ImageReader
   ocr/OcrDispatcher.kt      escolhe o motor, implementa o modo automático e contabiliza o uso
   ocr/LensOcrEngine.kt      Lens via core

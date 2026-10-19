@@ -135,7 +135,7 @@ serviço, **depois de perguntar**. Em qualquer outro lugar a bolha volta para a 
 como antes.
 
 - O ✕ é um alvo circular de 64dp, 40dp acima do fim da tela, desenhado com o mesmo vetor do ícone
-  «Encerrar» do menu (`ic_menu_stop`) sobre um disco escuro translúcido — a cruz vermelha lê-se sobre
+  «Encerrar» do menu (`ic_menu_stop`) sobre um disco escuro translúcido — a cruz vermelha se lê sobre
   qualquer app.
 - **Acende enquanto a bolha está em cima:** disco vermelho cheio e cruz branca. Acender e «vai
   perguntar» são a **mesma** condição (`isOverCloseTarget`), então o realce nunca mente sobre o que
@@ -397,7 +397,7 @@ O que foi feito:
   ela foi impressa. É a escolha que o item pedia — «remover o furigana, **ou** manter entre parênteses» — e
   quem decide é um ajuste na tela principal («Manter o furigana entre parênteses»), que viaja até o
   `LensResultBuilder` pelo `FuriganaMode` do motor. O modo entrou na chave do cache do `LensOcrEngine`
-  (`LensKey`) junto de idioma/dimensão/ampliação: ele não muda a *requisição*, mas mudar o ajuste e a
+  (`LensKey`) junto com idioma/dimensão/ampliação: ele não muda a *requisição*, mas mudar o ajuste e a
   próxima captura responder com o modo antigo seria pior do que recriar um cliente HTTP.
 - **O texto cru continua cru.** As linhas que o painel mostra em «texto cru do Lens» (`LensBlock.lines` e
   `LensSegment`) continuam exatamente como o Lens reportou, leitura incluída. A limpeza é da *frase*: uma
@@ -480,27 +480,27 @@ O que foi feito:
 - **Kanji que uma palavra já leu não recebe palpite por cima.** O bloco marca os caracteres que cada
   acerto cobriu e não volta neles: `職（しょく）` não vira `職（しょく）（もと?）`.
 - **Só um kanji sozinho cai no KANJIDIC**, e sempre marcado: dois kanji colados lidos como se fossem uma
-  palavra seriam uma palavra que o dicionário não tem, exactamente o que não se inventa. As leituras
+  palavra seriam uma palavra que o dicionário não tem, exatamente o que não se inventa. As leituras
   vêm do `KanjiEntry`, que agora **carrega** o on'yomi e o kun'yomi — o blob compacto já os tinha e o
-  leitor deitava-os fora. Ordem: **kun primeiro** (um kanji sozinho num texto japonês lê-se à japonesa
+  leitor os jogava fora. Ordem: **kun primeiro** (um kanji sozinho num texto japonês se lê à japonesa
   primeiro), ordenados até três, o `た.べる` do KANJIDIC reduzido ao `た` (o `べる` está na frase) e
   separados por `・`. O que é palpite sai dentro dos parênteses com `?` e é **contado**
   (`Annotated.uncertain`), e o painel mostra a nota que explica o `?` só quando há algum.
 - **O texto reconhecido não é tocado.** O bloco é uma leitura *do* texto, não o texto: escrever dentro
   do campo editável envenenaria o dicionário e a tradução (é esse campo que alimenta os dois) e brigaria
-  com as correcções do usuário. Se a leitura já está impressa na frase — o rubi do mangá ou o
-  `職員（しょくいん）` que o D1 deixa — ela **não é escrita segunda vez**.
-- **O bloco é mais um item dobravel** do painel, acima da lista de palavras (quem não sabe ler um kanji
-  quer a leitura ao lado dele, não três secções abaixo) e o seu texto é **seleccionável**, como todo o
+  com as correções do usuário. Se a leitura já está impressa na frase — o rubi do mangá ou o
+  `職員（しょくいん）` que o D1 deixa — ela **não é escrita uma segunda vez**.
+- **O bloco é mais um item dobrável** do painel, acima da lista de palavras (quem não sabe ler um kanji
+  quer a leitura ao lado dele, não três seções abaixo) e o seu texto é **selecionável**, como todo o
   resto do painel.
 - **Saída em texto (`職員（しょくいん）`), não em rubi por cima do kanji.** O rubi de verdade precisa de
   `Spannable` num `TextView` próprio, não é copiável como texto e não é o que o painel faz em lugar
-  nenhum; a convenção de parênteses é a que o D1 já tinha introduzido. Fica registado como refinamento
+  nenhum; a convenção de parênteses é a que o D1 já tinha introduzido. Fica registrado como refinamento
   possível, não como pendência.
 - **A escolha do dicionário vale também aqui**: o bloco recebe o mesmo `only` que a consulta e o quadro
-  de kanji, então nunca é respondido por um dicionário que a secção de palavras foi mandada ignorar —
+  de kanji, então nunca é respondido por um dicionário que a seção de palavras foi mandada ignorar —
   a mesma regra que o M1 prende do outro lado.
-- **Ajuste próprio** («Mostrar a leitura dos kanji»), **ligado** por omissão: é uma ajuda de leitura e
+- **Ajuste próprio** («Mostrar a leitura dos kanji»), **ligado** por padrão: é uma ajuda de leitura e
   custa um bloco de uma linha, que dobra. O ajuste do D1 é o outro lado da mesma pergunta — o que fazer
   com a leitura que o Lens **viu**; este é o que fazer com a que **ninguém viu**.
 - **O ML Kit não foi tocado**, pela mesma razão do D1: a leitura do bloco sai do dicionário, que o ML
@@ -533,13 +533,13 @@ três novos em `core/.../dict/DictionaryCompileTest.kt` (com os dicionários de 
 | `the reading of a sentence comes from the words it was segmented into` (dicionários) | a frase real do JMdict, `食（た）べました` incluído |
 | `a kanji no word covers falls back to the kanji entry, marked as a guess` (dicionários) | o palpite vem do KANJIDIC e sai marcado |
 | `the reading fallback follows the same dictionary choice` (dicionários) | o `only` vale também para o palpite |
-| `the reading of the sentence is written beside the kanji` (painel) | o bloco mostra a leitura, seleccionável |
+| `the reading of the sentence is written beside the kanji` (painel) | o bloco mostra a leitura, selecionável |
 | `nothing to read means no block at all` (painel) | sem leitura não há bloco — e a frase não muda |
 | `a guessed reading is called out under the sentence` (painel) | a nota do `?` só aparece quando há palpite |
 | `the block folds, and stays folded when the text is looked up again` (painel) | o bloco dobra e não se desdobra sozinho |
 | `the block sits above the dictionary` (painel) | a ordem dos blocos é a decidida |
 
-Conferido contra o código quebrado, **dezasseis** quebras, cada uma derrubando um teste de verdade:
+Conferido contra o código quebrado, **dezesseis** quebras, cada uma derrubando um teste de verdade:
 detecção desligada → `expected:<職員（しょくいん）さんに聞（き）いた> but was:<null>`; okurigana entrando na
 leitura → `expected:<…聞（き[]）いた> but was:<…聞（き[く]）いた>`; leitura já impressa escrita de novo →
 `expected:<職員（しょくいん）[]さん…> but was:<職員（しょくいん）[（しょくいん）]さん…>`; qualquer parêntese
@@ -550,21 +550,21 @@ não lê → `expected null, but was:<Annotated(text=職（しょくいん）員
 `expected:<1> but was:<0>`; on antes de kun → `expected:<[よど, テン]> but was:<[テン, よど]>`; katakana
 sem normalização → `expected:<[Run(kanji=食, reading=た)]> but was:<null>`; separador das leituras
 ignorado → `expected:<[た, く, ショク]> but was:<[た]>`; kanji fora do plano básico contado em `char` →
-`expected:<𠮟（しか）る> but was:<null>`; bloco fora do painel → `NullPointerException` na secção; nota do
+`expected:<𠮟（しか）る> but was:<null>`; bloco fora do painel → `NullPointerException` na seção; nota do
 palpite a desaparecer → `expected:<[? — o dicionário não tem este kanji como palavra…]> but was:<[null]>`;
-leitura não seleccionável → `the reading has to be selectable to be copied`; dicionário antes do bloco →
+leitura não selecionável → `the reading has to be selectable to be copied`; dicionário antes do bloco →
 `expected the reading before the words, got [dictionary, furigana, dictionary]`. Não são testes vazios.
 
 ---
 
-### Registo — a carga que vai para o Lens  (18/10/2026)
+### Registro — a carga que vai para o Lens  (18/10/2026)
 
-A última pendência aberta do roadmap era o `DEFAULT_MAX_DIMENSION`, que estava em 1600 a aguentar uma
+A última pendência aberta do roadmap era o `DEFAULT_MAX_DIMENSION`, que estava em 1600 aguentando uma
 captura de tela de 1080×2400 reduzida a 720×1600. Se a redução custava alguma coisa não se sabia; agora
-sabe-se, porque foi medido contra o endpoint real (a sonda usada foi o `LensLiveTest` com uma lista de
-cargas; a sonda foi apagada a seguir, as cargas eram ficheiros temporários):
+se sabe, porque foi medido contra o endpoint real (a sonda usada foi o `LensLiveTest` com uma lista de
+cargas; a sonda foi apagada a seguir, as cargas eram arquivos temporários):
 
-| carga | bytes | tempo | HTTP | trechos | leitura miúda |
+| carga | bytes | tempo | HTTP | trechos | leitura pequena |
 | --- | --- | --- | --- | --- | --- |
 | tela 1080×2400 reduzida (limite 1600 → 720×1600) | 104 702 | 1,2 s | 200 | 4–5 | **não** |
 | tela 1080×2400 nativa (limite 2400) | 177 897 | 0,9–1,3 s | 200 | 5 | **sim** (`よど` como trecho próprio) |
@@ -572,18 +572,18 @@ cargas; a sonda foi apagada a seguir, as cargas eram ficheiros temporários):
 | recorte 1350×3000 (extremo do ajuste) | 3 718 338 | 6,9 s | 200 | 6 | — |
 
 As duas primeiras linhas são **a mesma página**, desenhada nítida nas duas densidades (texto a 30 px
-com leitura a 15 px, e texto a 45 px com leitura a 22 px). O resultado repetiu-se nas duas corridas:
+com leitura a 15 px, e texto a 45 px com leitura a 22 px). O resultado se repetiu nas duas corridas:
 com a leitura a 15 px o Lens não a reconhece de todo; a 22 px, vem como trecho próprio. E é essa leitura
 que o D1 tira da frase e que o D2 escreve — a redução não custava bytes, custava a funcionalidade.
 
 - `DEFAULT_MAX_DIMENSION` passou de **1600** para **2400**: a tela de um telefone comum entra inteira,
-  sem reamostragem; uma tela maior continua a ser reduzida, mas só até 2400. *Superado no mesmo dia —
-  ver a nota no fim da secção.*
+  sem reamostragem; uma tela maior continua sendo reduzida, mas só até 2400. *Superado no mesmo dia —
+  ver a nota no fim da seção.*
 - O que se paga: numa captura de tela +73 KB e o mesmo tempo; numa página fotografada 2,4 MB e ~5 s —
-  dentro do `callTimeout` de 20 s, e o endpoint aceita (3,7 MB, ~7 s, também aceite). O tecto não é o
+  dentro do `callTimeout` de 20 s, e o endpoint aceita (3,7 MB, ~7 s, também aceite). O teto não é o
   endpoint.
-- Testes: `app/.../ocr/ImagePreparerTest.kt` (7) — a tela de telefone desce a 720×1600 no limite por
-  omissão (era «passa intacta» quando o limite era 2400), uma tela maior é reduzida mantendo as
+- Testes: `app/.../ocr/ImagePreparerTest.kt` (7) — a tela de telefone desce a 720×1600 no limite
+  padrão (era «passa intacta» quando o limite era 2400), uma tela maior é reduzida mantendo as
   proporções, o recorte é ampliado mas só até duas vezes e nunca além do limite, e a imagem vai em
   **PNG** com bytes dentro. Conferido contra o código quebrado: subir o limite para 2400 →
   `expected:<720> but was:<1080>`; ampliação sem limite → `expected:<600> but was:<800>`; envio em JPEG
@@ -592,9 +592,9 @@ que o D1 tira da frase e que o D2 escreve — a redução não custava bytes, cu
 **19/10/2026 — o limite voltou a 1600, e esta medição ficou superada.** A conclusão acima foi tirada
 com uma página **desenhada**: fundo limpo, letra de imprensa, sem arte por baixo e sem a letra grande
 estilizada que abre um título de mangá. Numa página real (ver «N1 — A precisão do OCR caiu») o tamanho
-maior faz o Lens perder exactamente esse kanji. Como a palavra perdida não se recupera e a leitura
-impressa que o maior ganhava é redundante (o D2 escreve-a do dicionário, e um recorte é ampliado),
-ficou o kanji. O resto desta secção — o protocolo, os bytes, o tempo — continua válido; o que mudou é
+maior faz o Lens perder exatamente esse kanji. Como a palavra perdida não se recupera e a leitura
+impressa que o maior ganhava é redundante (o D2 a escreve do dicionário, e um recorte é ampliado),
+ficou o kanji. O resto desta seção — o protocolo, os bytes, o tempo — continua válido; o que mudou é
 só a escolha do número.
 
 ---
@@ -611,10 +611,10 @@ O pedido: uma maneira de traduzir/perguntar por **IA**, sabendo de antemão que 
 complicado (chave, conta, cota, custo) — e com uma sugestão de caminho melhor, se houvesse.
 
 Havia, e é o contrário de integrar: **não chamar modelo nenhum**. O Android já sabe mandar texto para
-qualquer app instalada (`ACTION_SEND`), e qualquer app de IA aceita texto partilhado. O botão novo,
+qualquer app instalada (`ACTION_SEND`), e qualquer app de IA aceita texto compartilhado. O botão novo,
 **«Perguntar à IA»**, faz três coisas e nenhuma delas passa por este app:
 
-1. copia o **texto reconhecido** (o que está no painel, com as correcções do usuário) para a área de
+1. copia o **texto reconhecido** (o que está no painel, com as correções do usuário) para a área de
    transferência;
 2. monta a pergunta: um **prompt editável** nos ajustes, de fábrica «Traduza para português e
    explique: », seguido do texto — prompt vazio manda só o texto;
@@ -622,8 +622,8 @@ qualquer app instalada (`ACTION_SEND`), e qualquer app de IA aceita texto partil
    decidir de cada vez.
 
 Por que assim e não com uma API: não há chave, conta nem custo; a app que responde é a que o usuário
-já escolheu para si (`ChatGPT`, `Gemini`, `Copilot`, `Claude`, o que estiver instalado); e continua a
-funcionar se ele trocar de app, porque não há lista de apps «suportadas» — a lista é a do aparelho.
+já escolheu para si (`ChatGPT`, `Gemini`, `Copilot`, `Claude`, o que estiver instalado); e continua
+funcionando se ele trocar de app, porque não há lista de apps «suportadas» — a lista é a do aparelho.
 O que se paga é que a app do outro lado não sabe nada desta, e por isso vai uma pergunta escrita.
 
 Abriu outra app a partir da bolha é o mesmo caminho que o botão **«Ajustes»** da bolha já usava: o app
@@ -631,7 +631,7 @@ tem uma janela visível, a que o usuário acabou de tocar.
 
 O que mudou:
 
-- `app/.../ai/AskAi.kt` (novo) — a pergunta montada, o intent de partilha, a lista de apps que aceitam
+- `app/.../ai/AskAi.kt` (novo) — a pergunta montada, o intent de compartilhamento, a lista de apps que aceitam
   texto e a **ordem de tentativas** (a app escolhida primeiro, o seletor sempre atrás).
 - `AndroidManifest.xml` — um `<queries>` de `ACTION_SEND` + `text/plain`: sem ele o Android 11+ não
   responde à lista de apps, e o seletor dos ajustes ficaria vazio em qualquer telefone.
@@ -651,7 +651,7 @@ O que mudou:
 | `the question is the prompt and then the text` | a pergunta é o prompt seguido do texto |
 | `an empty prompt sends the text alone` | prompt apagado é uma escolha, não uma avaria |
 | `whitespace around the prompt and the text is dropped` | espaços e mudanças de linha que vêm de fora não fazem parte da pergunta |
-| `the prompt and the text are never glued together` | exactamente um espaço entre os dois, como o usuário escreveu («:» acabado de escrever) |
+| `the prompt and the text are never glued together` | exatamente um espaço entre os dois, como o usuário escreveu («:» acabado de escrever) |
 | `the text keeps its own line breaks` | as linhas do texto são do texto, não se achatam |
 | `an empty text is nothing to send` | sem texto não há pergunta |
 | `the question leaves as a share of plain text` | `ACTION_SEND`, `text/plain` e o texto no extra |
@@ -659,7 +659,7 @@ O que mudou:
 | `a chosen app is tried first, and the chooser is still there behind it` | a ordem das tentativas, e o seletor sempre atrás |
 | `with no choice there is still something to open` | o seletor sozinho é uma lista válida |
 | `the list is the phone's, with our own app left out` | a lista vem do `PackageManager` (e não do próprio app) |
-| `an app appears once however many activities it offers` | duas actividades da mesma app são uma escolha |
+| `an app appears once however many activities it offers` | duas atividades da mesma app são uma escolha |
 | `the list is sorted by name` | a lista não muda de ordem entre aberturas |
 | `the chosen app is named the way the phone names it` | o nome vem do aparelho, não de uma cópia guardada |
 | `a package that is gone reads as no choice` | app desinstalada não deixa um nome a fingir |
@@ -670,19 +670,19 @@ O que mudou:
 | `an error panel does not offer the question` | onde não há texto não há pergunta |
 | `the question reaches the app through the controller` | a ponte painel → app (é daqui que sairia um botão que não faz nada) |
 
-A lista de acções que o painel oferece foi actualizada nos dois testes que a fixam
+A lista de ações que o painel oferece foi atualizada nos dois testes que a fixam
 (`ResultOverlayLayoutTest`, `ImagePanelTest`) — é a rede que prende «um botão a mais» sem querer.
 
 Não-vacuidade: 20 mutações em `AskAi.kt`, `ResultOverlay.kt` e `OverlayController.kt`, **20/20
-apanhadas** (`C:\Users\Eric PC\AppData\Local\Temp\opencode\ai_nonvacuous.ps1`). Duas valem a pena
+detectadas** (`C:\Users\Eric PC\AppData\Local\Temp\opencode\ai_nonvacuous.ps1`). Duas valem a pena
 contar: tirar o seletor de trás da app escolhida falha `a chosen app is tried first…`; e trocar o
 texto da pergunta pelo texto tal como foi reconhecido falha `the question is asked about the text on
-screen…`. A prova apanhou também um teste **vazio**: `the question leaves as a share of plain text`
+screen…`. A prova também detectou um teste **vazio**: `the question leaves as a share of plain text`
 comparava o tipo MIME com a própria constante do código, e por isso passava mesmo com a constante
 trocada para `text/html`; o teste passou a escrever `text/plain` por extenso (é um contrato com a app
 do outro lado, não um nome nosso).
 
-O que fica **de fora**, e sabe-se:
+O que fica **de fora**, e por quê:
 
 - o serviço (copiar, tentar, esquecer o nome morto) não tem teste: o `FloatingOcrService` não tem
   nenhum, porque precisa de uma `MediaProjection` de verdade. O que dava para separar sem mentir — a
@@ -690,7 +690,7 @@ O que fica **de fora**, e sabe-se:
 - o `<queries>` do manifesto não tem teste: é uma declaração, e nenhum teste a lê. O sintoma de ela
   faltar (lista vazia no Android 11+) aparece no telefone, não aqui.
 - a ponte dos ajustes (`MainActivity`: gravar o prompt a cada tecla, escolher a app na lista) não tem
-  teste pela mesma razão que o resto dos ajustes não tem: o projecto não tem testes de `MainActivity`.
+  teste pela mesma razão que o resto dos ajustes não tem: o projeto não tem testes de `MainActivity`.
 
 ---
 
@@ -726,8 +726,8 @@ só o tamanho:
 | 1080×2400 (limite novo) | `みなきまで。` — `PixelBox(x=91, y=637, 114×575)`, e o 淀 **não aparece em segmento nenhum** |
 
 Uma ressalva honesta sobre a segunda linha: o upload do print é 720×1600 (a imagem é reduzida ao subir),
-por isso o teste a 1080×2400 foi feito sobre uma **cópia ampliada** — não é exactamente o que o telefone
-viu, e é provável que a leitura `まで` seja artefacto dessa ampliação. O que o print **do aparelho** prova,
+por isso o teste a 1080×2400 foi feito sobre uma **cópia ampliada** — não é exatamente o que o telefone
+viu, e é provável que a leitura `まで` seja artefato dessa ampliação. O que o print **do aparelho** prova,
 e que a medição reproduz, é o que interessa: a coluna volta **sem o 淀** e a caixa começa onde a do print
 começa. Não é a segmentação a mudar — o texto é que perdeu o kanji.
 
@@ -738,13 +738,13 @@ As outras três hipóteses ficam refutadas por construção:
   淀, não havia caixa para descartar.
 - **`upscaleSmall`** só toca em recortes abaixo de 420 px; a tela inteira nunca passa por lá.
 
-**A troca, e porque se escolheu o kanji.** O 2400 existia por uma medição anterior (ver «Registo — a
-carga que vai para o Lens»): numa **página desenhada**, a leitura miúda impressa (15 px a 720×1600
+**A troca, e por que se escolheu o kanji.** O 2400 existia por uma medição anterior (ver «Registro — a
+carga que vai para o Lens»): numa **página desenhada**, a leitura pequena impressa (15 px a 720×1600
 contra 22 px a 1080×2400) só é reconhecida no tamanho maior. Numa página de mangá real o mesmo tamanho
 maior perde um kanji grande estilizado. Não há um tamanho que dê os dois. Ficou o kanji: uma palavra
 perdida não se recupera, e a leitura impressa que o maior ganhava é redundante — o **D2** escreve a
-leitura a partir do dicionário, e um **recorte** (onde a leitura miúda é olhada de perto) é ampliado e
-continua a ser lido. O usuário escolheu esta opção depois de ver a medição.
+leitura a partir do dicionário, e um **recorte** (onde a leitura pequena é olhada de perto) é ampliado e
+continua sendo lido. O usuário escolheu esta opção depois de ver a medição.
 
 **Correção:** `DEFAULT_MAX_DIMENSION` volta a **1600** — uma tela de 1080×2400 viaja como 720×1600. Só o
 número mudou; nenhuma outra decisão do caminho de OCR foi tocada.
@@ -755,17 +755,17 @@ número mudou; nenhuma outra decisão do caminho de OCR foi tocada.
 | --- | --- |
 | `a phone screen is brought down at the default` | a tela de 1080×2400 chega ao Lens como 720×1600, e não nativa |
 
-Conferido contra o código quebrado: **2/2 mutações apanhadas** — voltar a constante para 2400 (a
-regressão exacta) e anular a conta da redução; cada uma falha exactamente o teste acima
+Conferido contra o código quebrado: **2/2 mutações detectadas** — voltar a constante para 2400 (a
+regressão exata) e anular a conta da redução; cada uma falha exatamente o teste acima
 (`n1_nonvacuous.ps1`).
 
-**O que fica em aberto, e sabe-se porquê:**
+**O que fica em aberto, e por quê:**
 
 - O teste prende a **decisão** (o tamanho), não o comportamento do Lens — não há teste offline que prove
   o que o endpoint devolve. A prova é a medição acima, com dois pedidos reais e datada.
-- Um bloco com texto mas **sem geometria** continua a não ser oferecido no «Tela inteira» (o
-  `placeBlocks` descarta-o). Não foi a causa aqui — o texto do 淀 nem chegou — mas é o mesmo sintoma e
-  continua por tratar.
+- Um bloco com texto mas **sem geometria** continua não sendo oferecido no «Tela inteira» (o
+  `placeBlocks` o descarta). Não foi a causa aqui — o texto do 淀 nem chegou — mas é o mesmo sintoma e
+  continua sem solução.
 
 ### N2 — «Perguntar à IA» não abre app nenhuma  `[x]` (19/10/2026)
 
@@ -773,9 +773,10 @@ Relato: com uma app escolhida (DeepSeek) ou sem app nenhuma, o botão mostra sem
 nenhuma app instalada aceita texto», não abre seletor nenhum, e a mensagem ainda por cima aparece
 atrás da janela do app que está aberto.
 
-Causa, que se vê no código sem precisar do aparelho: a partilha é lançada **a partir do serviço**, e um
-`Context` que não é uma `Activity` só pode lançar um intent com `FLAG_ACTIVITY_NEW_TASK`. Sem a flag, o
-`startActivity` lança uma excepção de runtime e o `runCatching` à volta transforma-a em «não abriu».
+Causa, que se vê no código sem precisar do aparelho: o compartilhamento é lançado **a partir do
+serviço**, e um `Context` que não é uma `Activity` só pode lançar um intent com
+`FLAG_ACTIVITY_NEW_TASK`. Sem a flag, o
+`startActivity` lança uma exceção de runtime e o `runCatching` à volta a transforma em «não abriu».
 Como nenhum dos dois candidatos (app escolhida, seletor) levava a flag, **os dois falhavam sempre** —
 e é isso que explica a mensagem aparecer igual nos dois casos. O botão «Ajustes» da bolha, que sempre
 funcionou, é o contra-exemplo: ele *tem* a flag.
@@ -800,12 +801,12 @@ Correção:
 | `a note is written in the panel that is open` | o aviso chega ao painel pelo controlador, não a um toast |
 | `the same note is written once` | pedir o mesmo aviso duas vezes não duplica a linha |
 
-Conferido contra o código antigo: **4/4 mutações apanhadas** —
+Conferido contra o código antigo: **4/4 mutações detectadas** —
 tirar a flag de todos os intents, tirá-la só do seletor, remover a deduplicação do aviso e fazer o
-`showResultNote` não fazer nada; cada uma falha exactamente o teste acima (`n2_nonvacuous.ps1`).
+`showResultNote` não fazer nada; cada uma falha exatamente o teste acima (`n2_nonvacuous.ps1`).
 O teste do seletor é separado de propósito: a flag no intent embrulhado não chega.
 
-Fica sem teste, e sabe-se porquê: o `FloatingOcrService.askAi` em si — o `startActivity` verdadeiro
+Fica sem teste, e por quê: o `FloatingOcrService.askAi` em si — o `startActivity` verdadeiro
 precisa de um aparelho. O que ele decide (que intents tentar) está em `AskAi`, testado; a ponte
 painel→serviço (`onAskAiRequested`) é a mesma do I1.
 
@@ -817,22 +818,22 @@ Relato: «Clicar fora ou usar o botão de voltar do celular deve ser o equivalen
 quando tiver selecionado um texto em tela cheia ou se selecionou apenas um trecho específico; ele deve
 ser equivalente a opção de "Fechar"».
 
-O que estava, e vê-se no código:
+O que estava, e se vê no código:
 
 - O **BACK** do painel chamava sempre `onDismiss()` — fechava. Num texto escolhido de uma captura de
-  tela inteira, isso deitava fora a captura: para a ter de volta era preciso capturar outra vez, e
+  tela inteira, isso jogava fora a captura: para a ter de volta era preciso capturar outra vez, e
   outra consulta ao Lens.
 - **Tocar fora não fazia nada.** A janela do painel tinha só a altura do cartão e ficava encostada ao
-  topo: a área fora dele não era do painel, era da app de baixo. O gesto não existia em lado nenhum.
-- O **seletor de trechos** não era focável, portanto o BACK atravessava-o e ia para a app de baixo
+  topo: a área fora dele não era do painel, era da app de baixo. O gesto não existia em lugar nenhum.
+- O **seletor de trechos** não era focável, portanto o BACK o atravessava e ia para a app de baixo
   (no navegador, navegava uma página).
 
-Correção — «um passo atrás», um só sítio a decidir:
+Correção — «um passo atrás», um só lugar a decidir:
 
 - `ResultOverlay.stepBack()`: se o painel tem os trechos atrás de si (`canRepick`, que só é verdade
   numa captura de tela inteira), BACK e o toque fora vão para «◀ Trechos»; sem nada atrás — um
   recorte — fecham o painel. `showLoading`/`showError` põem `canGoBack = false` (não há resultado).
-- A janela do painel passou a cobrir o **ecrã inteiro**; a área vazia é o gesto. O cartão engole os
+- A janela do painel passou a cobrir a **tela inteira**; a área vazia é o gesto. O cartão engole os
   próprios toques (`isClickable`), senão um toque no cartão contava como «fora».
 - O seletor de trechos passou a ser **focável** e ouve o BACK: fecha como «Cancelar», em vez de o
   BACK ir para a app de baixo.
@@ -847,19 +848,40 @@ Correção — «um passo atrás», um só sítio a decidir:
 | `a tap outside the card closes the panel when there is nothing behind it` | o mesmo, sem trechos atrás |
 | `a tap on the card is not a tap outside` | o cartão não se confunde com a área vazia |
 | `back leaves the segment picker` | BACK no seletor = «Cancelar» |
-| `the result window covers the screen` | a janela cobre o ecrã (sem isto, o toque fora não chega) |
+| `the result window covers the screen` | a janela cobre a tela (sem isto, o toque fora não chega) |
 
-Conferido contra o código quebrado: **6/6 mutações apanhadas** (`n3_nonvacuous.ps1`) — BACK sempre a
+Conferido contra o código quebrado: **6/6 mutações detectadas** (`n3_nonvacuous.ps1`) — BACK sempre a
 fechar, BACK sempre a ir aos trechos, toque fora sem efeito, cartão sem `isClickable`, janela de volta
-a `WRAP_CONTENT`, e o seletor sem o ouvinte de teclas. Cada uma falha exactamente o teste que a prende.
+a `WRAP_CONTENT`, e o seletor sem o ouvinte de teclas. Cada uma falha exatamente o teste que a prende.
 
-**O que muda para quem usa:** com o painel aberto a tela pertence-lhe — a bolha deixa de ser
+**O que muda para quem usa:** com o painel aberto a tela lhe pertence — a bolha deixa de ser
 alcançável enquanto o resultado está à frente. O caminho passa a ser um passo atrás primeiro. É o
-efeito directo do pedido: não há «fora» sem uma janela que ocupe a tela.
+efeito direto do pedido: não há «fora» sem uma janela que ocupe a tela.
 
-**Fica de fora, e sabe-se:** o teclado. A janela é do topo e o cartão também, por isso o teclado não
+**Fica de fora, e por quê:** o teclado. A janela é do topo e o cartão também, por isso o teclado não
 lhe passa por cima; mas isso é uma conta de janelas que só se vê num aparelho — não há teste para
 isso aqui.
+
+---
+
+### Português do Brasil  `[x]` (19/10/2026)
+
+Pedido do usuário: os textos do projeto estavam em português de Portugal e deviam passar a português do
+Brasil. Nada de comportamento mudou — é só linguagem —, mas o que mudou fica listado para não se perder
+o rasto:
+
+- **Vocabulário:** ecrã → tela, ficheiro → arquivo, miúda → pequena, sítio → lugar, registo → registro,
+  por omissão → por padrão, tecto → teto, apanhadas → detectadas, partilhar → compartilhar,
+  actividades → atividades, artefacto → artefato.
+- **Ortografia:** exactamente → exatamente, secção → seção, acções → ações, correcções → correções,
+  directo → direto, projecto → projeto, actualização → atualização, excepção → exceção.
+- **Sintaxe:** a ênclise saiu («vê-se» → «se vê», «sabe-se» → «se sabe», «descarta-o» → «o descarta») e
+  as perífrases passaram a gerúndio («continua a ser lido» → «continua sendo lido»).
+- **Ficaram como estavam:** as aspas angulares «», que são tipografia e não vocabulário, e as palavras
+  que valem nos dois países («aparelho», «encostada», «Fechar», «Cancelar»). O `strings.xml` já era
+  português do Brasil — só uma frase precisou de ajuste («letras miúdas» → «letras pequenas»).
+- **Sem teste:** conversão de texto não tem comportamento para prender. A rede de segurança é o
+  `app:testDebugUnitTest` continuar verde e o APK continuar a compilar.
 
 ---
 
@@ -880,12 +902,12 @@ primeiro), com a mesma disciplina: um teste de regressão antes de ser marcado `
 fora do roadmap, e por quê:
 
 - **Rubi de verdade** (leitura impressa *acima* do kanji, com `Spannable`) em vez dos parênteses: a
-  saída em texto é copiável, seleccionável e é a convenção que o D1 já tinha, e o painel não usa
+  saída em texto é copiável, selecionável e é a convenção que o D1 já tinha, e o painel não usa
   `Spannable` em lugar nenhum. Fica como refinamento, não como pendência.
 - **A leitura vinda da geometria do D1 alimentando o bloco**: desnecessário — se o mangá imprimiu o
   rubi, a frase já o tem entre parênteses e o D2 não escreve por cima.
 - **A carga que vai para o Lens**: era a última dúvida aberta e está fechada com medições — ver
-  «Registo — a carga que vai para o Lens», acima.
+  «Registro — a carga que vai para o Lens», acima.
 
 ---
 
