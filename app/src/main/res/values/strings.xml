@@ -70,6 +70,10 @@
     <string name="result_repick">◀ Trechos</string>
     <string name="result_image">Imagem</string>
     <string name="result_image_description">Imagem capturada, de onde o texto foi reconhecido</string>
+    <string name="result_ask_ai">Perguntar à IA</string>
+    <string name="result_ai_copied">Texto copiado — abrindo a app de IA</string>
+    <string name="result_ai_no_app">Texto copiado, mas nenhuma app instalada aceita texto.</string>
+    <string name="result_ai_chooser">Perguntar a uma IA</string>
     <string name="result_translation_label">Tradução</string>
     <string name="result_dictionary_label">Dicionário</string>
     <string name="result_kanji_label">Kanji</string>
@@ -97,7 +101,7 @@
     <string name="status_running">Ativo</string>
     <string name="status_stopped">Parado</string>
 
-    <string name="section_usage">6. Uso do Google Lens</string>
+    <string name="section_usage">7. Uso do Google Lens</string>
     <string name="usage_today">Hoje: %1$d</string>
     <string name="usage_total">Total: %1$d</string>
     <string name="usage_since">Contando desde %1$s</string>
@@ -131,6 +135,14 @@
     <string name="dictionary_manage_button">Gerenciar dicionários</string>
     <string name="dictionary_summary_none">Nenhum dicionário instalado</string>
     <string name="dictionary_summary">%1$d instalados · %2$d ativos</string>
+
+    <string name="section_ai">6. Perguntar a uma IA</string>
+    <string name="setting_ai_button">Mostrar o botão «Perguntar à IA» no painel</string>
+    <string name="setting_ai_prompt">O que perguntar, antes do texto reconhecido (deixe vazio para enviar só o texto)</string>
+    <string name="setting_ai_app">App que responde</string>
+    <string name="ai_app_always">Perguntar sempre (escolher de cada vez)</string>
+    <string name="ai_app_none">Nenhuma app instalada aceita texto</string>
+    <string name="ai_note">Não é uma integração com nenhum serviço de IA: o app copia o texto reconhecido, monta a pergunta e entrega os dois à app que você escolher — ChatGPT, Gemini, Copilot, Claude, o que estiver instalado. Não há chave, conta nem custo, e o texto nunca passa por aqui.\n\nO que vai para a app é a pergunta acima seguida do texto. O que fica na área de transferência é o texto sozinho, para colar onde quiser.</string>
 
     <string name="dictionary_title">Dicionários</string>
     <string name="dictionary_subtitle">Dicionários no formato Yomitan/Yomichan. O app baixa o arquivo, converte uma vez e depois consulta tudo sem internet.</string>

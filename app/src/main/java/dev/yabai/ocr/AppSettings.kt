@@ -2,6 +2,7 @@ package dev.yabai.ocr
 
 import android.content.Context
 import androidx.core.content.edit
+import dev.yabai.ocr.ai.AskAi
 
 enum class EngineChoice { AUTO, LENS, MLKIT }
 
@@ -116,6 +117,34 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_TRANSLATE_TARGET, "pt") ?: "pt"
         set(value) = prefs.edit { putString(KEY_TRANSLATE_TARGET, value) }
 
+    /**
+     * Offer «Perguntar à IA» in the panel: copy the text and hand it to an AI app the user already
+     * has, with a question written in front of it.
+     *
+     * On by default, because it is one button and it costs nothing: no key, no account, no request
+     * made by this app. Which app answers is the user's choice, not ours — see [aiPackage].
+     */
+    var showAiButton: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_AI_BUTTON, true)
+        set(value) = prefs.edit { putBoolean(KEY_SHOW_AI_BUTTON, value) }
+
+    /**
+     * The question the AI app is asked, in front of the recognised text. An empty prompt sends the
+     * text alone — for whoever would rather write the question once they are there.
+     */
+    var aiPrompt: String
+        get() = prefs.getString(KEY_AI_PROMPT, AskAi.DEFAULT_PROMPT) ?: AskAi.DEFAULT_PROMPT
+        set(value) = prefs.edit { putString(KEY_AI_PROMPT, value) }
+
+    /**
+     * The package of the AI app the question is handed to, or "" to let the system chooser ask every
+     * time. Only the package is stored: the name shown in the settings is read off the phone, so an
+     * app that was uninstalled leaves nothing but a package name that no longer resolves.
+     */
+    var aiPackage: String
+        get() = prefs.getString(KEY_AI_PACKAGE, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_AI_PACKAGE, value) }
+
     companion object {
         const val PREFS_NAME = "yabai_ocr_settings"
 
@@ -151,5 +180,8 @@ class AppSettings(context: Context) {
         private const val KEY_SHOW_FURIGANA = "show_furigana"
         private const val KEY_TRANSLATE_TARGET = "translate_target"
         private const val KEY_SHOW_IMAGE = "show_image"
+        private const val KEY_SHOW_AI_BUTTON = "show_ai_button"
+        private const val KEY_AI_PROMPT = "ai_prompt"
+        private const val KEY_AI_PACKAGE = "ai_package"
     }
 }

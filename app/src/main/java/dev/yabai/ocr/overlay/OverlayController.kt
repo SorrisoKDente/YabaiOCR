@@ -60,6 +60,9 @@ class OverlayController(private val context: Context) {
 
         /** The user narrowed the dictionary lookup to one dictionary, or asked for all of them. */
         fun onDictionaryPicked(title: String?)
+
+        /** The user wants an AI app to answer about the recognised text. */
+        fun onAskAiRequested(text: String)
     }
 
     var callbacks: Callbacks? = null
@@ -636,6 +639,10 @@ class OverlayController(private val context: Context) {
                     this@OverlayController.callbacks?.onDictionaryPicked(title)
                 }
 
+                override fun onAskAi(text: String) {
+                    this@OverlayController.callbacks?.onAskAiRequested(text)
+                }
+
                 override fun onDismiss() {
                     hideResult()
                     this@OverlayController.callbacks?.onResultDismissed()
@@ -682,8 +689,20 @@ class OverlayController(private val context: Context) {
         canRepick: Boolean,
         image: Bitmap? = null,
         showImage: Boolean = false,
+        canAskAi: Boolean = false,
     ) {
-        ensureResultPanel()?.showResult(text, meta, notes, offlineAvailable, showLines, lines, canRepick, image, showImage)
+        ensureResultPanel()?.showResult(
+            text,
+            meta,
+            notes,
+            offlineAvailable,
+            showLines,
+            lines,
+            canRepick,
+            image,
+            showImage,
+            canAskAi,
+        )
     }
 
     /** Shows or hides the captured image in the panel that is already open. */

@@ -107,6 +107,7 @@ class ImagePanelTest {
                 imageLabel,
                 context.getString(R.string.result_retry_offline),
                 context.getString(R.string.result_close),
+                context.getString(R.string.result_ask_ai),
                 context.getString(R.string.result_copy_original),
                 context.getString(R.string.result_copy_translation),
             ),
@@ -151,6 +152,7 @@ class ImagePanelTest {
             canRepick = true,
             image = image,
             showImage = showImage,
+            canAskAi = true,
         )
         setTranslation(ResultOverlay.TranslationState.Done(TRANSLATION))
     }
@@ -227,6 +229,10 @@ class ImagePanelTest {
 
             override fun onImageToggle() {
                 asked.add("image")
+            }
+
+            override fun onAskAi(text: String) {
+                asked.add("ask ai$text")
             }
 
             override fun onDictionaryPicked(title: String?) {

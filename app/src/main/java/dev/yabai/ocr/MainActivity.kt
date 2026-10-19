@@ -15,12 +15,16 @@ import android.text.format.DateFormat
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.service.FloatingOcrService
 import java.util.Date
@@ -125,6 +129,7 @@ class MainActivity : AppCompatActivity() {
         bindEngineSelector()
         bindBehaviourSwitches()
         bindTranslationAndDictionaries()
+        bindAskAi()
 
         btnStart.setOnClickListener { onStartClicked() }
         btnStop.setOnClickListener { stopService() }
@@ -136,6 +141,7 @@ class MainActivity : AppCompatActivity() {
         refreshRunningState()
         refreshUsage()
         refreshDictionarySummary()
+        refreshAiApp()
         handler.postDelayed(statusPoll, 1000L)
     }
 
@@ -218,6 +224,61 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnManageDictionaries).setOnClickListener {
             startActivity(DictionaryActivity.intent(this))
         }
+    }
+
+    /**
+     * The «Perguntar à IA» half of the panel: whether the button is offered, what is asked, and which
+     * app answers.
+     *
+     * The app list is read off the phone when this screen opens and again on every tap, so an app
+     * installed in between is offered without restarting anything — and the list is never written
+     * down, because the only thing worth storing across phones is the package name (the choice).
+     */
+    private fun bindAskAi() {
+        val showAi = findViewById<CheckBox>(R.id.checkAskAi).apply { isChecked = settings.showAiButton }
+        showAi.setOnCheckedChangeListener { _, checked -> settings.showAiButton = checked }
+
+        // The hint *is* the default prompt, from the one place that defines it: after the field is
+        // cleared it is what tells whoever asks themselves «and what did it send before?».
+        val prompt = findViewById<EditText>(R.id.editAiPrompt).apply {
+            hint = AskAi.DEFAULT_PROMPT
+            setText(settings.aiPrompt)
+        }
+        // Written as it is typed: this is not a form with a submit button, and the panel can be used
+        // for a long time before anyone comes back to this screen.
+        prompt.doAfterTextChanged { settings.aiPrompt = it?.toString().orEmpty() }
+
+        findViewById<Button>(R.id.btnAiApp).setOnClickListener { chooseAiApp() }
+        refreshAiApp()
+    }
+
+    /** The choice, named as the phone names it; a package that is gone reads as «no choice». */
+    private fun refreshAiApp() {
+        val button = findViewById<Button>(R.id.btnAiApp)
+        val installed = AskAi.targets(this)
+        button.isEnabled = installed.isNotEmpty()
+        button.text = if (installed.isEmpty()) {
+            getString(R.string.ai_app_none)
+        } else {
+            AskAi.label(settings.aiPackage, installed, getString(R.string.ai_app_always))
+        }
+    }
+
+    private fun chooseAiApp() {
+        val installed = AskAi.targets(this)
+        if (installed.isEmpty()) {
+            toast(getString(R.string.ai_app_none))
+            return
+        }
+
+        val labels = listOf(getString(R.string.ai_app_always)) + installed.map { it.label }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.setting_ai_app)
+            .setItems(labels.toTypedArray()) { _, which ->
+                settings.aiPackage = if (which == 0) "" else installed[which - 1].packageName
+                refreshAiApp()
+            }
+            .show()
     }
 
     /** Keeps the dictionary line under the checkbox honest after installs or removals. */

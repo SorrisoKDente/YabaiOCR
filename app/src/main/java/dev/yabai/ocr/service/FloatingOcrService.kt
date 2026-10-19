@@ -30,6 +30,7 @@ import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.MainActivity
 import dev.yabai.ocr.R
 import dev.yabai.ocr.UsageTracker
+import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.ocr.OcrDispatcher
@@ -334,6 +335,10 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         analyse(text)
     }
 
+    override fun onAskAiRequested(text: String) {
+        askAi(text)
+    }
+
     private fun pickerRects(): List<Rect> = pendingBlocks.map { it.rect }
 
     // --- capture pipeline ----------------------------------------------------------------------
@@ -445,6 +450,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             canRepick = canRepick,
             image = image,
             showImage = settings.showImage,
+            canAskAi = settings.showAiButton,
         )
         analyse(text)
     }
@@ -627,6 +633,37 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private fun copyToClipboard(text: String) {
         val clipboard = getSystemService(ClipboardManager::class.java) ?: return
         runCatching { clipboard.setPrimaryClip(ClipData.newPlainText(LABEL_CLIP, text)) }
+    }
+
+    /**
+     * Copies the recognised text and opens an AI app with the question already written in it.
+     *
+     * The copy is not a side effect of the share, it is half of what the button promises: the text it
+     * hands over is the *recognised* text, prompt and all, while the clipboard keeps the text alone —
+     * so closing the other app still leaves something to paste somewhere else.
+     *
+     * Which app opens is the user's choice, stored as a package name; with none chosen the system
+     * chooser asks every time.
+     */
+    private fun askAi(text: String) {
+        val payload = AskAi.request(settings.aiPrompt, text)
+        if (payload.isBlank()) return
+        copyToClipboard(text)
+
+        // `startActivity` from a service is allowed here for the same reason the bubble's own
+        // «Ajustes» button is: the app has a window on screen, the one the user just tapped.
+        val candidates = AskAi.candidates(payload, settings.aiPackage, getString(R.string.result_ai_chooser))
+        for ((index, intent) in candidates.withIndex()) {
+            if (!runCatching { startActivity(intent) }.isSuccess) continue
+            // Only the first candidate is the remembered app, so getting past it means that app is
+            // gone: dropping the name costs one chooser now and saves one every time after.
+            if (index > 0) settings.aiPackage = ""
+            toast(getString(R.string.result_ai_copied))
+            return
+        }
+
+        // Nothing on the phone takes text at all. The copy still happened, so say what worked.
+        toast(getString(R.string.result_ai_no_app))
     }
 
     // --- notification --------------------------------------------------------------------------

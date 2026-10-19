@@ -100,6 +100,7 @@ class ResultOverlayLayoutTest {
                 context.getString(R.string.result_repick),
                 context.getString(R.string.result_retry_offline),
                 context.getString(R.string.result_close),
+                context.getString(R.string.result_ask_ai),
                 context.getString(R.string.result_copy_original),
                 context.getString(R.string.result_copy_translation),
             ),
@@ -177,6 +178,7 @@ class ResultOverlayLayoutTest {
             showLines = false,
             segmentLines = emptyList(),
             canRepick = true,
+            canAskAi = true,
         )
         setTranslation(
             ResultOverlay.TranslationState.Done(
@@ -262,6 +264,7 @@ class ResultOverlayLayoutTest {
             override fun onRepick() = Unit
             override fun onRetryOffline() = Unit
             override fun onImageToggle() = Unit
+            override fun onAskAi(text: String) = Unit
             override fun onDictionaryPicked(title: String?) = Unit
             override fun onDismiss() = Unit
         }

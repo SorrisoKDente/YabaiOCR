@@ -589,6 +589,101 @@ que o D1 tira da frase e que o D2 escreve — a redução não custava bytes, cu
 
 ---
 
+## 5. Pedidos novos
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| I1 | `[x]` | **Perguntar a uma IA** que o usuário já tem no aparelho | médio |
+
+### I1 — Perguntar a uma IA do aparelho  `[x]` (19/10/2026)
+
+O pedido: uma maneira de traduzir/perguntar por **IA**, sabendo de antemão que «chamar um modelo» é
+complicado (chave, conta, cota, custo) — e com uma sugestão de caminho melhor, se houvesse.
+
+Havia, e é o contrário de integrar: **não chamar modelo nenhum**. O Android já sabe mandar texto para
+qualquer app instalada (`ACTION_SEND`), e qualquer app de IA aceita texto partilhado. O botão novo,
+**«Perguntar à IA»**, faz três coisas e nenhuma delas passa por este app:
+
+1. copia o **texto reconhecido** (o que está no painel, com as correcções do usuário) para a área de
+   transferência;
+2. monta a pergunta: um **prompt editável** nos ajustes, de fábrica «Traduza para português e
+   explique: », seguido do texto — prompt vazio manda só o texto;
+3. abre a **app escolhida** com a pergunta já escrita, ou o **seletor do Android** para quem preferir
+   decidir de cada vez.
+
+Por que assim e não com uma API: não há chave, conta nem custo; a app que responde é a que o usuário
+já escolheu para si (`ChatGPT`, `Gemini`, `Copilot`, `Claude`, o que estiver instalado); e continua a
+funcionar se ele trocar de app, porque não há lista de apps «suportadas» — a lista é a do aparelho.
+O que se paga é que a app do outro lado não sabe nada desta, e por isso vai uma pergunta escrita.
+
+Abriu outra app a partir da bolha é o mesmo caminho que o botão **«Ajustes»** da bolha já usava: o app
+tem uma janela visível, a que o usuário acabou de tocar.
+
+O que mudou:
+
+- `app/.../ai/AskAi.kt` (novo) — a pergunta montada, o intent de partilha, a lista de apps que aceitam
+  texto e a **ordem de tentativas** (a app escolhida primeiro, o seletor sempre atrás).
+- `AndroidManifest.xml` — um `<queries>` de `ACTION_SEND` + `text/plain`: sem ele o Android 11+ não
+  responde à lista de apps, e o seletor dos ajustes ficaria vazio em qualquer telefone.
+- `AppSettings` — `showAiButton` (ligado), `aiPrompt` (com o texto de fábrica) e `aiPackage` (só o
+  nome do pacote: o nome da app é lido do aparelho, para não guardar um nome que já não existe).
+- `ResultOverlay` — o botão na fila das **cópias**, primeiro da fila: é mais uma maneira de tirar o
+  texto do painel, e a pergunta é sobre a frase toda (as duas cópias são sobre um pedaço).
+- `OverlayController`, `FloatingOcrService` — a ponte e o serviço: copiar, tentar a app escolhida,
+  cair no seletor. Quando é o seletor que responde à frente de uma app escolhida, a app já não abre e
+  o nome dela é **esquecido**, para não se pagar a mesma falha em cada captura.
+- `MainActivity` + `activity_main.xml` — seção «6. Perguntar a uma IA»: o botão, o prompt (gravado a
+  cada tecla: não é um formulário com «guardar») e a escolha da app, com a lista lida do aparelho a
+  cada abertura da tela e a cada toque. «Uso do Google Lens» passou a 7.
+
+| teste | o que ele prende |
+| --- | --- |
+| `the question is the prompt and then the text` | a pergunta é o prompt seguido do texto |
+| `an empty prompt sends the text alone` | prompt apagado é uma escolha, não uma avaria |
+| `whitespace around the prompt and the text is dropped` | espaços e mudanças de linha que vêm de fora não fazem parte da pergunta |
+| `the prompt and the text are never glued together` | exactamente um espaço entre os dois, como o usuário escreveu («:» acabado de escrever) |
+| `the text keeps its own line breaks` | as linhas do texto são do texto, não se achatam |
+| `an empty text is nothing to send` | sem texto não há pergunta |
+| `the question leaves as a share of plain text` | `ACTION_SEND`, `text/plain` e o texto no extra |
+| `without a chosen app the text goes to the chooser` | sem escolha, o intent não tem destinatário e vai embrulhado no seletor |
+| `a chosen app is tried first, and the chooser is still there behind it` | a ordem das tentativas, e o seletor sempre atrás |
+| `with no choice there is still something to open` | o seletor sozinho é uma lista válida |
+| `the list is the phone's, with our own app left out` | a lista vem do `PackageManager` (e não do próprio app) |
+| `an app appears once however many activities it offers` | duas actividades da mesma app são uma escolha |
+| `the list is sorted by name` | a lista não muda de ordem entre aberturas |
+| `the chosen app is named the way the phone names it` | o nome vem do aparelho, não de uma cópia guardada |
+| `a package that is gone reads as no choice` | app desinstalada não deixa um nome a fingir |
+| `no installed app at all leaves nothing to choose` | sem apps que aceitem texto, a lista é vazia e assumida |
+| `the panel offers the question when the setting allows it` | o botão segue o ajuste (e não aparece sozinho) |
+| `the question is offered next to the copy buttons` | o lugar do botão: a fila das cópias, primeiro |
+| `the question is asked about the text on screen, corrections included` | pergunta sobre o texto **como está**, não como foi reconhecido |
+| `an error panel does not offer the question` | onde não há texto não há pergunta |
+| `the question reaches the app through the controller` | a ponte painel → app (é daqui que sairia um botão que não faz nada) |
+
+A lista de acções que o painel oferece foi actualizada nos dois testes que a fixam
+(`ResultOverlayLayoutTest`, `ImagePanelTest`) — é a rede que prende «um botão a mais» sem querer.
+
+Não-vacuidade: 20 mutações em `AskAi.kt`, `ResultOverlay.kt` e `OverlayController.kt`, **20/20
+apanhadas** (`C:\Users\Eric PC\AppData\Local\Temp\opencode\ai_nonvacuous.ps1`). Duas valem a pena
+contar: tirar o seletor de trás da app escolhida falha `a chosen app is tried first…`; e trocar o
+texto da pergunta pelo texto tal como foi reconhecido falha `the question is asked about the text on
+screen…`. A prova apanhou também um teste **vazio**: `the question leaves as a share of plain text`
+comparava o tipo MIME com a própria constante do código, e por isso passava mesmo com a constante
+trocada para `text/html`; o teste passou a escrever `text/plain` por extenso (é um contrato com a app
+do outro lado, não um nome nosso).
+
+O que fica **de fora**, e sabe-se:
+
+- o serviço (copiar, tentar, esquecer o nome morto) não tem teste: o `FloatingOcrService` não tem
+  nenhum, porque precisa de uma `MediaProjection` de verdade. O que dava para separar sem mentir — a
+  ordem das tentativas — foi para o `AskAi`, e é isso que os testes prendem.
+- o `<queries>` do manifesto não tem teste: é uma declaração, e nenhum teste a lê. O sintoma de ela
+  faltar (lista vazia no Android 11+) aparece no telefone, não aqui.
+- a ponte dos ajustes (`MainActivity`: gravar o prompt a cada tecla, escolher a app na lista) não tem
+  teste pela mesma razão que o resto dos ajustes não tem: o projecto não tem testes de `MainActivity`.
+
+---
+
 ## Notas de ordem
 
 - B1 antes de tudo: é regressão visual e esconde um botão.
@@ -600,7 +695,10 @@ que o D1 tira da frase e que o D2 escreve — a redução não custava bytes, cu
   parênteses já existe e o D2 é a mesma inserção com outra fonte de leitura (o dicionário em vez da
   geometria), então convém fazê-lo logo em seguida.  `[x]` — feito em 18/10/2026.
 
-Com o D2 fechado, o roadmap está inteiro. O que ficou de fora e por quê:
+Com o D2 fechado, o roadmap estava inteiro. O que veio depois é a seção **5. Pedidos novos**, que não
+estava prevista: cada pedido novo entra como item próprio (o I1 — «Perguntar a uma IA» — foi o
+primeiro), com a mesma disciplina: um teste de regressão antes de ser marcado `[x]`. O que ficou de
+fora do roadmap, e por quê:
 
 - **Rubi de verdade** (leitura impressa *acima* do kanji, com `Spannable`) em vez dos parênteses: a
   saída em texto é copiável, seleccionável e é a convenção que o D1 já tinha, e o painel não usa

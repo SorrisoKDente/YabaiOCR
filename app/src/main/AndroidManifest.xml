@@ -15,6 +15,18 @@
     <!-- Foreground-service notification on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      The AI apps the settings can offer, in the panel's «Perguntar à IA». Android 11+ hides the
+      installed apps unless the app asks about them by intent, and an app that takes text is asked
+      about exactly like this. Nothing is launched through it: the share itself is an ACTION_SEND.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="text/plain" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

@@ -64,6 +64,13 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
          * The choice is a setting, and the lookup runs again with it.
          */
         fun onDictionaryPicked(title: String?)
+
+        /**
+         * The user wants an AI app to answer about the recognised text. The text is what is on screen,
+         * corrections included, and what happens to it — clipboard, prompt, which app — is the app's
+         * business, not the panel's.
+         */
+        fun onAskAi(text: String)
         fun onDismiss()
     }
 
@@ -270,6 +277,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * Builds the panel for a finished capture. Subsequent section updates ([setTranslation],
      * [setWords]) only touch their own sub-view, so a lookup that lands while the user is editing
      * will not yank the cursor out from under them.
+     *
+     * [canAskAi] puts the «Perguntar à IA» button in the row of copy buttons, where it belongs: it is
+     * one more way of taking the recognised text away from the panel.
      */
     fun showResult(
         text: String,
@@ -281,6 +291,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         canRepick: Boolean,
         image: Bitmap? = null,
         showImage: Boolean = false,
+        canAskAi: Boolean = false,
     ) {
         card.removeAllViews()
         this.showLines = showLines
@@ -391,7 +402,17 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             alignEnd = true
             setPadding(0, dp(6), 0, 0)
         }
-        copies.addView(btCopyOriginal, wrapWithMargin(start = 0))
+        if (canAskAi) {
+            // First in the row: it is the answer to the whole sentence, where the two «Copiar» buttons
+            // are the answer to a piece of it.
+            copies.addView(
+                context.actionButton(context.getString(R.string.result_ask_ai)) {
+                    callbacks?.onAskAi(originalEditor.text.toString())
+                },
+                wrapWithMargin(start = 0),
+            )
+        }
+        copies.addView(btCopyOriginal, wrapWithMargin(start = if (canAskAi) dp(6) else 0))
         btCopyTranslation.visibility = View.GONE
         copies.addView(btCopyTranslation, wrapWithMargin())
         card.addView(copies)

@@ -66,6 +66,9 @@ Detalhes úteis:
   numa linha só, que passa a mostrar a tradução.
 - **Imagem** no painel põe o recorte capturado ao lado do texto reconhecido, para conferir o kanji
   que o OCR trocou. A escolha fica guardada nos ajustes.
+- **Perguntar à IA** copia o texto e abre a app de IA que você escolheu nos ajustes, com a pergunta
+  já escrita. Não é uma integração com serviço nenhum: o texto é partilhado como qualquer outra
+  coisa, e quem responde é a app que já está no telefone.
 - O nome do dicionário no cabeçalho da seção «Dicionário» abre a lista de dicionários ativos: dá para
   consultar só um deles (ou **Todos**) sem sair do painel. A escolha também fica guardada.
 - As **leituras** (furigana) que o Lens devolve encostadas nos kanji são reconhecidas e tiradas da frase —
@@ -257,6 +260,30 @@ A primeira tradução baixa o modelo do idioma (cerca de **30 MB**), via Google 
 disso funciona em modo avião. Por isso o primeiro uso precisa de internet e de Play Services. Se o
 modelo não puder ser baixado, o painel diz exatamente isso em vez de ficar mudo.
 
+### Perguntar a uma IA que você já tem
+
+A tradução do ML Kit resolve a frase; o que ela não resolve é «por que esta palavra está escrita
+assim», «e num mangá, que tom tem isso», «esta gíria existe mesmo». Para isso existe o botão
+**Perguntar à IA**, ao lado das cópias:
+
+| O que ele faz | Detalhe |
+| --- | --- |
+| Copia o texto reconhecido | Para a área de transferência, com as suas correções — o mesmo texto do painel. |
+| Monta a pergunta | O que estiver em «O que perguntar» nos ajustes, seguido do texto. De fábrica: *«Traduza para português e explique:»*. |
+| Abre a app de IA | A que você escolheu nos ajustes, com a pergunta já escrita. Sem escolha, ou se a app escolhida já não existe, quem aparece é o **seletor do Android**. |
+
+Aqui **não há integração com nenhum serviço de IA**: nada de chave, conta, cota ou custo, e o texto
+não passa por este app — ele é copiado e partilhado como qualquer outra coisa que se partilha
+(`ACTION_SEND`), que é o que qualquer app de IA (ChatGPT, Gemini, Copilot, Claude…) já entende. A
+consequência agradável é que a lista de apps «suportadas» **é a lista do seu telefone**: instalar uma
+app nova é o suficiente, e trocar de app preferida é uma escolha nos ajustes, não uma actualização do
+Yabai OCR.
+
+Nos ajustes, a seção **«6. Perguntar a uma IA»** tem o botão (ligado/desligado), o campo da pergunta —
+apagado, ele manda só o texto — e a app que responde, escolhida de uma lista lida do aparelho. O nome
+da app é lido do telefone, não guardado: se você desinstalar a que tinha escolhido, o ajuste volta
+sozinho a «Perguntar sempre», em vez de apontar para uma app que não está lá.
+
 ---
 
 ## Precisão
@@ -295,7 +322,7 @@ Dicas para acertar de primeira:
 
 ## Uso do Google Lens (e a verdade sobre a cota)
 
-A tela do app tem uma seção **“6. Uso do Google Lens”** com:
+A tela do app tem uma seção **“7. Uso do Google Lens”** com:
 
 - quantas requisições ao Lens foram feitas **hoje** e no **total**;
 - a data da primeira requisição e o resultado da última;
@@ -344,6 +371,7 @@ app/    o app Android
   DictionaryActivity.kt     baixar/importar/ativar/reordenar/remover dicionários
   AppSettings.kt            preferências compartilhadas
   UsageTracker.kt           contador local de requisições ao Lens (o Google não expõe cota)
+  ai/AskAi.kt               a pergunta e a partilha para uma app de IA (nenhuma API, nenhuma chave)
   capture/ScreenCaptureSession.kt   um VirtualDisplay de longa duração + ImageReader
   ocr/OcrDispatcher.kt      escolhe o motor, implementa o modo automático e contabiliza o uso
   ocr/LensOcrEngine.kt      Lens via core

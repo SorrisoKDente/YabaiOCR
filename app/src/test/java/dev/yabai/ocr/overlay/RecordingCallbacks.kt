@@ -73,6 +73,10 @@ class RecordingCallbacks(private val asked: MutableList<String> = ArrayList()) :
         asked.add("image")
     }
 
+    override fun onAskAiRequested(text: String) {
+        asked.add("ask ai$text")
+    }
+
     override fun onDictionaryPicked(title: String?) {
         asked.add("dictionary ${title ?: "todos"}")
     }

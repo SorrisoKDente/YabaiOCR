@@ -211,6 +211,7 @@ class DictionaryPickerTest {
             override fun onRepick() = Unit
             override fun onRetryOffline() = Unit
             override fun onImageToggle() = Unit
+            override fun onAskAi(text: String) = Unit
 
             override fun onDictionaryPicked(title: String?) {
                 asked.add("dictionary ${title ?: "todos"}")
