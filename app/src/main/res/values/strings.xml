@@ -75,8 +75,10 @@
     <string name="result_image">Imagem</string>
     <string name="result_image_description">Imagem capturada, de onde o texto foi reconhecido</string>
     <string name="result_ask_ai">Perguntar à IA</string>
+    <string name="result_ask_ai_choose">Perguntar a</string>
+    <string name="result_ask_ai_all">Mostrar todos (%1$d)</string>
+    <string name="result_ask_ai_only_ai">Só os de IA</string>
     <string name="result_ai_no_app">Nenhum app instalado aceita texto — o texto reconhecido já está na área de transferência.</string>
-    <string name="result_ai_chooser">Perguntar a uma IA</string>
     <string name="result_translation_label">Tradução</string>
     <string name="result_dictionary_label">Dicionário</string>
     <string name="result_kanji_label">Kanji</string>

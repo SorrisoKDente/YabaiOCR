@@ -116,8 +116,115 @@ class DragToCloseTest {
 
         assertTrue("the bubble was not pulled towards the ✕: $gap of ${reach / 2f}", gap < reach / 2f)
         assertTrue("the pull took the bubble past the ✕", gap > 0f)
-        // Halfway out the pull is a quarter of the way in: three quarters of the gap are left.
-        assertEquals(reach / 2f * 0.75f, gap, 1.5f)
+        // Halfway out the pull is half the way in: half the gap is left. It used to be a quarter,
+        // and the quarter is what could not be felt on the phone.
+        assertEquals(reach / 2f * 0.5f, gap, 1.5f)
+    }
+
+    /**
+     * R4: the pull has to be felt *while* the finger is travelling, not only at the end. At 70 % of
+     * the reach the old square moved the bubble 9 % of the way — 9 % of a 128 dp reach is under 9 dp,
+     * which reads as nothing; the smoothstep moves it 22 %.
+     */
+    @Test
+    fun `the pull is felt well before the cross`() {
+        val controller = controller()
+        val target = controller.closeTargetRect()
+        val reach = controller.closePullRadius.toFloat()
+        val fingerGap = reach * 0.7f
+
+        val finger = controller.centred(target.exactCenterX() + fingerGap, target.exactCenterY())
+        val gap = controller.distanceFrom(target, controller.pullTowardsCloseTarget(finger.x, finger.y))
+
+        assertTrue(
+            "at 70 % of the reach the bubble still sat $gap px out, from a finger $fingerGap px out",
+            gap <= fingerGap * 0.85f,
+        )
+
+        // R4 also widened the reach: at 130 dp out — where a drag used to spend most of its time
+        // with nothing happening — there is already a pull, not zero.
+        val far = 130f * context.resources.displayMetrics.density
+        val farFinger = controller.centred(target.exactCenterX() + far, target.exactCenterY())
+        val farGap = controller.distanceFrom(target, controller.pullTowardsCloseTarget(farFinger.x, farFinger.y))
+        assertTrue(
+            "130 dp from the cross the bubble was not pulled at all: $farGap of $far",
+            farGap <= far * 0.85f,
+        )
+    }
+
+    /**
+     * A finger on the ✕ draws the bubble exactly on it. Not «97 % of the way»: the drop is judged on
+     * what is drawn, so being a couple of pixels short would leave the ✕ unarmed right after the one
+     * gesture that was plainly meant to arm it.
+     */
+    @Test
+    fun `a finger on the cross snaps the bubble onto it`() {
+        val controller = controller()
+        val target = controller.closeTargetRect()
+        val radius = target.width() / 2f
+
+        // Just inside the target, where the smoothstep alone would still leave a gap.
+        val finger = controller.centred(target.exactCenterX() + radius - 1f, target.exactCenterY())
+        val drawn = controller.pullTowardsCloseTarget(finger.x, finger.y)
+
+        assertEquals(target.exactCenterX(), drawn.x + controller.bubbleSize / 2f, 0.6f)
+        assertEquals(target.exactCenterY(), drawn.y + controller.bubbleSize / 2f, 0.6f)
+    }
+
+    /** Nothing at the edge of the reach, everything on the ✕, and never backwards in between. */
+    @Test
+    fun `the pull grows all the way to the cross`() {
+        val controller = controller()
+        val target = controller.closeTargetRect()
+        val reach = controller.closePullRadius
+        val edge = controller.centred(target.exactCenterX() + reach, target.exactCenterY())
+        val onTarget = controller.centred(target.exactCenterX(), target.exactCenterY())
+
+        assertEquals(0f, controller.pullStrength(edge.x, edge.y), 0.001f)
+        assertEquals(1f, controller.pullStrength(onTarget.x, onTarget.y), 0.001f)
+
+        var previous = -1f
+        var distance = reach.toFloat()
+        while (distance >= 0) {
+            val finger = controller.centred(target.exactCenterX() + distance, target.exactCenterY())
+            val strength = controller.pullStrength(finger.x, finger.y)
+            assertTrue("at $distance the pull went backwards: $strength < $previous", strength >= previous - 0.001f)
+            previous = strength
+            distance -= 7
+        }
+        assertEquals(1f, previous, 0.001f)
+    }
+
+    /**
+     * R4, through the gesture the phone sends: while the bubble is pulled in it is also drawn smaller,
+     * and letting go puts it back to its own size — a shrunk bubble left behind after a release is a
+     * bubble that looks broken.
+     */
+    @Test
+    fun `the bubble shrinks while it is pulled onto the cross`() {
+        val controller = controller()
+        controller.showBubble()
+        val bubble = controller.bubbleWindow() ?: error("the bubble was not created")
+        val target = controller.closeTargetRect()
+        val finger = Point(100, 100)
+        val wanted = controller.centred(target.exactCenterX() + 40f, target.exactCenterY())
+        val start = controller.bubbleOrigin()
+
+        bubble.dispatchTouchEvent(touch(MotionEvent.ACTION_DOWN, finger.x, finger.y))
+        bubble.dispatchTouchEvent(
+            touch(
+                MotionEvent.ACTION_MOVE,
+                finger.x + (wanted.x - start.x),
+                finger.y + (wanted.y - start.y),
+            ),
+        )
+
+        assertTrue("the bubble was not shrunk by the pull: ${bubble.scaleX}", bubble.scaleX < 0.95f)
+
+        bubble.dispatchTouchEvent(touch(MotionEvent.ACTION_UP, bubble.measuredWidth / 2, bubble.measuredHeight / 2))
+
+        assertEquals("the bubble stayed shrunk after letting go", 1f, bubble.scaleX, 0.001f)
+        assertEquals(1f, bubble.scaleY, 0.001f)
     }
 
     @Test

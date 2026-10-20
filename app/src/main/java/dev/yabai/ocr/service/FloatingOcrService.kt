@@ -754,32 +754,61 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      * hands over is the *recognised* text, prompt and all, while the clipboard keeps the text alone —
      * so closing the other app still leaves something to paste somewhere else.
      *
-     * Which app opens is the user's choice, stored as a package name; with none chosen the system
-     * chooser asks every time.
+     * With an app fixed in the settings that app is opened directly. Without one the panel lists the
+     * apps that take text and the user picks there: the system chooser was the one route that opened
+     * nothing on the phone this was tested on — it closed and left the screen as it was — so the
+     * choice is a view this app owns, and the tap takes the same `startActivity` a fixed app takes
+     * (R3).
      */
     private fun askAi(text: String) {
+        copyToClipboard(text)
+        when (val plan = AskAi.plan(settings.aiPackage, AskAi.targets(this))) {
+            is AskAi.Plan.Direct -> openAi(plan.packageName, text)
+
+            is AskAi.Plan.Choose -> {
+                // A remembered name that is not installed has just lost its app: the list takes its
+                // place, and keeping the name would only cost the same fallback on the next tap.
+                if (settings.aiPackage.isNotBlank()) settings.aiPackage = ""
+                overlays.showAskAiApps(plan.apps, text)
+            }
+
+            AskAi.Plan.Nothing -> overlays.showResultNote(getString(R.string.result_ai_no_app))
+        }
+    }
+
+    /**
+     * The app the user picked from the list: same call as a fixed app, and the same ending. The list
+     * closes itself on the choice (see [OverlayController.showAskAiApps]); `openAi` closes what is
+     * left of the panel once an app has actually opened.
+     */
+    override fun onAskAiToRequested(packageName: String, text: String) = openAi(packageName, text)
+
+    /**
+     * Opens [packageName] with the question in it and takes the panel down.
+     *
+     * Taking it down is part of asking: the panel is a floating window, so left on screen it would sit
+     * over the app that is about to answer. It is taken down **only** when an app actually opened —
+     * after a failure the panel is the only thing that can say so and still holds the list.
+     *
+     * When the app does not open — uninstalled between the list being drawn and the tap — the name is
+     * forgotten and the list is offered again, so the tap still ends somewhere.
+     */
+    private fun openAi(packageName: String, text: String) {
         val payload = AskAi.request(settings.aiPrompt, text)
         if (payload.isBlank()) return
         copyToClipboard(text)
 
-        // The share is started from here, a service, not from an Activity: every candidate carries
-        // FLAG_ACTIVITY_NEW_TASK, which `AskAi` puts on each of them. Without it `startActivity`
-        // throws and both the chosen app and the chooser fail — the old «no app accepts text» for
-        // every tap, whichever app was chosen. The share the chooser wraps is deliberately *not*
-        // marked that way: it is the chooser that starts it, from its own task, and a new task of its
-        // own put the chosen app behind everything — «Perguntar sempre» opened nothing (R3).
-        val candidates = AskAi.candidates(payload, settings.aiPackage, getString(R.string.result_ai_chooser))
-        for ((index, intent) in candidates.withIndex()) {
-            if (!runCatching { startActivity(intent) }.isSuccess) continue
-            // Only the first candidate is the remembered app, so getting past it means that app is
-            // gone: dropping the name costs one chooser now and saves one every time after.
-            if (index > 0) settings.aiPackage = ""
-            return
-        }
+        val opened = AskAi.attempt(
+            candidates = listOf(AskAi.directIntent(payload, packageName)),
+            start = { runCatching { startActivity(it) }.isSuccess },
+            onOpened = { overlays.hideResult() },
+        )
+        if (opened) return
 
-        // Nothing on the phone takes text at all. The copy still happened, so say what worked — in
-        // the panel, because a toast from here is drawn behind the app the user is looking at.
-        overlays.showResultNote(getString(R.string.result_ai_no_app))
+        settings.aiPackage = ""
+        val apps = AskAi.targets(this)
+        if (apps.isEmpty()) overlays.showResultNote(getString(R.string.result_ai_no_app))
+        else overlays.showAskAiApps(apps, text)
     }
 
     // --- notification --------------------------------------------------------------------------

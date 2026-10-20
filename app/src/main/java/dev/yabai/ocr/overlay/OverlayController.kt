@@ -22,6 +22,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import dev.yabai.ocr.R
+import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.util.dp
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -65,6 +66,9 @@ class OverlayController(private val context: Context) {
 
         /** The user wants an AI app to answer about the recognised text. */
         fun onAskAiRequested(text: String)
+
+        /** The user picked [packageName] from the list of apps in the panel. */
+        fun onAskAiToRequested(packageName: String, text: String)
     }
 
     var callbacks: Callbacks? = null
@@ -80,10 +84,20 @@ class OverlayController(private val context: Context) {
     private val closeTargetMargin = dp(40)
 
     /**
-     * How far from the ✕ the pull starts. Twice the target's own size: close enough that arriving at
-     * the ✕ feels magnetic, far enough that a drag past the bottom of the screen is not hijacked.
+     * How far from the ✕ the pull starts. Three times the target's own size: the pull has to be felt
+     * while the finger is still travelling, not only once it is already on the cross — at twice the
+     * size the reach was so short that most of a drag happened with no pull at all.
      */
-    internal val closePullRadius = closeTargetSize * 2
+    internal val closePullRadius = closeTargetSize * 3
+
+    /**
+     * How much smaller the bubble is drawn when it is right on the ✕.
+     *
+     * The pull alone moves it a few dp at the end of a drag, which reads as a nudge; shrinking it is
+     * what makes the bubble look *sucked into* the cross — the thing the Messenger bubble does — and
+     * it is visible from across the screen even while the finger still covers the last stretch.
+     */
+    private val pullShrink = 0.3f
 
     /** Side of one icon button in the action strip, and the gap between two of them. */
     private val menuItemSize = dp(46)
@@ -103,6 +117,12 @@ class OverlayController(private val context: Context) {
     private var confirmView: View? = null
     private var regionView: RegionOverlay? = null
     private var resultView: ResultOverlay? = null
+
+    /** The list of apps a question can go to, when it is on screen; see [showAskAiApps]. */
+    private var appPicker: AppPickerOverlay? = null
+
+    /** The recognised text the open [appPicker] is asking about. */
+    private var askAiText: String = ""
     private var pickerView: TextPickerOverlay? = null
 
     private var downRawX = 0f
@@ -175,11 +195,17 @@ class OverlayController(private val context: Context) {
                 }
                 if (dragging) {
                     // The bubble follows the finger until the ✕ is close, and then it is drawn
-                    // pulled towards it: what is about to happen on release is visible before the
-                    // finger lifts, which is the whole point of the target turning red.
-                    val pulled = pullTowardsCloseTarget(startX + dx.toInt(), startY + dy.toInt())
+                    // pulled towards it, smaller, as it is sucked in: what is about to happen on
+                    // release is visible before the finger lifts, which is the whole point of the
+                    // target turning red.
+                    val fingerX = startX + dx.toInt()
+                    val fingerY = startY + dy.toInt()
+                    val pulled = pullTowardsCloseTarget(fingerX, fingerY)
                     params.x = pulled.x
                     params.y = pulled.y
+                    val scale = bubblePullScale(pullStrength(fingerX, fingerY))
+                    view.scaleX = scale
+                    view.scaleY = scale
                     clampBubble(params)
                     updateWindow(view, params)
                     armCloseTarget(isOverCloseTarget(params.x, params.y))
@@ -188,6 +214,8 @@ class OverlayController(private val context: Context) {
             }
 
             MotionEvent.ACTION_UP -> {
+                view.scaleX = 1f
+                view.scaleY = 1f
                 if (dragging) {
                     endDrag(params.x, params.y)
                 } else {
@@ -201,6 +229,8 @@ class OverlayController(private val context: Context) {
             // The gesture was taken away (a new window, a system panel): put everything back without
             // asking anything, because the user never let go.
             MotionEvent.ACTION_CANCEL -> {
+                view.scaleX = 1f
+                view.scaleY = 1f
                 if (dragging) {
                     hideCloseTarget()
                     putBubbleOnEdge()
@@ -400,23 +430,45 @@ class OverlayController(private val context: Context) {
      * is the drawn one, so what armed the ✕ is what happens on release.
      */
     internal fun pullTowardsCloseTarget(bubbleX: Int, bubbleY: Int): Point {
+        val strength = pullStrength(bubbleX, bubbleY)
+        if (strength <= 0f) return Point(bubbleX, bubbleY)
         val target = closeTargetRect()
         val centreX = bubbleX + bubbleSize / 2f
         val centreY = bubbleY + bubbleSize / 2f
         val dx = target.exactCenterX() - centreX
         val dy = target.exactCenterY() - centreY
-        val distance = hypot(dx, dy)
-        if (distance >= closePullRadius) return Point(bubbleX, bubbleY)
-
-        // 0 at the edge of the reach and 1 right on the ✕. Squared so the pull stays a hint until
-        // the bubble is genuinely at the target, instead of dragging it away from the finger early.
-        val closeness = 1f - distance / closePullRadius
-        val pull = closeness * closeness
         return Point(
-            (centreX + dx * pull - bubbleSize / 2f).roundToInt(),
-            (centreY + dy * pull - bubbleSize / 2f).roundToInt(),
+            (centreX + dx * strength - bubbleSize / 2f).roundToInt(),
+            (centreY + dy * strength - bubbleSize / 2f).roundToInt(),
         )
     }
+
+    /**
+     * How much of the way to the ✕ the bubble is drawn, from 0 (following the finger) to 1 (on it).
+     *
+     * Nothing outside [closePullRadius]; then a smoothstep, `3c² − 2c³`, where `c` runs 0→1 as the
+     * finger approaches. It replaced a plain square, which is barely felt: at 70 % of the reach a
+     * square had moved the bubble 9 % of the way, and the pull went unnoticed until the finger was
+     * almost on the ✕ — «o puxão mal se sente», from the phone. A smoothstep moves it 22 % there and
+     * half the way at the middle of the reach, so the drag starts answering before the end.
+     *
+     * A finger already on the ✕ is drawn *exactly* on it, not 97 % of the way: the drop is judged on
+     * the drawn position, and being short of the centre would leave the cross unarmed after the one
+     * gesture that was obviously meant to arm it.
+     */
+    internal fun pullStrength(bubbleX: Int, bubbleY: Int): Float {
+        if (isOverCloseTarget(bubbleX, bubbleY)) return 1f
+        val target = closeTargetRect()
+        val dx = target.exactCenterX() - (bubbleX + bubbleSize / 2f)
+        val dy = target.exactCenterY() - (bubbleY + bubbleSize / 2f)
+        val distance = hypot(dx, dy)
+        if (distance >= closePullRadius) return 0f
+        val closeness = 1f - distance / closePullRadius
+        return closeness * closeness * (3f - 2f * closeness)
+    }
+
+    /** The scale the bubble is drawn at while [strength] of the pull is applied; 1 means untouched. */
+    internal fun bubblePullScale(strength: Float): Float = 1f - pullShrink * strength
 
     internal fun isCloseTargetVisible(): Boolean = closeTargetView != null
 
@@ -587,6 +639,10 @@ class OverlayController(private val context: Context) {
     /** Puts the bubble back on the edge it belongs to: the answer to a drag that closed nothing. */
     private fun putBubbleOnEdge() {
         val params = bubbleParams ?: return
+        bubbleView?.let {
+            it.scaleX = 1f
+            it.scaleY = 1f
+        }
         snapToEdge(params)
         bubbleView?.let { updateWindow(it, params) }
     }
@@ -764,6 +820,43 @@ class OverlayController(private val context: Context) {
         resultView?.setTranslation(state)
     }
 
+    /**
+     * The window that lists the apps a question can go to — see [AppPickerOverlay].
+     *
+     * [text] travels with the choice: the picker does not own the recognised text, so it is captured
+     * here and handed to the service together with the package the user taps.
+     */
+    fun showAskAiApps(apps: List<AskAi.Target>, text: String) {
+        askAiText = text
+        val picker = appPicker ?: AppPickerOverlay(context).apply {
+            callbacks = object : AppPickerOverlay.Callbacks {
+                override fun onAppPicked(packageName: String) {
+                    // The list has done its job: it goes away before the app opens, so nothing of it
+                    // is left over whatever the answer looks like.
+                    hideAppPicker()
+                    this@OverlayController.callbacks?.onAskAiToRequested(packageName, askAiText)
+                }
+
+                override fun onDismiss() {
+                    hideAppPicker()
+                }
+            }
+        }.also { panel ->
+            appPicker = panel
+            addWindow(panel, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true).apply { gravity = Gravity.TOP })
+        }
+        // Opens on the apps that could answer a question, with the rest of the phone a tap away: the
+        // package manager reports everything that takes text, from Gmail to «Converter para JPEG».
+        picker.show(AskAi.relevant(apps), apps)
+    }
+
+    /** Takes the list of apps down; the result panel behind it stays where it was. */
+    fun hideAppPicker() {
+        val view = appPicker ?: return
+        removeWindow(view)
+        appPicker = null
+    }
+
     fun showResultWords(state: ResultOverlay.WordsState) {
         resultView?.setWords(state)
     }
@@ -786,6 +879,8 @@ class OverlayController(private val context: Context) {
     }
 
     fun hideResult() {
+        // The list of apps belongs to the question the panel is showing: it cannot outlive it.
+        hideAppPicker()
         val view = resultView ?: return
         removeWindow(view)
         resultView = null
@@ -805,6 +900,7 @@ class OverlayController(private val context: Context) {
         hideCloseConfirm()
         hideRegionSelector()
         hideTextPicker()
+        hideAppPicker()
         hideResult()
         bubbleView?.visibility = View.GONE
     }
@@ -819,6 +915,7 @@ class OverlayController(private val context: Context) {
         hideCloseConfirm()
         hideRegionSelector()
         hideTextPicker()
+        hideAppPicker()
         hideResult()
         hideBubble()
     }

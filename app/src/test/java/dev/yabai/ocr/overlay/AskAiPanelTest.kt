@@ -7,6 +7,7 @@ import android.view.WindowManager
 import android.widget.EditText
 import android.widget.TextView
 import dev.yabai.ocr.R
+import dev.yabai.ocr.ai.AskAi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -85,6 +86,12 @@ class AskAiPanelTest {
         )
     }
 
+    // --- the list of apps -----------------------------------------------------------------------
+
+    // The list itself lives in `AppPickerOverlay` — its own window, with icons — and is tested in
+    // `AppPickerTest`. The panel only opens the question.
+
+
     /**
      * A share that found nowhere to go is news for the panel, not for a toast: a toast raised by the
      * service is drawn behind whatever app the user is looking at, which is how the failure went
@@ -144,6 +151,52 @@ class AskAiPanelTest {
         assertEquals(listOf("ask ai$SENTENCE"), asked)
     }
 
+    /**
+     * The list reaches the window through the same one-line wiring as the question itself: the panel
+     * asks, the controller opens the list, and a tap goes back out by package name with the text that
+     * was on screen when the list was opened.
+     */
+    @Test
+    fun `the app picked in the list reaches the app through the controller`() {
+        val asked = ArrayList<String>()
+        val (controller, _) = openPanel(asked)
+
+        controller.showAskAiApps(APPS, SENTENCE)
+        val picker = windows().filterIsInstance<AppPickerOverlay>().firstOrNull()
+            ?: error("the controller did not put the list of apps on screen")
+        layout(picker, 320)
+        rowNamed(picker, "ChatGPT").performClick()
+
+        assertEquals(listOf("ask ai to com.openai.chatgpt$SENTENCE"), asked)
+        assertTrue(
+            "the list stayed on screen after the choice",
+            windows().none { it is AppPickerOverlay },
+        )
+    }
+
+    /**
+     * The window opens on the apps that can answer a question — Gmail and Bluetooth are not offered a
+     * question they cannot answer — and the rest of the phone is one tap away, never taken away.
+     */
+    @Test
+    fun `the list opens on the apps that can answer, with the rest one tap away`() {
+        val asked = ArrayList<String>()
+        val (controller, _) = openPanel(asked)
+        val all = APPS + AskAi.Target("Bluetooth", "com.android.bluetooth")
+
+        controller.showAskAiApps(all, SENTENCE)
+        val picker = windows().filterIsInstance<AppPickerOverlay>().firstOrNull()
+            ?: error("the controller did not put the list of apps on screen")
+        layout(picker, 320)
+
+        assertEquals(APP_NAMES, rowLabels(picker))
+        val more = context.getString(R.string.result_ask_ai_all, all.size)
+        assertTrue(
+            "the full list is not reachable: ${labels(picker)}",
+            more in labels(picker),
+        )
+    }
+
     private fun panel(canAskAi: Boolean): ResultOverlay = ResultOverlay(context).apply {
         showResult(
             text = SENTENCE,
@@ -161,8 +214,8 @@ class AskAiPanelTest {
     // --- helpers --------------------------------------------------------------------------------
 
     /** A controller with a result panel on screen, the way the service leaves it after a capture. */
-    private fun openPanel(): Pair<OverlayController, ResultOverlay> {
-        val controller = OverlayController(context).apply { callbacks = RecordingCallbacks(ArrayList()) }
+    private fun openPanel(calls: MutableList<String> = ArrayList()): Pair<OverlayController, ResultOverlay> {
+        val controller = OverlayController(context).apply { callbacks = RecordingCallbacks(calls) }
         ShadowSettings.setCanDrawOverlays(true)
         controller.showResult(
             text = SENTENCE,
@@ -229,7 +282,53 @@ class AskAiPanelTest {
         buttons(root).firstOrNull { it.text.toString() == label }
             ?: error("the panel has no «$label» button")
 
+    /** The row of the app list that carries [label]. */
+    private fun rowNamed(root: ViewGroup, label: String): View {
+        val found = ArrayList<View>()
+        fun walk(group: ViewGroup) {
+            for (index in 0 until group.childCount) {
+                val child = group.getChildAt(index)
+                if (child.tag == AppPickerOverlay.ROW_TAG) found.add(child)
+                if (child is ViewGroup) walk(child)
+            }
+        }
+        walk(root)
+        return found.firstOrNull { row ->
+            val texts = ArrayList<String>()
+            fun collect(group: ViewGroup) {
+                for (index in 0 until group.childCount) {
+                    val child = group.getChildAt(index)
+                    if (child is TextView) texts.add(child.text.toString())
+                    if (child is ViewGroup) collect(child)
+                }
+            }
+            collect(row as ViewGroup)
+            label in texts
+        } ?: error("the list has no row for «$label»")
+    }
+
     private fun labels(root: ViewGroup): List<String> = buttons(root).map { it.text.toString() }
+
+    /** The names on the app list, in the order the list shows them. */
+    private fun rowLabels(root: ViewGroup): List<String> {
+        val found = ArrayList<String>()
+        fun walk(group: ViewGroup) {
+            for (index in 0 until group.childCount) {
+                val child = group.getChildAt(index)
+                if (child.tag == AppPickerOverlay.ROW_TAG) {
+                    val row = child as ViewGroup
+                    (0 until row.childCount)
+                        .map { row.getChildAt(it) }
+                        .filterIsInstance<TextView>()
+                        .firstOrNull()
+                        ?.let { found.add(it.text.toString()) }
+                }
+                if (child is ViewGroup) walk(child)
+            }
+        }
+        walk(root)
+        return found
+    }
 
     /** Every string on screen, notes included. */
     private fun texts(root: ViewGroup): List<String> {
@@ -266,5 +365,15 @@ class AskAiPanelTest {
         const val TRANSLATION = "Perguntei ao funcionário e ele disse que saiu por aí."
         const val CORRECTED = "職員さんに聞いた"
         const val FAILED = "Não foi possível reconhecer o texto."
+
+        /**
+         * Two apps that take text, as the package manager would report them. Written out here rather
+         * than queried: what the panel does with the list is the subject, not how it is found.
+         */
+        val APPS = listOf(
+            AskAi.Target("ChatGPT", "com.openai.chatgpt"),
+            AskAi.Target("Gemini", "com.google.android.apps.bard"),
+        )
+        val APP_NAMES = APPS.map { it.label }
     }
 }

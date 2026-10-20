@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +20,7 @@ import org.robolectric.annotation.Config
  * decided from strings and intents — which is the whole point of doing it this way. What the tests
  * hold down is the question that gets written, that the text reaches the other app untouched, that
  * the list of apps is the phone's list and not ours, and that a choice pointing at an app which is no
- * longer there ends up at the chooser instead of nowhere.
+ * longer there ends up at the list instead of nowhere.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
@@ -87,57 +86,106 @@ class AskAiTest {
         assertEquals("com.openai.chatgpt", intent.getPackage())
     }
 
-    /** No chosen app means the system asks, so the intent is addressed to nobody in particular. */
-    @Test
-    fun `without a chosen app the text goes to the chooser`() {
-        val direct = AskAi.sendIntent("職員", null)
-        assertNull("the intent was addressed to an app", direct.getPackage())
+    // --- what a tap does ------------------------------------------------------------------------
 
-        val chooser = AskAi.chooserIntent("職員", "Perguntar a uma IA")
-        assertEquals(Intent.ACTION_CHOOSER, chooser.action)
-        val wrapped = chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-        assertEquals(Intent.ACTION_SEND, wrapped?.action)
-        assertEquals("職員", wrapped?.getStringExtra(Intent.EXTRA_TEXT))
+    /**
+     * The fixed app is opened, with no list in the way.
+     *
+     * This is the path that has always worked on the phone: `startActivity` called here, from the
+     * service, with the package named. «Perguntar sempre» now takes the same road.
+     */
+    @Test
+    fun `a fixed app that is installed is opened directly`() {
+        val plan = AskAi.plan("com.openai.chatgpt", APPS)
+
+        assertEquals(AskAi.Plan.Direct("com.openai.chatgpt"), plan)
     }
 
     @Test
-    fun `a chosen app is tried first, and the chooser is still there behind it`() {
-        val candidates = AskAi.candidates("職員", "com.openai.chatgpt", "Perguntar a uma IA")
+    fun `with nothing fixed the installed apps are offered`() {
+        val plan = AskAi.plan("", APPS)
 
-        assertEquals(2, candidates.size)
-        assertEquals("com.openai.chatgpt", candidates[0].getPackage())
-        assertEquals(Intent.ACTION_CHOOSER, candidates[1].action)
-        assertEquals(
-            "職員",
-            candidates[1].getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)?.getStringExtra(Intent.EXTRA_TEXT),
-        )
+        assertEquals(AskAi.Plan.Choose(APPS), plan)
     }
 
     /**
-     * The whole reason the chooser is always on the list: a remembered package can be uninstalled
-     * between two captures, and the question must still have somewhere to go.
+     * A remembered package can be uninstalled between two captures. Opening it anyway would fail and
+     * be reported as «no app accepts text» on a phone full of apps, so the list takes its place.
      */
     @Test
-    fun `with no choice there is still something to open`() {
-        val candidates = AskAi.candidates("職員", "", "Perguntar a uma IA")
+    fun `a fixed app that was uninstalled falls back to the list`() {
+        val plan = AskAi.plan("com.example.gone", APPS)
 
-        assertEquals(1, candidates.size)
-        assertEquals(Intent.ACTION_CHOOSER, candidates[0].action)
+        assertEquals(AskAi.Plan.Choose(APPS), plan)
+    }
+
+    @Test
+    fun `a phone with nothing that takes text says so`() {
+        assertEquals(AskAi.Plan.Nothing, AskAi.plan("com.openai.chatgpt", emptyList()))
+        assertEquals(AskAi.Plan.Nothing, AskAi.plan("", emptyList()))
+    }
+
+    /**
+     * The panel is taken down by `onOpened`, so it must run exactly when an app opened — not before
+     * the attempt, and not after a failure, when the panel is the only thing that can still say what
+     * went wrong and still holds the list of apps.
+     */
+    @Test
+    fun `the panel is taken down only after an app opened`() {
+        val opened = ArrayList<String>()
+        val tried = ArrayList<String>()
+
+        val success = AskAi.attempt(
+            candidates = listOf(AskAi.directIntent("職員", "com.openai.chatgpt")),
+            start = { tried.add("first"); true },
+            onOpened = { opened.add("closed") },
+        )
+
+        assertTrue("a successful attempt was reported as a failure", success)
+        assertEquals(listOf("first"), tried)
+        assertEquals(listOf("closed"), opened)
+
+        opened.clear()
+        val failure = AskAi.attempt(
+            candidates = listOf(AskAi.directIntent("職員", "com.openai.chatgpt")),
+            start = { false },
+            onOpened = { opened.add("closed") },
+        )
+
+        assertTrue("a failed attempt was reported as a success", !failure)
+        assertEquals("the panel was taken down with nothing to show", emptyList<String>(), opened)
+    }
+
+    /** The first app that opens ends the line: the rest are not started on top of it. */
+    @Test
+    fun `an attempt stops at the first share that opens`() {
+        val tried = ArrayList<String>()
+
+        AskAi.attempt(
+            candidates = listOf(
+                AskAi.directIntent("職員", "com.example.gone"),
+                AskAi.directIntent("職員", "com.openai.chatgpt"),
+            ),
+            start = {
+                tried.add(it.getPackage().orEmpty())
+                it.getPackage() == "com.openai.chatgpt"
+            },
+        )
+
+        assertEquals(listOf("com.example.gone", "com.openai.chatgpt"), tried)
     }
 
     /**
      * Every intent the service hands to `startActivity` carries `FLAG_ACTIVITY_NEW_TASK`: Android
      * refuses an activity-free context without it, and a `runCatching` around the exception turned
-     * every tap into «no app accepts text». That covers the app chosen in the settings (started
-     * directly) and the chooser — but not the share the chooser wraps; see the next test.
+     * every tap into «no app accepts text».
      */
     @Test
     fun `everything the service starts can be started by a service`() {
         val tried = listOf(
             AskAi.directIntent("職員", "com.openai.chatgpt"),
             AskAi.directIntent("職員", null),
-            AskAi.chooserIntent("職員", "Perguntar a uma IA"),
-        ) + AskAi.candidates("職員", "com.openai.chatgpt", "Perguntar a uma IA")
+        )
 
         for (intent in tried) {
             assertTrue(
@@ -147,23 +195,14 @@ class AskAiTest {
         }
     }
 
-    /**
-     * The other half of the rule: the share the chooser wraps must **not** carry the flag.
-     *
-     * Picking a name in the chooser does not start an activity from here — the chooser does it, from
-     * its own task. Marked as a new task, the chosen app was created in a task of its own, behind
-     * everything and under the floating panel, and «Perguntar sempre» looked like it had opened
-     * nothing at all: the chooser closed and the screen stayed as it was.
-     */
+    /** The share itself says what is sent; the flag belongs to the intent that starts it. */
     @Test
-    fun `the share the chooser wraps is not a new task`() {
-        val chooser = AskAi.chooserIntent("職員", "Perguntar a uma IA")
-        val wrapped = chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
-        val wrappedFlags = wrapped?.flags ?: 0
+    fun `the share alone carries no launch flag`() {
+        val share = AskAi.sendIntent("職員", "com.openai.chatgpt")
 
-        assertEquals(0, AskAi.sendIntent("職員", "com.openai.chatgpt").flags and Intent.FLAG_ACTIVITY_NEW_TASK)
-        assertEquals(0, wrappedFlags and Intent.FLAG_ACTIVITY_NEW_TASK)
-        assertEquals("職員", wrapped?.getStringExtra(Intent.EXTRA_TEXT))
+        assertEquals(0, share.flags and Intent.FLAG_ACTIVITY_NEW_TASK)
+        assertEquals("com.openai.chatgpt", share.getPackage())
+        assertEquals("職員", share.getStringExtra(Intent.EXTRA_TEXT))
     }
 
     // --- the list of apps -----------------------------------------------------------------------
@@ -253,6 +292,12 @@ class AskAiTest {
 
     private companion object {
         const val NO_CHOICE = "Perguntar sempre"
+
+        /** The apps these tests pretend are installed, in the order `targets` would give them. */
+        val APPS = listOf(
+            AskAi.Target("ChatGPT", "com.openai.chatgpt"),
+            AskAi.Target("Gemini", "com.google.android.apps.bard"),
+        )
 
         /**
          * The MIME type the other app is promised, written out rather than taken from [AskAi]: it is

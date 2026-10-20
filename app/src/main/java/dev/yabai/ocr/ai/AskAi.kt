@@ -30,11 +30,11 @@ object AskAi {
      * The button lives in a floating window and the tap is handled by the foreground service, not by
      * an `Activity`. Android only lets an activity-free context start one with this flag; without it
      * `startActivity` throws `AndroidRuntimeException`, and a `runCatching` around it turns the
-     * exception into «nothing on this phone takes text» — for the chosen app and for the chooser
-     * alike, which is exactly how the bug looked. The bubble's «Ajustes» button has always carried it.
+     * exception into «nothing on this phone takes text» — which is exactly how the old bug looked. The
+     * bubble's «Ajustes» button has always carried it.
      *
-     * It belongs on what this file starts — [directIntent] and [chooserIntent] — and **not** on the
-     * share the chooser wraps. See [sendIntent].
+     * It belongs on what this file starts — [directIntent] — and **not** on the share itself. See
+     * [sendIntent].
      */
     const val NEW_TASK = Intent.FLAG_ACTIVITY_NEW_TASK
 
@@ -61,11 +61,8 @@ object AskAi {
     /**
      * The share itself — destination and payload — **without** the launch flag.
      *
-     * It is not always what gets started: when the system asks, the chooser wraps it as an extra and
-     * launches it from its own task. A `FLAG_ACTIVITY_NEW_TASK` here would make the chosen app open a
-     * task of its own, behind everything, which is what made «Perguntar sempre» look like it did
-     * nothing: the user picked an app and the screen did not change. Whoever starts it **directly**
-     * wraps it in [launchable] first.
+     * The flag belongs to whatever `startActivity` is handed, and that is [directIntent], never the
+     * payload: one intent describes *what* is sent, the other says *who* starts it.
      */
     fun sendIntent(payload: String, packageName: String?): Intent =
         Intent(Intent.ACTION_SEND)
@@ -73,37 +70,96 @@ object AskAi {
             .putExtra(Intent.EXTRA_TEXT, payload)
             .apply { if (!packageName.isNullOrBlank()) setPackage(packageName) }
 
-    /** The share addressed to an app, ready for the service to start itself. */
+    /**
+     * The share addressed to an app, ready for the service to start itself.
+     *
+     * This is the only way a question leaves the panel: the system chooser was tried twice — the share
+     * marked as a new task, then not marked — and on the phone this was tested on both ended the same
+     * way, with the chooser closing and the screen unchanged. See [Plan].
+     */
     fun directIntent(payload: String, packageName: String?): Intent = launchable(sendIntent(payload, packageName))
 
     /**
-     * The system chooser, for whoever never picked an app (or whose app is no longer installed).
+     * The apps worth offering for a question: those that answer with text themselves.
      *
-     * The flag goes on the chooser — the intent handed to `startActivity` — and deliberately not on
-     * the share it wraps: the chosen app is started by the chooser, from the chooser's task, and that
-     * is what brings it to the front. See [sendIntent].
+     * The list the package manager reports is every app that accepts a shared string — Gmail,
+     * Bluetooth, «Converter para JPEG», a download manager. None of them can answer a question, and
+     * thirty of them turn a two-tap choice into a hunt. This keeps the ones that are recognisably an
+     * AI or a translator, and never returns an empty list: on a phone with an AI nobody has heard of,
+     * the full list is better than «no app takes text», and an empty list would say the wrong thing.
+     *
+     * The judgement is a guess made from a name, so the choice is never taken away: the picker that
+     * shows this list also offers the complete one (see `AppPickerOverlay`).
      */
-    fun chooserIntent(payload: String, title: String): Intent =
-        launchable(Intent.createChooser(sendIntent(payload, packageName = null), title))
+    fun relevant(all: List<Target>): List<Target> {
+        val picked = all.filter { isAiOrTranslation(it) }
+        return picked.ifEmpty { all }
+    }
+
+    private fun isAiOrTranslation(target: Target): Boolean {
+        val packageName = target.packageName.lowercase()
+        if (KNOWN_AI_PACKAGES.any { packageName == it || packageName.startsWith("$it.") }) return true
+        return tokens(target.label).any { it in AI_WORDS }
+    }
+
+    /** A label cut into lowercase words: «Google Tradutor» is *google* and *tradutor*. */
+    private fun tokens(label: String): List<String> =
+        label.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
 
     /**
-     * What to try, in order, for [payload]: the chosen app first, when there is one, and the system
-     * chooser last.
+     * What a tap on «Perguntar à IA» should do.
      *
-     * The chooser is on the list even when an app was chosen, because a choice can be stale — the app
-     * may have been uninstalled since, and the package name is all that is remembered. A question with
-     * nowhere to go would be worse than the extra tap. Whoever calls this tries them in order and
-     * knows that everything after the first entry means the choice did not work.
+     * The system chooser is deliberately not on this list. On the phone this was tested on, picking a
+     * name in it closed the chooser and left the screen exactly as it was: the chosen app never came
+     * to the front, with `FLAG_ACTIVITY_NEW_TASK` on the share it wraps or without it. Opening the
+     * app ourselves — the way a fixed app is opened — is the one route known to work there, so the
+     * list of apps is drawn by this app and the tap goes straight to [directIntent].
      */
-    fun candidates(payload: String, chosen: String, chooserTitle: String): List<Intent> =
-        if (chosen.isBlank()) {
-            listOf(chooserIntent(payload, chooserTitle))
-        } else {
-            listOf(directIntent(payload, chosen), chooserIntent(payload, chooserTitle))
+    sealed interface Plan {
+        /** Open [packageName] now. */
+        data class Direct(val packageName: String) : Plan
+
+        /** Nobody is fixed, or the fixed app is gone: offer [apps] to the user. */
+        data class Choose(val apps: List<Target>) : Plan
+
+        /** Nothing on the phone takes text. */
+        data object Nothing : Plan
+    }
+
+    /**
+     * What to do with a tap, from the package remembered in the settings and the apps installed now.
+     *
+     * A remembered package that is no longer installed is not opened: `startActivity` would fail and
+     * the user would be told «no app accepts text» on a phone full of them. It falls through to the
+     * list instead, and the caller is expected to forget the name.
+     */
+    fun plan(chosen: String, installed: List<Target>): Plan = when {
+        installed.isEmpty() -> Plan.Nothing
+        chosen.isNotBlank() && installed.any { it.packageName == chosen } -> Plan.Direct(chosen)
+        else -> Plan.Choose(installed)
+    }
+
+    /**
+     * Tries [candidates] in order, stopping at the first that opens, and says whether one did.
+     *
+     * [onOpened] runs at that moment and only then: it is where the panel is taken down, and taking
+     * the panel down after a failure would leave the user without the app, the warning, or the text.
+     */
+    fun attempt(
+        candidates: List<Intent>,
+        start: (Intent) -> Boolean,
+        onOpened: () -> Unit = {},
+    ): Boolean {
+        for (intent in candidates) {
+            if (!start(intent)) continue
+            onOpened()
+            return true
         }
+        return false
+    }
 
     /**
-     * Every app that can be handed a piece of text, ready for the settings list.
+     * Every app that can be handed a piece of text, ready for the settings list and for the panel.
      *
      * On Android 11 and newer the package manager only answers for apps the manifest declares an
      * interest in, which is why the manifest carries a `text/plain` `<queries>` entry: without it this
@@ -145,4 +201,82 @@ object AskAi {
      */
     fun label(packageName: String, installed: List<Target>, none: String): String =
         installed.firstOrNull { it.packageName == packageName }?.label ?: none
+
+    /**
+     * Packages known to be an AI or a translator, whatever the phone calls them.
+     *
+     * A package name survives what a label does not: the same app is «ChatGPT», «ChatGPT Plus» or
+     * «OpenAI» depending on the launcher's language pack, but the package is the same. Matching is by
+     * the package itself or by a dot after it, so a helper app shipped inside the same namespace
+     * (`com.openai.chatgpt.something`) counts as the app it belongs to.
+     */
+    private val KNOWN_AI_PACKAGES = listOf(
+        "com.openai.chatgpt",
+        "com.google.android.apps.bard",
+        "com.microsoft.copilot",
+        "com.microsoft.office.copilot",
+        "com.anthropic.claude",
+        "ai.perplexity.app.android",
+        "com.perplexity",
+        "com.deepseek.chat",
+        "com.deepseek.app",
+        "ai.x.grok",
+        "com.xai.grok",
+        "com.poe.android",
+        "com.character.ai",
+        "com.characterai",
+        "com.larus.nova",
+        "com.moonshot.kimi",
+        "com.alibaba.qwen",
+        "com.tencent.hunyuan",
+        "com.google.android.apps.translate",
+        "com.microsoft.translator",
+        "com.deepl.mobiletranslator",
+        "com.yandex.translate",
+        "com.baidu.translate",
+        "com.miui.translator",
+        "com.coloros.translate",
+        "com.coloros.translator",
+    )
+
+    /**
+     * Words that make a name read as an AI or a translator, in the languages the app speaks.
+     *
+     * Whole words only: «AI» as a piece of «Media» or «IA» as a piece of «Galeria» would drag the
+     * gallery and the music player back onto the list. Accented and unaccented spellings are both
+     * here because the same app can be «Tradutor» on one phone and «Traducao» on the next.
+     */
+    private val AI_WORDS = setOf(
+        "ai",
+        "ia",
+        "gpt",
+        "chatgpt",
+        "chat",
+        "chatbot",
+        "gemini",
+        "copilot",
+        "claude",
+        "perplexity",
+        "deepseek",
+        "grok",
+        "llm",
+        "poe",
+        "deepl",
+        "qwen",
+        "kimi",
+        "assistant",
+        "assistente",
+        "translate",
+        "translator",
+        "translation",
+        "tradutor",
+        "tradutora",
+        "tradução",
+        "traducao",
+        "traduções",
+        "traducoes",
+        "interpreter",
+        "intérprete",
+        "interprete",
+    )
 }

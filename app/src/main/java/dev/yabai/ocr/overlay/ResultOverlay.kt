@@ -1219,6 +1219,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
          */
         const val DICTIONARY_CHOOSER_TAG = "yabai.dictionaryChooser"
 
+        /**
+         * Tag on the block of apps a question can go to. Like [DICTIONARY_CHOOSER_TAG], it is the
+         * handle a layout test has on a block that only exists after a tap.
+         */
         /** Folded sections point their chevron to the right; a folded panel points it up. */
         private const val FOLDED_ROTATION = -90f
         private const val PANEL_FOLD_ROTATION = 180f

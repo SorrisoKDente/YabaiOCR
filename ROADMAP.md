@@ -1059,14 +1059,15 @@ do que estraga mais para o que estraga menos, e só depois as melhorias.
 | --- | --- | --- | --- |
 | R1 | `[x]` | **Ordem do texto vertical sai trocada** (`肉塊に潰されてる` → `てる潰され内塊に`) | bug (core) |
 | R2 | `[x]` | **A leitura não aparece sobre a página** (na tela de trechos, sem tocar em nada) | função (picker) |
-| R3 | `[x]` | **«Perguntar sempre» não abre** o app escolhido no seletor | bug |
+| R3 | `[x]` | **«Perguntar sempre» não abre** o app escolhido: a lista agora é do app | bug |
 | R4 | `[ ]` | O **puxão para o ✕** mal se sente; tem de ser como no Messenger | bug (fácil) |
 | R5 | `[ ]` | O exemplo dos ajustes mostra só `聞（き）` e não `職員（しょくいん）` | detalhe visual |
 | R6 | `[ ]` | **Botões do painel desorganizados**, com linhas de larguras diferentes | melhoria |
 | R7 | `[ ]` | **Captura em guia anônima**: verificar se é possível e, se for, deixar como opção | investigação |
 | R8 | `[x]` | **Texto de uma coluna só não recebe caixa** (`やばい!!`, `わかった`, `なにぃ!!`) | bug (fácil) |
 | R9 | `[ ]` | **HOME e apps recentes** devem fechar o painel da tradução | função (janela) |
-| R10 | `[ ]` | **«Perguntar à IA» deve fechar** o painel antes de abrir o app | bug (fácil) |
+| R10 | `[x]` | **«Perguntar à IA» deve fechar** o painel antes de abrir o app | bug (fácil) |
+| R11 | `[x]` | **A lista de apps mostra Gmail, Bluetooth, «Converter para JPEG»**: esconder o que não é IA nem tradutor | melhoria |
 
 ### R1 — A ordem do texto vertical  `[x]` (20/10/2026)
 
@@ -1185,40 +1186,81 @@ mostrada inteira; quem quiser ler de perto usa a tarja, o painel ou o zoom do si
 aparece para o que o dicionário conhece — um kanji sem palavra e sem entrada de kanji fica sem
 leitura, como no painel.
 
-### R3 — «Perguntar sempre» não abre o app  `[x]` (20/10/2026)
+### R3 — «Perguntar sempre» não abre o app  `[x]` (20/10/2026, refeito)
 
 Relato: com «App que responde» = **Perguntar sempre**, escolher uma IA no seletor do sistema não abre
 nada; com um app fixo, abre normalmente.
 
-O caminho é o mesmo até o `startActivity`; a única diferença é o **seletor do sistema**
-(`Intent.createChooser`). O `FLAG_ACTIVITY_NEW_TASK` estava no seletor **e** no `ACTION_SEND` que ele
-embrulha (`AskAi.sendIntent`).
+**Primeira tentativa (não resolveu).** A suspeita foi a bandeira `FLAG_ACTIVITY_NEW_TASK` no
+`ACTION_SEND` que o seletor embrulha: com ela, o app escolhido nasceria numa tarefa própria, atrás de
+tudo. A bandeira saiu do embrulho e ficou só no seletor. Testado no aparelho: **mesmo sintoma**, agora
+descrito passo a passo — o seletor abre, o app é escolhido, o seletor fecha, o painel reaparece, nada
+acontece. Ou seja: a bandeira não era a causa (as duas variantes falham igual).
 
-**Causa.** A bandeira no `ACTION_SEND` embrulhado não é inerte: quem a executa é o **seletor**, e com
-`NEW_TASK` o app escolhido é criado numa tarefa própria — atrás de tudo, debaixo do painel flutuante,
-enquanto o seletor se fecha. O resultado é a tela não mudar: o usuário escolheu e «não abriu nada».
-Com um app fixo o `startActivity` é chamado aqui, a bandeira é a certa, e por isso esse caminho sempre
-funcionou.
+**Causa real.** Não é a bandeira, é **quem** inicia o app. Com um app fixo, quem chama o
+`startActivity` é este app; com o seletor, quem chama é o seletor, de dentro da tarefa dele. No
+aparelho em que isto foi testado esse segundo caminho não traz o app escolhido para a frente — o
+sistema volta para a tarefa anterior, que é o leitor de mangá com o painel flutuante por cima. Daí a
+tela «não mudar».
 
-**Correção.** `AskAi` passou a separar as duas coisas: `sendIntent` é o compartilhamento cru (destino e
-texto, **sem** bandeira) e serve de embrulho ao seletor; `directIntent` é o mesmo já com `NEW_TASK`,
-para o app fixo que o serviço abre sozinho; `chooserIntent` põe a bandeira no seletor, que é o intent
-que o `startActivity` recebe. `candidates` devolve `directIntent` + `chooserIntent`, de modo que
-**tudo o que o serviço abre** continua protegido pela bandeira e o que o **seletor** abre não a leva.
+**Correção.** O app deixou de depender do seletor do sistema: ele **desenha a própria lista** de apps
+que aceitam texto e, no toque, abre o app pelo nome do pacote — o mesmo `startActivity` do app fixo,
+que sempre funcionou. A lista sai de `AskAi.targets`, a mesma que os ajustes já usam. `AskAi.plan`
+decide o que um toque faz (`Direct`, `Choose`, `Nothing`), incluindo o caso do app lembrado que foi
+desinstalado: ele não é aberto, o nome é esquecido e a lista toma o lugar. `AskAi.attempt` percorre os
+candidatos e só avisa que abriu quando abriu.
 
-**Testes de regressão:** `AskAiTest` — `everything the service starts can be started by a service`
-(18 intents, todos com a bandeira) e o novo `the share the chooser wraps is not a new task` (o
-`sendIntent` e o extra `EXTRA_INTENT` do seletor sem a bandeira, e o texto ainda viajando). Reverter
-cada metade derruba um teste (`%TEMP%\opencode\r3_nonvacuous.ps1`, 2/2).
+**Segunda correção, depois do teste no aparelho.** A lista nasceu como uma fila de chips no rodapé do
+painel e o resultado foi o previsto para uma fila longa: cortada pelo fim da tela, com os apps de baixo
+inalcançáveis. Passou a ser uma **janela própria** (`AppPickerOverlay`): cartão no rodapé sobre um véu
+escuro, cada app com **ícone e nome**, lista que rola acima de 60 % da tela, e três saídas — ✕, toque
+fora do cartão e BACK — que fecham **só** a lista. O painel da tradução fica intacto atrás.
 
-### R4 — O puxão para o ✕  `[ ]` (20/10/2026)
+**Testes de regressão:** `AskAiTest` — app fixo instalado abre direto; sem escolha a lista é
+oferecida; app desinstalado cai na lista; telefone sem nenhum app diz isso; o painel só é fechado
+depois de um app abrir; a linha de tentativas para no primeiro que abre; tudo o que o serviço inicia
+carrega `NEW_TASK`; o compartilhamento cru não carrega. `AppPickerTest` — um app por linha com nome e
+ícone, ordem preservada, o toque numa linha devolve o pacote, ✕/fora/BACK fecham, e uma lista de 30
+apps rola dentro de um cartão que não passa de 3/4 da tela. `AskAiPanelTest` — a escolha chega ao
+serviço pelo controlador com o texto que estava na tela, e a lista sai do ar quando a escolha é feita.
+Non-vacuidade **5/5** no seletor (`%TEMP%\opencode\r3c_nonvacuous.ps1`: sem ícone, sem limite de
+altura, linha sem toque, toque fora sem efeito, BACK sem efeito) e **5/5** na decisão
+(`%TEMP%\opencode\r3b_nonvacuous.ps1`).
+
+`sendIntent` (o compartilhamento cru) continua sem bandeira e `directIntent` continua com ela; o
+`chooserIntent` e o `candidates` do seletor foram removidos — não há mais caminho que passe pelo
+seletor do sistema.
+
+### R4 — O puxão para o ✕  `[x]` (20/10/2026)
 
 Relato: «arrastar para perto do ✕ não está puxando; o correto é como no Messenger».
 
-O puxão existe (N6) e a geometria está certa, mas o formato é tímido: alcance de 2× o ✕ (128 dp) e
-curva quadrática, ou seja, a 100 dp do ✕ a bolha anda **5 %** do que o dedo andou e a 60 dp, 28 %. Na
-prática ele só se sente quando a bolha já está quase em cima do ✕ — o contrário do Messenger, que
-**suga** a bolha assim que ela entra no raio.
+O puxão existia (N6) e a geometria estava certa, mas o formato era tímido: alcance de 2× o ✕ (128 dp)
+e curva quadrática, ou seja, a 100 dp do ✕ a bolha andava **5 %** do que o dedo andou e a 60 dp, 28 %.
+Na prática ele só se sentia quando a bolha já estava quase em cima do ✕ — o contrário do Messenger,
+que **suga** a bolha assim que ela entra no raio.
+
+**Correção.** Três coisas, todas no desenho do arrasto (`OverlayController`):
+
+- o alcance passou a **3× o ✕** (192 dp): o puxão começa onde o dedo ainda está viajando, e não só no
+  último trecho (a 130 dp do ✕, onde o arrasto costumava passar sem nada acontecer, já há puxão);
+- a curva passou de `c²` para **smoothstep** (`3c² − 2c³`): a 70 % do alcance o puxão é **22 %** do
+  caminho (era 9 %), e na metade do alcance é metade do caminho (era um quarto) — o puxão começa a
+  responder enquanto o dedo se move;
+- com o dedo **no** ✕ a bolha é desenhada exatamente no centro dele, não a 97 % do caminho: o
+  soltar é julgado pelo que está desenhado, e ficar dois pixels curto deixaria o ✕ apagado depois do
+  gesto que claramente queria acendê-lo.
+
+E, o que mais se vê: a bolha **encolhe** enquanto é sugada (até 70 % do tamanho no ✕) e volta ao
+tamanho normal ao soltar ou ao cancelar o gesto — sem isso, o puxão de poucos dp no fim lê como um
+tremor, não como a bolha sendo engolida.
+
+**Testes de regressão:** `DragToCloseTest` — a metade do alcance o puxão é metade (era um quarto); a
+70 % do alcance a bolha já foi puxada mais de 15 %; a 130 dp do ✕ ainda há puxão (o alcance largo); o
+dedo no ✕ desenha a bolha no centro exato; o puxão é 0 na borda, 1 no ✕ e nunca anda para trás; e,
+pelo listener de toque de verdade, a bolha encolhe durante o arrasto e volta a 1,0 ao soltar.
+Non-vacuidade **5/5** (`%TEMP%\opencode\r4_nonvacuous.ps1`: curva quadrática de volta, sem o encaixe
+no ✕, alcance de volta a 2×, sem encolhimento, encolhimento não desfeito ao soltar).
 
 ### R5 — O exemplo dos ajustes  `[ ]` (20/10/2026)
 
@@ -1289,7 +1331,7 @@ aparece por cima (diálogo de permissão, gaveta de notificações) e quando o p
 a tela — este último **tem** de ser ignorado, senão o painel fecharia sozinho no meio de uma captura
 ou de uma consulta. O item só fecha com teste que prenda os dois casos.
 
-### R10 — «Perguntar à IA» deve fechar o painel  `[ ]` (20/10/2026)
+### R10 — «Perguntar à IA» deve fechar o painel  `[x]` (20/10/2026)
 
 Pedido: ao tocar em **«Perguntar à IA»**, o painel da tradução deve fechar.
 
@@ -1297,9 +1339,50 @@ Hoje o texto é copiado, o app escolhido é aberto — e o painel fica por cima,
 flutuante. Fechar também tira o obstáculo do caminho do app que vai responder, e é o mesmo gesto que o
 R9 vai usar para o HOME.
 
-A ordem importa: tentar abrir; **só fechar se algum candidato abriu**; se nenhum abriu, o painel fica
-e mostra «nenhum app aceita texto» — fechar ali deixaria o usuário sem a mensagem e sem o texto. O
-texto já está na área de transferência antes da tentativa, então fechar não perde nada.
+**Feito junto com o R3**, porque é o mesmo trecho de código: os dois caminhos (`openAi`, que serve o
+app fixo e o escolhido na lista) abrem o app e fecham o painel na mesma chamada.
+
+A ordem importa: tentar abrir; **só fechar se algum app abriu**; se nenhum abriu, o painel fica e
+mostra «nenhum app aceita texto» (ou a lista de novo) — fechar ali deixaria o usuário sem a mensagem e
+sem o texto. O texto já está na área de transferência antes da tentativa, então fechar não perde nada.
+
+Quem garante a ordem é `AskAi.attempt`: `onOpened` (que é `overlays.hideResult()`) corre no instante
+do primeiro sucesso, e nunca depois de todos falharem. Teste:
+`the panel is taken down only after an app opened` em `AskAiTest`; a mutação que move o fechamento
+para antes da tentativa derruba esse teste (`r3b_nonvacuous.ps1`, item C).
+
+### R11 — O que não é IA na lista de apps  `[x]` (20/10/2026)
+
+Relato: «pode esconder app que não são de IA ou de tradução».
+
+A lista vem do `queryIntentActivities` de `text/plain`, que é *todo* app que aceita um texto
+compartilhado: Gmail, Bluetooth, «Converter para JPEG», o gerenciador de downloads. Nenhum deles
+responde a uma pergunta, e juntos empurram o ChatGPT para baixo da dobra.
+
+**Correção.** `AskAi.relevant` filtra a lista por dois caminhos:
+
+- **pacote conhecido** (`com.openai.chatgpt`, `com.google.android.apps.bard`, `com.anthropic.claude`,
+  tradutores do Google/Microsoft/DeepL/Yandex e os de fábrica da Xiaomi/OPPO): o nome do app muda com o
+  idioma do launcher, o pacote não; um pacote dentro do mesmo espaço (`…chatgpt.helper`) conta como o
+  app a que pertence;
+- **palavra inteira** no nome (`gpt`, `chatgpt`, `gemini`, `copilot`, `claude`, `assistente`, `tradutor`,
+  `tradução`, `translate`, `deepl`, …): palavra inteira, porque `ia` dentro de «Media» ou «Galeria»
+  traria a galeria e o player de música de volta.
+
+Duas travas para o filtro não virar uma porta fechada: uma lista que ficaria **vazia** volta inteira
+(um telefone com uma IA que ninguém previu é melhor servido pela lista completa do que por «nenhum app
+aceita texto»), e a janela de escolha ganha um rodapé **«Mostrar todos (N)»** que troca para a lista
+completa e volta com **«Só os de IA»**. A palpite é sobre nomes; o acesso à lista toda nunca é tirado.
+
+**Testes de regressão:** `AskAiRelevantTest` (8) — apps que respondem ficam; Gmail/Bluetooth/JPEG/
+download saem; palavra inteira (`Media`, `Galeria`, `Fotografia` ficam de fora do filtro); telefone
+desconhecido mantém a lista toda; a ordem não muda; pacote conhecido vale mesmo com nome mudo; ajudante
+do pacote conta como o app; acentos e formas sem acento são reconhecidos. `AppPickerTest` — o rodapé
+leva à lista completa e volta, e não aparece quando não há mais nada a mostrar. `AskAiPanelTest` — a
+janela abre na lista curta, com o rodapé da lista completa presente. Non-vacuidade **7/7**
+(`%TEMP%\opencode\r11_nonvacuous.ps1`: nada filtrado, substring em vez de palavra, lista curta vazia
+deixada vazia, pacotes conhecidos ignorados, a janela recebendo a lista inteira, rodapé nunca desenhado,
+rodapé sempre desenhado).
 
 ---
 

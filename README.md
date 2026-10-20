@@ -53,9 +53,11 @@ para ~52 MB.
 Detalhes úteis:
 
 - A bolha pode ser **arrastada** para qualquer canto e "gruda" na borda mais próxima.
-- Para **encerrar**, arraste a bolha até o ✕ que aparece no centro de baixo: perto dele a bolha é
-  **puxada para o ✕**, ele fica vermelho quando ela está em cima e, ao soltar, o app pergunta antes de
-  desligar. Soltar em qualquer outro lugar devolve a bolha para a borda mais próxima.
+- Para **encerrar**, arraste a bolha até o ✕ que aparece no centro de baixo: o puxão começa a 192 dp
+  do ✕ (três vezes o tamanho dele), cresce depressa — na metade do caminho a bolha já andou metade do
+  que o dedo andou — e a bolha **encolhe** até 70 % como se fosse sugada; com o dedo em cima do ✕ ela
+  fica exatamente no centro dele, que fica vermelho, e ao soltar o app pergunta antes de desligar.
+  Soltar em qualquer outro lugar devolve a bolha ao tamanho normal e para a borda mais próxima.
 - Toque na bolha **para abrir os ícones**; com o menu aberto, toque em qualquer outro lugar da tela
   para fechá-lo.
 - Com o **painel de resultado** aberto, a tela pertence ao painel: **VOLTAR** ou um toque fora do
@@ -315,7 +317,23 @@ assim», «e num mangá, que tom tem isso», «esta gíria existe mesmo». Para 
 | --- | --- |
 | Copia o texto reconhecido | Para a área de transferência, com as suas correções — o mesmo texto do painel. |
 | Monta a pergunta | O que estiver em «O que perguntar» nos ajustes, seguido do texto. De fábrica: *«Traduza para português e explique:»*. |
-| Abre a app de IA | A que você escolheu nos ajustes, com a pergunta já escrita. Sem escolha, ou se a app escolhida já não existe, quem aparece é o **seletor do Android**. |
+| Abre a app de IA | A que você escolheu nos ajustes, com a pergunta já escrita. Sem escolha — ou se a app escolhida já não existe — aparece uma janela com os apps de IA e tradutores do telefone, cada um com ícone e nome; o toque abre o app. |
+| Fecha o painel | Só quando um app abriu. Ele é uma janela flutuante: deixado na tela, ficaria por cima de quem vai responder. Se nada abriu, o painel fica e diz o que aconteceu. |
+
+A lista de apps é desenhada **pelo Yabai OCR**, numa **janela própria** — não pelo seletor do
+Android: o seletor do sistema devolvia o controle sem abrir o app escolhido no aparelho em que isto
+foi testado (fechava e a tela ficava como estava). A janela mostra cada app com o **ícone** e o nome,
+rola quando a lista não cabe na tela, e fecha pelo ✕, por um toque fora do cartão ou pelo BACK — sem
+fechar a tradução atrás. Abrir o app daqui, com o nome do pacote, é o mesmo caminho de quando há uma
+app fixa, que sempre funcionou.
+
+A janela abre na lista curta: **só apps de IA e tradutores**, reconhecidos pelo pacote (ChatGPT, Gemini,
+Claude, Copilot, Perplexity, DeepSeek, Grok, os tradutores do Google, Microsoft, DeepL, Yandex e os de
+fábrica) ou por uma palavra do nome (`gpt`, `gemini`, `assistente`, `tradutor`, `tradução`, `translate`…).
+Gmail, Bluetooth e «Converter para JPEG» aceitam texto mas não respondem a uma pergunta, e saem da
+frente. Como isso é um palpite sobre nomes, nada é tirado: o rodapé **«Mostrar todos (N)»** abre a
+lista completa do telefone e **«Só os de IA»** volta. Se nenhum app parecer de IA, a lista aparece
+inteira — melhor do que dizer que não há nenhum.
 
 Aqui **não há integração com nenhum serviço de IA**: nada de chave, conta, cota ou custo, e o texto
 não passa por este app — ele é copiado e compartilhado como qualquer outra coisa que se compartilha
