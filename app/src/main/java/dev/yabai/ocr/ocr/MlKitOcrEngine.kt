@@ -51,7 +51,16 @@ class MlKitOcrEngine : OcrEngine {
                 if (blockLines.isEmpty()) block.text.trim() else blockLines.joinToString(" "),
             ).trim()
             if (content.isEmpty()) return@mapNotNull null
-            OcrBlock(content, blockLines, block.boundingBox)
+            OcrBlock(
+                text = content,
+                lines = blockLines,
+                rect = block.boundingBox,
+                pieces = block.lines.mapNotNull { line ->
+                    val pieceText = JapaneseText.normalize(line.text.trim()).trim()
+                    val box = line.boundingBox
+                    if (pieceText.isEmpty() || box == null) null else OcrPiece(pieceText, box)
+                },
+            )
         }
 
         val joined = JapaneseText.normalize(

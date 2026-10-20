@@ -1049,6 +1049,260 @@ o rastro:
 
 ---
 
+## 7. Terceira ronda — o que o aparelho mostrou  (20/10/2026)
+
+Dez pontos: os sete relatados depois de a ronda 6 ser testada no aparelho, o R8 que apareceu ao
+testar esta ronda e os R9/R10 pedidos enquanto ela corria. Mesma ordem de sempre: **bugs primeiro**,
+do que estraga mais para o que estraga menos, e só depois as melhorias.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R1 | `[x]` | **Ordem do texto vertical sai trocada** (`肉塊に潰されてる` → `てる潰され内塊に`) | bug (core) |
+| R2 | `[x]` | **A leitura não aparece sobre a página** (na tela de trechos, sem tocar em nada) | função (picker) |
+| R3 | `[x]` | **«Perguntar sempre» não abre** o app escolhido no seletor | bug |
+| R4 | `[ ]` | O **puxão para o ✕** mal se sente; tem de ser como no Messenger | bug (fácil) |
+| R5 | `[ ]` | O exemplo dos ajustes mostra só `聞（き）` e não `職員（しょくいん）` | detalhe visual |
+| R6 | `[ ]` | **Botões do painel desorganizados**, com linhas de larguras diferentes | melhoria |
+| R7 | `[ ]` | **Captura em guia anônima**: verificar se é possível e, se for, deixar como opção | investigação |
+| R8 | `[x]` | **Texto de uma coluna só não recebe caixa** (`やばい!!`, `わかった`, `なにぃ!!`) | bug (fácil) |
+| R9 | `[ ]` | **HOME e apps recentes** devem fechar o painel da tradução | função (janela) |
+| R10 | `[ ]` | **«Perguntar à IA» deve fechar** o painel antes de abrir o app | bug (fácil) |
+
+### R1 — A ordem do texto vertical  `[x]` (20/10/2026)
+
+Relato, com dois exemplos do aparelho:
+
+| o que está na página | o que o app reconheceu |
+| --- | --- |
+| `ネオの職員さんに聞いたら非童帝くん外出たっていうから` | `ネオの職員さんに聞いたら非童帝くんいうから外出たって` |
+| `肉塊に潰されてる!!` | `てる潰され内塊に` |
+
+Não é o Lens a ler mal as letras: as duas frases têm as mesmas letras, na mesma quantidade — o que está
+trocado é a **ordem dos pedaços**. No segundo exemplo até o 肉 virou 内 (leitura errada mesmo), mas o
+`てる!` que abre a frase é o fim de `潰されてる`, e `内塊に` é a coluna da direita.
+
+**Causa, no código.** `LensResultBuilder.groupIntoBlocks` agrupa as linhas de um balão pela geometria
+(`merge`), mas depois as junta na **ordem em que o Lens as devolveu**:
+
+```kotlin
+val sentence = group.filterNot { ... }.joinToString(" ") { withReadings(...) }
+```
+
+O Lens devolve as colunas de um texto vertical na ordem que lhe apetece: no primeiro balão chegam
+`ネオの職員さん` (direita), `非童帝くん` (meio) e só depois `に聞いたら` — é a ordem 1, 3, 2 que o print
+mostra. E no segundo, a coluna `潰されてる` foi partida em `潰され` e `てる!`, que chegam ao contrário.
+Quem sabe a ordem de leitura são os **retângulos** das linhas: o texto, não.
+
+**Correção.** Ordenar cada grupo pela geometria antes de juntar:
+
+- **texto vertical** (linhas mais altas do que largas): colunas da direita para a esquerda; dentro de
+  uma coluna, de cima para baixo.
+- **texto horizontal**: linhas de cima para baixo; dentro de uma linha, da esquerda para a direita.
+
+Duas linhas contam como a mesma coluna quando as faixas de x se sobrepõem — é isso que mantém
+`潰され` e `てる!` juntas e na ordem certa, mesmo com o Lens a dar-lhes x (ou y) diferente por um pixel.
+Um grupo com alguma linha sem geometria fica como veio: não há como ordenar metade dele.
+
+O que **não** muda: que linhas formam um balão, a caixa do trecho, o rubi (D1/D2) e a lista de linhas
+cruas. Só a ordem de leitura dentro do balão.
+
+**Testes de regressão:** `core/lens/LensProtoParsingTest` (3 novos, 13 no total):
+
+| teste | o que prende |
+| --- | --- |
+| `puts the columns of a vertical balloon in reading order` | colunas entregues fora de ordem (meio, direita, esquerda) voltam na ordem de leitura |
+| `puts the two halves of a split column back in order` | a coluna partida em `潰され` / `てる!` volta de cima para baixo, mesmo com 1 px de diferença no x e a metade de baixo chegando primeiro |
+| `puts the rows of a horizontal paragraph in reading order` | linhas horizontais entregues de baixo para cima voltam de cima para baixo |
+
+Conferido contra o código quebrado: **5/5 mutações detectadas** (`r1_nonvacuous.ps1`) — não ordenar
+nada, ler as colunas da esquerda para a direita, ler a coluna de baixo para cima, tratar tudo como
+horizontal, e ordenar por x/y sem juntar as metades da coluna. Todas derrubam pelo menos um dos testes
+novos; a de «da esquerda para a direita» e a de «tudo horizontal» derrubam também o teste antigo do
+balão de três colunas, que passou a depender da ordem geométrica.
+
+**O que fica de fora, e por quê:** a ordem **entre** balões. Numa página de mangá os balões não estão
+numa grade — a ordem deles é a que o desenhista quis —, e o texto da tela toda continua juntando os
+balões na ordem em que o Lens os devolve. O que se corrigiu é a frase dentro de cada balão, que é onde a
+ordem é objetiva: colunas da direita para a esquerda, de cima para baixo.
+
+### R2 — A leitura sobre a página  `[x]` (20/10/2026)
+
+Relato: «não aparece furigana ao lado dos kanji identificados, mesmo com a função do furigana e de
+mostrar o modo de leitura ativado», com dois prints **da tela de trechos** — a tela em que as caixas
+aparecem sobre a página, antes de tocar em qualquer coisa. Pedido, desde o N5: ver a leitura **ao lado
+do kanji** — à direita quando o texto é vertical, acima quando é horizontal —, sem ter de tocar num
+trecho.
+
+**O que estava errado.** O N5 escreveu as leituras **dentro do texto reconhecido**, e o painel faz
+isso até hoje. Mas a tela de trechos desenha a página por cima com caixas e nada mais: nenhuma leitura
+era desenhada ali. Não era o dicionário a falhar — era uma função que não existia naquela tela. (Os
+prints antigos com uma seção «Furigana» são de antes do N5, quando a seção existia.)
+
+**Correção.** Um ajuste novo, «Leitura sobre a página, na tela de trechos», com três escolhas — as
+duas formas ficam disponíveis para o usuário avaliar no aparelho e dizer qual presta:
+
+| modo | o que faz | o que se ganha e o que se perde |
+| --- | --- | --- |
+| **Rubi** | desenha a leitura ao lado do kanji: coluna de kana à direita de uma coluna vertical, linha pequena acima de uma horizontal, com contorno escuro | é o que se pediu e mantém o desenho visível; fica do tamanho do rubi impresso, minúsculo numa página inteira |
+| **Tarja** | uma etiqueta ao lado do balão com a frase e as leituras entre parênteses (`職員（しょくいん）さんに…`) | legível de verdade, mas cobre parte do desenho |
+| **Não mostrar** | como antes | é o padrão; a função é uma escolha, não uma surpresa |
+
+**De onde vêm as posições.** O rubi precisa de saber **onde** cada leitura vai, e o `Furigana` só sabia
+escrever a frase anotada. Duas peças novas:
+
+1. `Furigana.spans` (exposto como `LookupEngine.readings`) devolve a mesma leitura com os caracteres
+   que ela cobre, em vez de uma frase montada. `sentence` — o que o painel escreve — passou a ser
+   montado a partir dela: uma regra só, dois usos, sem risco de dizerem coisas diferentes.
+2. `LensBlock.pieces`: as colunas/linhas do balão **com as suas caixas**, em ordem de leitura e sem as
+   leituras que a página imprime (essas não são texto). São elas que dizem em que faixa da coluna cada
+   kanji está. `OcrBlock` leva as mesmas peças para o app, tanto pelo Lens como pelo ML Kit (que já
+   dava a caixa de cada linha).
+
+O `RubyLayout` converte as frações em pixels: à direita da coluna, empilhado, com o tamanho tirado da
+espessura do glifo e nunca maior do que a coluna aguenta — cinco kana ao lado de dois kanji são o caso
+real, e a leitura encolhe para caber em vez de descer pela coluna inteira; perto do fim, sobe para não
+vazar. O `LabelLayout` escolhe o lado da tarja: direita, esquerda, abaixo, acima — o primeiro que
+couber na tela — e nunca a deixa sair da tela.
+
+Custo: uma consulta ao dicionário por coluna, em segundo plano, **depois** do OCR e antes de mostrar
+as caixas. Se o dicionário não abrir, as caixas aparecem do mesmo jeito, só sem leitura: perder o
+seletor de trechos por causa de uma leitura seria a troca errada.
+
+**Testes de regressão:**
+
+| teste | o que prende |
+| --- | --- |
+| `app/overlay/PickerReadingLayoutTest` (10) | rubi vertical à direita e empilhado; rubi horizontal acima e centrado; leitura de cinco kana cabe na coluna; leitura no fim sobe; coluna fina demais não ganha rubi; tarja à direita, à esquerda, abaixo e dentro da tela |
+| `core/dict/FuriganaTest` (+4, 25 no total) | cada leitura vem com os caracteres que cobre; leitura adivinhada marcada; leitura que a página já imprime não volta; frase sem kanji não tem leitura |
+| `core/lens/LensProtoParsingTest` (+1, 14 no total) | a leitura impressa fica nas linhas cruas mas **não** é peça do balão |
+
+Conferido contra o código quebrado: **6/6 mutações detectadas** (`r2_nonvacuous.ps1`) — voltar à
+regra antiga de tamanho mínimo, não empilhar o rubi, desenhar o rubi do lado errado, ignorar o espaço à
+direita da tarja, redesenhar a leitura que a página já imprime, e tratar a leitura impressa como peça.
+
+**O que fica de fora, e por quê:** o rubi é tão pequeno quanto o rubi impresso, porque a página é
+mostrada inteira; quem quiser ler de perto usa a tarja, o painel ou o zoom do sistema. E o rubi só
+aparece para o que o dicionário conhece — um kanji sem palavra e sem entrada de kanji fica sem
+leitura, como no painel.
+
+### R3 — «Perguntar sempre» não abre o app  `[x]` (20/10/2026)
+
+Relato: com «App que responde» = **Perguntar sempre**, escolher uma IA no seletor do sistema não abre
+nada; com um app fixo, abre normalmente.
+
+O caminho é o mesmo até o `startActivity`; a única diferença é o **seletor do sistema**
+(`Intent.createChooser`). O `FLAG_ACTIVITY_NEW_TASK` estava no seletor **e** no `ACTION_SEND` que ele
+embrulha (`AskAi.sendIntent`).
+
+**Causa.** A bandeira no `ACTION_SEND` embrulhado não é inerte: quem a executa é o **seletor**, e com
+`NEW_TASK` o app escolhido é criado numa tarefa própria — atrás de tudo, debaixo do painel flutuante,
+enquanto o seletor se fecha. O resultado é a tela não mudar: o usuário escolheu e «não abriu nada».
+Com um app fixo o `startActivity` é chamado aqui, a bandeira é a certa, e por isso esse caminho sempre
+funcionou.
+
+**Correção.** `AskAi` passou a separar as duas coisas: `sendIntent` é o compartilhamento cru (destino e
+texto, **sem** bandeira) e serve de embrulho ao seletor; `directIntent` é o mesmo já com `NEW_TASK`,
+para o app fixo que o serviço abre sozinho; `chooserIntent` põe a bandeira no seletor, que é o intent
+que o `startActivity` recebe. `candidates` devolve `directIntent` + `chooserIntent`, de modo que
+**tudo o que o serviço abre** continua protegido pela bandeira e o que o **seletor** abre não a leva.
+
+**Testes de regressão:** `AskAiTest` — `everything the service starts can be started by a service`
+(18 intents, todos com a bandeira) e o novo `the share the chooser wraps is not a new task` (o
+`sendIntent` e o extra `EXTRA_INTENT` do seletor sem a bandeira, e o texto ainda viajando). Reverter
+cada metade derruba um teste (`%TEMP%\opencode\r3_nonvacuous.ps1`, 2/2).
+
+### R4 — O puxão para o ✕  `[ ]` (20/10/2026)
+
+Relato: «arrastar para perto do ✕ não está puxando; o correto é como no Messenger».
+
+O puxão existe (N6) e a geometria está certa, mas o formato é tímido: alcance de 2× o ✕ (128 dp) e
+curva quadrática, ou seja, a 100 dp do ✕ a bolha anda **5 %** do que o dedo andou e a 60 dp, 28 %. Na
+prática ele só se sente quando a bolha já está quase em cima do ✕ — o contrário do Messenger, que
+**suga** a bolha assim que ela entra no raio.
+
+### R5 — O exemplo dos ajustes  `[ ]` (20/10/2026)
+
+O texto do ajuste é `Mostrar a leitura dos kanji — 職員さんに聞（き）いた`: anota só o 聞 e deixa o 職員
+sem leitura, ao contrário do que o app faz. Passa a `職員（しょくいん）さんに聞（き）いた`.
+
+### R6 — Os botões do painel  `[ ]` (20/10/2026)
+
+No print, as sete ações do painel caem em quatro linhas de larguras diferentes (3 / 1 / 2 / 1),
+alinhadas à direita, e «Copiar tradução» fica sozinha embaixo. Não se sobrepõem de verdade — o
+`FlowLayout` mede e posiciona bem —, mas o resultado lê como monte. A troca é uma grade de duas colunas
+com botões de largura igual e espaçamento constante, em vez do fluxo alinhado à direita.
+
+### R7 — Guia anônima  `[ ]` (20/10/2026)
+
+Pedido: «verificar se é possível dar permissão de visualização em guia anônima do Google; se for,
+adicionar uma função, deixando claro que não é necessário».
+
+Isto é investigação, não código: no Android não existe permissão para «ver» uma guia anônima. O que
+existe é o `FLAG_SECURE`, com que o próprio app esconde o conteúdo de capturas — e nenhuma permissão de
+usuário o contorna. O resultado esperado é «não é possível», e nesse caso o item fecha com a explicação
+no README, sem botão novo. Só vira função se a investigação achar um caminho real.
+
+### R8 — O texto de uma coluna só não recebe caixa  `[x]` (20/10/2026)
+
+Relato, com a página do Dandadan: faltam as caixas sobre `やばい!!`, `わかった`, `嫌じゃ!!` e
+`なにぃ!!` — e sobre o `てる` de `潰されてる`. São sempre textos de **uma coluna**.
+
+**Causa.** `FloatingOcrService.placeBlocks` jogava fora qualquer caixa com **menos de 12 dp nos dois
+sentidos**, com o comentário «uma linha de texto tem uns 16 dp de altura». Numa coluna vertical a
+espessura é a de **um glifo** — 10 a 11 dp num telefone 1080p —, por mais comprida que a frase seja.
+Um balão de três colunas passava (44 px de largura na captura); o mesmo texto numa coluna só, não. É
+exatamente a lista do relato.
+
+Reproduzido com a página do print: o Lens devolveu `やばい!!` como 20×92 px numa página de 700 px de
+largura, que no aparelho são 30×138 px. A caixa existia; quem a apagava era o filtro.
+
+**Correção.** `PickerTargets.offered`: a caixa é oferecida quando o **lado maior** é um alvo
+confortável (12 dp) e o **menor** chega à metade disso (6 dp) — e o seletor já infla toda caixa em
+4 dp de cada lado ao testar o toque, o que leva uma coluna de 11 dp a 19 dp debaixo do dedo. Um risco
+de 10 px continua de fora.
+
+**O que não se corrige aqui:** o `てる` que o Lens **não devolveu** naquela captura. Na reprodução com
+a mesma página vieram 17 segmentos e nenhum deles era o `てる`; noutra captura o `てる` veio junto
+com `潰され`, num bloco só. Quando o reconhecedor não devolve a coluna, não há caixa a desenhar — isso
+é precisão do OCR (N1), não este filtro. O que este item garante é que, **quando o Lens devolve uma
+coluna, ela sempre vira caixa**.
+
+**Testes de regressão:** `app/overlay/PickerTargetsTest` (6): coluna de 30×138, coluna de um caractere
+(30×34), linha horizontal (240×44), pontinho (10×10), risco comprido e fino (240×10) e lado zero.
+Voltar à regra dos dois lados derruba 2 testes (`r2_nonvacuous.ps1`).
+
+### R9 — HOME e o botão de apps recentes  `[ ]` (20/10/2026)
+
+Pedido: apertar **HOME** ou o botão que mostra os apps abertos (o «quadrado» do Android, ou o gesto
+equivalente) deve **fechar o painel da tradução**.
+
+Por que hoje não fecha: o painel não é uma tela do app, é uma janela flutuante
+(`TYPE_APPLICATION_OVERLAY`) desenhada por cima de tudo e criada pelo serviço. O app de baixo (o
+leitor de mangá) vai para segundo plano quando o HOME é apertado, mas a janela flutuante **continua
+lá** — ela não pertence a tarefa nenhuma. Fechar exige um sinal, e o mais barato é a **perda de foco
+da janela**: o launcher e a tela de recentes são janelas do sistema que tomam o foco, e o painel é
+focável (tem o campo de texto). `onWindowFocusChanged(false)` é esse aviso — sem permissão nova e sem
+`AccessibilityService`.
+
+O que a implementação tem de resolver: perder o foco também acontece quando outra janela do sistema
+aparece por cima (diálogo de permissão, gaveta de notificações) e quando o próprio app está capturando
+a tela — este último **tem** de ser ignorado, senão o painel fecharia sozinho no meio de uma captura
+ou de uma consulta. O item só fecha com teste que prenda os dois casos.
+
+### R10 — «Perguntar à IA» deve fechar o painel  `[ ]` (20/10/2026)
+
+Pedido: ao tocar em **«Perguntar à IA»**, o painel da tradução deve fechar.
+
+Hoje o texto é copiado, o app escolhido é aberto — e o painel fica por cima, porque é uma janela
+flutuante. Fechar também tira o obstáculo do caminho do app que vai responder, e é o mesmo gesto que o
+R9 vai usar para o HOME.
+
+A ordem importa: tentar abrir; **só fechar se algum candidato abriu**; se nenhum abriu, o painel fica
+e mostra «nenhum app aceita texto» — fechar ali deixaria o usuário sem a mensagem e sem o texto. O
+texto já está na área de transferência antes da tentativa, então fechar não perde nada.
+
+---
+
 ## Notas de ordem
 
 - B1 antes de tudo: é regressão visual e esconde um botão.

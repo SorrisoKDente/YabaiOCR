@@ -126,16 +126,16 @@ class AskAiTest {
     }
 
     /**
-     * Every share is started by the service, never by an activity, and Android refuses that without
-     * `FLAG_ACTIVITY_NEW_TASK`. The flag has to be on each intent that is actually launched — the
-     * chooser included, because the send intent it wraps travels as an extra and its flags are not
-     * used. Without it both candidates failed and every tap ended in «no app accepts text».
+     * Every intent the service hands to `startActivity` carries `FLAG_ACTIVITY_NEW_TASK`: Android
+     * refuses an activity-free context without it, and a `runCatching` around the exception turned
+     * every tap into «no app accepts text». That covers the app chosen in the settings (started
+     * directly) and the chooser — but not the share the chooser wraps; see the next test.
      */
     @Test
-    fun `every share can be started from the service`() {
+    fun `everything the service starts can be started by a service`() {
         val tried = listOf(
-            AskAi.sendIntent("職員", "com.openai.chatgpt"),
-            AskAi.sendIntent("職員", null),
+            AskAi.directIntent("職員", "com.openai.chatgpt"),
+            AskAi.directIntent("職員", null),
             AskAi.chooserIntent("職員", "Perguntar a uma IA"),
         ) + AskAi.candidates("職員", "com.openai.chatgpt", "Perguntar a uma IA")
 
@@ -145,6 +145,25 @@ class AskAiTest {
                 intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0,
             )
         }
+    }
+
+    /**
+     * The other half of the rule: the share the chooser wraps must **not** carry the flag.
+     *
+     * Picking a name in the chooser does not start an activity from here — the chooser does it, from
+     * its own task. Marked as a new task, the chosen app was created in a task of its own, behind
+     * everything and under the floating panel, and «Perguntar sempre» looked like it had opened
+     * nothing at all: the chooser closed and the screen stayed as it was.
+     */
+    @Test
+    fun `the share the chooser wraps is not a new task`() {
+        val chooser = AskAi.chooserIntent("職員", "Perguntar a uma IA")
+        val wrapped = chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+        val wrappedFlags = wrapped?.flags ?: 0
+
+        assertEquals(0, AskAi.sendIntent("職員", "com.openai.chatgpt").flags and Intent.FLAG_ACTIVITY_NEW_TASK)
+        assertEquals(0, wrappedFlags and Intent.FLAG_ACTIVITY_NEW_TASK)
+        assertEquals("職員", wrapped?.getStringExtra(Intent.EXTRA_TEXT))
     }
 
     // --- the list of apps -----------------------------------------------------------------------

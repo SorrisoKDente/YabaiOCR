@@ -25,8 +25,13 @@ object Furigana {
     /** The annotated sentence, and how many of its readings are guesses rather than words. */
     data class Annotated(val text: String, val uncertain: Int)
 
-    /** One reading to write at a character position. */
-    private data class Mark(val at: Int, val reading: String, val certain: Boolean)
+    /**
+     * One reading and the characters it reads: `text[start, end)` is the kanji run it belongs to.
+     *
+     * [uncertain] marks the readings that are a lone kanji guessed at from its kanji entry rather
+     * than a word the dictionary segmented.
+     */
+    data class Reading(val start: Int, val end: Int, val text: String, val certain: Boolean)
 
     /** A stretch of the sentence: where it is and what it says. */
     private data class Span(val start: Int, val end: Int, val text: String)
@@ -120,9 +125,43 @@ object Furigana {
         matches: List<TokenMatch>,
         kanji: (String) -> KanjiEntry? = { null },
     ): Annotated? {
-        if (text.isEmpty() || !JapaneseText.hasKanji(text)) return null
+        val readings = spans(text, matches, kanji)
+        if (readings.isEmpty()) return null
 
-        val marks = ArrayList<Mark>(8)
+        val out = StringBuilder(text.length + 8 * readings.size)
+        var cursor = 0
+        var uncertain = 0
+        for (reading in readings) {
+            val at = reading.end.coerceIn(cursor, text.length)
+            out.append(text, cursor, at)
+            cursor = at
+            out.append(OPEN).append(reading.text)
+            if (!reading.certain) {
+                out.append('?')
+                uncertain++
+            }
+            out.append(CLOSE)
+        }
+        out.append(text, cursor, text.length)
+
+        return Annotated(out.toString(), uncertain)
+    }
+
+    /**
+     * The readings of [text] with the characters each one covers.
+     *
+     * This is the same pass [sentence] writes from, for the callers that **draw** the reading beside
+     * the kanji instead of writing it into the sentence — the on-screen picker does. A reading the
+     * manga already printed is left out of both: repeating it is noise, whether written or drawn.
+     */
+    fun spans(
+        text: String,
+        matches: List<TokenMatch>,
+        kanji: (String) -> KanjiEntry? = { null },
+    ): List<Reading> {
+        if (text.isEmpty() || !JapaneseText.hasKanji(text)) return emptyList()
+
+        val found = ArrayList<Reading>(8)
         val covered = BooleanArray(text.length)
 
         for (match in matches) {
@@ -139,7 +178,7 @@ object Furigana {
 
             for (i in runs.indices) {
                 if (runs[i].reading.isEmpty()) continue
-                marks.add(Mark(surface[i].end, runs[i].reading, certain = true))
+                found.add(Reading(surface[i].start, surface[i].end, runs[i].reading, certain = true))
                 for (at in surface[i].start until surface[i].end) covered[at] = true
             }
         }
@@ -151,31 +190,10 @@ object Furigana {
             if (run.text.codePointCount(0, run.text.length) != 1) continue
             val readings = readingsOf(kanji(run.text) ?: continue)
             if (readings.isEmpty()) continue
-            marks.add(Mark(run.end, readings.joinToString("・"), certain = false))
+            found.add(Reading(run.start, run.end, readings.joinToString("・"), certain = false))
         }
 
-        if (marks.isEmpty()) return null
-
-        val out = StringBuilder(text.length + 8 * marks.size)
-        var cursor = 0
-        var uncertain = 0
-        for (mark in marks.sortedBy { it.at }) {
-            val at = mark.at.coerceIn(cursor, text.length)
-            out.append(text, cursor, at)
-            cursor = at
-            // The reading is already in the sentence — the manga printed it, or the furigana keeper
-            // wrote it. Saying it a second time would not add a reading, only noise.
-            if (printsReading(text, at)) continue
-            out.append(OPEN).append(mark.reading)
-            if (!mark.certain) {
-                out.append('?')
-                uncertain++
-            }
-            out.append(CLOSE)
-        }
-        out.append(text, cursor, text.length)
-
-        return Annotated(out.toString(), uncertain)
+        return found.filterNot { printsReading(text, it.end) }.sortedBy { it.end }
     }
 
     /**

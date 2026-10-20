@@ -88,6 +88,20 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         selected(only).firstNotNullOfOrNull { it.kanjiEntry(character) }
     }
 
+    /**
+     * The same readings [withFurigana] writes, with the characters each one sits on.
+     *
+     * For a caller that draws them where the text is — the picker, beside the kanji on the page —
+     * rather than writing them into a sentence.
+     */
+    fun readings(
+        text: String,
+        matches: List<TokenMatch>,
+        only: Set<String> = emptySet(),
+    ): List<Furigana.Reading> = Furigana.spans(text, matches) { character ->
+        selected(only).firstNotNullOfOrNull { it.kanjiEntry(character) }
+    }
+
     /** Titles of the dictionaries that actually contributed at least one hit. */
     fun contributedTitles(matches: List<TokenMatch>): List<String> =
         matches.map { it.dictionaryTitle }.distinct()

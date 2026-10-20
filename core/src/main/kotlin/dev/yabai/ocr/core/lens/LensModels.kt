@@ -22,9 +22,20 @@ data class LensSegment(val text: String, val box: PixelBox?)
  *
  * This is what the on-screen picker offers: Lens splits a page down to single columns, and a column
  * is too thin to tap and only a fragment of a sentence. [lines] are those columns as Lens reported
- * them and [text] is them joined back into the sentence they make up.
+ * them, [pieces] the same columns with their boxes, in reading order, and [text] is them joined back
+ * into the sentence they make up.
  */
-data class LensBlock(val text: String, val lines: List<String>, val box: PixelBox?)
+data class LensBlock(
+    val text: String,
+    val lines: List<String>,
+    val box: PixelBox?,
+    /**
+     * The columns (or rows) of the block with their boxes, readings excluded and in reading order.
+     * Whoever draws a reading where the text is — beside a column, above a row — needs to know where
+     * each stretch of the sentence was printed.
+     */
+    val pieces: List<LensSegment> = emptyList(),
+)
 
 data class LensResult(
     /** BCP-47-ish language reported by Lens, e.g. "ja". Empty when unknown. */

@@ -221,6 +221,61 @@ class FuriganaTest {
         assertTrue("the sentence itself is not the annotation", Furigana.sentence("さん", emptyList()) { null } == null)
     }
 
+    // --- the same readings, with the characters they cover ----------------------------------------
+
+    /**
+     * The picker draws the reading on the page, beside the kanji, so it needs to know *where* the
+     * reading goes — not just what the annotated sentence looks like.
+     */
+    @Test
+    fun `a span says which characters the reading belongs to`() {
+        val text = "職員さんに聞いた"
+        val spans = Furigana.spans(
+            text,
+            listOf(
+                match("職員", 0, 2, "職員", "しょくいん"),
+                match("聞いた", 5, 8, "聞く", "きく"),
+            ),
+            kanji = { null },
+        )
+
+        assertEquals(listOf(0, 5), spans.map { it.start })
+        assertEquals(listOf(2, 6), spans.map { it.end })
+        assertEquals(listOf("しょくいん", "き"), spans.map { it.text })
+        assertTrue(spans.all { it.certain })
+    }
+
+    @Test
+    fun `a guessed reading is marked as a guess in its span too`() {
+        val spans = Furigana.spans(
+            "帝",
+            emptyList(),
+            kanji = { KanjiEntry("帝", "imperador", onYomi = "テイ", kunYomi = "") },
+        )
+
+        assertEquals(1, spans.size)
+        assertEquals(0, spans.single().start)
+        assertEquals(1, spans.single().end)
+        assertTrue("not a word, so not certain", !spans.single().certain)
+    }
+
+    @Test
+    fun `a reading the page already prints gets no span`() {
+        val spans = Furigana.spans(
+            "職員（しょくいん）さん",
+            listOf(match("職員", 0, 2, "職員", "しょくいん")),
+            kanji = { null },
+        )
+
+        assertTrue("drawing it again would be noise over the page", spans.isEmpty())
+    }
+
+    @Test
+    fun `a sentence with no kanji has no spans`() {
+        assertTrue(Furigana.spans("さんにきいた", emptyList()) { null }.isEmpty())
+        assertTrue(Furigana.spans("", emptyList()) { null }.isEmpty())
+    }
+
     // --- helpers ----------------------------------------------------------------------------------
 
     private fun match(surface: String, start: Int, end: Int, term: String, reading: String) = TokenMatch(

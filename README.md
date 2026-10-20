@@ -185,6 +185,25 @@ Numa frase de verdade, com o JMdict:
 - Liga e desliga em **«Mostrar a leitura dos kanji»** (ligado de fábrica). O texto reconhecido é
   selecionável e copiável, como sempre.
 
+#### A leitura sobre a página, antes de escolher o trecho
+
+O painel escreve a leitura no texto; a **tela de trechos** — aquela em que as caixas aparecem sobre a
+página, antes de você tocar em nada — não tinha leitura nenhuma. Agora tem, e você escolhe a forma em
+**«Leitura sobre a página, na tela de trechos»**:
+
+| Ajuste | O que aparece |
+| --- | --- |
+| **Rubi** | a leitura desenhada ao lado de cada kanji: uma coluna de kana à direita de uma coluna vertical, uma linha pequena acima de uma linha horizontal |
+| **Tarja** | uma etiqueta ao lado de cada balão que tenha leitura, com a frase e as leituras entre parênteses, `職員（しょくいん）さんに…` |
+| **Não mostrar** (padrão) | só as caixas, como antes |
+
+O rubi é fiel ao que o mangá faz, mas numa página inteira a letra fica do tamanho do rubi impresso:
+para ler de perto, use a tarja, o painel ou o zoom do sistema. As duas formas ficam disponíveis para
+você decidir qual prefere. As leituras vêm do dicionário e aparecem só para o que ele conhece — um
+kanji sem palavra e sem entrada de kanji fica sem leitura, como no painel. O rubi custa uma consulta
+por coluna, feita depois do OCR e em segundo plano; se o dicionário não abrir, as caixas aparecem do
+mesmo jeito, só sem leitura.
+
 ### Ver a imagem capturada
 
 Quando o OCR troca um kanji, quem tira a dúvida é a imagem: o painel diz **淀** e a página diz qual
@@ -331,6 +350,12 @@ O Lens entrega o texto em **colunas soltas**: um balão de três colunas chega c
 separados. O `core` junta de volta as colunas que formam o mesmo bloco (mesma direção, faixa em comum
 e vão menor que um caractere), o que é o que faz um balão virar uma frase traduzível em vez de três
 fragmentos — e é também o que define o tamanho das caixas da tela inteira.
+
+A ordem das colunas também vem dos retângulos, não da resposta: o Lens devolve as colunas de um balão na
+ordem que quer (`ネオの職員さん`, depois `非童帝くん`, depois `に聞いたら`), e o `core` as lê **da direita
+para a esquerda**, de cima para baixo dentro de cada coluna — e, num texto horizontal, de cima para baixo
+e da esquerda para a direita. Sem isso, a frase saía com os pedaços trocados (`てる潰され内塊に` em vez
+de `肉塊に潰されてる`), mesmo com todas as letras certas.
 
 Além disso, a imagem vai com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`) e o
 idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1600.

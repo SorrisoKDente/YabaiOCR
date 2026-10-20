@@ -43,6 +43,11 @@ class LensOcrEngine(
                 text = content,
                 lines = block.lines.map { JapaneseText.normalize(it).trim() }.filter { it.isNotEmpty() },
                 rect = block.box?.scaledTo(scale, bitmap.width, bitmap.height),
+                pieces = block.pieces.mapNotNull { piece ->
+                    val pieceText = JapaneseText.normalize(piece.text).trim()
+                    if (pieceText.isEmpty()) return@mapNotNull null
+                    OcrPiece(pieceText, piece.box?.scaledTo(scale, bitmap.width, bitmap.height))
+                },
             )
         }
 

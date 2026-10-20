@@ -32,10 +32,16 @@ import dev.yabai.ocr.R
 import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.capture.ScreenCaptureSession
+import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.ocr.OcrDispatcher
 import dev.yabai.ocr.ocr.OcrOutcome
 import dev.yabai.ocr.overlay.OverlayController
+import dev.yabai.ocr.overlay.PickerBlock
+import dev.yabai.ocr.overlay.PickerPiece
+import dev.yabai.ocr.overlay.PickerReading
+import dev.yabai.ocr.overlay.PickerReadingMode
+import dev.yabai.ocr.overlay.PickerTargets
 import dev.yabai.ocr.overlay.ResultOverlay
 import dev.yabai.ocr.translate.OfflineTranslator
 import dev.yabai.ocr.util.BlockImage
@@ -89,6 +95,15 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      * same segmentation.
      */
     private var pendingBlocks: List<PendingBlock> = emptyList()
+
+    /**
+     * The same boxes, ready to draw: readings already placed when the setting asks for them.
+     *
+     * Computed once per capture, because the dictionary pass over a page — one lookup per column —
+     * is the slow part; «trechos» from the panel reuses it.
+     */
+    private var pendingPicker: List<PickerBlock> = emptyList()
+    private var pendingReadingMode: PickerReadingMode = PickerReadingMode.OFF
     private var lastOutcome: OcrOutcome? = null
     private var lastForceOffline = false
 
@@ -108,13 +123,20 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      * [rect] is where the box goes on screen, which is what the picker draws and hit-tests; [cropRect]
      * is the same box in the pixels of the captured frame, which is what the panel shows as the image
      * beside the text. Both come from the engine's own box, so neither is guessed from the other.
+     *
+     * [pieces] are the columns or rows the block is made of, on screen, so a reading can be drawn
+     * beside the characters it belongs to instead of beside the balloon as a whole.
      */
     private data class PendingBlock(
         val text: String,
         val rect: Rect,
         val cropRect: Rect,
         val lines: List<String>,
+        val pieces: List<PendingPiece>,
     )
+
+    /** A column or row of a [PendingBlock], on screen. */
+    private data class PendingPiece(val text: String, val rect: Rect, val vertical: Boolean)
 
     override fun onCreate() {
         super.onCreate()
@@ -295,7 +317,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
     override fun onRepickRequested() {
         val outcome = lastOutcome ?: return
-        if (!overlays.showTextPicker(pickerRects())) {
+        if (!overlays.showTextPicker(pendingPicker, pendingReadingMode)) {
             // The boxes are gone (the screen changed, or the service was restarted): fall back to the
             // whole capture, which is still in memory.
             showResultFor(outcome, outcome.text, outcome.lines, canRepick = false, image = lastCrop)
@@ -339,7 +361,11 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         askAi(text)
     }
 
-    private fun pickerRects(): List<Rect> = pendingBlocks.map { it.rect }
+    private fun clearPending() {
+        pendingBlocks = emptyList()
+        pendingPicker = emptyList()
+        pendingReadingMode = PickerReadingMode.OFF
+    }
 
     // --- capture pipeline ----------------------------------------------------------------------
 
@@ -354,7 +380,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         busy = true
         lastRegion = region
         // A new capture supersedes the boxes of the previous one.
-        pendingBlocks = emptyList()
+        clearPending()
 
         scope.launch {
             var armed = false
@@ -396,11 +422,17 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 // both of those go straight to the panel.
                 if (region == null && settings.pickText && outcome.blocks.size > 1) {
                     pendingBlocks = placeBlocks(outcome, shot)
-                    if (pendingBlocks.isNotEmpty() && overlays.showTextPicker(pickerRects())) {
-                        overlays.hideResult()
-                        return@launch
+                    if (pendingBlocks.isNotEmpty()) {
+                        val mode = settings.pickerReading
+                        val picker = pickerBlocks(pendingBlocks, mode)
+                        if (overlays.showTextPicker(picker, mode)) {
+                            pendingPicker = picker
+                            pendingReadingMode = mode
+                            overlays.hideResult()
+                            return@launch
+                        }
                     }
-                    pendingBlocks = emptyList()
+                    clearPending()
                 }
 
                 // Panel first, analysis after: the text is readable immediately and the dictionary
@@ -466,9 +498,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         val scaleX = metrics.widthPixels.toFloat() / shot.width.coerceAtLeast(1)
         val scaleY = metrics.heightPixels.toFloat() / shot.height.coerceAtLeast(1)
         val screen = Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
-        // A line of text is around 16 dp tall on a phone, so anything much under that is a fragment
-        // rather than something worth offering. The picker itself inflates every box by a few dp when
-        // hit-testing, which is what makes a box this small comfortable to tap.
+        // A finger needs room, but a column of vertical text is thin by nature: see PickerTargets for
+        // why the test is on the longest side and not on both.
         val minTapSize = (12 * resources.displayMetrics.density).roundToInt()
 
         return outcome.blocks.mapNotNull { block ->
@@ -482,14 +513,95 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             // Boxes Lens pushed off the edge of the picture, or that are too small to hit with a
             // finger, are not offered as tap targets. Their text is still part of "tudo".
             if (!onScreen.intersect(screen)) return@mapNotNull null
-            if (onScreen.width() < minTapSize || onScreen.height() < minTapSize) return@mapNotNull null
+            if (!PickerTargets.offered(onScreen.width(), onScreen.height(), minTapSize)) return@mapNotNull null
             PendingBlock(
                 text = block.text,
                 rect = onScreen,
                 cropRect = rect,
                 lines = block.lines,
+                pieces = block.pieces.mapNotNull { piece ->
+                    val box = piece.rect ?: return@mapNotNull null
+                    val placed = Rect(
+                        (box.left * scaleX).roundToInt(),
+                        (box.top * scaleY).roundToInt(),
+                        (box.right * scaleX).roundToInt(),
+                        (box.bottom * scaleY).roundToInt(),
+                    )
+                    if (placed.width() <= 0 || placed.height() <= 0) return@mapNotNull null
+                    PendingPiece(piece.text, placed, placed.height() >= placed.width())
+                },
             )
         }
+    }
+
+    /**
+     * Turns the boxes into what the picker draws, adding the readings when [mode] asks for them.
+     *
+     * The readings come from the same engine the panel uses, one lookup per column: a column is a few
+     * characters and the dictionary is an index in memory, so a whole page costs a pass and not a
+     * request. When the dictionary cannot be opened the boxes still appear — the picker is the only
+     * way to choose a piece, and losing it because a reading failed would be the wrong trade.
+     */
+    private suspend fun pickerBlocks(
+        blocks: List<PendingBlock>,
+        mode: PickerReadingMode,
+    ): List<PickerBlock> {
+        val plain = blocks.map { PickerBlock(it.rect) }
+        if (mode == PickerReadingMode.OFF) return plain
+        return withContext(Dispatchers.Default) {
+            try {
+                val repository = DictionaryRepository.get(this@FloatingOcrService)
+                val engine = repository.lookupEngine() ?: return@withContext plain
+                val only = repository.resolveFilter(settings.dictionaryFilter)
+                    ?.let { setOf(it) }
+                    .orEmpty()
+                blocks.map { block ->
+                    PickerBlock(
+                        rect = block.rect,
+                        label = if (mode == PickerReadingMode.LABEL) {
+                            engine.withFurigana(
+                                block.text,
+                                engine.lookup(block.text, only = only),
+                                only,
+                            )?.text
+                        } else {
+                            null
+                        },
+                        pieces = if (mode == PickerReadingMode.RUBY) {
+                            block.pieces.mapNotNull { piece -> rubyPiece(piece, engine, only) }
+                        } else {
+                            emptyList()
+                        },
+                    )
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "readings for the picker failed", t)
+                plain
+            }
+        }
+    }
+
+    /** The readings of one column or row, placed as fractions of its length. */
+    private fun rubyPiece(
+        piece: PendingPiece,
+        engine: LookupEngine,
+        only: Set<String>,
+    ): PickerPiece? {
+        val length = piece.text.length
+        if (length == 0) return null
+        val readings = engine.readings(piece.text, engine.lookup(piece.text, only = only), only)
+        if (readings.isEmpty()) return null
+        return PickerPiece(
+            rect = piece.rect,
+            vertical = piece.vertical,
+            readings = readings.map {
+                PickerReading(
+                    text = it.text,
+                    from = it.start.toFloat() / length,
+                    to = it.end.toFloat() / length,
+                )
+            },
+        )
     }
 
     private fun buildMeta(outcome: OcrOutcome): String {
@@ -653,7 +765,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         // The share is started from here, a service, not from an Activity: every candidate carries
         // FLAG_ACTIVITY_NEW_TASK, which `AskAi` puts on each of them. Without it `startActivity`
         // throws and both the chosen app and the chooser fail — the old «no app accepts text» for
-        // every tap, whichever app was chosen.
+        // every tap, whichever app was chosen. The share the chooser wraps is deliberately *not*
+        // marked that way: it is the chooser that starts it, from its own task, and a new task of its
+        // own put the chosen app behind everything — «Perguntar sempre» opened nothing (R3).
         val candidates = AskAi.candidates(payload, settings.aiPackage, getString(R.string.result_ai_chooser))
         for ((index, intent) in candidates.withIndex()) {
             if (!runCatching { startActivity(intent) }.isSuccess) continue

@@ -1,4 +1,4 @@
-﻿package dev.yabai.ocr.core.lens
+package dev.yabai.ocr.core.lens
 
 import dev.yabai.ocr.core.proto.ProtoReader
 import dev.yabai.ocr.core.proto.ProtoWriter
@@ -92,6 +92,68 @@ class LensProtoParsingTest {
         // The union of the three columns, not just the first of them.
         assertEquals(box(250, 223, 139, 209), blocks[0].box)
         assertEquals(box(721, 883, 86, 126), blocks[1].box)
+        // The columns themselves, in reading order and with their boxes: what the picker needs to
+        // draw a reading beside the characters it belongs to instead of beside the balloon.
+        assertEquals(
+            listOf(
+                "おまえは" to box(349, 223, 40, 165),
+                "もう" to box(304, 227, 29, 81),
+                "死んでいる" to box(250, 229, 37, 203),
+            ),
+            blocks[0].pieces.map { it.text to it.box },
+        )
+    }
+
+    /**
+     * B1: Lens reports the columns of a vertical balloon in its own order, not in the order they are
+     * read. The boxes are what says the order: right to left.
+     *
+     * The same balloon as above, handed over middle-first.
+     */
+    @Test
+    fun `puts the columns of a vertical balloon in reading order`() {
+        val columns = listOf(
+            box(304, 227, 29, 81) to "もう",
+            box(349, 223, 40, 165) to "おまえは",
+            box(250, 229, 37, 203) to "死んでいる",
+        )
+
+        assertEquals(
+            listOf("おまえは もう 死んでいる"),
+            blocksOf(columns).map { it.text },
+        )
+    }
+
+    /**
+     * B1: a column the recogniser split in two pieces — the tails of 「潰されてる」 arriving as
+     * 「てる!」 and 「潰され」, bottom half first — is one column, read top to bottom.
+     */
+    @Test
+    fun `puts the two halves of a split column back in order`() {
+        val lines = listOf(
+            box(301, 290, 36, 70) to "てる!",
+            box(300, 200, 36, 84) to "潰され",
+            box(349, 200, 36, 160) to "内塊に",
+        )
+
+        assertEquals(
+            listOf("内塊に 潰され てる!"),
+            blocksOf(lines).map { it.text },
+        )
+    }
+
+    /** B1: horizontal text is rows, top to bottom, whatever order the rows arrive in. */
+    @Test
+    fun `puts the rows of a horizontal paragraph in reading order`() {
+        val rows = listOf(
+            box(100, 250, 220, 34) to "二行目",
+            box(100, 200, 220, 34) to "一行目",
+        )
+
+        assertEquals(
+            listOf("一行目 二行目"),
+            blocksOf(rows).map { it.text },
+        )
     }
 
     /** Two balloons side by side must not be dragged into one box. */
@@ -121,6 +183,29 @@ class LensProtoParsingTest {
     }
 
     /** Builds only the blocks, from boxes rather than from protobuf bytes. */
+    /**
+     * A reading the page prints beside a kanji is part of the raw lines but not of the block's
+     * pieces: the picker draws the reading it knows from the dictionary, and drawing the printed one
+     * as if it were text would put a column of kana where the sentence is.
+     */
+    @Test
+    fun `a printed reading is not a piece of the block`() {
+        // 職員 with しょくいん in the gutter to its right: 40% as thick, 6 px away.
+        val blocks = blocksOf(
+            listOf(
+                box(300, 200, 40, 200) to "職員",
+                box(346, 200, 16, 92) to "しょくいん",
+            ),
+        )
+
+        assertEquals(listOf("職員"), blocks.map { it.text })
+        assertEquals(listOf("職員"), blocks.single().pieces.map { it.text })
+        assertTrue(
+            "the raw lines still show what the recogniser saw",
+            blocks.single().lines.contains("しょくいん"),
+        )
+    }
+
     private fun blocksOf(lines: List<Pair<PixelBox, String>>): List<LensBlock> =
         LensResultBuilder.groupIntoBlocks(lines.map { LensResultBuilder.Line(it.second, it.first) })
 

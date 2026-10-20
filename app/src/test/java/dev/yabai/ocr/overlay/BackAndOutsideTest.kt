@@ -102,7 +102,7 @@ class BackAndOutsideTest {
     fun `back leaves the segment picker`() {
         var cancelled = 0
         val picker = TextPickerOverlay(context).apply { onCancel = { cancelled++ } }
-        picker.show(listOf(Rect(10, 10, 100, 100)))
+        picker.show(listOf(PickerBlock(Rect(10, 10, 100, 100))), PickerReadingMode.OFF)
         layout(picker)
 
         back(picker)

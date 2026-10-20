@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.dict.DictionaryRepository
+import dev.yabai.ocr.overlay.PickerReadingMode
 import dev.yabai.ocr.service.FloatingOcrService
 import java.util.Date
 
@@ -202,6 +203,25 @@ class MainActivity : AppCompatActivity() {
             isChecked = settings.showFurigana
         }
         furiganaReadings.setOnCheckedChangeListener { _, checked -> settings.showFurigana = checked }
+
+        // The same readings, but drawn on the page in the picker, before anything is tapped. Both
+        // ways are offered because they trade differently: ruby keeps the drawing visible and is as
+        // small as printed ruby, the strip is readable and covers part of the page.
+        val pickerReading = findViewById<RadioGroup>(R.id.groupPickerReading)
+        pickerReading.check(
+            when (settings.pickerReading) {
+                PickerReadingMode.RUBY -> R.id.readingRuby
+                PickerReadingMode.LABEL -> R.id.readingLabel
+                PickerReadingMode.OFF -> R.id.readingOff
+            },
+        )
+        pickerReading.setOnCheckedChangeListener { _, id ->
+            settings.pickerReading = when (id) {
+                R.id.readingRuby -> PickerReadingMode.RUBY
+                R.id.readingLabel -> PickerReadingMode.LABEL
+                else -> PickerReadingMode.OFF
+            }
+        }
     }
 
     private fun bindTranslationAndDictionaries() {

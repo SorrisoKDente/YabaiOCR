@@ -3,6 +3,7 @@ package dev.yabai.ocr
 import android.content.Context
 import androidx.core.content.edit
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.overlay.PickerReadingMode
 
 enum class EngineChoice { AUTO, LENS, MLKIT }
 
@@ -102,6 +103,23 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit { putBoolean(KEY_SHOW_FURIGANA, value) }
 
     /**
+     * How the readings of the recognised kanji are shown **on the page**, in the picker, before
+     * anything is tapped: as ruby beside each kanji, as a readable strip beside each balloon, or
+     * not at all.
+     *
+     * Off by default: the two ways are on trial, and a page covered in small kana is not something
+     * to switch on for somebody who did not ask for it. The panel's own furigana is
+     * [showFurigana] and is a separate decision.
+     */
+    var pickerReading: PickerReadingMode
+        get() = when (prefs.getString(KEY_PICKER_READING, null)) {
+            PickerReadingMode.RUBY.name -> PickerReadingMode.RUBY
+            PickerReadingMode.LABEL.name -> PickerReadingMode.LABEL
+            else -> PickerReadingMode.OFF
+        }
+        set(value) = prefs.edit { putString(KEY_PICKER_READING, value.name) }
+
+    /**
      * Show the captured image beside the recognised text.
      *
      * Off by default: the image takes a share of the panel's width, and what loses it is the
@@ -184,6 +202,7 @@ class AppSettings(context: Context) {
         private const val KEY_TRANSLATE = "translate_sentence"
         private const val KEY_FURIGANA = "furigana_parentheses"
         private const val KEY_SHOW_FURIGANA = "show_furigana"
+        private const val KEY_PICKER_READING = "picker_reading"
         private const val KEY_TRANSLATE_TARGET = "translate_target"
         private const val KEY_SHOW_IMAGE = "show_image"
         private const val KEY_SHOW_AI_BUTTON = "show_ai_button"

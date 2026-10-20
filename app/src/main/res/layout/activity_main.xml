@@ -286,6 +286,41 @@
                 android:layout_height="wrap_content"
                 android:text="@string/setting_furigana_readings"
                 android:textColor="@color/text_primary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/setting_picker_reading"
+                android:textColor="@color/text_primary" />
+
+            <RadioGroup
+                android:id="@+id/groupPickerReading"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp">
+
+                <RadioButton
+                    android:id="@+id/readingOff"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/picker_reading_off"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/readingRuby"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/picker_reading_ruby"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/readingLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/picker_reading_label"
+                    android:textColor="@color/text_primary" />
+            </RadioGroup>
         </LinearLayout>
 
         <!-- 4. Start -->

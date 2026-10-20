@@ -618,12 +618,13 @@ class OverlayController(private val context: Context) {
     // --- text picker ---------------------------------------------------------------------------
 
     /**
-     * Draws the recognised paragraphs as boxes over the live screen.
+     * Draws the recognised paragraphs as boxes over the live screen, with their readings when [mode]
+     * asks for them.
      *
      * @return false when there is nothing to pick, so the caller can go straight to the result panel.
      */
-    fun showTextPicker(rects: List<Rect>): Boolean {
-        if (rects.isEmpty() || !canDrawOverlays()) return false
+    fun showTextPicker(blocks: List<PickerBlock>, mode: PickerReadingMode): Boolean {
+        if (blocks.isEmpty() || !canDrawOverlays()) return false
         hideTextPicker()
 
         val overlay = TextPickerOverlay(context).apply {
@@ -638,7 +639,7 @@ class OverlayController(private val context: Context) {
         // Focusable so BACK cancels the selection instead of reaching the app underneath; while the
         // picker is up the app was not receiving touches anyway.
         if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
-        overlay.show(rects)
+        overlay.show(blocks, mode)
         pickerView = overlay
         return true
     }

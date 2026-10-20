@@ -24,13 +24,17 @@ object AskAi {
     const val MIME_TEXT = "text/plain"
 
     /**
-     * The flag every share carries because none of them starts from an activity.
+     * The flag every intent handed to `startActivity` carries, because none of them starts from an
+     * activity.
      *
      * The button lives in a floating window and the tap is handled by the foreground service, not by
      * an `Activity`. Android only lets an activity-free context start one with this flag; without it
      * `startActivity` throws `AndroidRuntimeException`, and a `runCatching` around it turns the
      * exception into «nothing on this phone takes text» — for the chosen app and for the chooser
      * alike, which is exactly how the bug looked. The bubble's «Ajustes» button has always carried it.
+     *
+     * It belongs on what this file starts — [directIntent] and [chooserIntent] — and **not** on the
+     * share the chooser wraps. See [sendIntent].
      */
     const val NEW_TASK = Intent.FLAG_ACTIVITY_NEW_TASK
 
@@ -55,22 +59,29 @@ object AskAi {
     }
 
     /**
-     * Opens [packageName] with [payload] already in it; a blank package sends it to whoever the user
-     * picks, which is the same thing as asking for the chooser.
+     * The share itself — destination and payload — **without** the launch flag.
+     *
+     * It is not always what gets started: when the system asks, the chooser wraps it as an extra and
+     * launches it from its own task. A `FLAG_ACTIVITY_NEW_TASK` here would make the chosen app open a
+     * task of its own, behind everything, which is what made «Perguntar sempre» look like it did
+     * nothing: the user picked an app and the screen did not change. Whoever starts it **directly**
+     * wraps it in [launchable] first.
      */
     fun sendIntent(payload: String, packageName: String?): Intent =
-        launchable(
-            Intent(Intent.ACTION_SEND)
-                .setType(MIME_TEXT)
-                .putExtra(Intent.EXTRA_TEXT, payload)
-                .apply { if (!packageName.isNullOrBlank()) setPackage(packageName) },
-        )
+        Intent(Intent.ACTION_SEND)
+            .setType(MIME_TEXT)
+            .putExtra(Intent.EXTRA_TEXT, payload)
+            .apply { if (!packageName.isNullOrBlank()) setPackage(packageName) }
+
+    /** The share addressed to an app, ready for the service to start itself. */
+    fun directIntent(payload: String, packageName: String?): Intent = launchable(sendIntent(payload, packageName))
 
     /**
      * The system chooser, for whoever never picked an app (or whose app is no longer installed).
      *
-     * The flag goes on the chooser itself: the send intent it wraps travels as an extra, so the flags
-     * [sendIntent] puts on it never reach the window that is launched.
+     * The flag goes on the chooser — the intent handed to `startActivity` — and deliberately not on
+     * the share it wraps: the chosen app is started by the chooser, from the chooser's task, and that
+     * is what brings it to the front. See [sendIntent].
      */
     fun chooserIntent(payload: String, title: String): Intent =
         launchable(Intent.createChooser(sendIntent(payload, packageName = null), title))
@@ -88,7 +99,7 @@ object AskAi {
         if (chosen.isBlank()) {
             listOf(chooserIntent(payload, chooserTitle))
         } else {
-            listOf(sendIntent(payload, chosen), chooserIntent(payload, chooserTitle))
+            listOf(directIntent(payload, chosen), chooserIntent(payload, chooserTitle))
         }
 
     /**
