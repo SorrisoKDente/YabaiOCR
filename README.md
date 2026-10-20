@@ -382,7 +382,9 @@ A ordem das colunas também vem dos retângulos, não da resposta: o Lens devolv
 ordem que quer (`ネオの職員さん`, depois `非童帝くん`, depois `に聞いたら`), e o `core` as lê **da direita
 para a esquerda**, de cima para baixo dentro de cada coluna — e, num texto horizontal, de cima para baixo
 e da esquerda para a direita. Sem isso, a frase saía com os pedaços trocados (`てる潰され内塊に` em vez
-de `肉塊に潰されてる`), mesmo com todas as letras certas.
+de `肉塊に潰されてる`), mesmo com todas as letras certas. O motor offline (ML Kit) usa a mesma regra: ele
+entrega a página de cima para baixo e da esquerda para a direita, o que num balão vertical põe a última
+coluna primeiro; os retângulos que ele mesmo devolve são a única coisa que sabe a ordem certa.
 
 Além disso, a imagem vai com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`) e o
 idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1600.

@@ -1,5 +1,7 @@
 package dev.yabai.ocr.core.lens
 
+import dev.yabai.ocr.core.layout.ReadingOrder
+
 /**
  * Turns the decoded protobuf tree into the flat list of text lines and the text blocks the UI
  * consumes.
@@ -151,66 +153,11 @@ object LensResultBuilder {
      * Lens reports the lines of a block in its own order, and for vertical text that order is not the
      * reading order: the columns of a balloon can arrive as right, middle, left in any arrangement,
      * and a column the recogniser split in two can arrive bottom half first. The boxes know the
-     * answer, so the sentence is put together from them:
-     *
-     * - **vertical** text reads in columns, right to left, and top to bottom inside a column;
-     * - **horizontal** text reads in rows, top to bottom, and left to right inside a row.
-     *
-     * A group with a line that has no geometry cannot be placed, so it keeps the order it came in
-     * rather than being half-sorted.
+     * answer, so the sentence is put together from them — see [ReadingOrder], which works the same
+     * way for the offline engine (R14).
      */
-    internal fun readingOrder(group: List<Int>, lines: List<Line>): List<Int> {
-        if (group.size < 2) return group
-        if (group.any { lines[it].box == null }) return group
-
-        val boxes = group.map { lines[it].box!! }
-        val vertical = boxes.count { it.height >= it.width } * 2 >= boxes.size
-        return if (vertical) {
-            stack(group, lines, descending = true, along = { it.x }, extent = { it.right }, size = { it.width })
-                .flatMap { column -> column.sortedBy { lines[it].box!!.y } }
-        } else {
-            stack(group, lines, descending = false, along = { it.y }, extent = { it.bottom }, size = { it.height })
-                .flatMap { row -> row.sortedBy { lines[it].box!!.x } }
-        }
-    }
-
-    /**
-     * Splits a block into the stacks it is made of — columns when [along] is the x axis, rows when it
-     * is the y axis — in reading order.
-     *
-     * Two lines are the same stack when their extents across it overlap, even if they do not touch
-     * along it: that is what keeps the two halves of a column the recogniser split in one column. The
-     * lines are sorted first, so a pair that overlaps is never separated by an unrelated line.
-     */
-    private fun stack(
-        group: List<Int>,
-        lines: List<Line>,
-        descending: Boolean,
-        along: (PixelBox) -> Int,
-        extent: (PixelBox) -> Int,
-        size: (PixelBox) -> Int,
-    ): List<MutableList<Int>> {
-        val ordered = group.sortedBy { along(lines[it].box!!) }
-            .let { if (descending) it.reversed() else it }
-
-        val stacks = ArrayList<MutableList<Int>>()
-        for (index in ordered) {
-            val box = lines[index].box!!
-            val current = stacks.lastOrNull()
-            val first = current?.let { lines[it[0]].box!! }
-            val shared = if (first == null) {
-                Int.MIN_VALUE
-            } else {
-                overlapOf(along(box), extent(box), along(first), extent(first))
-            }
-            val same = first != null && shared > 0.5f * minOf(size(box), size(first))
-            if (current != null && same) current += index else stacks += mutableListOf(index)
-        }
-        return stacks
-    }
-
-    private fun overlapOf(startA: Int, endA: Int, startB: Int, endB: Int): Int =
-        minOf(endA, endB) - maxOf(startA, startB)
+    internal fun readingOrder(group: List<Int>, lines: List<Line>): List<Int> =
+        ReadingOrder.order(group.map { lines[it].box }).map { group[it] }
 
     /**
      * Groups the lines that belong to the same text block, by index, so that the boxes offered on

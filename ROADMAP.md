@@ -1465,19 +1465,21 @@ rodapé sempre desenhado).
 
 ## 8. Quarta ronda — o que o aparelho mostrou  (20/10/2026)
 
-Cinco pedidos, um deles com dois problemas diferentes: o primeiro relato trazia um kanji que o
-reconhecedor não viu e as tarjas que se sobrepunham. Valem as regras de sempre: **bugs primeiro**, do
-que estraga mais para o que estraga menos, um item por vez, e um teste de regressão provado não vazio
-antes do `[x]`.
+Cinco pedidos da primeira leva, mais dois que chegaram enquanto o R12 era feito. Um deles traz dois
+problemas diferentes: o primeiro relato trazia um kanji que o reconhecedor não viu e as tarjas que se
+sobrepunham. Valem as regras de sempre: **bugs primeiro**, do que estraga mais para o que estraga menos,
+um item por vez, e um teste de regressão provado não vazio antes do `[x]`.
 
 | # | Estado | Item | Dificuldade |
 | --- | --- | --- | --- |
 | R12 | `[x]` | **Tarjas se sobrepõem** na opção tarja: duas etiquetas caem no mesmo lugar | bug (visual) |
 | R13 | `[ ]` | **O kanji 腹 não foi reconhecido** num balão de três colunas | bug (OCR) |
-| R14 | `[ ]` | **A ordem do texto na tradução offline** sai como saía a do Lens antes do R1 | bug (core) |
+| R14 | `[x]` | **A ordem do texto na tradução offline** sai como saía a do Lens antes do R1 | bug (core) |
 | R15 | `[ ]` | **Dar zoom na página com as caixas na tela**, sem perder as marcações | função (picker) |
 | R16 | `[ ]` | **Voltar da lista de dicionários** para a aba em que se estava | função (painel) |
 | R17 | `[ ]` | **Tocar num kanji para ver a leitura dele** — uma opção a mais no ícone flutuante | função (nova) |
+| R18 | `[ ]` | **A lista de apps de IA nos ajustes** deve ser a mesma da aba de tradução | melhoria |
+| R19 | `[ ]` | **Textos do dicionário grudados** (`1-danintransitive1. to be called outNote…`) | melhoria (painel) |
 
 ### R12 — Tarjas que se sobrepõem  `[x]` (20/10/2026)
 
@@ -1528,6 +1530,83 @@ naquele balão (o texto reconhecido com ou sem 腹) e se existe uma caixa fina s
 direita. Com isso se decide entre duas correções: pedir a mesma região outra vez, maior (a captura da
 tela inteira vai ao Lens com 1600 px no lado maior; um recorte daquele balão chega lá com muito mais
 detalhe), ou aceitar que é limite do reconhecedor e deixar o caminho do recorte documentado no README.
+
+### R14 — A ordem do texto na tradução offline  `[x]` (20/10/2026)
+
+**Relato:** na tradução feita **offline**, os textos aparecem fora de ordem — o mesmo defeito que o R1
+tinha consertado no Lens — e a pergunta era se dá para corrigir do mesmo jeito.
+
+**Causa:** o R1 consertou a ordem **dentro do caminho do Lens**. O `LensResultBuilder` passou a ordenar
+as linhas de um bloco pelos retângulos; o motor offline é outro arquivo, `MlKitOcrEngine`, e ali os
+blocos saíam na ordem em que o ML Kit os devolve — a página de cima para baixo e da esquerda para a
+direita — e as linhas de dentro de cada bloco na mesma ordem. Num balão vertical isso põe a coluna da
+**esquerda**, que é a última a ser lida, em primeiro lugar.
+
+**Correção:** a regra saiu de dentro do `LensResultBuilder` e virou
+`core/layout/ReadingOrder`, que recebe só retângulos (`List<PixelBox?>`) e devolve os índices na ordem
+de leitura: **colunas da direita para a esquerda** num texto vertical, **linhas de cima para baixo e da
+esquerda para a direita** num horizontal, e as duas metades de uma coluna que o reconhecedor partiu
+continuam juntas. Os dois motores passaram a chamar a mesma função: o Lens para as linhas de um bloco
+(sem mudança de comportamento, os testes do R1 continuam os mesmos) e o ML Kit para os **blocos da
+página** e para as **linhas de cada bloco**. A lista «linha por linha» do painel também segue a ordem
+nova, porque `OcrOutcome.lines` passou a ser a lista já ordenada.
+
+Quando um retângulo falta (`boundingBox` nulo), a ordem que veio é mantida: ordenar pela metade seria
+pior do que não ordenar.
+
+**Testes de regressão:** `ReadingOrderTest` (6) — colunas de um balão vertical da direita para a
+esquerda; linhas de um parágrafo horizontal de cima para baixo e da esquerda para a direita; as duas
+metades de uma coluna partida juntas, a de cima primeiro; retângulo sem geometria mantém a ordem
+recebida; uma caixa e uma lista vazia não se mexem; uma página de balões verticais é lida a partir da
+borda direita. Os testes do R1 (`LensProtoParsingTest`) continuam passando sem alteração — é a prova de
+que a mudança de lugar não mudou o comportamento do Lens. Non-vacuidade **5/5**
+(`%TEMP%\opencode\r14_nonvacuous.ps1`: página sempre lida como linhas, colunas da esquerda para a
+direita, cada caixa na sua própria pilha, caixas de uma pilha sem ordenação, caixa sem geometria
+tratada como se estivesse na origem). `core:test` **83 / 0 / 2 pulados**, `app:testDebugUnitTest`
+**150 / 0**.
+
+**Lacuna aceita:** o `MlKitOcrEngine` em si não roda em teste de unidade — depende do modelo do ML Kit,
+instalado no aparelho. O que está testado é a função que decide a ordem; a ligação no motor são três
+linhas e é verificada no aparelho.
+
+### R18 — A lista de apps de IA nos ajustes  `[ ]`
+
+**Relato:** a lista de aplicativos que aparece **nos ajustes** para escolher quem recebe o texto mostra
+todo app que responde a um `SEND` — Gmail, Bluetooth, «Converter para JPEG» — enquanto a janela da aba
+de tradução já mostra só IA e tradutor, com uma opção de ver a lista completa (R11). Duas listas, dois
+critérios, no mesmo app.
+
+**O que fazer:** os ajustes passam a usar a mesma fonte da janela de escolha, `AskAi.relevant` e o
+`«Mostrar todos (N)»`, e o ajuste deixa de ser «escolha um app numa lista crua» para ser
+**«Automático (só apps de IA)»** por omissão, com a possibilidade de fixar um app específico — o que
+resolve de vez a pergunta «qual dos dois ele vai abrir?». A lista continua guardando o pacote, não o
+nome, como já guarda hoje.
+
+### R19 — O texto do dicionário  `[ ]`
+
+**Relato:** os sentidos saem grudados — `1. 1-danintransitive1. to be called outNote passive form of
+呼ぶ` — e o exemplo em japonês encosta na definição (`to be referred to asバラは花の女王と…`). Fica
+difícil achar o sentido que interessa.
+
+**Causa:** não é o dicionário, é o `GlossaryRenderer`. Ele achata a árvore `structured-content` do
+Yomitan em texto puro e junta irmãos com `""` (`"li" -> renderChildren(separator = "", …)`), então
+etiqueta gramatical, definição e nota viram uma frase só. E como o resultado é **texto**, o painel não
+tem como desenhar etiqueta, nota e exemplo com pesos diferentes — o que existe é uma `String`.
+
+**Proposta** (a confirmar no aparelho, em ordem de custo):
+
+1. **Separar**, que é o conserto de verdade: cada item de lista numa linha, nota (`infoGlossary`,
+   `notes`) e exemplo (`examples`) em bloco próprio, e o exemplo sempre depois da definição a que
+   pertence.
+2. **Marcar o tipo de cada bloco** que sai do renderizador (definição, etiqueta, nota, exemplo) em vez
+   de só o texto, para o painel poder desenhar etiqueta em letra pequena e cinza, nota com «ℹ» e
+   exemplo recuado — é o que faz o olho achar o sentido em meio segundo.
+3. **Cabeçalho de entrada mais curto**: termo em negrito, leitura e etiquetas na mesma linha de apoio,
+   sentidos numerados com recuo pendente (a segunda linha do sentido alinha sob a primeira, não sob o
+   número).
+
+O que **não** vale a pena: procurar dentro da definição (a busca do app é por palavra, não por texto de
+definição) e ordenar sentidos por frequência (o dicionário já vem na ordem que o autor escolheu).
 
 ---
 
