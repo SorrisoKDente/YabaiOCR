@@ -203,7 +203,7 @@ página, antes de você tocar em nada — não tinha leitura nenhuma. Agora tem,
 | Ajuste | O que aparece |
 | --- | --- |
 | **Rubi** | a leitura desenhada ao lado de cada kanji: uma coluna de kana à direita de uma coluna vertical, uma linha pequena acima de uma linha horizontal |
-| **Tarja** | uma etiqueta ao lado de cada balão que tenha leitura, com a frase e as leituras entre parênteses, `職員（しょくいん）さんに…` |
+| **Tarja** | uma etiqueta ao lado de cada balão que tenha leitura, com a frase e as leituras entre parênteses, `職員（しょくいん）さんに…`; quando a faixa ao lado já está ocupada por outra etiqueta, ela desce uma posição e continua colada ao próprio balão |
 | **Não mostrar** (padrão) | só as caixas, como antes |
 
 O rubi é fiel ao que o mangá faz, mas numa página inteira a letra fica do tamanho do rubi impresso:

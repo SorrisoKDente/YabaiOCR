@@ -1463,6 +1463,74 @@ rodapé sempre desenhado).
 
 ---
 
+## 8. Quarta ronda — o que o aparelho mostrou  (20/10/2026)
+
+Cinco pedidos, um deles com dois problemas diferentes: o primeiro relato trazia um kanji que o
+reconhecedor não viu e as tarjas que se sobrepunham. Valem as regras de sempre: **bugs primeiro**, do
+que estraga mais para o que estraga menos, um item por vez, e um teste de regressão provado não vazio
+antes do `[x]`.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R12 | `[x]` | **Tarjas se sobrepõem** na opção tarja: duas etiquetas caem no mesmo lugar | bug (visual) |
+| R13 | `[ ]` | **O kanji 腹 não foi reconhecido** num balão de três colunas | bug (OCR) |
+| R14 | `[ ]` | **A ordem do texto na tradução offline** sai como saía a do Lens antes do R1 | bug (core) |
+| R15 | `[ ]` | **Dar zoom na página com as caixas na tela**, sem perder as marcações | função (picker) |
+| R16 | `[ ]` | **Voltar da lista de dicionários** para a aba em que se estava | função (painel) |
+| R17 | `[ ]` | **Tocar num kanji para ver a leitura dele** — uma opção a mais no ícone flutuante | função (nova) |
+
+### R12 — Tarjas que se sobrepõem  `[x]` (20/10/2026)
+
+**Relato:** com a leitura sobre a página na forma **tarja**, algumas etiquetas aparecem uma em cima da
+outra, e a frase das duas fica ilegível.
+
+**Causa:** a etiqueta era colocada sem saber das outras. `LabelLayout.chip` olhava só para a própria
+caixa e para as bordas da tela: escolhia a direita do balão quando cabia, depois a esquerda, depois
+abaixo, depois acima, e pronto. Dois balões próximos — um acima do outro ou lado a lado — escolhiam a
+mesma faixa da tela, e a segunda etiqueta era desenhada por cima da primeira. Não havia lista nenhuma
+de «já ocupado».
+
+**Correção:** `chip` passa a receber as etiquetas **já colocadas** naquela passagem de desenho
+(`taken: List<Strip>`). A posição preferida continua sendo ao lado do balão; quando ela está ocupada, a
+etiqueta anda **para baixo, em passos de uma etiqueta inteira**, e depois para cima (0, +1, −1, +2, −2,
+até 24 passos), sempre colada ao próprio balão; só quando aquele lado não tem mais espaço é que ela
+troca de lado, na mesma ordem de antes (direita, esquerda, abaixo, acima). Se tudo estiver ocupado,
+vale a regra antiga, presa às bordas da tela: uma etiqueta sobre outra é ruim, uma etiqueta fora da
+tela é pior. `BlockCanvasView` limpa a lista a cada passagem e acrescenta cada etiqueta que desenha.
+
+O que a correção **não** faz: evitar a caixa do balão. A etiqueta continua podendo cobrir o desenho —
+ela é a leitura, e é isso que a tarja é. O que ela não faz mais é cobrir **outra etiqueta**.
+
+**Testes de regressão:** `PickerReadingLayoutTest` — `a strip does not land on the strip already placed`
+(a segunda etiqueta desce uma posição e continua na faixa do próprio balão) e `a crowded page still gets
+every strip on screen` (seis balões a 30 px um do outro, etiquetas de 40 px: todas dentro da tela e
+nenhum par encostado). Os testes antigos da regra — direita, esquerda, abaixo, borda — continuam
+valendo sem mudança. Non-vacuidade **3/3** (`%TEMP%\opencode\r12_nonvacuous.ps1`: lista de etiquetas
+ignorada, etiqueta que nunca anda, bordas da tela não verificadas). `app:testDebugUnitTest` verde com
+**150** testes.
+
+### R13 — O kanji 腹  `[ ]` (em aberto)
+
+**Relato:** num balão de três colunas — `腹が減っては` / `なんとやら…と` / `いうことか？` — a caixa que
+aparece na tela de trechos cobre o balão inteiro, mas o texto dela começa em `なんとやら…と`: a coluna
+da direita, a que começa a frase, ficou de fora. O kanji 腹 não aparece em lugar nenhum.
+
+**O que já se sabe:** não é o app que perde a coluna. `LensResultBuilder` não descarta linha nenhuma:
+monta os `segments` com todas as linhas que o Lens devolveu e `groupIntoBlocks` reparte essas mesmas
+linhas em blocos; a única coisa que sai da frase é o que foi reconhecido como rubi, e rubi é kana puro
+(`RubyGeometry` exige `isKanaOnly`), o que `腹が減っては` não é. Se o Lens tivesse devolvido aquela
+coluna, ela estaria em algum bloco — com caixa própria ou junto do resto do balão. Como não está em
+bloco nenhum, a conclusão é que a coluna não voltou do reconhecedor; a caixa que se vê é só a união das
+outras duas colunas, que por acaso cobre o balão inteiro.
+
+**O que falta para fechar:** confirmar no aparelho, na mesma página, o que o painel mostra ao tocar
+naquele balão (o texto reconhecido com ou sem 腹) e se existe uma caixa fina separada sobre a coluna da
+direita. Com isso se decide entre duas correções: pedir a mesma região outra vez, maior (a captura da
+tela inteira vai ao Lens com 1600 px no lado maior; um recorte daquele balão chega lá com muito mais
+detalhe), ou aceitar que é limite do reconhecedor e deixar o caminho do recorte documentado no README.
+
+---
+
 ## Notas de ordem
 
 - B1 antes de tudo: é regressão visual e esconde um botão.

@@ -124,6 +124,9 @@ private class BlockCanvasView(context: Context) : View(context) {
      */
     private val strips = HashMap<Int, RectF>()
 
+    /** Strips already placed in this draw pass, so the next one can be kept off them. */
+    private val placed = ArrayList<Strip>()
+
     private val slop = dpFloat(4f)
     private val radius = dpFloat(4f)
 
@@ -197,7 +200,12 @@ private class BlockCanvasView(context: Context) : View(context) {
         when (mode) {
             PickerReadingMode.OFF -> Unit
             PickerReadingMode.RUBY -> blocks.forEach { drawRuby(canvas, it) }
-            PickerReadingMode.LABEL -> blocks.forEachIndexed { index, block -> drawLabel(canvas, index, block) }
+            PickerReadingMode.LABEL -> {
+                // Fresh each pass: both the hit areas and the strips already placed.
+                placed.clear()
+                strips.clear()
+                blocks.forEachIndexed { index, block -> drawLabel(canvas, index, block) }
+            }
         }
     }
 
@@ -268,7 +276,9 @@ private class BlockCanvasView(context: Context) : View(context) {
             height = chipHeight,
             screenWidth = width,
             screenHeight = height,
+            taken = placed,
         )
+        placed += Strip(chip.left, chip.top, chip.left + chipWidth, chip.top + chipHeight)
         val box = RectF(
             chip.left.toFloat(),
             chip.top.toFloat(),
