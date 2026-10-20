@@ -1061,7 +1061,7 @@ do que estraga mais para o que estraga menos, e só depois as melhorias.
 | R2 | `[x]` | **A leitura não aparece sobre a página** (na tela de trechos, sem tocar em nada) | função (picker) |
 | R3 | `[x]` | **«Perguntar sempre» não abre** o app escolhido: a lista agora é do app | bug |
 | R4 | `[ ]` | O **puxão para o ✕** mal se sente; tem de ser como no Messenger | bug (fácil) |
-| R5 | `[ ]` | O exemplo dos ajustes mostra só `聞（き）` e não `職員（しょくいん）` | detalhe visual |
+| R5 | `[x]` | O exemplo dos ajustes mostra só `聞（き）` e não `職員（しょくいん）` | detalhe visual |
 | R6 | `[ ]` | **Botões do painel desorganizados**, com linhas de larguras diferentes | melhoria |
 | R7 | `[ ]` | **Captura em guia anônima**: verificar se é possível e, se for, deixar como opção | investigação |
 | R8 | `[x]` | **Texto de uma coluna só não recebe caixa** (`やばい!!`, `わかった`, `なにぃ!!`) | bug (fácil) |
@@ -1262,10 +1262,24 @@ pelo listener de toque de verdade, a bolha encolhe durante o arrasto e volta a 1
 Non-vacuidade **5/5** (`%TEMP%\opencode\r4_nonvacuous.ps1`: curva quadrática de volta, sem o encaixe
 no ✕, alcance de volta a 2×, sem encolhimento, encolhimento não desfeito ao soltar).
 
-### R5 — O exemplo dos ajustes  `[ ]` (20/10/2026)
+### R5 — O exemplo dos ajustes  `[x]` (20/10/2026)
 
-O texto do ajuste é `Mostrar a leitura dos kanji — 職員さんに聞（き）いた`: anota só o 聞 e deixa o 職員
-sem leitura, ao contrário do que o app faz. Passa a `職員（しょくいん）さんに聞（き）いた`.
+O texto do ajuste era `Mostrar a leitura dos kanji — 職員さんに聞（き）いた`: anotava só o 聞 e deixava o
+職員 sem leitura, ao contrário do que o app faz — e ao contrário do ajuste logo acima, que mostra
+`職員（しょくいん）`. Num celular o exemplo **é** a explicação do ajuste; um exemplo que contradiz o
+comportamento ensina o contrário.
+
+**Correção.** `Mostrar a leitura dos kanji — 職員（しょくいん）さんに聞（き）いた`.
+
+**Testes de regressão:** `SettingExampleTest` (2) lê o recurso de verdade e trata o exemplo como uma
+regra, não como uma cópia: **toda** palavra escrita em kanji na frase do exemplo tem de estar seguida
+da leitura entre parênteses, e a leitura tem de ser kana — o teste falha se o exemplo voltar ao antigo
+(`職員` sem leitura), se o 聞 também perder a dele, se a frase for trocada por uma sem kanji (onde «toda
+palavra tem leitura» seria verdade de nada) e se a leitura for escrita em romaji. O segundo teste
+amarra os dois ajustes de furigana à **mesma** frase: `職員（しょくいん）` tem de continuar sendo um
+pedaço de `職員（しょくいん）さんに聞（き）いた`, para os dois exemplos não divergirem. Non-vacuidade
+**5/5** (`%TEMP%\opencode\r5_nonvacuous.ps1`: exemplo antigo, sem nenhuma anotação, frase sem kanji,
+leitura em romaji, exemplos divergentes).
 
 ### R6 — Os botões do painel  `[ ]` (20/10/2026)
 
