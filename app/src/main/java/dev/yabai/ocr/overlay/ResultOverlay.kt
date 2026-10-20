@@ -298,6 +298,23 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     }
 
     /**
+     * Called when the window stops being the one with focus — HOME, the recents screen, another app
+     * coming to the front (R9).
+     *
+     * The panel is not part of any task: pressing HOME sends the reader app behind it to the background
+     * and leaves the panel floating over the launcher until something tells it to go. The focus is the
+     * cheapest such signal — no new permission, no accessibility service — and it exists because the
+     * window is focusable anyway, for the editable text and for BACK.
+     */
+    var onWindowLost: (() -> Unit)? = null
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        // Gaining focus is the panel's normal state; only losing it means the user went elsewhere.
+        if (!hasWindowFocus) onWindowLost?.invoke()
+    }
+
+    /**
      * One step out of the panel, asked for by BACK or by a tap outside the card.
      *
      * The panel is not always the last thing on screen: after a whole-screen capture the boxes are
@@ -432,20 +449,24 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         scroller = scrolling
         card.addView(scrolling, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
 
-        val actions = FlowLayout(context).apply {
-            alignEnd = true
-            setPadding(0, dp(8), 0, 0)
-        }
-        if (canRepick) {
-            // Only offered for a whole-screen capture: it reopens the boxes without paying for
-            // another Lens call, which matters because those are rate limited.
-            actions.addView(
-                context.actionButton(
-                    context.getString(R.string.result_repick),
-                ) { callbacks?.onRepick() },
-                wrapWithMargin(start = 0),
+        // One grid for every action, outputs first: the two «Copiar» and the question are what the
+        // panel is for, and the tools that change the capture come after them. See [ActionGrid].
+        val actions = ActionGrid(context).apply { setPadding(0, dp(10), 0, 0) }
+        btCopyTranslation.visibility = View.GONE
+        actions.add(btCopyOriginal)
+        actions.add(btCopyTranslation)
+        if (canAskAi) {
+            // Right after the copies: it is the answer to the whole sentence, where the two «Copiar»
+            // buttons are the answer to a piece of it.
+            actions.add(
+                context.actionButton(context.getString(R.string.result_ask_ai)) {
+                    callbacks?.onAskAi(originalEditor.text.toString())
+                },
             )
         }
+        actions.add(
+            context.actionButton(context.getString(R.string.result_close)) { callbacks?.onDismiss() },
+        )
         if (image != null) {
             // A toggle: what it does is visible in the layout the moment it is pressed, and the choice
             // is written to the settings so the next panel opens the way the user left this one.
@@ -453,38 +474,23 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 context.getString(R.string.result_image),
                 background = imageButtonBackground(),
             ) { callbacks?.onImageToggle() }
-            actions.addView(imageButton, wrapWithMargin())
+            actions.add(imageButton!!)
+        }
+        if (canRepick) {
+            // Only offered for a whole-screen capture: it reopens the boxes without paying for
+            // another Lens call, which matters because those are rate limited.
+            actions.add(
+                context.actionButton(
+                    context.getString(R.string.result_repick),
+                ) { callbacks?.onRepick() },
+            )
         }
         if (offlineAvailable) {
-            actions.addView(
+            actions.add(
                 context.actionButton(context.getString(R.string.result_retry_offline)) { callbacks?.onRetryOffline() },
-                wrapWithMargin(),
             )
         }
-        actions.addView(
-            context.actionButton(context.getString(R.string.result_close)) { callbacks?.onDismiss() },
-            wrapWithMargin(),
-        )
         card.addView(actions)
-
-        val copies = FlowLayout(context).apply {
-            alignEnd = true
-            setPadding(0, dp(6), 0, 0)
-        }
-        if (canAskAi) {
-            // First in the row: it is the answer to the whole sentence, where the two «Copiar» buttons
-            // are the answer to a piece of it.
-            copies.addView(
-                context.actionButton(context.getString(R.string.result_ask_ai)) {
-                    callbacks?.onAskAi(originalEditor.text.toString())
-                },
-                wrapWithMargin(start = 0),
-            )
-        }
-        copies.addView(btCopyOriginal, wrapWithMargin(start = if (canAskAi) dp(6) else 0))
-        btCopyTranslation.visibility = View.GONE
-        copies.addView(btCopyTranslation, wrapWithMargin())
-        card.addView(copies)
 
         applyFold()
     }
@@ -890,7 +896,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         val picture = image
         if (imageShown && picture != null) {
             row.addView(
-                ImageView(context).apply {
+                CappedImageView(context, ::freeHeightForImage).apply {
                     setImageBitmap(picture)
                     contentDescription = context.getString(R.string.result_image_description)
                     scaleType = ImageView.ScaleType.FIT_CENTER
@@ -898,6 +904,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                     // same few pixels smeared across a third of the panel.
                     adjustViewBounds = true
                     maxWidth = dp(IMAGE_MAX_WIDTH_DP)
+                    // The hard ceiling. [freeHeightForImage] asks for less when the screen is short.
                     maxHeight = dp(IMAGE_MAX_HEIGHT_DP)
                     setPadding(0, dp(2), dp(8), dp(2))
                 },
@@ -1098,17 +1105,43 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * where nothing can reach them. Measuring the neighbours costs one extra pass and cannot go
      * stale. [width] is the width the scroller itself was handed, which is the card's inner width.
      */
-    private fun freeHeightForScroller(width: Int): Int {
-        val available = context.resources.displayMetrics.heightPixels -
+    private fun freeHeightForScroller(width: Int): Int =
+        (availableHeight() - heightOfChrome(except = scroller, width = width))
+            .coerceAtLeast(dp(MIN_CONTENT_DP))
+
+    /**
+     * How tall the captured picture may be.
+     *
+     * It used to be a fixed [IMAGE_MAX_HEIGHT_DP] and the panel simply got taller than the screen when
+     * the rest did not fit — which is what the two-column grid of actions (R6) did on a 640 dp screen:
+     * with the picture at its cap there was no longer any room left to squeeze out of the scrolling
+     * section, and the last row of buttons sat below the bottom edge. The picture is the one part of
+     * the card that can give way without anything becoming unreachable, so it gets what is left once
+     * the header, the text and the actions have taken their share — the same measure-don't-guess rule
+     * as [freeHeightForScroller].
+     */
+    private fun freeHeightForImage(width: Int): Int =
+        (availableHeight() - heightOfChrome(except = textRow, width = width) - dp(MIN_CONTENT_DP))
+            .coerceIn(0, dp(IMAGE_MAX_HEIGHT_DP))
+
+    /** What the panel has to work with: the screen minus the bars it cannot draw over. */
+    private fun availableHeight(): Int =
+        context.resources.displayMetrics.heightPixels -
             systemBarHeight("status_bar_height", fallbackDp = 24) -
             systemBarHeight("navigation_bar_height", fallbackDp = 48) -
             dp(CARD_TOP_MARGIN_DP)
 
+    /**
+     * The height the card spends on everything except [except] (and except the scrolling section, whose
+     * own budget this is). Children are measured here as they would be on screen, so the sum cannot go
+     * stale the way a constant does.
+     */
+    private fun heightOfChrome(except: View?, width: Int): Int {
         var chrome = card.paddingTop + card.paddingBottom
         for (index in 0 until card.childCount) {
             val child = card.getChildAt(index)
-            // Skipped: the scroller, whose budget this is, and anything the user cannot see.
-            if (child === scroller || child.visibility != View.VISIBLE) continue
+            // Skipped: the child being sized, the scroller, and anything the user cannot see.
+            if (child === except || child === scroller || child.visibility != View.VISIBLE) continue
             val params = child.layoutParams as? MarginLayoutParams
             child.measure(
                 MeasureSpec.makeMeasureSpec(
@@ -1119,8 +1152,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             )
             chrome += child.measuredHeight + (params?.topMargin ?: 0) + (params?.bottomMargin ?: 0)
         }
-
-        return (available - chrome).coerceAtLeast(dp(MIN_CONTENT_DP))
+        return chrome
     }
 
     private fun systemBarHeight(name: String, fallbackDp: Int): Int {
@@ -1139,6 +1171,21 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         context: Context,
         private val cap: (width: Int) -> Int,
     ) : ScrollView(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val limit = MeasureSpec.makeMeasureSpec(cap(MeasureSpec.getSize(widthMeasureSpec)), MeasureSpec.AT_MOST)
+            super.onMeasure(widthMeasureSpec, limit)
+        }
+    }
+
+    /**
+     * An [ImageView] whose cap is asked for on every measure pass, for the same reason as
+     * [MaxHeightScrollView]: how much of the picture fits depends on how tall the rest of the card
+     * turned out, and that is only known once the neighbours have been measured.
+     */
+    private class CappedImageView(
+        context: Context,
+        private val cap: (width: Int) -> Int,
+    ) : ImageView(context) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val limit = MeasureSpec.makeMeasureSpec(cap(MeasureSpec.getSize(widthMeasureSpec)), MeasureSpec.AT_MOST)
             super.onMeasure(widthMeasureSpec, limit)
@@ -1229,7 +1276,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         /**
          * How much of the panel the captured image may take. Wide enough for a manga column, short
-         * enough that the text beside it keeps the larger share of the width.
+         * enough that the text beside it keeps the larger share of the width. The height is a ceiling:
+         * on a short screen the picture is shrunk further rather than pushing the buttons off.
          */
         private const val IMAGE_MAX_WIDTH_DP = 120
         private const val IMAGE_MAX_HEIGHT_DP = 200

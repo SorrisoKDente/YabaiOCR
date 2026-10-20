@@ -395,7 +395,8 @@ O que foi feito:
   menos grudaria a leitura no kanji errado.
 - **Dois modos** (`FuriganaMode`): `REMOVE` (padrão) tira a leitura da frase; `PARENTHESES` a mantém onde
   ela foi impressa. É a escolha que o item pedia — «remover o furigana, **ou** manter entre parênteses» — e
-  quem decide é um ajuste na tela principal («Manter o furigana entre parênteses»), que viaja até o
+  quem decide é um ajuste na tela principal («Manter o furigana que a página imprime», chamado então de
+  «Manter o furigana entre parênteses»), que viaja até o
   `LensResultBuilder` pelo `FuriganaMode` do motor. O modo entrou na chave do cache do `LensOcrEngine`
   (`LensKey`) junto com idioma/dimensão/ampliação: ele não muda a *requisição*, mas mudar o ajuste e a
   próxima captura responder com o modo antigo seria pior do que recriar um cliente HTTP.
@@ -502,7 +503,8 @@ O que foi feito:
 - **A escolha do dicionário vale também aqui**: o bloco recebe o mesmo `only` que a consulta e o quadro
   de kanji, então nunca é respondido por um dicionário que a seção de palavras foi mandada ignorar —
   a mesma regra que o M1 prende do outro lado.
-- **Ajuste próprio** («Mostrar a leitura dos kanji»), **ligado** por padrão: é uma ajuda de leitura e
+- **Ajuste próprio** («Escrever no painel a leitura do dicionário», chamado então de «Mostrar a leitura
+  dos kanji»), **ligado** por padrão: é uma ajuda de leitura e
   custa um bloco de uma linha, que dobra. O ajuste do D1 é o outro lado da mesma pergunta — o que fazer
   com a leitura que o Lens **viu**; este é o que fazer com a que **ninguém viu**.
 - **O ML Kit não foi tocado**, pela mesma razão do D1: a leitura do bloco sai do dicionário, que o ML
@@ -1060,12 +1062,12 @@ do que estraga mais para o que estraga menos, e só depois as melhorias.
 | R1 | `[x]` | **Ordem do texto vertical sai trocada** (`肉塊に潰されてる` → `てる潰され内塊に`) | bug (core) |
 | R2 | `[x]` | **A leitura não aparece sobre a página** (na tela de trechos, sem tocar em nada) | função (picker) |
 | R3 | `[x]` | **«Perguntar sempre» não abre** o app escolhido: a lista agora é do app | bug |
-| R4 | `[ ]` | O **puxão para o ✕** mal se sente; tem de ser como no Messenger | bug (fácil) |
+| R4 | `[x]` | O **puxão para o ✕** mal se sente; tem de ser como no Messenger | bug (fácil) |
 | R5 | `[x]` | O exemplo dos ajustes mostra só `聞（き）` e não `職員（しょくいん）` | detalhe visual |
-| R6 | `[ ]` | **Botões do painel desorganizados**, com linhas de larguras diferentes | melhoria |
-| R7 | `[ ]` | **Captura em guia anônima**: verificar se é possível e, se for, deixar como opção | investigação |
+| R6 | `[x]` | **Botões do painel desorganizados**, com linhas de larguras diferentes | melhoria |
+| R7 | `[x]` | **Captura em guia anônima**: verificar se é possível e, se for, deixar como opção | investigação |
 | R8 | `[x]` | **Texto de uma coluna só não recebe caixa** (`やばい!!`, `わかった`, `なにぃ!!`) | bug (fácil) |
-| R9 | `[ ]` | **HOME e apps recentes** devem fechar o painel da tradução | função (janela) |
+| R9 | `[x]` | **HOME e apps recentes** devem fechar o painel da tradução | função (janela) |
 | R10 | `[x]` | **«Perguntar à IA» deve fechar** o painel antes de abrir o app | bug (fácil) |
 | R11 | `[x]` | **A lista de apps mostra Gmail, Bluetooth, «Converter para JPEG»**: esconder o que não é IA nem tradutor | melhoria |
 
@@ -1271,32 +1273,76 @@ comportamento ensina o contrário.
 
 **Correção.** `Mostrar a leitura dos kanji — 職員（しょくいん）さんに聞（き）いた`.
 
-**Testes de regressão:** `SettingExampleTest` (2) lê o recurso de verdade e trata o exemplo como uma
+**Rótulos, depois do teste no aparelho.** A pergunta «qual a diferença entre os dois ajustes?» é a
+resposta: os rótulos não diziam de **onde vinha** cada leitura, e os dois exibiam `職員（しょくいん）`.
+São coisas diferentes — `furiganaInParentheses` decide o que o app faz com a leitura que a **página
+imprime** (ela entra no texto reconhecido, e por isso muda busca e tradução; desligado por padrão),
+enquanto `showFurigana` escreve no painel a leitura que **o dicionário** conhece (não muda a frase
+usada na busca; ligado por padrão) — mas quem lê não tem como saber. Passaram a dizer:
+
+- **«Manter o furigana que a página imprime — 職員（しょくいん）»**;
+- **«Escrever no painel a leitura do dicionário — 職員（しょくいん）さんに聞（き）いた»**.
+
+**Testes de regressão:** `SettingExampleTest` (3) lê o recurso de verdade e trata o exemplo como uma
 regra, não como uma cópia: **toda** palavra escrita em kanji na frase do exemplo tem de estar seguida
 da leitura entre parênteses, e a leitura tem de ser kana — o teste falha se o exemplo voltar ao antigo
 (`職員` sem leitura), se o 聞 também perder a dele, se a frase for trocada por uma sem kanji (onde «toda
 palavra tem leitura» seria verdade de nada) e se a leitura for escrita em romaji. O segundo teste
 amarra os dois ajustes de furigana à **mesma** frase: `職員（しょくいん）` tem de continuar sendo um
-pedaço de `職員（しょくいん）さんに聞（き）いた`, para os dois exemplos não divergirem. Non-vacuidade
-**5/5** (`%TEMP%\opencode\r5_nonvacuous.ps1`: exemplo antigo, sem nenhuma anotação, frase sem kanji,
-leitura em romaji, exemplos divergentes).
+pedaço de `職員（しょくいん）さんに聞（き）いた`, para os dois exemplos não divergirem. O terceiro cobra
+a origem: o rótulo do impresso diz «página», o do painel diz «dicionário» e **só** o primeiro fala em
+página, para os dois não voltarem a ler como sinônimos. Non-vacuidade **5/5**
+(`%TEMP%\opencode\r5_nonvacuous.ps1`: exemplo antigo, sem nenhuma anotação, frase sem kanji, leitura em
+romaji, exemplos divergentes) e **3/3** nos rótulos (`%TEMP%\opencode\r5b_nonvacuous.ps1`: primeiro sem
+«página», segundo sem «dicionário», segundo falando em página).
 
-### R6 — Os botões do painel  `[ ]` (20/10/2026)
+### R6 — Os botões do painel  `[x]` (20/10/2026)
 
-No print, as sete ações do painel caem em quatro linhas de larguras diferentes (3 / 1 / 2 / 1),
-alinhadas à direita, e «Copiar tradução» fica sozinha embaixo. Não se sobrepõem de verdade — o
-`FlowLayout` mede e posiciona bem —, mas o resultado lê como monte. A troca é uma grade de duas colunas
-com botões de largura igual e espaçamento constante, em vez do fluxo alinhado à direita.
+No print, as sete ações do painel caíam em quatro linhas de larguras diferentes (3 / 1 / 2 / 1),
+alinhadas à direita, e «Copiar tradução» ficava sozinha embaixo. Não se sobrepunham de verdade — o
+`FlowLayout` media e posicionava bem —, mas o bloco lia como monte.
 
-### R7 — Guia anônima  `[ ]` (20/10/2026)
+Agora é uma grade de duas colunas de largura igual (`ActionGrid`), com 6 dp entre colunas e entre
+linhas, preenchida da esquerda para a direita e de cima para baixo. A ordem foi refeita pela
+importância: primeiro o que sai do painel — «Copiar original», «Copiar tradução», «Perguntar à IA»,
+«Fechar» —, depois o que muda a captura (imagem, escolher trecho, tentar offline). Um botão que fica
+sozinho na última linha ocupa a linha inteira: meio botão com um buraco ao lado parece botão que não
+carregou, e o vão à direita é o resto do bloco, não um erro.
+
+A grade expôs um limite que já existia. Com a imagem ligada, o painel estourava a tela: o
+`freeHeightForScroller` já media os vizinhos para dar à seção rolável o que sobrava, mas a imagem tinha
+teto fixo de 200 dp e ficava fora dessa conta — numa tela de 640 dp, com a imagem no teto e a linha a
+mais de botões, o chrome passava do orçamento e a última linha caía abaixo da borda. A imagem passa a
+pedir o próprio teto pela mesma regra (`freeHeightForImage`, por um `CappedImageView`): os 200 dp viram
+teto máximo e ela encolhe quando o resto não cabe. É a única parte do cartão que pode ceder sem deixar
+nada inalcançável.
+
+Testes novos em `ActionGridTest` (7): duas por linha na ordem em que foram adicionadas, colunas de
+largura igual, rótulo longo não empurra a coluna vizinha, último ímpar ocupa a linha, ação sozinha
+ocupa a linha, menos ações refluem e as colunas têm vão entre si. A ordem e o encaixe no painel ficam
+em `ResultOverlayLayoutTest` — a lista de ações na ordem em que o usuário as vê, e nenhum par
+sobreposto a 160 px (o teste antigo cobrava que o `FlowLayout` quebrasse linha, o que deixou de ser
+verdade) — e em `ImagePanelTest` (a captura alta não empurra o painel para fora, a imagem não some no
+aperto e numa tela alta ela mantém os 200 dp). Non-vacuidade **6/6**
+(`%TEMP%\opencode\r6_nonvacuous.ps1`: três colunas, sem vão, primeira coluna com o dobro da largura,
+cópias fora do começo da grade, teto fixo da imagem, imagem sem espaço nenhum).
+
+### R7 — Guia anônima  `[x]` (20/10/2026)
 
 Pedido: «verificar se é possível dar permissão de visualização em guia anônima do Google; se for,
 adicionar uma função, deixando claro que não é necessário».
 
-Isto é investigação, não código: no Android não existe permissão para «ver» uma guia anônima. O que
-existe é o `FLAG_SECURE`, com que o próprio app esconde o conteúdo de capturas — e nenhuma permissão de
-usuário o contorna. O resultado esperado é «não é possível», e nesse caso o item fecha com a explicação
-no README, sem botão novo. Só vira função se a investigação achar um caminho real.
+Investigação, sem código novo. No Android não existe permissão para «ver» uma guia anônima. O que
+existe é o `FLAG_SECURE`: quem esconde o conteúdo das capturas é **o app exibido**, e a
+`MediaProjection` devolve aquela janela em branco. Nenhuma permissão de usuário contorna isso — o
+sinalizador é decisão de quem é filmado, não de quem filma. A outra via do sistema é um **serviço de
+acessibilidade**, que lê a árvore de textos da janela em vez de fotografá-la: é outra arquitetura,
+exige uma permissão bem mais invasiva e não resolve o caso deste app — texto desenhado dentro de uma
+imagem (mangá, scan, print) não existe na árvore de textos.
+
+Fechado como «não é possível», sem botão e sem ajuste: a explicação foi para o README («Guia anônima e
+telas que se escondem», no fim de **Precisão**), para o sintoma — `Não foi possível reconhecer o
+texto.` com a página certa na frente — não parecer defeito. Sem teste novo: não houve código.
 
 ### R8 — O texto de uma coluna só não recebe caixa  `[x]` (20/10/2026)
 
@@ -1327,23 +1373,40 @@ coluna, ela sempre vira caixa**.
 (30×34), linha horizontal (240×44), pontinho (10×10), risco comprido e fino (240×10) e lado zero.
 Voltar à regra dos dois lados derruba 2 testes (`r2_nonvacuous.ps1`).
 
-### R9 — HOME e o botão de apps recentes  `[ ]` (20/10/2026)
+### R9 — HOME e o botão de apps recentes  `[x]` (20/10/2026)
 
 Pedido: apertar **HOME** ou o botão que mostra os apps abertos (o «quadrado» do Android, ou o gesto
 equivalente) deve **fechar o painel da tradução**.
 
-Por que hoje não fecha: o painel não é uma tela do app, é uma janela flutuante
+Por que hoje não fechava: o painel não é uma tela do app, é uma janela flutuante
 (`TYPE_APPLICATION_OVERLAY`) desenhada por cima de tudo e criada pelo serviço. O app de baixo (o
 leitor de mangá) vai para segundo plano quando o HOME é apertado, mas a janela flutuante **continua
-lá** — ela não pertence a tarefa nenhuma. Fechar exige um sinal, e o mais barato é a **perda de foco
-da janela**: o launcher e a tela de recentes são janelas do sistema que tomam o foco, e o painel é
-focável (tem o campo de texto). `onWindowFocusChanged(false)` é esse aviso — sem permissão nova e sem
-`AccessibilityService`.
+lá** — ela não pertence a tarefa nenhuma.
 
-O que a implementação tem de resolver: perder o foco também acontece quando outra janela do sistema
-aparece por cima (diálogo de permissão, gaveta de notificações) e quando o próprio app está capturando
-a tela — este último **tem** de ser ignorado, senão o painel fecharia sozinho no meio de uma captura
-ou de uma consulta. O item só fecha com teste que prenda os dois casos.
+Quem fecha é o **foco da janela** (`ResultOverlay.onWindowLost`, chamado de `onWindowFocusChanged`): o
+launcher e a tela de recentes são janelas do sistema que tomam o foco, e o painel é focável (tem o
+campo de texto). Sem permissão nova e sem `AccessibilityService`.
+
+Três cuidados, cada um com o seu teste em `FocusLossTest`:
+
+- **Ganhar** foco não fecha nada — só a perda interessa (`gaining the window focus leaves the panel
+  alone`). Fechar nos dois sentidos tornaria o painel impossível de usar.
+- Perder o foco para a **lista de apps** do «Perguntar à IA» não conta: aquela janela é deste app,
+  desenhada por cima do painel de propósito, e fechá-la tem de voltar ao painel. O controlador só
+  fecha quando não há lista aberta (`the app list taking the focus does not take the panel with it`).
+- Tirar a janela do painel **também tira o foco**: o `hideResult` desarma o ouvinte antes de remover, e
+  a perda de foco que vem depois disso não pode pedir uma segunda dispensa ao serviço (`taking the
+  panel down does not dismiss it a second time`). Sem isso a análise seria cancelada duas vezes e o
+  aviso de «painel fechado» chegaria repetido.
+
+O fechamento passa todo pelo mesmo ponto (`dismissResult`: some o painel, depois avisa o serviço), para
+o botão «Fechar», o ✕ do cabeçalho e a perda de foco não divergirem. A captura não precisa de guarda:
+`hideAllForCapture` já tira o painel antes de fotografar a tela, e o painel do resultado seguinte é
+outra janela.
+
+Non-vacuidade **5/5** (`%TEMP%\opencode\r9_nonvacuous.ps1`: ignorar a perda de foco, fechar mesmo com
+a lista aberta, deixar o ouvinte vivo depois da remoção, fechar também ao ganhar foco, não avisar o
+serviço).
 
 ### R10 — «Perguntar à IA» deve fechar o painel  `[x]` (20/10/2026)
 

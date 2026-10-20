@@ -30,8 +30,8 @@
     <string name="setting_pick_text">Escolher o trecho da tela (como o Google Lens)</string>
     <string name="setting_upscale">Ampliar recortes pequenos (ajuda em letras pequenas)</string>
     <string name="setting_show_image">Mostrar a imagem capturada ao lado do texto</string>
-    <string name="setting_furigana">Manter o furigana entre parênteses — 職員（しょくいん）</string>
-    <string name="setting_furigana_readings">Mostrar a leitura dos kanji — 職員（しょくいん）さんに聞（き）いた</string>
+    <string name="setting_furigana">Manter o furigana que a página imprime — 職員（しょくいん）</string>
+    <string name="setting_furigana_readings">Escrever no painel a leitura do dicionário — 職員（しょくいん）さんに聞（き）いた</string>
     <string name="setting_picker_reading">Leitura sobre a página, na tela de trechos</string>
     <string name="picker_reading_off">Não mostrar</string>
     <string name="picker_reading_ruby">Rubi: a leitura ao lado de cada kanji</string>

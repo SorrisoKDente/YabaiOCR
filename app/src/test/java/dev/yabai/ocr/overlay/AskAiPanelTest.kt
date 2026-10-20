@@ -9,6 +9,7 @@ import android.widget.TextView
 import dev.yabai.ocr.R
 import dev.yabai.ocr.ai.AskAi
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,20 +46,25 @@ class AskAiPanelTest {
         assertTrue("the button showed up with the setting off", question !in without)
     }
 
-    /** It is one more way of taking the text out of the panel, so it sits with the copy buttons. */
+    /**
+     * It is one more way of taking the text out of the panel, so it lives in the same grid as the copy
+     * buttons, and above them the moment the grid reflows (R6).
+     */
     @Test
-    fun `the question is offered next to the copy buttons`() {
+    fun `the question is offered in the grid of copy buttons`() {
         val panel = layout(panel(canAskAi = true), 320)
         val question = button(panel, context.getString(R.string.result_ask_ai))
+        val original = button(panel, context.getString(R.string.result_copy_original))
 
+        assertNotNull("the question is not in the action grid", gridOf(question))
         assertEquals(
-            "the question is not in the row of copy buttons",
-            button(panel, context.getString(R.string.result_copy_original)).parent,
-            question.parent,
+            "the question is not in the same grid as «Copiar original»",
+            gridOf(original),
+            gridOf(question),
         )
         assertTrue(
-            "the question is not the first thing in the row",
-            question.left <= button(panel, context.getString(R.string.result_copy_original)).left,
+            "the question comes after «Copiar original»: ${question.left},${question.top}",
+            question.top < original.top || (question.top == original.top && question.left <= original.left),
         )
     }
 
@@ -308,6 +314,16 @@ class AskAiPanelTest {
     }
 
     private fun labels(root: ViewGroup): List<String> = buttons(root).map { it.text.toString() }
+
+    /** The action grid [view] sits in, or null when it is outside one. */
+    private fun gridOf(view: View): View? {
+        var parent = view.parent
+        while (parent is ViewGroup) {
+            if (parent.tag == ActionGrid.GRID_TAG) return parent
+            parent = parent.parent
+        }
+        return null
+    }
 
     /** The names on the app list, in the order the list shows them. */
     private fun rowLabels(root: ViewGroup): List<String> {

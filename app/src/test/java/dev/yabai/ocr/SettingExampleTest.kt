@@ -10,7 +10,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * The example shown next to «Mostrar a leitura dos kanji».
+ * The example shown next to «Escrever no painel a leitura do dicionário».
  *
  * An example is the whole explanation of a setting on a phone: nobody reads «mostrar a leitura dos
  * kanji» and pictures a gutter of kana, they read the sentence. It showed `職員さんに聞（き）いた` —
@@ -53,8 +53,8 @@ class SettingExampleTest {
 
     /**
      * The two furigana settings describe one sentence: «manter o furigana» keeps what is printed
-     * (`職員（しょくいん）`), «mostrar a leitura» writes the reading where the page had none. The first
-     * is a word of the second, so the pair cannot drift into two different examples.
+     * (`職員（しょくいん）`), «escrever a leitura do dicionário» writes the reading where the page had
+     * none. The first is a word of the second, so the pair cannot drift into two different examples.
      */
     @Test
     fun `the two furigana examples are the same sentence`() {
@@ -64,6 +64,31 @@ class SettingExampleTest {
         assertTrue(
             "the examples have drifted apart: «$kept» is not part of «$shown»",
             shown.contains(kept),
+        )
+    }
+
+    /**
+     * The two settings look alike — both put `職員（しょくいん）` on screen — and were read as
+     * duplicates. What tells them apart is where the reading comes from: the page for the printed
+     * furigana, the dictionary for the panel's. Each label has to say which, and only one of them may
+     * talk about the page.
+     */
+    @Test
+    fun `each furigana setting says where its reading comes from`() {
+        val printed = context.getString(R.string.setting_furigana)
+        val fromDictionary = context.getString(R.string.setting_furigana_readings)
+
+        assertTrue(
+            "«$printed» does not say the reading is the one printed on the page",
+            printed.contains("página"),
+        )
+        assertTrue(
+            "«$fromDictionary» does not say the reading comes from the dictionary",
+            fromDictionary.contains("dicionário"),
+        )
+        assertTrue(
+            "«$fromDictionary» still talks about the page, so it reads as the other setting",
+            !fromDictionary.contains("página"),
         )
     }
 

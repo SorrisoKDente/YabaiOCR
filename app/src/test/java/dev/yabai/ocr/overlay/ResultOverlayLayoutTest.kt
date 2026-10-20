@@ -82,12 +82,23 @@ class ResultOverlayLayoutTest {
         }
     }
 
-    /** A row that does not fit goes onto a second line rather than being cut. */
+    /**
+     * R6: the actions are a grid, so a narrow screen cannot push one button under another or off the
+     * card. At 160 px the labels wrap inside their cells; the cells stay two, side by side.
+     */
     @Test
-    fun `a crowded button row wraps onto another row`() {
+    fun `at a narrow width the actions sit side by side without overlapping`() {
         val panel = layout(captured(), 160)
-        val wrapped = buttonRows(panel).any { row -> row.map { it.top }.distinct().size > 1 }
-        assertTrue("no button row wrapped at 160px", wrapped)
+
+        for (row in buttonRows(panel)) {
+            assertTrue("a row of the grid has ${row.size} buttons", row.size <= 2)
+            if (row.size == 2) {
+                assertTrue(
+                    "two buttons overlap at 160 px: ${row[0].left}..${row[0].right} and ${row[1].left}..${row[1].right}",
+                    row[1].left >= row[0].right,
+                )
+            }
+        }
     }
 
     /** The actions on offer, in the order the user sees them. */
@@ -97,12 +108,12 @@ class ResultOverlayLayoutTest {
         assertEquals(
             listOf(
                 "✕",
-                context.getString(R.string.result_repick),
-                context.getString(R.string.result_retry_offline),
-                context.getString(R.string.result_close),
-                context.getString(R.string.result_ask_ai),
                 context.getString(R.string.result_copy_original),
                 context.getString(R.string.result_copy_translation),
+                context.getString(R.string.result_ask_ai),
+                context.getString(R.string.result_close),
+                context.getString(R.string.result_repick),
+                context.getString(R.string.result_retry_offline),
             ),
             buttonRows(panel).flatten().map { it.text.toString() },
         )

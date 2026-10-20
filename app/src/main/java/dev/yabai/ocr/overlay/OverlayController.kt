@@ -713,6 +713,11 @@ class OverlayController(private val context: Context) {
         resultView?.let { return it }
 
         val panel = ResultOverlay(context).apply {
+            onWindowLost = {
+                // The list of apps is a window of this app, drawn over the panel, and it takes the
+                // focus on purpose: dismissing it has to come back to the panel, not to nothing.
+                if (appPicker == null) dismissResult()
+            }
             callbacks = object : ResultOverlay.Callbacks {
                 override fun onCopyOriginal(text: String) {
                     this@OverlayController.callbacks?.onCopyRequested(text, closeAfter = false)
@@ -748,8 +753,7 @@ class OverlayController(private val context: Context) {
                 }
 
                 override fun onDismiss() {
-                    hideResult()
-                    this@OverlayController.callbacks?.onResultDismissed()
+                    dismissResult()
                 }
             }
         }
@@ -878,12 +882,27 @@ class OverlayController(private val context: Context) {
         return if (id > 0) context.resources.getDimensionPixelSize(id) else dp(24)
     }
 
+    /**
+     * Takes the panel down and says so, in that order: the service stops the analysis and drops the
+     * frame it was holding, which is only worth doing once the panel is really gone.
+     *
+     * Two ways in, one exit: the «Fechar» button and the ✕ of the header on one side, the window losing
+     * focus on the other (R9).
+     */
+    private fun dismissResult() {
+        hideResult()
+        callbacks?.onResultDismissed()
+    }
+
     fun hideResult() {
         // The list of apps belongs to the question the panel is showing: it cannot outlive it.
         hideAppPicker()
         val view = resultView ?: return
-        removeWindow(view)
+        // Disarmed before the window goes: taking a window down also takes its focus, and the panel
+        // must not read that as the user walking away and ask to be dismissed a second time.
+        view.onWindowLost = null
         resultView = null
+        removeWindow(view)
     }
 
     fun isResultVisible(): Boolean = resultView != null

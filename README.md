@@ -63,6 +63,9 @@ Detalhes úteis:
 - Com o **painel de resultado** aberto, a tela pertence ao painel: **VOLTAR** ou um toque fora do
   cartão dá um passo atrás — se o texto veio de «Tela inteira», voltam as caixas; se veio de um
   recorte, o painel fecha. Para chegar à bolha, saia primeiro do painel.
+- **HOME** e a tela de **apps recentes** fecham o painel: ele não pertence a tarefa nenhuma e ficaria
+  flutuando sobre a tela inicial. Quem avisa é o foco da janela, sem permissão nova — a mesma que o
+  painel já usa para o texto editável. A bolha continua onde estava.
 - A faixa de ícones fica centrada sob a bolha; perto da borda ela encosta na tela, e quando não há
   espaço abaixo ela aparece **em cima** da bolha.
 - Na faixa, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.
@@ -72,6 +75,10 @@ Detalhes úteis:
   numa linha só, que passa a mostrar a tradução.
 - **Imagem** no painel põe o recorte capturado ao lado do texto reconhecido, para conferir o kanji
   que o OCR trocou. A escolha fica guardada nos ajustes.
+- Os botões do painel ficam numa **grade de duas colunas de largura igual**, em vez de uma linha que
+  quebrava em pedaços de tamanhos diferentes. A ordem é a do uso: primeiro o que sai do painel (as
+  duas cópias, a pergunta à IA e **Fechar**), depois o que muda a captura (imagem, escolher trecho,
+  tentar offline). O botão que sobra sozinho na última linha ocupa a linha inteira.
 - **Perguntar à IA** copia o texto e abre a app de IA que você escolheu nos ajustes, com a pergunta
   já escrita. Não é uma integração com serviço nenhum: o texto é compartilhado como qualquer outra
   coisa, e quem responde é a app que já está no telefone.
@@ -118,7 +125,7 @@ Não é só feiúra: `しょくいん職員` não existe em dicionário nenhum, 
 inventada no meio da frase. O app reconhece a leitura **pela posição dela na página** (kana finas,
 encostadas num kanji, cobrindo só os caracteres que leem) e faz uma das duas coisas — a sua escolha:
 
-| Ajuste «Manter o furigana entre parênteses» | Resultado |
+| Ajuste «Manter o furigana que a página imprime» | Resultado |
 | --- | --- |
 | **desligado** (padrão) | `職員さんに聞いた` — a leitura sai da frase, que é o que o dicionário e a tradução querem |
 | ligado | `職員（しょくいん）さんに聞いた` — a leitura fica **depois dos kanji que ela lê**, para ler em voz alta |
@@ -184,8 +191,8 @@ Numa frase de verdade, com o JMdict:
   texto inteiro — não é preciso escolher trecho por trecho.
 - Se a leitura **já estiver na frase** (o rubi que o app manteve entre parênteses, ou o que o mangá
   imprimiu), ela não é escrita uma segunda vez.
-- Liga e desliga em **«Mostrar a leitura dos kanji»** (ligado de fábrica). O texto reconhecido é
-  selecionável e copiável, como sempre.
+- Liga e desliga em **«Escrever no painel a leitura do dicionário»** (ligado de fábrica). O texto
+  reconhecido é selecionável e copiável, como sempre.
 
 #### A leitura sobre a página, antes de escolher o trecho
 
@@ -214,7 +221,7 @@ aquele texto saiu:
 
 | O que você toca | O que acontece |
 | --- | --- |
-| **Imagem** (na linha de ações do painel) | O recorte aparece à esquerda do texto reconhecido e o botão fica destacado. Toque de novo para esconder. |
+| **Imagem** (na grade de ações do painel) | O recorte aparece à esquerda do texto reconhecido e o botão fica destacado. Toque de novo para esconder. |
 
 - A escolha é **lembrada** e vale para as próximas capturas; a mesma caixa existe nos ajustes
   («Mostrar a imagem capturada ao lado do texto»). Vem **desligada** de fábrica: o que perde largura
@@ -223,8 +230,10 @@ aquele texto saiu:
   «tela inteira», a imagem é **aquele trecho**, não a tela toda: uma página em miniatura não ajudaria
   a conferir kanji nenhum.
 - O tamanho quem manda é a própria imagem (nunca ampliada, no máximo 120×200 dp), e o texto fica com
-  o que sobra; uma coluna estreita de mangá quase não tira largura do texto. Se o painel estiver
-  dobrado, a imagem some junto com o resto.
+  o que sobra; uma coluna estreita de mangá quase não tira largura do texto. Numa tela baixa a imagem
+  encolhe antes que os botões do painel passem da borda de baixo: ela é a única parte do cartão que
+  pode ceder sem deixar nada fora de alcance. Se o painel estiver dobrado, a imagem some junto com o
+  resto.
 
 ### Escolher o dicionário sem sair do painel
 
@@ -311,7 +320,7 @@ modelo não puder ser baixado, o painel diz exatamente isso em vez de ficar mudo
 
 A tradução do ML Kit resolve a frase; o que ela não resolve é «por que esta palavra está escrita
 assim», «e num mangá, que tom tem isso», «esta gíria existe mesmo». Para isso existe o botão
-**Perguntar à IA**, ao lado das cópias:
+**Perguntar à IA**, logo abaixo das duas cópias na grade do painel:
 
 | O que ele faz | Detalhe |
 | --- | --- |
@@ -398,6 +407,25 @@ Dicas para acertar de primeira:
 - Em mangá vertical, com **Tela inteira** basta tocar no balão: as colunas dele já foram juntadas em um
   trecho só. Com **Selecionar área**, marque o balão inteiro, não uma coluna solta.
 - Se o resultado vier vazio, **Tentar offline** aparece no painel e roda o ML Kit na mesma área.
+
+### Guia anônima e telas que se escondem
+
+Pedido: uma permissão para ler a guia anônima do Google. **Não existe** — e vale explicar por quê,
+porque o sintoma (`Não foi possível reconhecer o texto.` com a página certa na frente) parece defeito.
+
+O Android tem um sinalizador, o `FLAG_SECURE`, com que **o próprio app** pede que a janela dele não
+apareça em capturas de tela: é o que banco usa no extrato e o que app de vídeo usa para não deixar
+gravar o filme. A captura por `MediaProjection` — a mesma permissão que este app recebe quando você
+aceita «Iniciar agora» — entrega a janela marcada **em branco**. Não há permissão de usuário que mude
+isso: quem marca é o app exibido, e só ele pode desmarcar. É bom que seja assim.
+
+O que varia de app para app é se ele marca a guia anônima. Navegador em modo anônimo normalmente
+**não** marca (a captura funciona, é o mesmo mecanismo de sempre); quando a captura volta em branco,
+foi o app que marcou. A outra via que o Android oferece é um **serviço de acessibilidade**, que lê a
+árvore de textos da janela em vez de fotografá-la — mas é outra arquitetura, pede uma permissão bem
+mais invasiva, e não serve ao caso deste app: texto desenhado **dentro de uma imagem** (mangá, scan,
+print) não existe como texto nessa árvore, e é justamente esse texto que o OCR existe para ler. Por
+isso não há botão novo: a limitação é do sistema, não desta app.
 
 ---
 

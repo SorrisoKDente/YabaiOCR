@@ -103,13 +103,13 @@ class ImagePanelTest {
         assertEquals(
             listOf(
                 "✕",
-                context.getString(R.string.result_repick),
-                imageLabel,
-                context.getString(R.string.result_retry_offline),
-                context.getString(R.string.result_close),
-                context.getString(R.string.result_ask_ai),
                 context.getString(R.string.result_copy_original),
                 context.getString(R.string.result_copy_translation),
+                context.getString(R.string.result_ask_ai),
+                context.getString(R.string.result_close),
+                imageLabel,
+                context.getString(R.string.result_repick),
+                context.getString(R.string.result_retry_offline),
             ),
             withImage,
         )
@@ -131,10 +131,27 @@ class ImagePanelTest {
     @Test
     fun `a very tall capture does not push the panel off the screen`() {
         val panel = layout(panel(crop(300, 3000), showImage = true), 320)
+        val picture = picture(panel)!!
 
-        assertTrue("the image is taller than its cap", picture(panel)!!.height <= context.dp(200))
+        assertTrue("the image is taller than its cap", picture.height <= context.dp(200))
         assertTrue(
             "the panel wants ${panel.measuredHeight}px but only ${freeHeight()}px fit",
+            panel.measuredHeight <= freeHeight(),
+        )
+        // R6 gave the panel a fourth row of buttons, and the picture is what makes room for it — but
+        // it must still be a picture: hiding it or shrinking it to nothing would pass the test above.
+        assertTrue("the image was taken away instead of shrunk: ${picture.height}px", picture.height >= context.dp(40))
+    }
+
+    /** On a screen with room to spare the picture keeps its whole cap, grid or no grid. */
+    @Test
+    @Config(qualifiers = "w320dp-h800dp-mdpi")
+    fun `a tall screen gives the picture its full cap`() {
+        val panel = layout(panel(crop(300, 3000), showImage = true), 320)
+
+        assertEquals(context.dp(200), picture(panel)!!.height)
+        assertTrue(
+            "the panel wants ${panel.measuredHeight}px but more fits",
             panel.measuredHeight <= freeHeight(),
         )
     }
