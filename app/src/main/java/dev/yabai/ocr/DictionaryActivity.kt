@@ -249,8 +249,11 @@ class DictionaryActivity : AppCompatActivity() {
             parts.add(getString(R.string.dictionary_release, item.info.revision))
         }
         val attribution = item.info.attribution?.takeIf { it.isNotBlank() }
-        val text = parts.joinToString(" · ")
-        return if (attribution != null) "$text\n${getString(R.string.dictionary_attribution, attribution)}" else text
+        val lines = ArrayList<String>(3)
+        lines.add(parts.joinToString(" · "))
+        if (attribution != null) lines.add(getString(R.string.dictionary_attribution, attribution))
+        if (item.info.outdated) lines.add(getString(R.string.dictionary_outdated))
+        return lines.joinToString("\n")
     }
 
     private fun renderAvailable() {

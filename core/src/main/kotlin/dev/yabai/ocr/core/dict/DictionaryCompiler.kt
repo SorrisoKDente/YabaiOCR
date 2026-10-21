@@ -324,12 +324,20 @@ class DictionaryCompiler(
 
         val glossary = record.get(5)
         if (glossary == null || !glossary.isJsonArray) return
-        val definition = renderDefinition(glossary.asJsonArray)
+        val rendered = GlossaryRenderer.renderGlossary(glossary.asJsonArray)
+        val definition = GlossaryRenderer.renderDefinition(rendered.blocks)
         if (definition.isBlank()) return
 
         val id = accumulator.entryCount
         val flags = Deinflector.flagsOf(rules)
-        accumulator.writeBlob(score, term, reading, tags, definition.take(MAX_DEFINITION_CHARS), flags)
+        accumulator.writeBlob(
+            score,
+            term,
+            reading,
+            mergeTags(tags, rendered.tags),
+            definition.take(MAX_DEFINITION_CHARS),
+            flags,
+        )
         accumulator.addKey(term, id)
         if (reading.isNotBlank() && reading != term) accumulator.addKey(reading, id)
     }
@@ -382,23 +390,17 @@ class DictionaryCompiler(
         return if (parts.isEmpty()) "" else parts.joinToString(" · ")
     }
 
-    private fun renderDefinition(glossary: JsonArray): String {
-        val blocks = GlossaryRenderer.renderGlossary(glossary)
-        if (blocks.isEmpty()) return ""
-        val out = StringBuilder()
-        var sense = 0
-        for (block in blocks) {
-            if (out.isNotEmpty()) out.append('\n')
-            if (block.numbered) {
-                sense++
-                out.append(sense).append(". ").append(block.text)
-            } else {
-                out.append(block.text)
-            }
-        }
-        return out.toString()
+    /**
+     * The tags the record carries plus the ones the renderer found inside the definition, without
+     * repeats: Jitendex keeps the part of speech only in the markup, JMdict only in the record (R19).
+     */
+    private fun mergeTags(record: String, rendered: String): String {
+        val parts = (record.split(' ', ',', '・') + rendered.split('・'))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        return parts.joinToString("・")
     }
-
     private fun JsonArray.stringAt(index: Int): String? {
         val element = get(index) ?: return null
         if (!element.isJsonPrimitive) return null
@@ -500,8 +502,12 @@ class DictionaryCompiler(
     }
 
     companion object {
-        /** Bumped when the on-disk layout changes, so stale imports can be detected. */
-        const val FORMAT_VERSION = 1
+        /**
+         * Bumped when the on-disk layout changes — or when the text baked into it changes, as in R19:
+         * the definitions are rendered once, at import time, so an old copy cannot show the new
+         * rendering until it is imported again. [DictionaryInfo.outdated] is what tells the user.
+         */
+        const val FORMAT_VERSION = 2
 
         private const val MAX_DEFINITION_CHARS = 6000
 

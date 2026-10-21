@@ -56,7 +56,7 @@
     <string name="region_full">Tela inteira</string>
     <string name="region_confirm">Reconhecer</string>
 
-    <string name="picker_hint">Toque em um trecho para copiar ou traduzir</string>
+    <string name="picker_hint">Toque num trecho para copiar ou traduzir · pinça para ampliar</string>
     <string name="picker_all">Texto todo</string>
     <string name="picker_cancel">Cancelar</string>
 
@@ -173,4 +173,5 @@
     <string name="dictionary_download_failed">Falha ao baixar: %1$s</string>
     <string name="dictionary_attribution">Fonte: %1$s</string>
     <string name="dictionary_release">Revisão %1$s</string>
+    <string name="dictionary_outdated">Compilado com uma versão antiga do app: importe este dicionário de novo para ver as definições organizadas.</string>
 </resources>

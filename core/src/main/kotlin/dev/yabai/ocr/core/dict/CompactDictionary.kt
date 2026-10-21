@@ -255,6 +255,7 @@ class CompactDictionary private constructor(
                 attribution = obj.get("attribution")?.asString,
                 termCount = obj.get("termCount")?.asInt ?: 0,
                 kanjiCount = obj.get("kanjiCount")?.asInt ?: 0,
+                compiledWith = obj.get("compiledWith")?.asInt ?: 0,
             )
         }
 

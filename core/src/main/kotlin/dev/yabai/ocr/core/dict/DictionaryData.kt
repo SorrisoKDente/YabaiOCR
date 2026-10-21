@@ -35,7 +35,16 @@ data class DictionaryInfo(
     val attribution: String?,
     val termCount: Int,
     val kanjiCount: Int,
-)
+    /** The [DictionaryCompiler.FORMAT_VERSION] that wrote this copy; 0 when unknown. */
+    val compiledWith: Int = 0,
+) {
+    /**
+     * True when this copy was compiled before the current format. The definitions are baked into the
+     * compiled files, so a fix to how they are written only reaches a dictionary that is imported
+     * again — the app says so instead of looking like the fix did nothing (R19).
+     */
+    val outdated: Boolean get() = compiledWith < DictionaryCompiler.FORMAT_VERSION
+}
 
 /** A hit produced by the tokenizer. */
 data class TokenMatch(

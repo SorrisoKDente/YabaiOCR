@@ -679,7 +679,13 @@ class OverlayController(private val context: Context) {
      *
      * @return false when there is nothing to pick, so the caller can go straight to the result panel.
      */
-    fun showTextPicker(blocks: List<PickerBlock>, mode: PickerReadingMode): Boolean {
+    /**
+     * Draws the boxes over the frozen capture, so the user can pinch the page itself (R15).
+     *
+     * [page] is the screen as it was captured; without it (a caller that only has boxes) the picker
+     * still works, just with nothing to zoom.
+     */
+    fun showTextPicker(blocks: List<PickerBlock>, mode: PickerReadingMode, page: Bitmap?): Boolean {
         if (blocks.isEmpty() || !canDrawOverlays()) return false
         hideTextPicker()
 
@@ -695,7 +701,7 @@ class OverlayController(private val context: Context) {
         // Focusable so BACK cancels the selection instead of reaching the app underneath; while the
         // picker is up the app was not receiving touches anyway.
         if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
-        overlay.show(blocks, mode)
+        overlay.show(blocks, mode, page)
         pickerView = overlay
         return true
     }

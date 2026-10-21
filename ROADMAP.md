@@ -1475,11 +1475,11 @@ um item por vez, e um teste de regressão provado não vazio antes do `[x]`.
 | R12 | `[x]` | **Tarjas se sobrepõem** na opção tarja: duas etiquetas caem no mesmo lugar | bug (visual) |
 | R13 | `[ ]` | **O kanji 腹 não foi reconhecido** num balão de três colunas | bug (OCR) |
 | R14 | `[x]` | **A ordem do texto na tradução offline** sai como saía a do Lens antes do R1 | bug (core) |
-| R15 | `[ ]` | **Dar zoom na página com as caixas na tela**, sem perder as marcações | função (picker) |
+| R15 | `[x]` | **Dar zoom na página com as caixas na tela**, sem perder as marcações | função (picker) |
 | R16 | `[ ]` | **Voltar da lista de dicionários** para a aba em que se estava | função (painel) |
 | R17 | `[ ]` | **Tocar num kanji para ver a leitura dele** — uma opção a mais no ícone flutuante | função (nova) |
 | R18 | `[ ]` | **A lista de apps de IA nos ajustes** deve ser a mesma da aba de tradução | melhoria |
-| R19 | `[ ]` | **Textos do dicionário grudados** (`1-danintransitive1. to be called outNote…`) | melhoria (painel) |
+| R19 | `[x]` | **Textos do dicionário grudados** (`1-danintransitive1. to be called outNote…`) | melhoria (painel) |
 
 ### R12 — Tarjas que se sobrepõem  `[x]` (20/10/2026)
 
@@ -1569,6 +1569,44 @@ tratada como se estivesse na origem). `core:test` **83 / 0 / 2 pulados**, `app:t
 instalado no aparelho. O que está testado é a função que decide a ordem; a ligação no motor são três
 linhas e é verificada no aparelho.
 
+### R15 — Zoom na página  `[x]` (20/10/2026)
+
+**Relato:** na tela de trechos as caixas aparecem sobre a página, mas não há como ampliar o que está
+embaixo. Num mangá denso a leitura impressa é pequena demais para conferir se a caixa pegou a coluna
+certa, e o rubi desenhado fica do tamanho do rubi impresso.
+
+**Por que não era só «escalar a tela»:** o seletor era uma janela transparente por cima do app. A
+página pertence a outro aplicativo; ampliar o desenho do seletor ampliaria as caixas, não o mangá. A
+captura já existe — é ela que foi para o OCR — então o seletor passou a desenhá-la como fundo, como o
+Lens faz: a tela **congela** e é essa imagem que a pinça amplia.
+
+**Como funciona:** página, caixas, rubi e tarjas são desenhados no mesmo sistema de coordenadas (o da
+captura, um pixel por pixel de tela) e um único `Canvas.scale`/`translate` move todos juntos — uma
+caixa não tem como sair de cima do texto, porque não há duas transformações. `PickerZoom` guarda a
+escala (1× a 5×) e o deslocamento com duas regras: **o ponto sob os dedos fica sob os dedos** e **a
+página não descobre a borda da tela** (nada de faixa vazia). Um dedo arrasta a página ampliada; a
+pinça amplia; o toque continua escolhendo o trecho, agora convertido para coordenadas da página
+(`toPageX`/`toPageY`) antes de ser testado contra as caixas e as tarjas. Um arrasto ou uma pinça
+**não** escolhem nada e **não** fecham o seletor — antes, um arrasto caía no «fora» e fechava a tela.
+Em 1× um dedo que treme continua sendo toque: só se começa a arrastar quando há o que arrastar. Cada
+captura nova começa em 1×.
+
+**Testes de regressão:** `PickerZoomTest` (7) — identidade em 1×; a pinça segura o ponto sob os dedos;
+limites 1×/5×; em 1× não há o que arrastar; o arrasto move e o toque é lido na página; a página não
+passa da própria borda; página nova começa em 1×. `TextPickerOverlayTest` (5, Robolectric) — toque
+sobre a caixa depois do zoom acerta a caixa; toque fora fecha; arrasto não escolhe nem fecha;
+tremidinha em 1× ainda é toque; captura nova esquece o zoom. `PickerPageDrawTest` (2, Robolectric em
+modo gráfico nativo) — a página é realmente pintada sob as caixas e amplia junto com elas (um
+quadrado vermelho conhecido é procurado no bitmap desenhado; sem o `Canvas.scale`, ele continua do
+tamanho antigo). Non-vacuidade **7/7** (`%TEMP%\opencode\r15_nonvacuous.py`: sem a transformação, sem
+o desenho da página, toque testado nas coordenadas da janela, arrasto virando toque, zoom antigo
+sobrevivendo à captura nova, pinça sem âncora, página arrastável para fora da borda).
+`app:testDebugUnitTest` **173 / 0**, `core:test` **95 / 0 / 2 pulados**.
+
+**Lacuna aceita:** o gesto em si (`ScaleGestureDetector`) não é simulado — o que está testado é o
+transformador que ele alimenta e o toque que o seletor entrega. O `FloatingOcrService` continua sem
+teste (liga a captura ao seletor), como já era.
+
 ### R18 — A lista de apps de IA nos ajustes  `[ ]`
 
 **Relato:** a lista de aplicativos que aparece **nos ajustes** para escolher quem recebe o texto mostra
@@ -1582,7 +1620,7 @@ critérios, no mesmo app.
 resolve de vez a pergunta «qual dos dois ele vai abrir?». A lista continua guardando o pacote, não o
 nome, como já guarda hoje.
 
-### R19 — O texto do dicionário  `[ ]`
+### R19 — O texto do dicionário  `[x]` (20/10/2026)
 
 **Relato:** os sentidos saem grudados — `1. 1-danintransitive1. to be called outNote passive form of
 呼ぶ` — e o exemplo em japonês encosta na definição (`to be referred to asバラは花の女王と…`). Fica
@@ -1590,20 +1628,51 @@ difícil achar o sentido que interessa.
 
 **Causa:** não é o dicionário, é o `GlossaryRenderer`. Ele achata a árvore `structured-content` do
 Yomitan em texto puro e junta irmãos com `""` (`"li" -> renderChildren(separator = "", …)`), então
-etiqueta gramatical, definição e nota viram uma frase só. E como o resultado é **texto**, o painel não
-tem como desenhar etiqueta, nota e exemplo com pesos diferentes — o que existe é uma `String`.
+etiqueta gramatical, definição e nota viram uma frase só. Pior: o Jitendex guarda o **sentido inteiro**
+dentro de **um item de lista** (`ul[sense-groups] > li[sense-group] > ol > li[sense]`), e o
+renderizador antigo tratava esse item como se fosse uma definição só — daí o `1.` do painel numerar as
+etiquetas e o `1.` do dicionário numerar os sentidos outra vez.
 
-**Proposta** (a confirmar no aparelho, em ordem de custo):
+**O que foi feito:**
 
-1. **Separar**, que é o conserto de verdade: cada item de lista numa linha, nota (`infoGlossary`,
-   `notes`) e exemplo (`examples`) em bloco próprio, e o exemplo sempre depois da definição a que
-   pertence.
-2. **Marcar o tipo de cada bloco** que sai do renderizador (definição, etiqueta, nota, exemplo) em vez
-   de só o texto, para o painel poder desenhar etiqueta em letra pequena e cinza, nota com «ℹ» e
-   exemplo recuado — é o que faz o olho achar o sentido em meio segundo.
-3. **Cabeçalho de entrada mais curto**: termo em negrito, leitura e etiquetas na mesma linha de apoio,
-   sentidos numerados com recuo pendente (a segunda linha do sentido alinha sob a primeira, não sob o
-   número).
+1. **Separar.** O renderizador passou a entender a estrutura real: cada `li[sense]` vira **um bloco
+   numerado** (o painel numera uma vez só), e as definições de um mesmo sentido ficam na mesma linha,
+   separadas por `;` — «to live on (e.g. a salary); to live off; to subsist on». Nota
+   (`li[sense-note]`), exemplo (`li[example-sentence]`) e tradução saem em blocos próprios, **depois**
+   do sentido a que pertencem. Num `li` comum, um filho de bloco (`div`, `ul`, `ol`) começa linha
+   nova; um pedaço de frase (`span`) continua na mesma linha, que é o que mantém o japonês correto.
+2. **Marcar o tipo de cada bloco.** O texto compilado carrega uma gramática de linha: sentido começa
+   com `1. `, nota com `ℹ`, exemplo com `例` e a tradução do exemplo com `→`. O painel lê essa
+   gramática em **`DefinitionStyle`**, num lugar só, e desenha o número em negrito e nota/exemplo
+   menores, em cinza e recuados (`LeadingMarginSpan`) — a segunda linha de um sentido já alinha sob a
+   primeira, pelo recuo pendente do `renderDefinition`.
+3. **Etiquetas no cabeçalho.** A classe gramatical saiu de dentro da definição: o renderizador devolve
+   a lista em separado (`Rendered.tags`), o compilador junta com a etiqueta do registro
+   (`mergeTags`, sem repetir) e o painel a mostra na linha de apoio, ao lado do dicionário
+   («1-dan・transitive · Jitendex»).
+4. **Ruído fora.** O rótulo «Note» e o número da nota de rodapé do Tatoeba (`[1]`) não entram; a
+   atribuição (`JMdict | Tatoeba`) continua de fora. Um `structured-content` com mais de uma parte
+   (entrada + atribuição, como o Jitendex faz) é lido parte por parte — antes o formato antigo caía
+   inteiro no caminho de texto puro.
+
+**Reimportar é necessário.** A definição é gravada como texto no momento da importação; um dicionário
+que já está no aparelho continua com o texto antigo. O selo `compiledWith` subiu para
+`FORMAT_VERSION = 2`, é lido de volta (`DictionaryInfo.outdated`) e a lista de dicionários avisa
+«Compilado com uma versão antiga do app: importe este dicionário de novo…». Recompilar sozinho não dá:
+o `.zip` de origem não é guardado depois da conversão.
+
+**Testes de regressão:** `GlossaryRendererTest` (9) — a entrada real do Jitendex (呼ばれる) com dois
+sentidos, nota, exemplo e tradução, comparada linha a linha; etiquetas fora da definição; nota de
+rodapé fora; glossário de uma string; duas definições do mesmo sentido na mesma linha; nota dentro de
+uma definição em linha própria; lista de definições sem grudar; atribuição ao lado da entrada não
+derruba o formato; limite de sentidos. `DefinitionStyleTest` (6) — onde começa e termina cada marca,
+inclusive depois do japonês (caracteres, não bytes), e texto sem marcas sem estilo.
+`DefinitionPanelTest` (3) — o número em negrito, a nota menor e recuada, a etiqueta na linha de apoio,
+definição sem marcas sem estilo nenhum. `DictionaryMetaTest` (3) e o teste do JMdict passaram a exigir
+o selo de versão. Non-vacuidade **5/5** (`%TEMP%\opencode\r19_nonvacuous.py`: sem a recursão no
+`structured-content` de várias partes, sem a separação de `li`, sem o caso do glossário na mesma
+linha, sem o estilo no painel e sem a linha das etiquetas, cada teste correspondente falha).
+`core:test` **95 / 0 / 2 pulados**, `app:testDebugUnitTest` **159 / 0**.
 
 O que **não** vale a pena: procurar dentro da definição (a busca do app é por palavra, não por texto de
 definição) e ordenar sentidos por frequência (o dicionário já vem na ordem que o autor escolheu).

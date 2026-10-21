@@ -317,7 +317,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
     override fun onRepickRequested() {
         val outcome = lastOutcome ?: return
-        if (!overlays.showTextPicker(pendingPicker, pendingReadingMode)) {
+        if (!overlays.showTextPicker(pendingPicker, pendingReadingMode, lastCrop)) {
             // The boxes are gone (the screen changed, or the service was restarted): fall back to the
             // whole capture, which is still in memory.
             showResultFor(outcome, outcome.text, outcome.lines, canRepick = false, image = lastCrop)
@@ -425,7 +425,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                     if (pendingBlocks.isNotEmpty()) {
                         val mode = settings.pickerReading
                         val picker = pickerBlocks(pendingBlocks, mode)
-                        if (overlays.showTextPicker(picker, mode)) {
+                        if (overlays.showTextPicker(picker, mode, shot)) {
                             pendingPicker = picker
                             pendingReadingMode = mode
                             overlays.hideResult()

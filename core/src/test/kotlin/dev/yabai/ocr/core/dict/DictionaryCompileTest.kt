@@ -45,6 +45,11 @@ class DictionaryCompileTest {
         compiled!!.first.use { jmdict ->
             println("JMdict compiled: ${jmdict.termCount} terms, ${jmdict.kanjiCount} kanji")
             assertTrue("expected a large dictionary", jmdict.termCount > 100_000)
+            assertEquals(
+                "a fresh compile must carry the version it was written with",
+                DictionaryCompiler.FORMAT_VERSION,
+                jmdict.info.compiledWith,
+            )
 
             val yodo = jmdict.termEntries("淀")
             assertFalse("淀 must be in JMdict", yodo.isEmpty())

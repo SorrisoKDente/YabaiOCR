@@ -1,6 +1,7 @@
 package dev.yabai.ocr.overlay
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
@@ -10,22 +11,27 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import dev.yabai.ocr.R
 import dev.yabai.ocr.util.dp
 import dev.yabai.ocr.util.dpFloat
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
 /**
  * Full-screen "pick a piece of the text" overlay, the way Lens works: after a whole-screen capture
- * the recognised paragraphs are drawn as boxes over the live screen, and tapping one sends only that
- * paragraph to the result panel.
+ * the recognised paragraphs are drawn as boxes over the frozen capture, and tapping one sends only
+ * that paragraph to the result panel.
  *
- * The boxes are placed in display pixels and the window covers the whole screen, so a box's
- * coordinates in this view are also its coordinates on screen.
+ * The boxes are placed in display pixels and the capture has one pixel per display pixel, so a box's
+ * coordinates are also its coordinates on the page — which is what lets a pinch scale the drawing of
+ * the page and the boxes with the same transform (R15). Without the frozen page there would be
+ * nothing to zoom: the manga underneath belongs to another app and cannot be magnified from here.
  *
  * When the readings are switched on, they are drawn where the text is: a column of kana to the right
  * of a vertical column, a small line above a horizontal one ([PickerReadingMode.RUBY]), or as a
@@ -96,9 +102,16 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
         )
     }
 
-    fun show(pickerBlocks: List<PickerBlock>, mode: PickerReadingMode) {
+    fun show(pickerBlocks: List<PickerBlock>, mode: PickerReadingMode, page: Bitmap? = null) {
         blocks.setBlocks(pickerBlocks, mode)
+        blocks.setPage(page)
     }
+
+    /** The zoom the boxes are drawn with; the picker's touch tests read it too. */
+    internal val zoomScale: Float get() = blocks.zoomScale
+
+    /** Zooms the picker as a pinch would, for the tests that check what a tap means once zoomed. */
+    internal fun zoomBy(factor: Float, focusX: Float, focusY: Float) = blocks.zoomBy(factor, focusX, focusY)
 }
 
 /**
@@ -117,6 +130,40 @@ private class BlockCanvasView(context: Context) : View(context) {
     private var blocks: List<PickerBlock> = emptyList()
     private var mode = PickerReadingMode.OFF
     private var pressed = -1
+
+    /**
+     * The frozen capture under the boxes (R15). A transparent picker over the live screen cannot
+     * magnify the page — the page belongs to another app — so the picker shows the screen as it was
+     * captured and lets the user pinch that.
+     */
+    private var page: Bitmap? = null
+
+    private val zoom = PickerZoom()
+
+    private val pagePaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
+
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
+    private var lastX = 0f
+    private var lastY = 0f
+
+    /** The finger is dragging the page, so lifting it must not pick the box it happens to be over. */
+    private var dragging = false
+
+    /** A second finger touched down: the gesture is a pinch, never a tap. */
+    private var pinched = false
+
+    private val scaleDetector = ScaleGestureDetector(
+        context,
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                zoom.zoomBy(detector.scaleFactor, detector.focusX, detector.focusY)
+                pressed = -1
+                invalidate()
+                return true
+            }
+        },
+    )
 
     /**
      * Where each strip ended up when it was drawn, so a tap on a strip picks its balloon instead of
@@ -186,11 +233,42 @@ private class BlockCanvasView(context: Context) : View(context) {
         this.mode = mode
         pressed = -1
         strips.clear()
+        // A box is placed for the screen the capture was taken on; a zoom from the previous page
+        // would move it away from its text.
+        zoom.reset(width.toFloat(), height.toFloat())
         invalidate()
+    }
+
+    fun setPage(bitmap: Bitmap?) {
+        page = bitmap
+        invalidate()
+    }
+
+    internal val zoomScale: Float get() = zoom.scale
+
+    internal fun zoomBy(factor: Float, focusX: Float, focusY: Float) {
+        zoom.zoomBy(factor, focusX, focusY)
+        invalidate()
+    }
+
+    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        zoom.reset(width.toFloat(), height.toFloat())
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        // Page, boxes and readings share one coordinate system — the screen as captured — so one
+        // scale moves all of them together and a box can never drift off its text.
+        canvas.save()
+        canvas.translate(zoom.offsetX, zoom.offsetY)
+        canvas.scale(zoom.scale, zoom.scale)
+
+        page?.let { bitmap ->
+            canvas.drawBitmap(bitmap, null, RectF(0f, 0f, width.toFloat(), height.toFloat()), pagePaint)
+        }
+
         for ((index, block) in blocks.withIndex()) {
             val box = RectF(block.rect)
             val hovered = index == pressed
@@ -207,6 +285,7 @@ private class BlockCanvasView(context: Context) : View(context) {
                 blocks.forEachIndexed { index, block -> drawLabel(canvas, index, block) }
             }
         }
+        canvas.restore()
     }
 
     /** The reading beside the characters it belongs to, on every column and row of the page. */
@@ -297,15 +376,58 @@ private class BlockCanvasView(context: Context) : View(context) {
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        scaleDetector.onTouchEvent(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                pressed = hitTest(event.x, event.y)
+                dragging = false
+                pinched = false
+                lastX = event.x
+                lastY = event.y
+                pressed = hitTest(zoom.toPageX(event.x), zoom.toPageY(event.y))
                 invalidate()
                 return true
             }
 
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // A second finger means a pinch: whatever this gesture turns out to be, it is not a tap.
+                pinched = true
+                dragging = false
+                pressed = -1
+                invalidate()
+                return true
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                // The finger that stays continues the pan from where it is. Without this, the next
+                // move would be measured from the finger that just left and the page would jump.
+                val remaining = if (event.actionIndex == 0) 1 else 0
+                lastX = event.getX(remaining)
+                lastY = event.getY(remaining)
+                return true
+            }
+
             MotionEvent.ACTION_MOVE -> {
-                val index = hitTest(event.x, event.y)
+                if (event.pointerCount > 1) {
+                    // The scale detector owns the zoom; a second finger is not a tap either.
+                    lastX = event.x
+                    lastY = event.y
+                    return true
+                }
+                val dx = event.x - lastX
+                val dy = event.y - lastY
+                lastX = event.x
+                lastY = event.y
+                // Only a zoomed page has somewhere to go, so at 1× a wobbly finger is still a tap.
+                if (!dragging && zoom.scale > PickerZoom.MIN && abs(dx) + abs(dy) > touchSlop) {
+                    dragging = true
+                    pressed = -1
+                }
+                if (dragging) {
+                    zoom.panBy(dx, dy)
+                    invalidate()
+                    return true
+                }
+                val index = hitTest(zoom.toPageX(event.x), zoom.toPageY(event.y))
                 if (index != pressed) {
                     pressed = index
                     invalidate()
@@ -314,16 +436,27 @@ private class BlockCanvasView(context: Context) : View(context) {
             }
 
             MotionEvent.ACTION_UP -> {
-                val index = hitTest(event.x, event.y).takeIf { it >= 0 }
-                    ?: stripHit(event.x, event.y)
+                val tapped = !dragging && !pinched
+                val index = if (tapped) {
+                    hitTest(zoom.toPageX(event.x), zoom.toPageY(event.y)).takeIf { it >= 0 }
+                        ?: stripHit(zoom.toPageX(event.x), zoom.toPageY(event.y))
+                } else {
+                    -1
+                }
                 pressed = -1
+                dragging = false
+                pinched = false
                 invalidate()
-                onTapped?.invoke(index)
+                // Lifting the finger after a pan or a pinch is not a choice: it must not pick a box,
+                // and it must not close the picker either.
+                if (tapped) onTapped?.invoke(index)
                 return true
             }
 
             MotionEvent.ACTION_CANCEL -> {
                 pressed = -1
+                dragging = false
+                pinched = false
                 invalidate()
                 return true
             }
@@ -334,6 +467,7 @@ private class BlockCanvasView(context: Context) : View(context) {
     /**
      * The strip of a balloon, when the tap landed on one. A strip is drawn beside its box and can
      * reach outside it, so without this a tap on it would be «outside» and would close the picker.
+     * Both [x] and [y] are page coordinates, the same the strips were laid out in.
      */
     private fun stripHit(x: Float, y: Float): Int {
         for ((index, rect) in strips) {
@@ -349,7 +483,7 @@ private class BlockCanvasView(context: Context) : View(context) {
     /**
      * The smallest box under the finger wins, so a label sitting inside a bigger one stays reachable.
      * Boxes are slightly inflated first: a single line of Latin text is only about twenty pixels tall
-     * and would otherwise be a cruel tap target.
+     * and would otherwise be a cruel tap target. [x] and [y] are page coordinates, not view ones.
      */
     private fun hitTest(x: Float, y: Float): Int {
         var best = -1

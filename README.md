@@ -44,9 +44,12 @@ para ~52 MB.
    - **Ajustes** (controles) e **Encerrar** (✕ vermelho) completam a faixa; os nomes aparecem na
      descrição de cada ícone, para leitores de tela.
 6. Na tela inteira, **toque no trecho** que interessa: só ele vai para o painel (e para a área de
-   transferência). **Texto todo** manda a tela inteira, **Cancelar** desfaz. Quando o painel está
-   aberto, **◀ Trechos** — como o **VOLTAR** do telefone ou um toque fora do cartão — traz as caixas
-   de volta sem gastar outra consulta ao Google. Num recorte, o mesmo gesto **fecha** o painel.
+   transferência). A tela **congela** na captura que acabou de ser lida: **pinça para ampliar** (de
+   1× a 5×) e arraste com um dedo para andar pela página — caixas, rubi e tarjas ampliam junto, então
+   a marcação nunca sai de cima do texto. **Texto todo** manda a tela inteira, **Cancelar** desfaz.
+   Quando o painel está aberto, **◀ Trechos** — como o **VOLTAR** do telefone ou um toque fora do
+   cartão — traz as caixas de volta sem gastar outra consulta ao Google. Num recorte, o mesmo gesto
+   **fecha** o painel.
 7. O texto aparece no painel. Se **Copiar automaticamente** estiver ligado, já foi para a área de
    transferência; senão toque em **Copiar**.
 
@@ -207,11 +210,12 @@ página, antes de você tocar em nada — não tinha leitura nenhuma. Agora tem,
 | **Não mostrar** (padrão) | só as caixas, como antes |
 
 O rubi é fiel ao que o mangá faz, mas numa página inteira a letra fica do tamanho do rubi impresso:
-para ler de perto, use a tarja, o painel ou o zoom do sistema. As duas formas ficam disponíveis para
-você decidir qual prefere. As leituras vêm do dicionário e aparecem só para o que ele conhece — um
-kanji sem palavra e sem entrada de kanji fica sem leitura, como no painel. O rubi custa uma consulta
-por coluna, feita depois do OCR e em segundo plano; se o dicionário não abrir, as caixas aparecem do
-mesmo jeito, só sem leitura.
+para ler de perto, use a tarja, o painel ou **a pinça na própria tela de trechos** — a tela congela na
+captura e um `Canvas.scale` move página, caixas, rubi e tarjas juntos, de 1× a 5×. As duas formas ficam
+disponíveis para você decidir qual prefere. As leituras vêm do dicionário e aparecem só para o que ele
+conhece — um kanji sem palavra e sem entrada de kanji fica sem leitura, como no painel. O rubi custa uma
+consulta por coluna, feita depois do OCR e em segundo plano; se o dicionário não abrir, as caixas
+aparecem do mesmo jeito, só sem leitura.
 
 ### Ver a imagem capturada
 
@@ -309,6 +313,17 @@ Duas ressalvas honestas:
   arquivo sob demanda): cerca de 17 MB para o JMdict, 18 MB para o Jitendex, 21 MB para o JMnedict,
   29 MB para o Wikcionário inglês. Todos juntos passam de 80 MB. Se o celular tiver pouca memória,
   deixe ativos só os que você usa.
+
+A definição é convertida **na importação**. Um dicionário importado antes de uma mudança no formato
+continua com o texto antigo e a lista de dicionários avisa («Compilado com uma versão antiga do
+app…»): importe de novo para ver o texto novo. O app não guarda o `.zip` de origem, então não há como
+reconverter sozinho.
+
+**Como a definição é desenhada.** Sentidos numerados um por linha (`1.`, `2.`), e as definições do
+mesmo sentido juntas, separadas por `;`. Notas (`ℹ`) e exemplos (`例`, com a tradução em `→`) vêm logo
+abaixo do sentido a que pertencem, em letra menor, cinza e recuada. A classe gramatical
+(`1-dan・transitive`) fica na linha de apoio, sob a palavra, junto do nome do dicionário. É o mesmo
+texto que o Jitendex e o JMdict trazem — só separado em vez de grudado.
 
 ### Tradução offline
 

@@ -4,12 +4,19 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.InputType
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextUtils
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan
+import android.text.style.LeadingMarginSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -788,6 +795,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         val details = buildList {
             if (match.reasons.isNotEmpty()) add(match.reasons.joinToString(" + ") { reasonLabel(it) })
+            // Jitendex keeps the part of speech only in the markup; the compiler lifts it out of the
+            // definition and it belongs here, under the headword, where the eye looks for it (R19).
+            if (match.entry.tags.isNotBlank()) add(match.entry.tags)
             add(match.dictionaryTitle)
         }.joinToString(" · ")
         column.addView(
@@ -801,13 +811,44 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             match.entry.definition
         }
         column.addView(
-            textLabel(definition, 14f, context.getColor(R.color.text_primary)).apply {
+            textLabel(styledDefinition(definition), 14f, context.getColor(R.color.text_primary)).apply {
                 setTextIsSelectable(true)
                 setLineSpacing(dp(3).toFloat(), 1f)
                 setPadding(dp(10), 0, 0, 0)
             },
         )
         return column
+    }
+
+    /**
+     * The definition with its senses picked out: the numbering bold, and notes and examples smaller,
+     * greyer and indented under the sense they explain (R19). The marks come from the compiled text
+     * itself — see [DefinitionStyle] — so an old dictionary keeps working, just plainer.
+     */
+    private fun styledDefinition(text: String): CharSequence {
+        val marks = DefinitionStyle.marks(text)
+        if (marks.isEmpty()) return text
+        val styled = SpannableStringBuilder(text)
+        val flag = Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        for (mark in marks) {
+            when (mark.kind) {
+                DefinitionStyle.Kind.NUMBER -> styled.setSpan(
+                    StyleSpan(Typeface.BOLD), mark.start, mark.end, flag,
+                )
+
+                DefinitionStyle.Kind.SECONDARY -> {
+                    styled.setSpan(RelativeSizeSpan(0.92f), mark.start, mark.end, flag)
+                    styled.setSpan(
+                        ForegroundColorSpan(context.getColor(R.color.text_secondary)),
+                        mark.start,
+                        mark.end,
+                        flag,
+                    )
+                    styled.setSpan(LeadingMarginSpan.Standard(dp(14)), mark.start, mark.end, flag)
+                }
+            }
+        }
+        return styled
     }
 
     private fun kanjiView(kanji: KanjiEntry): View = LinearLayout(context).apply {
