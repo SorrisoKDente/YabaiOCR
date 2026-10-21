@@ -37,10 +37,13 @@ para ~52 MB.
 2. (Opcional) Conceda **Notificações** — o Android exige uma notificação enquanto a captura está ativa.
 3. Toque em **Iniciar OCR flutuante** e aceite o aviso de captura de tela do sistema.
 4. Abra o app onde está o texto (mangá, jogo, site…).
-5. Toque na bolha: os quatro ícones do menu aparecem **numa faixa logo abaixo dela**.
+5. Toque na bolha: os **cinco ícones** do menu aparecem **numa faixa logo abaixo dela**.
    - **Tela inteira** (cantos de tela) — reconhece tudo que está na tela e **desenha uma caixa sobre
      cada trecho** encontrado;
    - **Selecionar área** (marcas de corte) — arraste para marcar a região e toque em **Reconhecer**.
+   - **Ler kanji** (漢) — congela a tela e espera você tocar num **kanji**: o cartão mostra a leitura
+     dele naquela frase e as leituras do dicionário de kanji (音/訓), mais as palavras da tela que o
+     usam. A página também amplia com a pinça, como na tela de trechos.
    - **Ajustes** (controles) e **Encerrar** (✕ vermelho) completam a faixa; os nomes aparecem na
      descrição de cada ícone, para leitores de tela.
 6. Na tela inteira, **toque no trecho** que interessa: só ele vai para o painel (e para a área de
@@ -86,7 +89,9 @@ Detalhes úteis:
   já escrita. Não é uma integração com serviço nenhum: o texto é compartilhado como qualquer outra
   coisa, e quem responde é a app que já está no telefone.
 - O nome do dicionário no cabeçalho da seção «Dicionário» abre a lista de dicionários ativos: dá para
-  consultar só um deles (ou **Todos**) sem sair do painel. A escolha também fica guardada.
+  consultar só um deles (ou **Todos**) sem sair do painel. A escolha também fica guardada. Com a lista
+  aberta, o **VOLTAR** (ou um toque fora do cartão) fecha só a lista e deixa o painel onde estava; um
+  segundo VOLTAR é que sai do painel — antes o primeiro já jogava a captura fora.
 - As **leituras** (furigana) que o Lens devolve encostadas nos kanji são reconhecidas e tiradas da frase —
   é o que impede o `しょくいん職員さん` de chegar ao dicionário. Nos ajustes dá para mantê-las onde foram
   impressas: `職員（しょくいん）さん`.
@@ -371,9 +376,11 @@ o aviso não pode ficar escondido atrás do app que está aberto — e o texto j
 transferência.
 
 Nos ajustes, a seção **«6. Perguntar a uma IA»** tem o botão (ligado/desligado), o campo da pergunta —
-apagado, ele manda só o texto — e a app que responde, escolhida de uma lista lida do aparelho. O nome
-da app é lido do telefone, não guardado: se você desinstalar a que tinha escolhido, o ajuste volta
-sozinho a «Perguntar sempre», em vez de apontar para uma app que não está lá.
+apagado, ele manda só o texto — e a app que responde, escolhida de uma lista lida do aparelho. A lista é
+a **mesma** da janela de escolha do painel: **«Automático (só apps de IA)»** por omissão, os apps de IA
+e tradutores, e o rodapé **«Mostrar todos (N)»** para o resto do telefone. O nome da app é lido do
+telefone, não guardado: se você desinstalar a que tinha escolhido, o ajuste volta sozinho a
+«Automático», em vez de apontar para uma app que não está lá.
 
 ---
 
@@ -511,6 +518,8 @@ app/    o app Android
                             resultado (Views puras)
   overlay/FlowLayout.kt     linha de botões que quebra em vez de espremer (painel de resultado)
   overlay/ResultOverlay.kt  o painel; o teto do scroller é medido, não um número fixo
+  overlay/KanjiOverlay.kt   «Ler kanji»: a página congelada, o toque num kanji e o cartão de leituras
+                            (a grade das células vem de core/layout/KanjiGrid.kt)
   service/FloatingOcrService.kt     o serviço que costura tudo
 
   app/src/test/…            testes de layout das telas, com Robolectric (sem aparelho)

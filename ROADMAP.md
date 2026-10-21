@@ -1473,12 +1473,12 @@ um item por vez, e um teste de regressão provado não vazio antes do `[x]`.
 | # | Estado | Item | Dificuldade |
 | --- | --- | --- | --- |
 | R12 | `[x]` | **Tarjas se sobrepõem** na opção tarja: duas etiquetas caem no mesmo lugar | bug (visual) |
-| R13 | `[ ]` | **O kanji 腹 não foi reconhecido** num balão de três colunas | bug (OCR) |
+| R13 | `[x]` | **O kanji 腹 não foi reconhecido** num balão de três colunas | bug (OCR) |
 | R14 | `[x]` | **A ordem do texto na tradução offline** sai como saía a do Lens antes do R1 | bug (core) |
 | R15 | `[x]` | **Dar zoom na página com as caixas na tela**, sem perder as marcações | função (picker) |
-| R16 | `[ ]` | **Voltar da lista de dicionários** para a aba em que se estava | função (painel) |
-| R17 | `[ ]` | **Tocar num kanji para ver a leitura dele** — uma opção a mais no ícone flutuante | função (nova) |
-| R18 | `[ ]` | **A lista de apps de IA nos ajustes** deve ser a mesma da aba de tradução | melhoria |
+| R16 | `[x]` | **Voltar da lista de dicionários** para a aba em que se estava | função (painel) |
+| R17 | `[x]` | **Tocar num kanji para ver a leitura dele** — uma opção a mais no ícone flutuante | função (nova) |
+| R18 | `[x]` | **A lista de apps de IA nos ajustes** deve ser a mesma da aba de tradução | melhoria |
 | R19 | `[x]` | **Textos do dicionário grudados** (`1-danintransitive1. to be called outNote…`) | melhoria (painel) |
 
 ### R12 — Tarjas que se sobrepõem  `[x]` (20/10/2026)
@@ -1511,7 +1511,7 @@ valendo sem mudança. Non-vacuidade **3/3** (`%TEMP%\opencode\r12_nonvacuous.ps1
 ignorada, etiqueta que nunca anda, bordas da tela não verificadas). `app:testDebugUnitTest` verde com
 **150** testes.
 
-### R13 — O kanji 腹  `[ ]` (em aberto)
+### R13 — O kanji 腹  `[x]` (21/10/2026)
 
 **Relato:** num balão de três colunas — `腹が減っては` / `なんとやら…と` / `いうことか？` — a caixa que
 aparece na tela de trechos cobre o balão inteiro, mas o texto dela começa em `なんとやら…と`: a coluna
@@ -1525,11 +1525,13 @@ coluna, ela estaria em algum bloco — com caixa própria ou junto do resto do b
 bloco nenhum, a conclusão é que a coluna não voltou do reconhecedor; a caixa que se vê é só a união das
 outras duas colunas, que por acaso cobre o balão inteiro.
 
-**O que falta para fechar:** confirmar no aparelho, na mesma página, o que o painel mostra ao tocar
-naquele balão (o texto reconhecido com ou sem 腹) e se existe uma caixa fina separada sobre a coluna da
-direita. Com isso se decide entre duas correções: pedir a mesma região outra vez, maior (a captura da
-tela inteira vai ao Lens com 1600 px no lado maior; um recorte daquele balão chega lá com muito mais
-detalhe), ou aceitar que é limite do reconhecedor e deixar o caminho do recorte documentado no README.
+**Fechado:** confirmado corrigido pelo usuário no aparelho, sem mudança de código. A leitura que
+fechou o caso é a que já estava registrada — o reconhecedor é que não devolveu a coluna naquela
+captura, e o app não tinha como inventá-la. Fica valendo o caminho do recorte, que manda a região ao
+Lens com muito mais detalhe do que a tela inteira (1600 px no lado maior): quando um balão sair
+incompleto, **Selecionar área** naquele balão é o que resolve, e o README já diz isso. Se voltar a
+acontecer de forma repetível, a evidência a recolher é a mesma que estava pedida aqui: o texto do
+painel daquele balão e a existência (ou não) de uma caixa fina sobre a coluna que falta.
 
 ### R14 — A ordem do texto na tradução offline  `[x]` (20/10/2026)
 
@@ -1607,18 +1609,113 @@ sobrevivendo à captura nova, pinça sem âncora, página arrastável para fora 
 transformador que ele alimenta e o toque que o seletor entrega. O `FloatingOcrService` continua sem
 teste (liga a captura ao seletor), como já era.
 
-### R18 — A lista de apps de IA nos ajustes  `[ ]`
+### R16 — Voltar da lista de dicionários  `[x]` (21/10/2026)
+
+**Relato:** com a lista de dicionários aberta na seção «Dicionário», o **VOLTAR** fechava o painel
+inteiro — e com ele a captura — em vez de fechar só a lista e deixar o painel onde estava.
+
+**Causa:** a lista de dicionários não é uma tela: é uma fileira de chips desenhada **dentro** da seção
+(`pickerOpen`). O `stepBack()` só conhecia dois degraus — «◀ Trechos» e «Fechar» — e não sabia que a
+lista estava aberta; qualquer BACK ou toque fora do cartão pulava direto para o degrau seguinte.
+
+**Correção:** a lista passou a ser um degrau. `stepBack()` fecha a lista, redesenha a seção com as
+mesmas palavras (`wordsState`, guardado no `renderWords`) e volta — o painel, o texto e a tradução
+ficam exatamente onde estavam. Só o BACK seguinte é que sai do painel, como antes. O `wordsState` é
+esquecido quando chega uma consulta nova (`Working`/`Failed`/`Hidden`) ou um resultado novo: uma lista
+aberta sobre palavras que já não estão na tela seria uma armadilha.
+
+**Testável:** o BACK passou de `setOnKeyListener` para `dispatchKeyEvent` sobrescrito. O motivo não é
+estilo: um key listener num `ViewGroup` não é entregue pelo Robolectric (o `dispatchKeyEvent` volta
+`false` sem nunca chamar o listener), e o botão voltar é exatamente o gesto que este item conserta.
+Com o `dispatchKeyEvent`, o teste aperta o BACK de verdade.
+
+**Testes de regressão:** `ResultOverlayLayoutTest.back closes the dictionary list before leaving the
+panel` — abre a lista pelo controle do cabeçalho, aperta BACK e exige a lista fechada, o painel aberto
+e nenhum «◀ Trechos»/«Fechar»; abre de novo, toca fora do cartão (o mesmo degrau) e exige o mesmo; o
+BACK seguinte, esse sim, pede «◀ Trechos». Non-vacuidade **2/2**
+(`%TEMP%\opencode\r16_nonvacuous.py`: sem o degrau da lista, e sem guardar as palavras para redesenhar,
+o teste falha). `app:testDebugUnitTest` **174 / 0**, `core:test` **95 / 0 / 2 pulados**.
+
+### R17 — Tocar num kanji para ver a leitura  `[x]` (21/10/2026)
+
+**Relato/pedido:** tocar num kanji para ver a leitura dele, como **uma opção a mais** no ícone
+flutuante. Decidido com o usuário: a ação nova na bolha (漢) congela a tela, e o toque num kanji mostra
+**as duas leituras** — a da frase e a do dicionário de kanji (音/訓) — mais as palavras daquela tela que
+usam o kanji.
+
+**O que já existia e foi reaproveitado:** o reconhecedor devolve, além do parágrafo, as **colunas/linhas**
+que o compõem (`OcrPiece`), e o serviço já as posiciona na tela para desenhar rubi (`placeBlocks`). É
+essa geometria que diz onde cada trecho está impresso.
+
+**O que faltava:** o **caractere dentro do trecho**. O reconhecedor não devolve a caixa de cada letra.
+Japonês é composto numa grade de células de largura fixa, então dividir a caixa pelo número de
+caracteres devolve as células: `KanjiGrid` (core) faz isso, e a célula n é `total * n / count` em
+inteiros — as células ladrilham a caixa exatamente, sem buraco nem sobreposição, que é o que faz o
+destaque cair sobre **um** kanji. Coluna é lida de cima para baixo, linha da esquerda para a direita;
+o ponto é preso à ponta do trecho, porque um dedo que passa um pouco do fim ainda está apontando
+aquele trecho.
+
+**Como ficou:**
+
+1. **Menu (漢).** Um quinto item na faixa da bolha. O ícone é o próprio carácter, e não um desenho: um
+   símbolo desenhado não é lido como «um kanji» do jeito que 漢 é. A faixa mede-se antes de se colocar
+   ([`menuAnchor`]), então o quinto ícone não a empurra para fora da tela.
+2. **A captura.** O mesmo caminho de «Tela inteira» (Lens, uma consulta), mas com um destino diferente:
+   em vez de caixas de parágrafo para copiar, os **trechos** viram alvos — sem o mínimo de toque que o
+   seletor de texto aplica, porque aqui o alvo pode ser uma coluna de um kanji só. A página congela e
+   pode ser ampliada com a pinça, como na tela de trechos (R15).
+3. **O toque.** O overlay acha o menor trecho sob o dedo, converte a posição (já sem o zoom) em índice
+   de carácter e avisa o serviço. Se o carácter não for kanji, ele diz «Isso não é um kanji» — calar
+   pareceria um toque quebrado.
+4. **O cartão.** Montado fora da linha principal (abrir dicionário é arquivo, e a consulta é uma
+   passada no índice): a leitura **da frase** vem da palavra que cobre o carácter — a **mais estreita**,
+   porque em 職員 o toque no 職 pergunta por 職員 (しょくいん), não por um pedaço maior que o contenha;
+   as **leituras do dicionário** vêm da entrada de kanji (`kanjiBreakdown`, uma entrada por carácter); e
+   as **palavras da tela** são as que contêm o carácter, sem repetição. O cartão tem ✕, e o ✕ da tela
+   está lá desde o início — uma janela de tela cheia cuja única saída é o VOLTAR é uma armadilha.
+
+**Sobre «compostos mais comuns»:** o dicionário compilado é indexado por **entrada**, não por kanji
+contido; listar os compostos mais comuns de um kanji exigiria um índice novo. O que o cartão mostra é a
+versão honesta da mesma ideia — as palavras que usam aquele kanji **no texto que está na tela**, que
+saem da mesma consulta que já está sendo feita. Se o índice novo fizer falta, fica como pedido separado.
+
+**Testes de regressão:** `core/src/test/kotlin/dev/yabai/ocr/core/layout/KanjiGridTest.kt` (8: coluna,
+linha, primeira e última célula, dedo um pouco fora, ladrilhamento exato, texto vazio);
+`app/src/test/java/dev/yabai/ocr/overlay/KanjiCardTextTest.kt` (7: palavra mais estreita, palavra que não
+cobre, acerto sem leitura, compostos, repetição, limite, leituras aparadas);
+`app/src/test/java/dev/yabai/ocr/overlay/KanjiOverlayTest.kt` (10, Robolectric: toque em coluna,
+destaque na célula certa, toque depois do zoom, toque fora não fecha, arrasto não escolhe, VOLTAR, ✕
+antes de qualquer kanji, cartão completo, cartão sem dicionário, página nova sem cartão);
+`ActionMenuTest` (6: o quinto item, o glifo 漢, cada ícone com a sua ação, a faixa na tela). Non-vacuidade
+**5/5** (`%TEMP%\opencode\r17_nonvacuous.py`: coluna lida em x, palavra mais larga, filtro de compostos,
+item do menu removido, toque em coordenadas da janela em vez da página — todos derrubam um teste).
+`app:testDebugUnitTest` **201 / 0**, `core:test` **103 / 0 / 2 pulados**.
+
+### R18 — A lista de apps de IA nos ajustes  `[x]` (21/10/2026)
 
 **Relato:** a lista de aplicativos que aparece **nos ajustes** para escolher quem recebe o texto mostra
 todo app que responde a um `SEND` — Gmail, Bluetooth, «Converter para JPEG» — enquanto a janela da aba
 de tradução já mostra só IA e tradutor, com uma opção de ver a lista completa (R11). Duas listas, dois
 critérios, no mesmo app.
 
-**O que fazer:** os ajustes passam a usar a mesma fonte da janela de escolha, `AskAi.relevant` e o
-`«Mostrar todos (N)»`, e o ajuste deixa de ser «escolha um app numa lista crua» para ser
-**«Automático (só apps de IA)»** por omissão, com a possibilidade de fixar um app específico — o que
-resolve de vez a pergunta «qual dos dois ele vai abrir?». A lista continua guardando o pacote, não o
-nome, como já guarda hoje.
+**O que foi feito:** os ajustes passaram a desenhar a **mesma lista** da janela de escolha. A forma da
+lista saiu da tela e foi para o `AskAi`, em `AskAi.rows(all, showingAll)`: a primeira linha é sempre
+**«Automático (só apps de IA)»** (o padrão, que na hora de perguntar oferece só a lista curta), depois
+os apps — os de IA e tradutor, ou todos — e, quando o telefone reporta mais apps do que os que estão à
+vista, a linha final **«Mostrar todos (N)»** / **«Só os de IA»**. Escolher um app continua guardando o
+**pacote**, não o nome, e o app fixado aparece na lista mesmo que o filtro não o tivesse escolhido.
+
+Compartilhar a *forma* da lista, e não só o filtro, é o que impede as duas telas de divergirem outra
+vez: o `MainActivity` só traduz cada `Row` para um texto e trata o toque, sem decidir nada.
+
+**Testes de regressão:** `app/src/test/java/dev/yabai/ocr/ai/AskAiSettingsListTest.kt` (6) fixa a lista
+— automático primeiro, curta por omissão, completa com o rodapé, telefone sem app de IA mostrando tudo
+sem rodapé, e o pacote que cada linha entrega. `app/src/test/java/dev/yabai/ocr/AiAppSettingsTest.kt`
+(3 de Robolectric) abre a **tela de ajustes de verdade**, com um telefone de mentira (ChatGPT e Gmail),
+toca no botão e lê os itens do diálogo: «Automático (só apps de IA)», «ChatGPT», «Mostrar todos (2)»;
+toca no rodapé e vê a lista completa com «Só os de IA»; toca em Gmail e confere o pacote guardado.
+Non-vacuidade **3/3** (`%TEMP%\opencode\r18_nonvacuous.py`: sem o filtro, sem o rodapé, e com o
+`MainActivity` voltando à lista crua, os testes falham).
 
 ### R19 — O texto do dicionário  `[x]` (20/10/2026)
 

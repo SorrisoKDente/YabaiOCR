@@ -96,6 +96,39 @@ object AskAi {
         return picked.ifEmpty { all }
     }
 
+    /**
+     * One row of the app list the settings screen draws (R18).
+     *
+     * The same list, read the same way, in the panel and in the settings: the panel had the short
+     * list and a footer to the full one since R11, while the settings still offered Gmail and
+     * Bluetooth in one flat menu. Sharing the *shape* of the list, and not just the filter, is what
+     * keeps the two screens from drifting apart again.
+     */
+    sealed interface Row {
+        /** «Automático»: ask, and pick from the short list at that moment. */
+        data object Automatic : Row
+
+        /** One app. */
+        data class App(val target: Target) : Row
+
+        /** «Mostrar todos (N)» / «Só os de IA»: the same list, the other half. */
+        data object Toggle : Row
+    }
+
+    /**
+     * The rows of that list: the automatic choice, [all] or the short list, and the footer when the
+     * phone reports more apps than are being shown.
+     */
+    fun rows(all: List<Target>, showingAll: Boolean): List<Row> {
+        val short = relevant(all)
+        val shown = if (showingAll) all else short
+        val rows = ArrayList<Row>(shown.size + 2)
+        rows.add(Row.Automatic)
+        shown.forEach { rows.add(Row.App(it)) }
+        if (all.size > short.size) rows.add(Row.Toggle)
+        return rows
+    }
+
     private fun isAiOrTranslation(target: Target): Boolean {
         val packageName = target.packageName.lowercase()
         if (KNOWN_AI_PACKAGES.any { packageName == it || packageName.startsWith("$it.") }) return true

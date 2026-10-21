@@ -69,6 +69,14 @@ class RecordingCallbacks(private val asked: MutableList<String> = ArrayList()) :
         asked.add("repick")
     }
 
+    override fun onKanjiRequested() {
+        asked.add("kanji")
+    }
+
+    override fun onKanjiTapped(piece: Int, index: Int) {
+        asked.add("kanji $piece/$index")
+    }
+
     override fun onImageToggleRequested() {
         asked.add("image")
     }

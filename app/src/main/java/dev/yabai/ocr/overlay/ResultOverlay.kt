@@ -232,6 +232,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     /** Whether the dictionary chooser is unfolded under the section title. */
     private var pickerOpen = false
 
+    /**
+     * The dictionary answer the chooser was opened from, so closing the chooser can redraw the very
+     * same words instead of asking the app to look them up again (R16).
+     */
+    private var wordsState: WordsState.Done? = null
+
     private val analyseHandler = Handler(Looper.getMainLooper())
 
     /**
@@ -271,14 +277,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         isFocusableInTouchMode = true
         isClickable = true
         setOnClickListener { stepBack() }
-        setOnKeyListener { _, keyCode, event ->
-            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
-                stepBack()
-                true
-            } else {
-                false
-            }
-        }
 
         originalEditor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -322,14 +320,38 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     }
 
     /**
+     * BACK steps out of the panel, one step at a time, instead of leaking to the app underneath —
+     * which is why the window is focusable in the first place. Overriding the dispatch, rather than
+     * hanging a key listener on the view, keeps the step where it can be tested: a key listener on a
+     * `ViewGroup` is not delivered by Robolectric, and the back button is exactly the gesture this
+     * has to answer to (R16).
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+            stepBack()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    /**
      * One step out of the panel, asked for by BACK or by a tap outside the card.
      *
      * The panel is not always the last thing on screen: after a whole-screen capture the boxes are
      * still one tap away, and that is where the user came from. Closing the panel there would throw
      * the capture away and cost another Lens call to get it back, so BACK goes to «◀ Trechos». With
      * nothing behind the panel — a region capture — the same gesture is «Fechar».
+     *
+     * The dictionary chooser is one more step: it is a list over the panel, not a place of its own,
+     * so BACK — or a tap outside the card, which is the same step — closes the list and leaves the
+     * panel, and the words, exactly as they were (R16).
      */
     private fun stepBack() {
+        if (pickerOpen) {
+            pickerOpen = false
+            wordsState?.let { renderWords(it) }
+            return
+        }
         if (canGoBack) callbacks?.onRepick() else callbacks?.onDismiss()
     }
 
@@ -401,6 +423,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         textRow = null
         imageButton = null
         pickerOpen = false
+        wordsState = null
 
         // Before the header: a folded header carries the text itself.
         showText(text)
@@ -613,6 +636,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     fun setWords(state: WordsState) {
         wordsSection.removeAllViews()
+        // A list of dictionaries belongs to the answer it was opened over. A new lookup makes it
+        // stale, so it goes away with the old answer instead of reappearing over the next one (R16).
+        if (state !is WordsState.Done) {
+            pickerOpen = false
+            wordsState = null
+        }
         when (state) {
             is WordsState.Hidden -> applyReading(null)
             is WordsState.Working -> wordsSection.addView(busyRow(context.getString(R.string.dictionary_working)))
@@ -636,6 +665,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // The section can be rebuilt on its own — the chooser opening or closing does that — so it
         // clears itself instead of relying on the caller having done it.
         wordsSection.removeAllViews()
+        // Kept so closing the chooser can redraw these words without another lookup (R16).
+        wordsState = state
 
         // The reading belongs to the sentence above, not to a section of its own: it goes into the
         // recognised text, beside the kanji it reads, the moment the lookup that produced it lands.

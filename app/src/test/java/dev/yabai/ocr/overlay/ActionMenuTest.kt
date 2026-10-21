@@ -3,6 +3,7 @@ package dev.yabai.ocr.overlay
 import android.content.Context
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.TextView
 import dev.yabai.ocr.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -33,34 +34,50 @@ class ActionMenuTest {
             listOf(
                 context.getString(R.string.overlay_full_screen),
                 context.getString(R.string.overlay_select_area),
+                context.getString(R.string.overlay_kanji),
                 context.getString(R.string.overlay_settings),
                 context.getString(R.string.overlay_close_service),
             ),
-            icons(strip).map { it.contentDescription?.toString() },
+            items(strip).map { it.contentDescription?.toString() },
         )
     }
 
-    /** Four icons next to each other, none of them hidden. */
+    /** Five actions next to each other, none of them hidden. */
     @Test
-    fun `the strip shows four icons in a row`() {
+    fun `the strip shows five actions in a row`() {
         val strip = menuWith().buildMenuStrip()
-        assertEquals(4, strip.childCount)
+        assertEquals(5, strip.childCount)
         strip.measure(0, 0)
-        for (icon in icons(strip)) {
-            assertTrue("an icon has no size", icon.layoutParams.width > 0)
-            assertTrue("an icon has no drawing", icon.drawable != null)
+        for (item in items(strip)) {
+            assertTrue("an action has no size", item.layoutParams.width > 0)
+            when (item) {
+                is ImageView -> assertTrue("an icon has no drawing", item.drawable != null)
+                is TextView -> assertEquals("漢", item.text.toString())
+                else -> error("the strip holds something that is not an action")
+            }
         }
+    }
+
+    /** The kanji action is the character itself, and says so out loud for a screen reader. */
+    @Test
+    fun `the kanji action is drawn as the character`() {
+        val strip = menuWith().buildMenuStrip()
+
+        val glyph = items(strip)[2] as TextView
+
+        assertEquals("漢", glyph.text.toString())
+        assertEquals(context.getString(R.string.overlay_kanji), glyph.contentDescription.toString())
     }
 
     /** Each icon has to run its own action — swapping two of them would be invisible otherwise. */
     @Test
     fun `each icon runs its own action`() {
-        val expected = listOf("full screen", "region", "settings", "stop")
+        val expected = listOf("full screen", "region", "kanji", "settings", "stop")
         for ((index, name) in expected.withIndex()) {
             val asked = ArrayList<String>()
             val strip = menuWith(asked).buildMenuStrip()
 
-            icons(strip)[index].performClick()
+            items(strip)[index].performClick()
 
             assertEquals("icon $index", listOf(name), asked)
         }
@@ -111,6 +128,7 @@ class ActionMenuTest {
     private fun menuWith(asked: MutableList<String> = ArrayList()): OverlayController =
         OverlayController(context).apply { callbacks = RecordingCallbacks(asked) }
 
-    private fun icons(strip: ViewGroup): List<ImageView> =
-        (0 until strip.childCount).map { strip.getChildAt(it) as ImageView }
+    /** The strip's actions, in the order they are drawn. */
+    private fun items(strip: ViewGroup): List<android.view.View> =
+        (0 until strip.childCount).map { strip.getChildAt(it) }
 }

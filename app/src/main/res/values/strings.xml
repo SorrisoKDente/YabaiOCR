@@ -42,10 +42,11 @@
     <string name="stop_button">Parar OCR flutuante</string>
 
     <string name="howto_title">Como usar</string>
-    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha um dos ícones que aparecem abaixo dela: «Tela inteira», «Selecionar área», «Ajustes» ou «Encerrar».\n• Em «Tela inteira», as caixas marcam cada trecho: toque em um deles para copiar/traduzir só aquilo, ou em «Texto todo».\n• Em «Selecionar área», arraste para marcar a região e confirme.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto e gruda na borda mais próxima.\n• Para desligar, arraste a bolha até o ✕ no centro de baixo e confirme.\n• No painel, o chevron de uma seção recolhe só aquela seção; o do cabeçalho deixa o painel numa linha só, com a tradução à vista.</string>
+    <string name="howto_body">• Toque em «Iniciar OCR flutuante» e aceite a captura de tela.\n• Abra o app onde está o texto em japonês (mangá, jogo, site…).\n• Toque na bolha e escolha um dos ícones que aparecem abaixo dela: «Tela inteira», «Selecionar área», «Ler kanji», «Ajustes» ou «Encerrar».\n• Em «Tela inteira», as caixas marcam cada trecho: toque em um deles para copiar/traduzir só aquilo, ou em «Texto todo».\n• Em «Selecionar área», arraste para marcar a região e confirme.\n• Em «Ler kanji», congele a tela, toque num kanji e veja a leitura dele na frase e no dicionário.\n• O texto aparece no painel; toque em «Copiar».\n\n• Toque longo na bolha abre estes ajustes.\n• A bolha pode ser arrastada para qualquer canto e gruda na borda mais próxima.\n• Para desligar, arraste a bolha até o ✕ no centro de baixo e confirme.\n• No painel, o chevron de uma seção recolhe só aquela seção; o do cabeçalho deixa o painel numa linha só, com a tradução à vista.</string>
 
     <string name="overlay_full_screen">Tela inteira</string>
     <string name="overlay_select_area">Selecionar área</string>
+    <string name="overlay_kanji">Ler kanji</string>
     <string name="overlay_close_service">Encerrar</string>
     <string name="overlay_settings">Ajustes</string>
     <string name="overlay_drop_to_close">Solte aqui para encerrar o OCR flutuante</string>
@@ -59,6 +60,15 @@
     <string name="picker_hint">Toque num trecho para copiar ou traduzir · pinça para ampliar</string>
     <string name="picker_all">Texto todo</string>
     <string name="picker_cancel">Cancelar</string>
+
+    <string name="kanji_hint">Toque num kanji para ver a leitura · pinça para ampliar</string>
+    <string name="kanji_on">音: %1$s</string>
+    <string name="kanji_kun">訓: %1$s</string>
+    <string name="kanji_word_of">de %1$s</string>
+    <string name="kanji_compounds">Nesta tela: %1$s</string>
+    <string name="kanji_not_a_kanji">Isso não é um kanji.</string>
+    <string name="kanji_no_dictionary">Nenhum dicionário de kanji respondeu a este caractere — só a leitura da frase está disponível.</string>
+    <string name="kanji_no_page">Nada legível foi reconhecido nesta tela.</string>
 
     <string name="result_title">Texto reconhecido</string>
     <string name="result_retry_offline">Tentar offline</string>
@@ -144,7 +154,7 @@
     <string name="setting_ai_button">Mostrar o botão «Perguntar à IA» no painel</string>
     <string name="setting_ai_prompt">O que perguntar, antes do texto reconhecido (deixe vazio para enviar só o texto)</string>
     <string name="setting_ai_app">App que responde</string>
-    <string name="ai_app_always">Perguntar sempre (escolher de cada vez)</string>
+    <string name="ai_app_always">Automático (só apps de IA)</string>
     <string name="ai_app_none">Nenhum app instalado aceita texto</string>
     <string name="ai_note">Não é uma integração com nenhum serviço de IA: o app copia o texto reconhecido, monta a pergunta e entrega os dois ao app que você escolher — ChatGPT, Gemini, Copilot, Claude, o que estiver instalado. Não há chave, conta nem custo, e o texto nunca passa por aqui.\n\nO que vai para o app é a pergunta acima seguida do texto. O que fica na área de transferência é o texto sozinho, para colar onde quiser.</string>
 

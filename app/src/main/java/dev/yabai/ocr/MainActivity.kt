@@ -285,18 +285,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun chooseAiApp() {
-        val installed = AskAi.targets(this)
-        if (installed.isEmpty()) {
+        val all = AskAi.targets(this)
+        if (all.isEmpty()) {
             toast(getString(R.string.ai_app_none))
             return
         }
+        showAiApps(all, showingAll = false)
+    }
 
-        val labels = listOf(getString(R.string.ai_app_always)) + installed.map { it.label }
+    /**
+     * The app list, built from [AskAi.rows] — the same list the panel shows (R11, R18).
+     *
+     * The default is the first row: the phone's list of AI and translation apps, offered at the
+     * moment of asking. Fixing one app is still possible; the footer reaches everything else the
+     * phone reports, because a judgement made from a name can be wrong.
+     */
+    private fun showAiApps(all: List<AskAi.Target>, showingAll: Boolean) {
+        val rows = AskAi.rows(all, showingAll)
+        val labels = rows.map { row ->
+            when (row) {
+                AskAi.Row.Automatic -> getString(R.string.ai_app_always)
+                is AskAi.Row.App -> row.target.label
+                AskAi.Row.Toggle -> if (showingAll) {
+                    getString(R.string.result_ask_ai_only_ai)
+                } else {
+                    getString(R.string.result_ask_ai_all, all.size)
+                }
+            }
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.setting_ai_app)
             .setItems(labels.toTypedArray()) { _, which ->
-                settings.aiPackage = if (which == 0) "" else installed[which - 1].packageName
-                refreshAiApp()
+                when (val row = rows[which]) {
+                    AskAi.Row.Automatic -> {
+                        settings.aiPackage = ""
+                        refreshAiApp()
+                    }
+
+                    is AskAi.Row.App -> {
+                        settings.aiPackage = row.target.packageName
+                        refreshAiApp()
+                    }
+
+                    AskAi.Row.Toggle -> showAiApps(all, !showingAll)
+                }
             }
             .show()
     }

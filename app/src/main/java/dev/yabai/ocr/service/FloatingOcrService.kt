@@ -33,9 +33,13 @@ import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.core.dict.LookupEngine
+import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.ocr.OcrDispatcher
 import dev.yabai.ocr.ocr.OcrOutcome
+import dev.yabai.ocr.overlay.KanjiCard
+import dev.yabai.ocr.overlay.KanjiCardText
+import dev.yabai.ocr.overlay.KanjiPiece
 import dev.yabai.ocr.overlay.OverlayController
 import dev.yabai.ocr.overlay.PickerBlock
 import dev.yabai.ocr.overlay.PickerPiece
@@ -104,6 +108,13 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      */
     private var pendingPicker: List<PickerBlock> = emptyList()
     private var pendingReadingMode: PickerReadingMode = PickerReadingMode.OFF
+
+    /** The strips of the last capture, while the kanji reader is on screen (R17). */
+    private var pendingKanji: List<KanjiPiece> = emptyList()
+
+    /** The page as one text, for the «nesta tela» words of the kanji card. */
+    private var pendingKanjiText: String = ""
+
     private var lastOutcome: OcrOutcome? = null
     private var lastForceOffline = false
 
@@ -326,6 +337,30 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
     override fun onRetryOfflineRequested() = requestCapture(lastRegion, forceOffline = true)
 
+    /** «Ler kanji»: the capture is a page to point at, not a text to copy (R17). */
+    override fun onKanjiRequested() = requestCapture(null, kanji = true)
+
+    /**
+     * A finger landed on a character of the frozen page.
+     *
+     * The card is built off the main thread: opening the dictionary is file work, and a lookup is
+     * a pass over an in-memory index. Saying «not a kanji» is the one case answered at once — there
+     * is nothing to look up, and staying silent would read as a broken tap.
+     */
+    override fun onKanjiTapped(piece: Int, index: Int) {
+        val target = pendingKanji.getOrNull(piece) ?: return
+        val character = target.text.getOrNull(index) ?: return
+        if (!JapaneseText.isKanji(character.code)) {
+            toast(getString(R.string.kanji_not_a_kanji))
+            return
+        }
+        val page = pendingKanjiText
+        scope.launch {
+            val card = withContext(Dispatchers.Default) { kanjiCard(target, index, character, page) }
+            overlays.showKanjiCard(card)
+        }
+    }
+
     override fun onResultDismissed() {
         analysisJob?.cancel()
         analysisJob = null
@@ -365,11 +400,17 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         pendingBlocks = emptyList()
         pendingPicker = emptyList()
         pendingReadingMode = PickerReadingMode.OFF
+        pendingKanji = emptyList()
+        pendingKanjiText = ""
     }
 
     // --- capture pipeline ----------------------------------------------------------------------
 
-    private fun requestCapture(region: Rect?, forceOffline: Boolean = false) {
+    private fun requestCapture(
+        region: Rect?,
+        forceOffline: Boolean = false,
+        kanji: Boolean = false,
+    ) {
         if (busy) return
         val session = capture
         if (session == null) {
@@ -415,6 +456,19 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 val outcome = dispatcher.recognize(crop, forceOffline)
                 lastOutcome = outcome
                 lastForceOffline = forceOffline
+
+                // «Ler kanji»: the same capture, but the boxes are strips to point at instead of
+                // paragraphs to copy, and no panel is opened. A page with nothing recognised falls
+                // through to the panel, which at least says what was seen.
+                if (kanji) {
+                    val strips = kanjiPieces(outcome, shot)
+                    if (strips.isNotEmpty() && overlays.showKanji(strips, shot)) {
+                        pendingKanji = strips
+                        pendingKanjiText = outcome.text
+                        overlays.hideResult()
+                        return@launch
+                    }
+                }
 
                 // A whole-screen capture gets the Lens treatment: the recognised paragraphs are drawn
                 // as boxes over the live screen and the user picks one. A region capture already is a
@@ -532,6 +586,111 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 },
             )
         }
+    }
+
+    /**
+     * The strips a finger can point at in the kanji reader (R17).
+     *
+     * Same scaling as [placeBlocks] and one important difference: **no minimum tap size**. The text
+     * picker refuses a box a finger cannot hit, because picking it would be a lottery; here the
+     * smallest strip — a single column, sometimes a single character — is exactly what the user is
+     * aiming at, and the cells inside it are what the tap is measured against.
+     */
+    private fun kanjiPieces(outcome: OcrOutcome, shot: Bitmap): List<KanjiPiece> {
+        val metrics = realDisplayMetrics()
+        val scaleX = metrics.widthPixels.toFloat() / shot.width.coerceAtLeast(1)
+        val scaleY = metrics.heightPixels.toFloat() / shot.height.coerceAtLeast(1)
+
+        fun place(rect: Rect): Rect = Rect(
+            (rect.left * scaleX).roundToInt(),
+            (rect.top * scaleY).roundToInt(),
+            (rect.right * scaleX).roundToInt(),
+            (rect.bottom * scaleY).roundToInt(),
+        )
+
+        return outcome.blocks.flatMap { block ->
+            val strips = block.pieces.mapNotNull { piece ->
+                val box = piece.rect ?: return@mapNotNull null
+                if (piece.text.isBlank()) return@mapNotNull null
+                val placed = place(box)
+                if (placed.width() <= 0 || placed.height() <= 0) return@mapNotNull null
+                KanjiPiece(piece.text, placed, placed.height() >= placed.width())
+            }
+            if (strips.isNotEmpty()) {
+                strips
+            } else {
+                val box = block.rect ?: return@flatMap emptyList()
+                val placed = place(box)
+                if (placed.width() <= 0 || placed.height() <= 0 || block.text.isBlank()) {
+                    emptyList()
+                } else {
+                    listOf(KanjiPiece(block.text, placed, placed.height() >= placed.width()))
+                }
+            }
+        }
+    }
+
+    /**
+     * What the card says about the kanji under the finger.
+     *
+     * Two answers in one card, because they answer different questions: the **reading in this
+     * sentence** comes from the word the character is part of (腹 is はら in 腹が減っては), and the
+     * **dictionary readings** come from the kanji entry itself (音 フク, 訓 はら). A single kanji
+     * looked up cold can only give the second, and a word cannot give the first for a character it
+     * does not cover — which is why both are worth the space.
+     */
+    private fun kanjiCard(target: KanjiPiece, index: Int, character: Char, page: String): KanjiCard {
+        val symbol = character.toString()
+        val repository = DictionaryRepository.get(this)
+        val engine = try {
+            repository.lookupEngine()
+        } catch (t: Throwable) {
+            Log.w(TAG, "kanji lookup failed", t)
+            null
+        }
+        if (engine == null) {
+            return KanjiCard(
+                character = symbol,
+                reading = null,
+                word = null,
+                onYomi = "",
+                kunYomi = "",
+                meaning = "",
+                compounds = emptyList(),
+                note = getString(R.string.kanji_no_dictionary),
+            )
+        }
+
+        val only = repository.resolveFilter(settings.dictionaryFilter)?.let { setOf(it) }.orEmpty()
+        val words = try {
+            engine.lookup(target.text, only = only)
+        } catch (t: Throwable) {
+            Log.w(TAG, "kanji context lookup failed", t)
+            emptyList()
+        }
+        val word = KanjiCardText.wordAt(words, index)
+        val entry = try {
+            engine.kanjiBreakdown(symbol, only = only).firstOrNull()
+        } catch (t: Throwable) {
+            Log.w(TAG, "kanji entry lookup failed", t)
+            null
+        }
+        val others = try {
+            engine.lookup(page, only = only)
+        } catch (t: Throwable) {
+            emptyList()
+        }
+
+        return KanjiCard(
+            character = symbol,
+            reading = word?.reading,
+            word = word?.surface?.takeIf { it != symbol },
+            onYomi = KanjiCardText.onYomi(entry),
+            kunYomi = KanjiCardText.kunYomi(entry),
+            meaning = KanjiCardText.meaning(entry),
+            compounds = KanjiCardText.compounds(others, symbol),
+            note = if (entry == null) getString(R.string.kanji_no_dictionary) else null,
+        )
     }
 
     /**

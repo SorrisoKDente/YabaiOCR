@@ -21,6 +21,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import dev.yabai.ocr.R
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.util.dp
@@ -55,8 +56,14 @@ class OverlayController(private val context: Context) {
         /** The user asked for the whole capture instead of a single box. */
         fun onPickAllRequested()
 
-        /** The user wants the boxes back, to pick a different piece of the same capture. */
+        /** The user wants boxes back, to pick a different piece of the same capture. */
         fun onRepickRequested()
+
+        /** The user wants to read the kanji under a finger, instead of a whole piece of text. */
+        fun onKanjiRequested()
+
+        /** The finger is on character [index] of the [piece] the kanji overlay is showing. */
+        fun onKanjiTapped(piece: Int, index: Int)
 
         /** The user wants the captured image shown beside the text, or hidden again. */
         fun onImageToggleRequested()
@@ -124,6 +131,9 @@ class OverlayController(private val context: Context) {
     /** The recognised text the open [appPicker] is asking about. */
     private var askAiText: String = ""
     private var pickerView: TextPickerOverlay? = null
+
+    /** The kanji reader, when it is on screen (R17). */
+    private var kanjiView: KanjiOverlay? = null
 
     private var downRawX = 0f
     private var downRawY = 0f
@@ -324,11 +334,46 @@ class OverlayController(private val context: Context) {
             strip.addView(icon)
         }
 
+        fun addGlyph(glyph: String, labelRes: Int, action: () -> Unit) {
+            val icon = menuGlyph(glyph, labelRes) {
+                hideMenu()
+                action()
+            }
+            icon.layoutParams = LinearLayout.LayoutParams(menuItemSize, menuItemSize).apply {
+                if (strip.childCount > 0) marginStart = menuItemGap
+            }
+            strip.addView(icon)
+        }
+
         add(R.drawable.ic_menu_whole_screen, R.string.overlay_full_screen) { callbacks?.onFullScreenRequested() }
         add(R.drawable.ic_menu_region, R.string.overlay_select_area) { callbacks?.onRegionRequested() }
+        // A kanji is recognised by its own shape, so the icon is the character itself: no drawing
+        // survives being read as «a kanji» the way 漢 does (R17).
+        addGlyph("漢", R.string.overlay_kanji) { callbacks?.onKanjiRequested() }
         add(R.drawable.ic_menu_settings, R.string.overlay_settings) { callbacks?.onOpenSettingsRequested() }
         add(R.drawable.ic_menu_stop, R.string.overlay_close_service, menuStopColor) { callbacks?.onStopRequested() }
         return strip
+    }
+
+    /** One square button of the action strip whose icon is a glyph instead of a drawable. */
+    private fun menuGlyph(
+        glyph: String,
+        labelRes: Int,
+        onClick: () -> Unit,
+    ): TextView = TextView(context).apply {
+        text = glyph
+        setTextColor(Color.WHITE)
+        textSize = 22f
+        gravity = Gravity.CENTER
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        contentDescription = context.getString(labelRes)
+        isClickable = true
+        isFocusable = true
+        val ripple = TypedValue()
+        if (context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true)) {
+            setBackgroundResource(ripple.resourceId)
+        }
+        setOnClickListener { onClick() }
     }
 
     /** One square icon button of the action strip. */
@@ -712,6 +757,38 @@ class OverlayController(private val context: Context) {
         pickerView = null
     }
 
+    // --- kanji reader --------------------------------------------------------------------------
+
+    /**
+     * The frozen capture with every recognised strip outlined, waiting for a finger (R17).
+     *
+     * The pieces are the same ones the text picker draws, so the page and the boxes share one
+     * coordinate system and the tap is a position in the text, not in the window.
+     */
+    fun showKanji(pieces: List<KanjiPiece>, page: Bitmap?): Boolean {
+        if (pieces.isEmpty() || !canDrawOverlays()) return false
+        hideKanji()
+
+        val overlay = KanjiOverlay(context).apply {
+            onKanjiTapped = { piece, index -> callbacks?.onKanjiTapped(piece, index) }
+            onDismiss = { hideKanji() }
+        }
+        if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
+        overlay.show(pieces, page)
+        kanjiView = overlay
+        return true
+    }
+
+    fun showKanjiCard(card: KanjiCard) {
+        kanjiView?.showCard(card)
+    }
+
+    fun hideKanji() {
+        val view = kanjiView ?: return
+        removeWindow(view)
+        kanjiView = null
+    }
+
     // --- result panel --------------------------------------------------------------------------
 
     private fun ensureResultPanel(): ResultOverlay? {
@@ -925,6 +1002,7 @@ class OverlayController(private val context: Context) {
         hideCloseConfirm()
         hideRegionSelector()
         hideTextPicker()
+        hideKanji()
         hideAppPicker()
         hideResult()
         bubbleView?.visibility = View.GONE
@@ -940,6 +1018,7 @@ class OverlayController(private val context: Context) {
         hideCloseConfirm()
         hideRegionSelector()
         hideTextPicker()
+        hideKanji()
         hideAppPicker()
         hideResult()
         hideBubble()

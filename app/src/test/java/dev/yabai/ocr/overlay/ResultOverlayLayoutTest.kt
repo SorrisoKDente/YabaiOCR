@@ -2,6 +2,7 @@ package dev.yabai.ocr.overlay
 
 import android.content.Context
 import android.os.Looper
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -11,6 +12,8 @@ import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
 import java.time.Duration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -174,6 +177,109 @@ class ResultOverlayLayoutTest {
         assertEquals(emptyList<String>(), asked)
     }
 
+    /**
+     * Regression: the dictionary list is drawn *inside* the panel, over the words. BACK — and a tap
+     * outside the card, which is the same step — used to close the whole panel, throwing the capture
+     * away and costing another Lens call to get it back. The list closes first, and only a second
+     * BACK leaves the panel (R16).
+     */
+    @Test
+    fun `back closes the dictionary list before leaving the panel`() {
+        val panel = layout(panelWithTwoDictionaries(), 320)
+        var repicks = 0
+        var dismissals = 0
+        panel.callbacks = object : ResultOverlay.Callbacks by recordingCallbacks(ArrayList()) {
+            override fun onRepick() {
+                repicks++
+            }
+
+            override fun onDismiss() {
+                dismissals++
+            }
+        }
+
+        openChooser(panel)
+
+        back(panel)
+
+        assertNull(
+            "BACK left the dictionary list open",
+            panel.findViewWithTag<View>(ResultOverlay.DICTIONARY_CHOOSER_TAG),
+        )
+        assertEquals("the panel closed together with the list", 0, repicks)
+        assertEquals(0, dismissals)
+
+        // The tap outside the card is the same step, so it has to close the list too.
+        openChooser(panel)
+        panel.performClick()
+        assertNull(
+            "a tap outside left the dictionary list open",
+            panel.findViewWithTag<View>(ResultOverlay.DICTIONARY_CHOOSER_TAG),
+        )
+        assertEquals(0, repicks)
+
+        back(panel)
+
+        assertEquals("a second BACK steps out of the panel, as before", 1, repicks)
+        assertEquals(0, dismissals)
+    }
+
+    /** Opens the dictionary list the way the user does: the header control under «Dicionário». */
+    private fun openChooser(panel: ResultOverlay) {
+        val picker = labels(panel).firstOrNull {
+            it.contentDescription == context.getString(R.string.dictionary_pick)
+        }
+        assertNotNull("the panel lost its dictionary picker", picker)
+        picker!!.performClick()
+        assertNotNull(
+            "the picker did not open the list",
+            panel.findViewWithTag<View>(ResultOverlay.DICTIONARY_CHOOSER_TAG),
+        )
+    }
+
+    private fun back(view: View) {
+        view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+        view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+    }
+
+    /** A result whose dictionary section can offer a chooser: two dictionaries, nothing selected. */
+    private fun panelWithTwoDictionaries(): ResultOverlay = ResultOverlay(context).apply {
+        showResult(
+            text = "職員",
+            meta = "Google Lens · 1200 ms · ja",
+            notes = emptyList(),
+            offlineAvailable = true,
+            showLines = false,
+            segmentLines = emptyList(),
+            canRepick = true,
+            canAskAi = true,
+        )
+        setWords(
+            ResultOverlay.WordsState.Done(
+                matches = listOf(
+                    TokenMatch(
+                        surface = "職員",
+                        start = 0,
+                        end = 2,
+                        entry = DictionaryEntry(
+                            term = "職員",
+                            reading = "しょくいん",
+                            tags = "n",
+                            rulesFlags = 0,
+                            score = 1,
+                            definition = "funcionário; empregado",
+                        ),
+                        dictionaryTitle = "JMdict",
+                        reasons = emptyList(),
+                    ),
+                ),
+                kanji = emptyList(),
+                dictionaryCount = 2,
+                titles = listOf("JMdict", "Jitendex"),
+            ),
+        )
+    }
+
     // --- the panel under test -------------------------------------------------------------------
 
     /**
@@ -260,6 +366,21 @@ class ResultOverlayLayoutTest {
             return null
         }
         return find(root) ?: error("the panel has no editable text")
+    }
+
+    /** Every label under [root], in the order it was added, so a test can look for the one it means. */
+    private fun labels(root: ViewGroup): List<TextView> {
+        val found = ArrayList<TextView>()
+        fun walk(group: ViewGroup) {
+            for (index in 0 until group.childCount) {
+                when (val child = group.getChildAt(index)) {
+                    is TextView -> found.add(child)
+                    is ViewGroup -> walk(child)
+                }
+            }
+        }
+        walk(root)
+        return found
     }
 
     /** A [ResultOverlay.Callbacks] that only remembers what it was asked for. */
