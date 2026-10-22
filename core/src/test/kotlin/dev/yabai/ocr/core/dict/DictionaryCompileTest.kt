@@ -199,6 +199,7 @@ class DictionaryCompileTest {
             "JMdict_english.zip",
             "JMdict_english_without_proper_names.zip",
             "jitendex-yomitan.zip",
+            "ggjz-jitendex-ptbr.zip",
             "JMnedict.zip",
             "KANJIDIC_english.zip",
             "KANJIDIC_portuguese.zip",
@@ -296,6 +297,126 @@ class DictionaryCompileTest {
             val matches = engine.lookup("彼は毎日りんごを食べます。")
             println("Jitendex segmentation: ${matches.map { "${it.surface}=${it.entry.term}" }}")
             assertTrue(matches.any { it.entry.term == "食べる" })
+        }
+    }
+
+    @Test
+    fun `imports the portuguese jitendex from ggjz`() {
+        val compiled = compileInto("ggjz-jitendex-ptbr.zip")
+        assumeTrue("ggjz fixture not available", compiled != null)
+        compiled!!.first.use { pt ->
+            println("Jitendex PT-BR compiled: ${pt.termCount} terms, title «${pt.info.title}»")
+            assertTrue("expected the whole Jitendex word list, got ${pt.termCount}", pt.termCount > 200_000)
+            assertTrue(
+                "this must be the translated build, not the English one: ${pt.info.title}",
+                pt.info.title.startsWith("Jitendex PT-BR"),
+            )
+
+            val japan = pt.termEntries("日本").firstOrNull()
+            assertNotNull("日本 must be in the dictionary", japan)
+            println("日本 -> ${japan!!.reading} : ${japan.definition.take(160)}")
+            assertTrue(
+                "the definition is not the Portuguese one: ${japan.definition.take(160)}",
+                japan.definition.contains("Japão"),
+            )
+
+            val engine = LookupEngine(listOf(pt))
+            val matches = engine.lookup("私は日本語を勉強します。")
+            println("PT-BR segmentation: ${matches.map { "${it.surface}=${it.entry.term}" }}")
+            assertTrue(
+                "expected 日本語, got ${matches.map { it.entry.term }}",
+                matches.any { it.entry.term == "日本語" },
+            )
+        }
+    }
+
+    /**
+     * R31: the search box's suggestions.
+     *
+     * A real dictionary is the only honest fixture here: the suggestion path walks the compiled key
+     * index, where headwords and readings share one sorted list. 日本 has to offer other words that
+     * begin that way, and the query itself is already the answer above the row.
+     */
+    @Test
+    fun `suggestions follow a typed prefix in headwords and readings`() {
+        val compiled = compileInto("ggjz-jitendex-ptbr.zip")
+        assumeTrue("ggjz fixture not available", compiled != null)
+        compiled!!.first.use { pt ->
+            val engine = LookupEngine(listOf(pt))
+
+            val suggestions = engine.suggest("日本")
+            println("日本 -> $suggestions")
+            assertTrue("expected 日本語 among $suggestions", suggestions.contains("日本語"))
+            assertTrue("expected 日本人 among $suggestions", suggestions.contains("日本人"))
+            assertFalse("the query is the result, not a suggestion", suggestions.contains("日本"))
+
+            val limited = engine.suggest("日本", maxSuggestions = 3)
+            assertEquals("the answer size was not respected: $limited", 3, limited.size)
+            assertEquals("the answer has no duplicates: $limited", limited.distinct(), limited)
+
+            // A reading is a key as well: typing kana reaches the same compounds, while 日本 itself
+            // is the answer the search box already shows above the suggestions.
+            val byReading = engine.suggest("にほん")
+            println("にほん -> $byReading")
+            assertTrue("expected 日本語 among $byReading", byReading.contains("日本語"))
+            assertFalse("the exact reading is the answer, not a suggestion", byReading.contains("日本"))
+
+            assertTrue("nothing can be suggested for an empty query", engine.suggest("").isEmpty())
+        }
+    }
+
+    /** R31: a suggestion may not come from a dictionary the user left out. */
+    @Test
+    fun `suggestions consult only the chosen dictionaries`() {
+        val words = compileInto("JMdict_english_without_proper_names.zip")
+        val kanji = compileInto("KANJIDIC_english.zip")
+        assumeTrue("dictionary fixtures not available", words != null && kanji != null)
+
+        words!!.first.use { jmdict ->
+            kanji!!.first.use { kanjidic ->
+                val engine = LookupEngine(listOf(jmdict, kanjidic))
+                val wordTitle = jmdict.info.title
+                val kanjiTitle = kanjidic.info.title
+
+                val fromWords = engine.suggest("日本", only = setOf(wordTitle))
+                println("日本 (JMdict only) -> $fromWords")
+                assertTrue("expected 日本語 among $fromWords", fromWords.contains("日本語"))
+                assertTrue(
+                    "a kanji dictionary has no headwords to suggest",
+                    engine.suggest("日本", only = setOf(kanjiTitle)).isEmpty(),
+                )
+            }
+        }
+    }
+
+    /**
+     * R31: a whole query is a word before it is a sentence.
+     *
+     * にほん must answer 日本; segmenting it as a sentence would answer the particle に. A conjugated
+     * query has no whole-word answer, and then the deinflector is still what makes it useful.
+     */
+    @Test
+    fun `the search answers a whole word before segmenting it`() {
+        val compiled = compileInto("ggjz-jitendex-ptbr.zip")
+        assumeTrue("ggjz fixture not available", compiled != null)
+        compiled!!.first.use { pt ->
+            val engine = LookupEngine(listOf(pt))
+
+            val byReading = engine.search("にほん")
+            println("search にほん -> ${byReading.map { "${it.surface}=${it.entry.term}" }}")
+            assertEquals(1, byReading.size)
+            assertEquals("日本", byReading[0].entry.term)
+            assertEquals("the query itself is the surface", "にほん", byReading[0].surface)
+
+            val byKanji = engine.search("日本")
+            assertEquals("日本", byKanji.firstOrNull()?.entry?.term)
+
+            val inflected = engine.search("食べました")
+            println("search 食べました -> ${inflected.map { "${it.surface}=${it.entry.term}" }}")
+            assertTrue(
+                "expected 食べる, got ${inflected.map { it.entry.term }}",
+                inflected.any { it.entry.term == "食べる" },
+            )
         }
     }
 

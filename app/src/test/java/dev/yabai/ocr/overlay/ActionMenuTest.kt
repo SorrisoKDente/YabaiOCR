@@ -35,6 +35,7 @@ class ActionMenuTest {
                 context.getString(R.string.overlay_full_screen),
                 context.getString(R.string.overlay_select_area),
                 context.getString(R.string.overlay_kanji),
+                context.getString(R.string.overlay_dictionary),
                 context.getString(R.string.overlay_settings),
                 context.getString(R.string.overlay_close_service),
             ),
@@ -42,11 +43,11 @@ class ActionMenuTest {
         )
     }
 
-    /** Five actions next to each other, none of them hidden. */
+    /** Six actions next to each other, none of them hidden. */
     @Test
-    fun `the strip shows five actions in a row`() {
+    fun `the strip shows six actions in a row`() {
         val strip = menuWith().buildMenuStrip()
-        assertEquals(5, strip.childCount)
+        assertEquals(6, strip.childCount)
         strip.measure(0, 0)
         for (item in items(strip)) {
             assertTrue("an action has no size", item.layoutParams.width > 0)
@@ -72,7 +73,7 @@ class ActionMenuTest {
     /** Each icon has to run its own action — swapping two of them would be invisible otherwise. */
     @Test
     fun `each icon runs its own action`() {
-        val expected = listOf("full screen", "region", "kanji", "settings", "stop")
+        val expected = listOf("full screen", "region", "kanji", "dictionary", "settings", "stop")
         for ((index, name) in expected.withIndex()) {
             val asked = ArrayList<String>()
             val strip = menuWith(asked).buildMenuStrip()

@@ -20,6 +20,7 @@ import dev.yabai.ocr.dict.DictionaryCatalog
 import dev.yabai.ocr.dict.DictionaryDownloader
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.InstalledDictionary
+import dev.yabai.ocr.dict.KanjiDefault
 import dev.yabai.ocr.overlay.actionButton
 import dev.yabai.ocr.overlay.roundedBackground
 import dev.yabai.ocr.overlay.textLabel
@@ -45,10 +46,14 @@ class DictionaryActivity : AppCompatActivity() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val repository by lazy { DictionaryRepository.get(this) }
+    private val settings by lazy { AppSettings(this) }
     private val downloader = DictionaryDownloader()
 
     private lateinit var installedContainer: LinearLayout
     private lateinit var availableContainer: LinearLayout
+
+    /** The choice of which dictionary answers the kanji card (R30); empty without kanji data. */
+    private lateinit var kanjiContainer: LinearLayout
 
     /** The «old format» banner above the installed list; empty when every dictionary is current (R26). */
     private lateinit var staleContainer: LinearLayout
@@ -102,6 +107,8 @@ class DictionaryActivity : AppCompatActivity() {
         staleContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         column.addView(staleContainer)
         column.addView(installedContainer)
+        kanjiContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(kanjiContainer)
 
         column.addView(sectionHeader(getString(R.string.dictionary_import_section)))
         column.addView(
@@ -147,6 +154,7 @@ class DictionaryActivity : AppCompatActivity() {
         val items = repository.installed()
         renderStale(items)
         renderInstalled(items)
+        renderKanjiDefault(items)
         renderAvailable()
     }
 
@@ -274,6 +282,68 @@ class DictionaryActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { bottomMargin = dp(10) }
         }
+    }
+
+    /**
+     * The choice of which dictionary answers the kanji card (R30).
+     *
+     * It only appears when there is a dictionary with kanji data: with none installed the card has
+     * its own explanation in «Ler kanji», and a chooser over an empty list would be one more thing
+     * that does not work. The stored id is cleared here when the dictionary it names was disabled or
+     * removed, so the next time it reappears the screen says «todos» honestly.
+     */
+    private fun renderKanjiDefault(items: List<InstalledDictionary>) {
+        kanjiContainer.removeAllViews()
+        val candidates = KanjiDefault.candidates(items)
+        if (candidates.isEmpty()) return
+
+        val stored = settings.kanjiDictionary
+        val chosen = candidates.firstOrNull { it.id == stored }
+        if (stored.isNotBlank() && chosen == null) settings.kanjiDictionary = ""
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+        }
+        card.addView(textLabel(getString(R.string.dictionary_kanji_title), 16f, getColor(R.color.text_primary), bold = true))
+        card.addView(
+            textLabel(getString(R.string.dictionary_kanji_hint), 12f, getColor(R.color.text_secondary)).apply {
+                setPadding(0, dp(4), 0, 0)
+                setLineSpacing(dp(3).toFloat(), 1f)
+            },
+        )
+        card.addView(
+            actionButton(chosen?.displayName ?: getString(R.string.dictionary_kanji_all)) {
+                chooseKanjiDefault(candidates)
+            }.apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(8) }
+            },
+        )
+
+        kanjiContainer.addView(
+            card,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(10) },
+        )
+    }
+
+    private fun chooseKanjiDefault(candidates: List<InstalledDictionary>) {
+        val labels = ArrayList<String>(candidates.size + 1)
+        labels.add(getString(R.string.dictionary_kanji_all))
+        labels.addAll(candidates.map { it.displayName })
+        AlertDialog.Builder(this)
+            .setTitle(R.string.dictionary_kanji_title)
+            .setItems(labels.toTypedArray()) { _, which ->
+                settings.kanjiDictionary = if (which == 0) "" else candidates[which - 1].id
+                refresh()
+            }
+            .show()
     }
 
     private fun describe(item: InstalledDictionary): String {

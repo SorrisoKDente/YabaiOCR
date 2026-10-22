@@ -5,6 +5,7 @@ import java.io.Closeable
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
+import java.util.PriorityQueue
 import kotlin.math.min
 
 /** File names of the compiled dictionary layout. */
@@ -115,6 +116,42 @@ class CompactDictionary private constructor(
         return out
     }
 
+    /**
+     * The keys that begin with [prefix], at most [limit], **shortest first**.
+     *
+     * A key is a headword **or** a reading: the compiled index stores both under the same sorted
+     * list, which is why a lookup by reading finds the kanji headword. That makes the raw list the
+     * right place to look for «what else starts like this» (R31) — 日本 finds 日本語, 日本人, and
+     * にほん finds 日本.
+     *
+     * Not just the first keys in index order, though: the index is sorted by UTF-8 bytes, so every
+     * kana continuation comes before every kanji one, and 日本… would spend the whole list on
+     * 日本じゅう, 日本アルプス and other loanwords long before reaching 日本語. The shortest
+     * completions are the compounds a query usually starts, so the scan goes through every key with
+     * the prefix — a byte comparison, no disk read — and only the chosen ones are decoded.
+     */
+    fun keysStartingWith(prefix: String, limit: Int): List<String> {
+        val index = terms ?: return emptyList()
+        if (prefix.isEmpty() || limit <= 0) return emptyList()
+        val probe = prefix.toByteArray(StandardCharsets.UTF_8)
+
+        // A bounded max-heap: the largest (longest, then latest) key is dropped whenever a shorter
+        // one arrives, so the heap always holds the shortest [limit] keys seen so far.
+        val best = PriorityQueue(
+            compareByDescending<Int> { index.keyOffsets[it + 1] - index.keyOffsets[it] }
+                .thenByDescending { it },
+        )
+        var slot = lowerBound(index, probe)
+        while (slot < index.keyCount && startsWith(index, slot, probe)) {
+            best.add(slot)
+            if (best.size > limit) best.poll()
+            slot++
+        }
+        return best
+            .sortedWith(compareBy({ index.keyOffsets[it + 1] - index.keyOffsets[it] }, { it }))
+            .map { keyAt(index, it) }
+    }
+
     /** The kanji entry for a single character, if this dictionary has kanji data. */
     fun kanjiEntry(character: String): KanjiEntry? {
         val index = kanji ?: return null
@@ -166,6 +203,33 @@ class CompactDictionary private constructor(
             }
         }
         return null
+    }
+
+    /** First slot whose key is not smaller than [probe]; [keyCount] when every key is smaller. */
+    private fun lowerBound(index: Index, probe: ByteArray): Int {
+        var low = 0
+        var high = index.keyCount
+        while (low < high) {
+            val mid = (low + high) ushr 1
+            if (compareKey(index, mid, probe) < 0) low = mid + 1 else high = mid
+        }
+        return low
+    }
+
+    /** Whether the key at [slot] begins with [probe], byte for byte. */
+    private fun startsWith(index: Index, slot: Int, probe: ByteArray): Boolean {
+        val start = index.keyOffsets[slot]
+        val length = index.keyOffsets[slot + 1] - start
+        if (length < probe.size) return false
+        for (indexInProbe in probe.indices) {
+            if (index.keys[start + indexInProbe] != probe[indexInProbe]) return false
+        }
+        return true
+    }
+
+    private fun keyAt(index: Index, slot: Int): String {
+        val start = index.keyOffsets[slot]
+        return String(index.keys, start, index.keyOffsets[slot + 1] - start, StandardCharsets.UTF_8)
     }
 
     private fun compareKey(index: Index, slot: Int, probe: ByteArray): Int {

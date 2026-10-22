@@ -2030,6 +2030,127 @@ quando falta espaço — mas a largura real em tela estreita não foi medida num
 **Fechamento da ronda:** `app:testDebugUnitTest` **228 / 0**, `core:test` **112 / 0 / 2 pulados** (com
 `-Pdicts`). Non-vacuidade **5/5** (R28) + **6/6** (R29).
 
+## 11. Sétima ronda — dicionário de verdade e o padrão do kanji  (21/10/2026)
+
+Dois pedidos novos, um de cada vez: um dicionário em português oferecido pelo próprio app, e uma ação
+da bolha que abre o painel como um dicionário — com campo de consulta e sugestões.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R30 | `[x]` | **Dicionário em português (ggjz.org)** na lista do app, e a escolha do dicionário padrão do cartão de kanji | média |
+| R31 | `[x]` | **Ação «Dicionário» na bolha**: consulta digitada, com sugestões dos dicionários instalados | grande (motor + painel) |
+
+### R30 — O Jitendex em português e o padrão do kanji  `[x]` (21/10/2026)
+
+**Pedido:** acrescentar à lista curada o dicionário português do ggjz.org (uma adaptação do Jitendex) e,
+se ele fosse bem feito, deixar o usuário escolher qual dicionário responde ao **cartão de kanji**.
+
+**O dicionário.** O endereço publicado em `ggjz.org` é um **descritor** (`yomitan-ptbr.json`), não o
+`.zip`: o arquivo direto muda de nome a cada versão, o descritor não. Ele devolve
+`https://www.ggjz.org/data/yomitan-ptbr.zip`, então o download em dois passos que o app já tinha
+(descritor → `downloadUrl`) passou a servir sem código novo de rede. O arquivo conferido tinha
+**39.532.631 bytes** e `sha256 22B5CE93…E3137874`; por dentro, `Jitendex PT-BR [2026-09-29]`, formato 3,
+cerca de **211 mil verbetes**. 日本 → «Japão», 日本語 → «japonês» — é uma tradução de verdade, com
+definições em português, e não uma lista de equivalentes soltos.
+
+**A entrada na lista:** `DictionaryCatalog`, id `ggjz-pt`, tipo `TERMS`, idioma `pt`, 39 MB, nome
+«Jitendex em português (ggjz.org)», atribuição nomeando o Jitendex/Stephen Kraus **e** o ggjz.org. A
+descrição do Wikcionário deixou de dizer que era o único português. O motor de consulta não mudou: um
+dicionário a mais é um arquivo a mais.
+
+**O padrão do kanji (a parte que exigiu cuidado).** O título de um dicionário instalado carrega a data
+da versão (`Jitendex PT-BR [2026-09-29]`): guardá-lo como escolha quebraria a cada atualização. A escolha
+é guardada como **id instalado** (`AppSettings.kanjiDictionary`, chave `kanji_dictionary`) e resolvida
+para o título na hora de consultar (`KanjiDefault.titleOf`). Só entram na lista os dicionários **ativos e
+com dados de kanji**; um id que não existe mais (removido, desativado, ou um dicionário de palavras)
+**cai em «todos os dicionários de kanji»** em vez de deixar o cartão mudo, e a tela limpa o valor velho
+quando percebe. A tela «Dicionários» ganhou o cartão **«Dicionário de kanji»**, com um diálogo de opções
+(«Todos os dicionários de kanji» + cada um pelo `displayName`, que separa as variantes pelo `sourceName`).
+
+O filtro do **painel de palavras** continua sendo `settings.dictionaryFilter`: são duas perguntas
+diferentes («qual dicionário explica esta frase» e «qual dicionário lê este kanji») e agora têm duas
+respostas independentes. No serviço, `kanjiCard` passou a usar `wordOnly` no contexto de frase/palavra e
+`kanjiOnly` na ficha e nas leituras por kanji.
+
+**Testes de regressão:** `DictionaryCatalogTest` (3) — a entrada `ggjz-pt` é de termos, em português, e o
+descritor é o endereço estável. `KanjiDefaultTest` (6) — id → título, «todos», dicionário desativado,
+dicionário de palavras, id sumido, e a lista de candidatos. `DictionaryScreenTest` (+2) — o cartão e o
+diálogo do padrão. `DictionaryCompileTest` — `imports the portuguese jitendex from ggjz`: compila o ZIP
+real e responde 日本 e 日本語.
+
+**O que não está coberto:** o download pela rede do ggjz (como o de todos os outros itens da lista) não é
+exercitado num teste; e a ligação do serviço com o cartão (`kanjiCard`) continua sem teste, a mesma lacuna
+declarada das demais ações do `FloatingOcrService`.
+
+### R31 — A ação «Dicionário»  `[x]` (21/10/2026)
+
+**Pedido:** uma ação nova na bolha que abre o menu de tradução, mas com um campo onde o usuário **digita
+a consulta**; ela funciona como um dicionário de verdade, sugere outros usos do kanji a partir dos
+dicionários instalados (digitar 日本 sugere 日本語, 日本人, …) e, como na tradução, consulta todos os
+dicionários ou um só.
+
+**A consulta inteira primeiro.** O motor segmenta uma frase por maior correspondência; aplicado a uma
+consulta digitada, `にほん` viraria a palavra 日本 *ou* um pedaço dela, e `食べました` só chegaria em
+食べる por deinflexão. `LookupEngine.search` tenta o texto **inteiro** como cabeçalho e como leitura
+antes de cair na segmentação: `にほん → 日本`, `食べました → 食べる`. É a diferença entre um dicionário e
+um OCR.
+
+**As sugestões.** `CompactDictionary.keysStartingWith` acha o bloco do índice que começa com o prefixo
+(limite inferior + max-heap das chaves mais curtas, para não varrer o dicionário inteiro), e
+`LookupEngine.suggest` junta cabeçalhos e leituras, tira repetidos, tira a própria consulta (ela já é a
+resposta acima) e respeita o mesmo filtro de dicionários da resposta. A **ordem** foi o problema desta
+ronda: a ordem de bytes do índice colocava 日本鼬, 日本鶉, 日本鰻 na frente só porque os kanji deles têm
+codepoint maior. A ordem por leitura ainda deixava 日本人 em décimo. A solução usa o que os dicionários já
+sabem: o campo **score** (JMdict: 1.999.800 para palavra news1/ichi1, 999.800 para a segunda faixa,
+negativo para o resto; Jitendex PT-BR: 200 / 0 / −1). Ordena por score decrescente, depois tamanho, depois
+leitura — e o painel mostra **10** sugestões. Para 日本: 日本一, 日本海, 日本画, 日本語, 日本史, 日本紙,
+日本酒, 日本中, 日本人, 日本製.
+
+**O painel.** Nada de uma segunda janela: `ResultOverlay.showSearch` reconstrói o mesmo cartão em modo de
+busca — título «Dicionário», campo de **uma linha** com a dica, as sugestões como chips, e as seções de
+palavras, kanji e o seletor de dicionário que já existiam. O que **não** existe nesse modo: tradução,
+«Copiar original», «Perguntar à IA», imagem, «Trechos» e «Tentar offline»; e o `applyReading` é pulado,
+porque uma resposta do dicionário não pode escrever a leitura por cima da consulta digitada. O campo
+espera **250 ms** de pausa (a análise de uma captura espera 800 ms), e a janela pede o teclado depois de
+anexada — o painel normal o esconde de propósito. Tocar num chip preenche o campo e passa pelo mesmo
+caminho de uma tecla, então há **um** lugar que decide quando consultar. Back/AÇÃO VOLTAR fecham a busca:
+não há captura atrás dela.
+
+No serviço, `searchDictionary` cancela a consulta anterior a cada tecla e só mostra a resposta se ela
+ainda for da consulta atual; trocar de dicionário no seletor refaz a **consulta**, não uma captura; e
+começar uma captura desliga o modo de busca (o painel volta a analisar texto reconhecido).
+
+**Testes de regressão — motor** (`DictionaryCompileTest`, com JMdict e o Jitendex PT-BR reais):
+`the search answers a whole word before segmenting it` (にほん → 日本, 食べました → 食べる);
+`suggestions follow a typed prefix in headwords and readings` (日本 e にほん → os compostos, sem repetir
+a consulta); `suggestions consult only the chosen dictionaries` (o filtro vale para as sugestões).
+
+**Testes de regressão — painel** (`DictionarySearchPanelTest`, 7): o cartão é uma busca e não um
+resultado (campo vazio, dica certa, sem cópia/IA/tradução, sem a grade de ações da captura); a pausa na
+digitação chega ao app como consulta e não antes dela; as sugestões são chips e um chip preenche o campo e
+pede a resposta dele; a caixa vazia pede para digitar em vez de dizer «nada encontrado»; o seletor de
+dicionário funciona na busca; a consulta não é sobrescrita pela resposta; e VOLTAR fecha.
+`ActionMenuTest` passou a exigir as **seis** ações, com o «Dicionário» entre 漢 e Ajustes.
+
+**Non-vacuidade (5/5, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| id do catálogo `ggjz-pt` renomeado | `the portuguese jitendex is offered as a terms dictionary` |
+| `KanjiDefault.titleOf` sempre nulo | `the chosen dictionary names the title the engine knows` |
+| ordenação das sugestões invertida (score crescente) | `suggestions follow a typed prefix…` → `[日本國, 日本戰, …]` |
+| `searching = false` em `showSearch` | 3 testes do painel (pausa, chips, caixa vazia) |
+| item «Dicionário» removido da faixa | 3 testes do menu (nomes, seis ações, cada ícone age) |
+
+**O que não está coberto:** a ligação do serviço (`onDictionarySearchRequested`, `searchDictionary`,
+troca de filtro) não tem teste — a mesma lacuna declarada das demais ações do `FloatingOcrService`; o foco
+do teclado depois de a janela ser anexada não foi visto num aparelho; e a ordem das sugestões depende do
+campo `score`, então um dicionário que o deixe todo em zero cai no desempate por tamanho/leitura (defensável,
+mas não conferido em aparelho).
+
+**Fechamento da ronda:** `app:testDebugUnitTest` **246 / 0**, `core:test` **116 / 0 / 2 pulados** (com
+`-Pdicts`). Non-vacuidade **5/5**.
+
 ---
 
 ## Notas de ordem

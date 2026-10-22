@@ -62,6 +62,12 @@ class OverlayController(private val context: Context) {
         /** The user wants to read the kanji under a finger, instead of a whole piece of text. */
         fun onKanjiRequested()
 
+        /** The user wants the dictionary search box, instead of a capture (R31). */
+        fun onDictionarySearchRequested() {}
+
+        /** The query in the dictionary search box changed (R31). */
+        fun onDictionarySearchChanged(text: String) {}
+
         /** The finger is on character [index] of the [piece] the kanji overlay is showing. */
         fun onKanjiTapped(piece: Int, index: Int)
 
@@ -350,6 +356,7 @@ class OverlayController(private val context: Context) {
         // A kanji is recognised by its own shape, so the icon is the character itself: no drawing
         // survives being read as «a kanji» the way 漢 does (R17).
         addGlyph("漢", R.string.overlay_kanji) { callbacks?.onKanjiRequested() }
+        add(R.drawable.ic_menu_dictionary, R.string.overlay_dictionary) { callbacks?.onDictionarySearchRequested() }
         add(R.drawable.ic_menu_settings, R.string.overlay_settings) { callbacks?.onOpenSettingsRequested() }
         add(R.drawable.ic_menu_stop, R.string.overlay_close_service, menuStopColor) { callbacks?.onStopRequested() }
         return strip
@@ -831,6 +838,10 @@ class OverlayController(private val context: Context) {
                     this@OverlayController.callbacks?.onDictionaryPicked(title)
                 }
 
+                override fun onSearchChanged(text: String) {
+                    this@OverlayController.callbacks?.onDictionarySearchChanged(text)
+                }
+
                 override fun onAskAi(text: String) {
                     this@OverlayController.callbacks?.onAskAiRequested(text)
                 }
@@ -901,6 +912,26 @@ class OverlayController(private val context: Context) {
     /** Shows or hides the captured image in the panel that is already open. */
     fun setResultImage(shown: Boolean) {
         resultView?.setImageShown(shown)
+    }
+
+    /**
+     * Opens the panel as the dictionary search (R31).
+     *
+     * The same window as a capture's result, so the word cards and the chooser come along; what
+     * changes is the card itself (a search field, no translation, no capture behind it). The keyboard
+     * is asked for after the window is attached — the result window hides it by design, and a search
+     * with no field focused would look like a panel that forgot what it was for.
+     */
+    fun showDictionarySearch(
+        titles: List<String>,
+        selected: String?,
+        dictionaryCount: Int,
+        stale: List<String> = emptyList(),
+    ) {
+        if (!canDrawOverlays()) return
+        val panel = ensureResultPanel() ?: return
+        panel.showSearch(titles, selected, dictionaryCount, stale)
+        panel.post { panel.showKeyboard() }
     }
 
     fun showResultTranslation(state: ResultOverlay.TranslationState) {

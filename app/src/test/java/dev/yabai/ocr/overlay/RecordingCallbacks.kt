@@ -73,6 +73,14 @@ class RecordingCallbacks(private val asked: MutableList<String> = ArrayList()) :
         asked.add("kanji")
     }
 
+    override fun onDictionarySearchRequested() {
+        asked.add("dictionary")
+    }
+
+    override fun onDictionarySearchChanged(text: String) {
+        asked.add("dictionary search $text")
+    }
+
     override fun onKanjiTapped(piece: Int, index: Int) {
         asked.add("kanji $piece/$index")
     }

@@ -73,6 +73,19 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_DICTIONARY_FILTER, "") ?: ""
         set(value) = prefs.edit { putString(KEY_DICTIONARY_FILTER, value) }
 
+    /**
+     * The dictionary the kanji card asks for the kanji entry and the per-kanji readings (R30), by
+     * installed id, or "" for every kanji dictionary in priority order.
+     *
+     * The **id**, not the title: titles carry a release date (`KANJIDIC [2026-290]`), so a title
+     * stored today stops matching after the dictionary is updated, and the choice would silently
+     * fall back to «todos». The id belongs to the catalogue entry and survives an update. See
+     * [dev.yabai.ocr.dict.KanjiDefault].
+     */
+    var kanjiDictionary: String
+        get() = prefs.getString(KEY_KANJI_DICTIONARY, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_KANJI_DICTIONARY, value) }
+
     /** Translate the whole recognised sentence with the offline ML Kit model. */
     var translateSentence: Boolean
         get() = prefs.getBoolean(KEY_TRANSLATE, true)
@@ -199,6 +212,7 @@ class AppSettings(context: Context) {
         private const val KEY_LANGUAGE = "language"
         private const val KEY_DICTIONARY = "dictionary_lookup"
         private const val KEY_DICTIONARY_FILTER = "dictionary_filter"
+        private const val KEY_KANJI_DICTIONARY = "kanji_dictionary"
         private const val KEY_TRANSLATE = "translate_sentence"
         private const val KEY_FURIGANA = "furigana_parentheses"
         private const val KEY_SHOW_FURIGANA = "show_furigana"

@@ -37,7 +37,7 @@ para ~52 MB.
 2. (Opcional) Conceda **Notificações** — o Android exige uma notificação enquanto a captura está ativa.
 3. Toque em **Iniciar OCR flutuante** e aceite o aviso de captura de tela do sistema.
 4. Abra o app onde está o texto (mangá, jogo, site…).
-5. Toque na bolha: os **cinco ícones** do menu aparecem **numa faixa logo abaixo dela**.
+5. Toque na bolha: os **seis ícones** do menu aparecem **numa faixa logo abaixo dela**.
    - **Tela inteira** (cantos de tela) — reconhece tudo que está na tela e **desenha uma caixa sobre
      cada trecho** encontrado;
    - **Selecionar área** (marcas de corte) — arraste para marcar a região e toque em **Reconhecer**.
@@ -48,6 +48,9 @@ para ~52 MB.
      palavra**, não só o que você tocou. A página também amplia com a pinça, como na tela de trechos.
      Sem dicionário de kanji instalado — ou com ele desativado — o cartão diz **o que fazer** em vez
      de ficar vazio.
+   - **Dicionário** (livro) — abre o painel como um **dicionário de consulta**: digite `日本` e veja a
+     definição; abaixo do campo vêm os outros verbetes que começam assim (`日本語`, `日本人`, …). A busca
+     usa todos os dicionários ativos ou só o escolhido, como no painel.
    - **Ajustes** (controles) e **Encerrar** (✕ vermelho) completam a faixa; os nomes aparecem na
      descrição de cada ícone, para leitores de tela.
 6. Na tela inteira, **toque no trecho** que interessa: só ele vai para o painel (e para a área de
@@ -80,9 +83,9 @@ Detalhes úteis:
   espaço abaixo ela aparece **em cima** da bolha.
 - Na faixa, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.
 - Toque longo no texto seleciona, como em qualquer TextView.
-- **A seção dobra sozinha:** toque no título «Tradução», «Kanji» ou «Dicionário» (ou no chevron ao
-  lado) e só aquela seção se recolhe. O chevron do cabeçalho do painel dobra o painel **inteiro**
-  numa linha só, que passa a mostrar a tradução.
+- **A seção dobra sozinha:** toque no título «Tradução», «Sugestões», «Kanji» ou «Dicionário» (ou no
+  chevron ao lado) e só aquela seção se recolhe. O chevron do cabeçalho do painel dobra o painel
+  **inteiro** numa linha só, que passa a mostrar a tradução.
 - **Imagem** no painel põe o recorte capturado ao lado do texto reconhecido, para conferir o kanji
   que o OCR trocou. A escolha fica guardada nos ajustes.
 - Os botões do painel ficam numa **grade de duas colunas de largura igual**, em vez de uma linha que
@@ -127,6 +130,21 @@ refeitas sozinhas, com o texto corrigido. Não é preciso capturar a tela de nov
 さん`) são para ler, não para enviar: **Copiar original** e **Perguntar à IA** mandam a frase
 **reconhecida**, sem os parênteses — `職員さん`. Se você editou o texto, o seu texto é que sai: a
 correção é a única cópia que a tem.
+
+### Consultar o dicionário sem capturar
+
+O ícone **Dicionário** (livro) da bolha abre o painel como um dicionário de consulta: o campo do topo é
+para **digitar**, não para corrigir um OCR. Digite `日本` e a resposta aparece como em qualquer captura —
+definições, leituras e o bloco de kanji quando a consulta é um kanji só —, com uma diferença: abaixo do
+campo vêm **sugestões** dos verbetes que começam pela consulta (`日本語`, `日本人`, …). Elas saem dos
+mesmos dicionários ativos e obedecem ao mesmo seletor do cabeçalho («Todos» ou um só).
+
+- A consulta inteira é tentada **primeiro como palavra**: `にほん` acha `日本` e `食べました` acha
+  `食べる`, sem passar pela segmentação de frase.
+- Tocar numa sugestão preenche o campo e consulta na hora; dá para continuar editando o que ela escreveu.
+- **VOLTAR** ou um toque fora do cartão fecham a busca — não há captura atrás dela. Copiar, perguntar à
+  IA, imagem e trechos não aparecem: a busca não reconheceu texto nenhum.
+- A escolha de dicionário vale para a busca e fica guardada, como no painel de uma captura.
 
 ### Furigana (a leitura ao lado do kanji)
 
@@ -276,6 +294,13 @@ respondendo e abre a lista com um toque:
   mudo. Nesse caso o bloco do kanji consulta os dicionários que têm kanji; a escolha continua valendo
   quando ela inclui um deles.
 
+**Dicionário padrão do cartão de kanji.** Em **Gerenciar dicionários**, o cartão «Dicionário de kanji»
+escolhe qual dicionário de kanji responde ao cartão do 漢 e à leitura de cada kanji do composto —
+«Todos os dicionários de kanji» é o padrão. A escolha é **independente** do seletor do painel (aquele
+fala do texto reconhecido; este, de um kanji) e é guardada pelo **id** do dicionário instalado, então
+continua valendo depois de uma atualização que mude a data no título. Se o escolhido for removido,
+desativado ou for de palavras, o cartão volta a consultar todos em vez de ficar mudo.
+
 ### Recolher o painel
 
 O painel cresce de cima para baixo e, num mangá com um kanji diferente por quadro, a seção do
@@ -308,6 +333,7 @@ O que está na lista:
 | --- | --- | --- |
 | JMdict | inglês | 15 MB |
 | Jitendex | inglês | 37 MB |
+| Jitendex em português (ggjz.org) | português | 39 MB |
 | JMnedict (nomes próprios) | inglês | 11 MB |
 | Wikcionário japonês → português | português | 0,4 MB |
 | Wikcionário japonês (monolíngue) | japonês | 12 MB |
@@ -322,10 +348,12 @@ cabeçalho do painel («Escolher o dicionário sem sair do painel»).
 
 Duas ressalvas honestas:
 
-- **Não existe JMdict em português.** As definições em português vêm do Wikcionário lusófono (8 mil
-  verbetes) e do KANJIDIC em português (só os ~2 mil kanji usuais). Um kanji raro como **淀** só tem
-  significado em inglês — lá está (`pool (in river)`, 音 テン/デン, 訓 よど.む). Para o sentido em
-  português, conte com a **tradução** da frase.
+- **Não existe JMdict em português, mas o Jitendex em português chega perto.** É uma adaptação do
+  Jitendex inglês feita pelo ggjz.org: cerca de **211 mil verbetes** traduzidos, com definições completas
+  em português (日本 → «Japão», 日本語 → «japonês»). O Wikcionário lusófono (8 mil verbetes) e o KANJIDIC
+  em português (só os ~2 mil kanji usuais) continuam menores, para consultas pontuais. Um kanji raro
+  como **淀** só tem significado em inglês — lá está (`pool (in river)`, 音 テン/デン, 訓 よど.む). Para o
+  sentido em português, comece pelo Jitendex PT-BR; a **tradução** da frase cobre o que faltar.
 - **Cada dicionário ativo custa memória.** Só o índice de chaves fica na RAM (o resto é lido do
   arquivo sob demanda): cerca de 17 MB para o JMdict, 18 MB para o Jitendex, 21 MB para o JMnedict,
   29 MB para o Wikcionário inglês. Todos juntos passam de 80 MB. Se o celular tiver pouca memória,
@@ -517,7 +545,7 @@ core/   Kotlin JVM puro — nada de Android aqui
   jp/JapaneseText.kt        normalização de espaço CJK-aware
   dict/DictionaryCompiler.kt  .zip do Yomitan → formato compacto em disco
   dict/CompactDictionary.kt   leitura do formato compacto (índice na RAM, verbete no disco)
-  dict/LookupEngine.kt        segmentação por maior correspondência + quebra de kanji
+  dict/LookupEngine.kt        segmentação por maior correspondência, consulta inteira e sugestões
   dict/Furigana.kt           a leitura da palavra escrita ao lado dos kanji que ela lê
   dict/Deinflector.kt         conjugações → forma de dicionário (tabela do Yomichan)
   dict/GlossaryRenderer.kt    structured-content dos dicionários modernos → texto
@@ -535,13 +563,14 @@ app/    o app Android
   ocr/MlKitOcrEngine.kt     ML Kit japonês offline
   ocr/ImagePreparer.kt      reescala e codifica em PNG
   dict/DictionaryCatalog.kt    o que o app oferece para baixar
+  dict/KanjiDefault.kt         qual dicionário instalado responde ao cartão de kanji
   dict/DictionaryRepository.kt instalação no disco + um LookupEngine em cache
   dict/DictionaryDownloader.kt download com progresso (e o descritor do Wikcionário)
   translate/OfflineTranslator.kt  ML Kit tradutor offline
   overlay/…                 bolha, menu, seletor de área, caixas para escolher o trecho e painel de
                             resultado (Views puras)
   overlay/FlowLayout.kt     linha de botões que quebra em vez de espremer (painel de resultado)
-  overlay/ResultOverlay.kt  o painel; o teto do scroller é medido, não um número fixo
+  overlay/ResultOverlay.kt  o painel; o teto do scroller é medido, não um número fixo; e a busca digitada
   overlay/KanjiOverlay.kt   «Ler kanji»: a página congelada, o toque num kanji e o cartão de leituras
                             (a grade das células vem de core/layout/KanjiGrid.kt)
   service/FloatingOcrService.kt     o serviço que costura tudo

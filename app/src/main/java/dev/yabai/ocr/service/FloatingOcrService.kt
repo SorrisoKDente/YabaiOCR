@@ -36,6 +36,7 @@ import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.dict.DictionaryRepository
+import dev.yabai.ocr.dict.KanjiDefault
 import dev.yabai.ocr.ocr.OcrDispatcher
 import dev.yabai.ocr.ocr.OcrOutcome
 import dev.yabai.ocr.overlay.KanjiCard
@@ -91,6 +92,14 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private var translator: OfflineTranslator? = null
     private var analysisJob: Job? = null
     private var lastAnalysedText: String? = null
+
+    /**
+     * The dictionary search box (R31): the lookup in flight, whether the panel is in search mode,
+     * and the query whose answer is on screen.
+     */
+    private var searchJob: Job? = null
+    private var searchingDictionary = false
+    private var searchQuery: String = ""
 
     /**
      * The text boxes of the last whole-screen capture.
@@ -362,6 +371,10 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     override fun onResultDismissed() {
         analysisJob?.cancel()
         analysisJob = null
+        searchJob?.cancel()
+        searchJob = null
+        searchingDictionary = false
+        searchQuery = ""
         // The panel is gone, and with it the only reason to hold a full screen of pixels.
         lastCrop = null
     }
@@ -386,8 +399,56 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      */
     override fun onDictionaryPicked(title: String?) {
         settings.dictionaryFilter = title.orEmpty()
+        if (searchingDictionary) {
+            // In the search box the filter changes the answer to the query, not to a capture: no
+            // translation to blink, no sentence to re-read.
+            searchDictionary(searchQuery)
+            return
+        }
         val text = lastAnalysedText ?: return
         analyse(text)
+    }
+
+    /**
+     * The bubble's «Dicionário»: the panel opens as a search box (R31).
+     *
+     * The dictionary filter is the same one the panel uses for a capture — «todos» or one title —
+     * because it is the same question: which installed dictionary should answer. Reading it here also
+     * drops a stored title whose dictionary is gone, exactly as a capture does.
+     */
+    override fun onDictionarySearchRequested() {
+        val repository = DictionaryRepository.get(this)
+        val titles = repository.enabledTitles()
+        val filter = repository.resolveFilter(settings.dictionaryFilter)
+        if (filter == null && settings.dictionaryFilter.isNotBlank()) settings.dictionaryFilter = ""
+        val stale = repository.installed()
+            .filter { it.enabled && it.info.outdated }
+            .map { it.displayName }
+
+        searchingDictionary = true
+        searchQuery = ""
+        searchJob?.cancel()
+        overlays.showDictionarySearch(
+            titles = titles,
+            selected = filter,
+            dictionaryCount = titles.size,
+            stale = stale,
+        )
+    }
+
+    override fun onDictionarySearchChanged(text: String) {
+        if (!searchingDictionary) return
+        searchDictionary(text)
+    }
+
+    /** Looks [query] up off the main thread; a newer keystroke cancels the answer in flight. */
+    private fun searchDictionary(query: String) {
+        searchQuery = query
+        searchJob?.cancel()
+        searchJob = scope.launch {
+            val state = runSearch(query)
+            if (isActive && searchQuery == query) overlays.showResultWords(state)
+        }
     }
 
     override fun onAskAiRequested(text: String) {
@@ -411,6 +472,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     ) {
         if (busy) return
         if (!requireLiveCapture()) return
+        // A capture replaces the search box, if that is what was open: the panel is about to show a
+        // recognised text, and a later dictionary pick must re-analyse it, not re-run a query.
+        searchingDictionary = false
+        searchQuery = ""
+        searchJob?.cancel()
+        searchJob = null
         val session = capture
         if (session == null) {
             toast(getString(R.string.capture_failed))
@@ -674,6 +741,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         }
 
         val only = repository.resolveFilter(settings.dictionaryFilter)?.let { setOf(it) }.orEmpty()
+        // R30: the card's own choice answers the kanji questions; the words of the sentence keep
+        // following the panel's filter. Choosing KANJIDIC for the card must not make the word
+        // context disappear — KANJIDIC has no word entries at all.
+        val kanjiOnly = KanjiDefault.titleOf(repository.installed(), settings.kanjiDictionary)
+            ?.let { setOf(it) }
+            .orEmpty()
         val words = try {
             engine.lookup(target.text, only = only)
         } catch (t: Throwable) {
@@ -682,7 +755,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         }
         val word = KanjiCardText.wordAt(words, index)
         val entry = try {
-            engine.kanjiBreakdown(symbol, only = only).firstOrNull()
+            engine.kanjiBreakdown(symbol, only = kanjiOnly).firstOrNull()
         } catch (t: Throwable) {
             Log.w(TAG, "kanji entry lookup failed", t)
             null
@@ -695,7 +768,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         // R29: where the word's reading breaks per kanji. Null (no line) when the dictionaries cannot
         // justify a division — 今日 きょう is not 今 きょ + 日 う, and the card must not pretend it is.
         val parts = try {
-            word?.let { KanjiCardText.parts(engine.wordReadings(it.surface, it.reading, only = only)) }
+            word?.let { KanjiCardText.parts(engine.wordReadings(it.surface, it.reading, only = kanjiOnly)) }
         } catch (t: Throwable) {
             Log.w(TAG, "kanji reading split failed", t)
             null
@@ -875,6 +948,56 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         }
     } catch (t: Throwable) {
         Log.e(TAG, "dictionary lookup failed", t)
+        ResultOverlay.WordsState.Failed(t.message ?: getString(R.string.dictionary_failed))
+    }
+
+    /**
+     * Answers a query typed in the search box (R31).
+     *
+     * It is deliberately **not** the capture path: no translation, no furigana over a sentence and
+     * no «Consultando…» between keystrokes. The whole word is tried first (see [LookupEngine.search]),
+     * and the suggestions are the query's neighbours in the same dictionaries the answer came from.
+     */
+    private suspend fun runSearch(query: String): ResultOverlay.WordsState = try {
+        val repository = DictionaryRepository.get(this)
+        withContext(Dispatchers.Default) {
+            val engine = repository.lookupEngine()
+            val titles = repository.enabledTitles()
+            val stale = repository.installed()
+                .filter { it.enabled && it.info.outdated }
+                .map { it.displayName }
+            // Same rule as a capture: a filter nobody answers to is a leftover, not a choice.
+            val filter = repository.resolveFilter(settings.dictionaryFilter)
+            if (filter == null && settings.dictionaryFilter.isNotBlank()) {
+                settings.dictionaryFilter = ""
+            }
+            val only = filter?.let { setOf(it) }.orEmpty()
+            val text = query.trim()
+            if (engine == null || text.isEmpty()) {
+                ResultOverlay.WordsState.Done(
+                    matches = emptyList(),
+                    kanji = emptyList(),
+                    dictionaryCount = titles.size,
+                    titles = titles,
+                    selected = filter,
+                    stale = stale,
+                    query = query,
+                )
+            } else {
+                ResultOverlay.WordsState.Done(
+                    matches = engine.search(text, only = only),
+                    kanji = engine.kanjiBreakdown(text, only = only),
+                    dictionaryCount = titles.size,
+                    titles = titles,
+                    selected = filter,
+                    stale = stale,
+                    query = query,
+                    suggestions = engine.suggest(text, only = only),
+                )
+            }
+        }
+    } catch (t: Throwable) {
+        Log.e(TAG, "dictionary search failed", t)
         ResultOverlay.WordsState.Failed(t.message ?: getString(R.string.dictionary_failed))
     }
 

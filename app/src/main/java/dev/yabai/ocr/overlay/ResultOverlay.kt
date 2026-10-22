@@ -24,6 +24,8 @@ import android.view.View
 import android.view.View.MeasureSpec
 import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -75,6 +77,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         fun onDictionaryPicked(title: String?)
 
         /**
+         * The user typed in the search box (R31); the app looks the query up.
+         *
+         * A default, because every other panel test drives callbacks that have nothing to do with
+         * the search and should not have to grow a method to keep compiling.
+         */
+        fun onSearchChanged(text: String) {}
+
+        /**
          * The user wants an AI app to answer about the recognised text. The text is what is on screen,
          * corrections included, and what happens to it — clipboard, prompt, which app — is the app's
          * business, not the panel's.
@@ -119,6 +129,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
              * the recognised text itself, beside the kanji it reads.
              */
             val furigana: Furigana.Annotated? = null,
+            /** The query the search box asked; blank in a capture's result (R31). */
+            val query: String = "",
+            /** Other headwords to offer above the answer, empty outside the search (R31). */
+            val suggestions: List<String> = emptyList(),
         ) : WordsState {
             /** One dictionary is nothing to choose between, so the selector stays out of the way. */
             val pickable: Boolean get() = titles.size > 1
@@ -201,6 +215,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     /** True once the user has typed in the editor: from then on the panel does not touch the text. */
     private var userEdited: Boolean = false
 
+    /**
+     * True while the card is the dictionary search (R31), not the result of a capture.
+     *
+     * It decides what a keystroke means (look up a query instead of analysing a sentence), keeps a
+     * dictionary answer from writing a reading over the query, and lets BACK mean the same as ✕:
+     * there is no capture behind a search to go back to.
+     */
+    private var searching: Boolean = false
+
     /** True while the panel is writing into the editor, so its own change is not read as the user's. */
     private var writingText: Boolean = false
 
@@ -221,6 +244,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     /** Kept because [rebuildHeader] has to rebuild the header without the original arguments. */
     private var lastMeta: String = ""
+
+    /** The title the header carries, so [rebuildHeader] can rebuild it without the original call. */
+    private var lastTitleRes: Int = R.string.result_title
 
     /**
      * The frame the text was recognised from, and whether the user wants it on screen.
@@ -258,6 +284,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      */
     private val analyseSoon = Runnable {
         val text = originalEditor.text.toString()
+        if (searching) {
+            // A search box asks the dictionary on every pause; there is no translation to run and no
+            // readings to write back (R31).
+            callbacks?.onSearchChanged(text)
+            return@Runnable
+        }
         if (text.trim() != lastShownText.trim()) {
             lastShownText = text
             lastAnalysedText = text
@@ -298,7 +330,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 // for a pause before asking again: a lookup per keystroke would thrash both the
                 // dictionary and the on-device translator.
                 analyseHandler.removeCallbacks(analyseSoon)
-                analyseHandler.postDelayed(analyseSoon, ANALYSE_DELAY_MS)
+                analyseHandler.postDelayed(
+                    analyseSoon,
+                    if (searching) SEARCH_DELAY_MS else ANALYSE_DELAY_MS,
+                )
             }
         })
     }
@@ -365,8 +400,128 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     // --- entry points --------------------------------------------------------------------------
 
+    /**
+     * The dictionary search card (R31).
+     *
+     * It is the result panel, not a second window: the same word cards, kanji block and dictionary
+     * chooser answer a query, and the field is already the one the user corrects recognised text in.
+     * What changes is the meaning of a keystroke — look the query up instead of analysing a sentence
+     * — and the actions: there is no translation, no image and no capture to go back to.
+     */
+    fun showSearch(
+        titles: List<String>,
+        selected: String?,
+        dictionaryCount: Int,
+        stale: List<String> = emptyList(),
+    ) {
+        card.removeAllViews()
+        searching = true
+        canGoBack = false
+        minimised = false
+        headerRow = null
+        foldedSections.clear()
+        translationText = null
+        image = null
+        imageShown = false
+        textRow = null
+        imageButton = null
+        pickerOpen = false
+        wordsState = null
+        showLines = false
+        segmentLines = emptyList()
+        userEdited = false
+        cleanText = ""
+
+        configureSearchEditor()
+        showText("")
+
+        card.addView(buildHeader("", R.string.dictionary_search_title))
+        (originalEditor.parent as? ViewGroup)?.removeView(originalEditor)
+        card.addView(
+            originalEditor,
+            LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(4) },
+        )
+
+        for (view in listOf(translationSection, wordsSection)) {
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
+        translationSection.removeAllViews()
+        wordsSection.removeAllViews()
+
+        val scrolling = MaxHeightScrollView(context, ::freeHeightForScroller).apply {
+            addView(
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(wordsSection)
+                },
+            )
+        }
+        scroller = scrolling
+        card.addView(
+            scrolling,
+            LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
+        )
+
+        setWords(
+            WordsState.Done(
+                matches = emptyList(),
+                kanji = emptyList(),
+                dictionaryCount = dictionaryCount,
+                titles = titles,
+                selected = selected,
+                stale = stale,
+            ),
+        )
+        applyFold()
+        originalEditor.requestFocus()
+        originalEditor.setSelection(originalEditor.text.length)
+    }
+
+    /**
+     * Puts the cursor and the keyboard in the search box once the window is attached.
+     *
+     * The result window is deliberately `SOFT_INPUT_STATE_ALWAYS_HIDDEN`: a capture must not open the
+     * keyboard. A search is the opposite, so it asks after the fact instead of changing that for
+     * every panel.
+     */
+    fun showKeyboard() {
+        if (!searching) return
+        originalEditor.requestFocus()
+        val manager = context.getSystemService(InputMethodManager::class.java)
+        manager?.showSoftInput(originalEditor, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    /** The shared editor as a one-line search field, with the keyboard's «search» key. */
+    private fun configureSearchEditor() {
+        originalEditor.setHint(R.string.dictionary_search_hint)
+        originalEditor.inputType = InputType.TYPE_CLASS_TEXT
+        originalEditor.isSingleLine = true
+        originalEditor.maxLines = 1
+        originalEditor.imeOptions = EditorInfo.IME_ACTION_SEARCH
+        originalEditor.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+        originalEditor.setLineSpacing(0f, 1f)
+        originalEditor.setPadding(dp(10), dp(9), dp(10), dp(9))
+        originalEditor.setBackground(roundedBackground(0x14FFFFFF, dp(10).toFloat(), 0x22FFFFFF))
+    }
+
+    /** Puts the editor back to holding recognized text after a search (R31). */
+    private fun configureResultEditor() {
+        originalEditor.setHint(R.string.result_original_hint)
+        originalEditor.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        originalEditor.isSingleLine = false
+        originalEditor.maxLines = 8
+        originalEditor.imeOptions = EditorInfo.IME_ACTION_NONE
+        originalEditor.gravity = Gravity.TOP or Gravity.START
+        originalEditor.setLineSpacing(dp(4).toFloat(), 1f)
+        originalEditor.setPadding(dp(10), dp(10), dp(10), dp(10))
+    }
+
     fun showLoading() {
         card.removeAllViews()
+        // A spinner is not a search box, and a query typed into the previous card is not a capture.
+        searching = false
+        configureResultEditor()
         translationText = null
         // A spinner is not a result: there is no text behind it to go back to.
         canGoBack = false
@@ -410,6 +565,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         canAskAi: Boolean = false,
     ) {
         card.removeAllViews()
+        // A capture replaces the search card, if that is what was open: the editor goes back to
+        // holding recognized text, not a query (R31).
+        searching = false
+        configureResultEditor()
         this.showLines = showLines
         this.segmentLines = segmentLines
         translationText = null
@@ -554,6 +713,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     fun showError(message: String, offlineAvailable: Boolean) {
         card.removeAllViews()
+        // An error card has no search box and no capture behind it.
+        searching = false
+        configureResultEditor()
         // Nothing was recognised, so there is nothing to go back to.
         canGoBack = false
         // This card has no header either, so it cannot be folded.
@@ -618,7 +780,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * correction with a reading of the sentence as it was before.
      */
     private fun applyReading(annotated: Furigana.Annotated?) {
-        if (userEdited) return
+        // In the search box the text is the query the user typed; a dictionary answer must never
+        // replace it (R31).
+        if (searching || userEdited) return
         val shown = annotated?.text?.takeIf { it.isNotBlank() } ?: cleanText
         if (shown == originalEditor.text.toString()) return
         showText(shown)
@@ -712,6 +876,31 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             wordsSection.addView(noteView(context.getString(R.string.result_furigana_note)))
         }
 
+        if (state.suggestions.isNotEmpty()) {
+            // Above the answer, because a suggestion is how the user says «I meant that one»; the
+            // list is the query's neighbours, not part of its definition (R31).
+            wordsSection.addView(
+                section(SECTION_SUGGESTIONS, context.getString(R.string.dictionary_suggestions)) { body ->
+                    val row = FlowLayout(context).apply {
+                        setPadding(0, dp(2), 0, dp(6))
+                        tag = SUGGESTIONS_TAG
+                    }
+                    for (suggestion in state.suggestions) {
+                        row.addView(
+                            context.actionButton(suggestion) { useSuggestion(suggestion) }.apply {
+                                contentDescription = context.getString(
+                                    R.string.dictionary_suggestion_description,
+                                    suggestion,
+                                )
+                            },
+                            wrapWithMargin(),
+                        )
+                    }
+                    body.addView(row)
+                },
+            )
+        }
+
         if (state.dictionaryCount == 0) {
             wordsSection.addView(
                 dictionarySection(state, context.getString(R.string.result_dictionary_label)) { body ->
@@ -729,9 +918,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             )
         }
         if (state.matches.isEmpty()) {
+            val message = if (searching && state.query.isBlank()) {
+                context.getString(R.string.dictionary_search_empty)
+            } else {
+                context.getString(R.string.dictionary_no_match)
+            }
             wordsSection.addView(
                 dictionarySection(state, context.getString(R.string.result_dictionary_label)) { body ->
-                    body.addView(noteView(context.getString(R.string.dictionary_no_match)))
+                    body.addView(noteView(message))
                 },
             )
             return
@@ -842,6 +1036,18 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             onClick = onClick,
         )
 
+    /**
+     * A suggestion was tapped: put it in the box and let the watcher ask for the answer.
+     *
+     * The chip goes through the same path as a keystroke, so there is one place that decides when a
+     * query is looked up — and the user can keep editing the suggestion instead of being thrown into
+     * a new screen.
+     */
+    private fun useSuggestion(suggestion: String) {
+        originalEditor.setText(suggestion)
+        originalEditor.setSelection(suggestion.length)
+    }
+
     private fun wordView(match: TokenMatch): View {
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -935,8 +1141,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * The top row: the title, the metadata, the fold control and the ✕. When the card is minimised
      * this row is all that is left of it, so the title and the metadata step aside for the answer.
      */
-    private fun buildHeader(meta: String): View {
+    private fun buildHeader(meta: String, titleRes: Int = R.string.result_title): View {
         lastMeta = meta
+        lastTitleRes = titleRes
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -950,7 +1157,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 )
             } else {
                 addView(
-                    textLabel(context.getString(R.string.result_title), 17f, context.getColor(R.color.text_primary), bold = true),
+                    textLabel(context.getString(titleRes), 17f, context.getColor(R.color.text_primary), bold = true),
                     LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
                 )
                 addView(textLabel(meta, 12f, context.getColor(R.color.text_secondary)))
@@ -1152,7 +1359,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         val index = card.indexOfChild(old)
         if (index < 0) return
         card.removeViewAt(index)
-        card.addView(buildHeader(lastMeta), index)
+        card.addView(buildHeader(lastMeta, lastTitleRes), index)
     }
 
     /**
@@ -1177,7 +1384,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     private fun stripText(): CharSequence {
         val text = translationText?.takeIf { it.isNotBlank() } ?: originalEditor.text.toString()
         val line = text.replace('\n', ' ').replace(Regex(" {2,}"), " ").trim()
-        return line.ifBlank { context.getString(R.string.result_title) }
+        return line.ifBlank {
+            context.getString(if (searching) R.string.dictionary_search_title else R.string.result_title)
+        }
     }
 
     private fun busyRow(text: String): View = LinearLayout(context).apply {
@@ -1317,6 +1526,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
          */
         private const val ANALYSE_DELAY_MS = 800L
 
+        /** A search box should answer a pause, not wait like a sentence analysis (R31). */
+        private const val SEARCH_DELAY_MS = 250L
+
         /**
          * The rule table names inflections in English ("polite past"). Naming them in the language
          * of the rest of the screen costs one map and makes the arrow line readable.
@@ -1366,6 +1578,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         private const val SECTION_TRANSLATION = "translation"
         private const val SECTION_KANJI = "kanji"
         private const val SECTION_DICTIONARY = "dictionary"
+        private const val SECTION_SUGGESTIONS = "suggestions"
 
         /**
          * Tag on the row of dictionaries the selector opens. The panel is built in code and the row
@@ -1374,9 +1587,11 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         const val DICTIONARY_CHOOSER_TAG = "yabai.dictionaryChooser"
 
         /**
-         * Tag on the block of apps a question can go to. Like [DICTIONARY_CHOOSER_TAG], it is the
-         * handle a layout test has on a block that only exists after a tap.
+         * Tag on the row of suggestions the search box offers (R31). Like [DICTIONARY_CHOOSER_TAG],
+         * it is the handle a layout test has on a block that only exists after typing.
          */
+        const val SUGGESTIONS_TAG = "yabai.suggestions"
+
         /** Folded sections point their chevron to the right; a folded panel points it up. */
         private const val FOLDED_ROTATION = -90f
         private const val PANEL_FOLD_ROTATION = 180f

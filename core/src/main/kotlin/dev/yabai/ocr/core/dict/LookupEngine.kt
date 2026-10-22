@@ -46,6 +46,72 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
     }
 
     /**
+     * A dictionary **query**, as opposed to reading a sentence (R31).
+     *
+     * A search box has one word in it, and the greedy segmentation that is right for a sentence is
+     * wrong for a whole query that happens to be a reading: にほん must answer 日本, not the particle
+     * に followed by ほ. So the whole query is tried as a headword or reading first, and only a query
+     * that is not a word at all — a conjugated form, a phrase — falls back to [lookup].
+     */
+    fun search(text: String, maxMatches: Int = 60, only: Set<String> = emptySet()): List<TokenMatch> {
+        val query = text.trim()
+        if (query.isEmpty()) return emptyList()
+        val usable = selected(only)
+        if (usable.isEmpty()) return emptyList()
+        exactMatch(query, 0, query.length, usable)?.let { return listOf(it) }
+        return lookup(query, maxMatches, only)
+    }
+
+    /**
+     * Headwords that begin with [text], for the search box's suggestions (R31).
+     *
+     * The index holds headwords and readings together, so 日本 offers 日本語 and 日本人, while にほん
+     * reaches the same compounds through their readings. The query itself is left out: it is already
+     * the answer above the suggestions, and repeating it would waste the row. [only] narrows exactly
+     * like [lookup] — a suggestion must not come from a dictionary the user told the panel to leave
+     * out.
+     */
+    fun suggest(
+        text: String,
+        maxSuggestions: Int = 10,
+        only: Set<String> = emptySet(),
+    ): List<String> {
+        val query = text.trim()
+        if (query.isEmpty() || maxSuggestions <= 0) return emptyList()
+        val usable = selected(only)
+        if (usable.isEmpty()) return emptyList()
+
+        val found = LinkedHashMap<String, DictionaryEntry>()
+        for (dictionary in usable) {
+            // A prefix can be shared by many readings, so a few keys are read beyond the answer
+            // size; entries are deduplicated by headword as they come.
+            for (key in dictionary.keysStartingWith(query, maxSuggestions * 8)) {
+                for (entry in dictionary.termEntries(key)) {
+                    if (entry.term == query || entry.reading == query) continue
+                    if (!entry.term.startsWith(query) && !entry.reading.startsWith(query)) continue
+                    found.putIfAbsent(entry.term, entry)
+                    if (found.size >= maxSuggestions * CANDIDATE_FACTOR) break
+                }
+                if (found.size >= maxSuggestions * CANDIDATE_FACTOR) break
+            }
+        }
+        // The dictionaries put their own commonness in the score (JMdict: 1999800 for a news1/ichi1
+        // word, 999800 for the second tier, negative for the rest; Jitendex PT-BR: 200 / 0 / -1), so
+        // it decides first. The byte order of the index would otherwise put 日本鼬, 日本鶉, 日本鰻 …
+        // first just because their kanji have higher code points. Length and reading break the ties:
+        // the nearest words, in the order a Japanese dictionary lists them.
+        return found.values
+            .sortedWith(
+                compareByDescending<DictionaryEntry> { it.score }
+                    .thenBy { it.term.length }
+                    .thenBy { it.reading.ifEmpty { it.term } }
+                    .thenBy { it.term },
+            )
+            .take(maxSuggestions)
+            .map { it.term }
+    }
+
+    /**
      * Kanji breakdown, but only for a capture that is a single character.
      *
      * Showing a reading and stroke count for every kanji in a whole page of manga would bury the
@@ -262,6 +328,9 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
 
         /** Conjugated forms are tried over a shorter window: nothing longer inflects usefully. */
         const val MAX_INFLECTED_LENGTH = 10
+
+        /** How many suggestions are looked at before the order is decided; see [suggest]. */
+        private const val CANDIDATE_FACTOR = 8
 
         fun isWordCodePoint(codePoint: Int): Boolean = when (codePoint) {
             in 0x3041..0x309F -> true // hiragana

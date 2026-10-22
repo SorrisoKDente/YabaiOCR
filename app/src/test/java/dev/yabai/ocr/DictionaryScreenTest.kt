@@ -2,7 +2,10 @@ package dev.yabai.ocr
 
 import android.content.Context
 import android.view.ViewGroup
+import android.widget.ListView
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -12,6 +15,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowDialog
 import java.io.File
 
 /**
@@ -29,7 +33,7 @@ class DictionaryScreenTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
 
     /** A compiled dictionary as the repository finds it on disk: `meta.json` is the whole contract. */
-    private fun install(id: String, title: String, source: String, compiledWith: Int, terms: Int) {
+    private fun install(id: String, title: String, source: String, compiledWith: Int, terms: Int, kanji: Int = 0) {
         val directory = File(context.filesDir, "dictionaries/$id")
         directory.mkdirs()
         File(directory, "meta.json").writeText(
@@ -39,7 +43,7 @@ class DictionaryScreenTest {
               "revision": "2025-01-01",
               "format": 3,
               "termCount": $terms,
-              "kanjiCount": 0,
+              "kanjiCount": $kanji,
               "compiledWith": $compiledWith,
               "sourceName": "$source"
             }
@@ -74,6 +78,75 @@ class DictionaryScreenTest {
             "the banner blames a dictionary that is current: $banner",
             banner.contains("KANJIDIC"),
         )
+    }
+
+    @Test
+    fun `the kanji card's dictionary can be chosen among those with kanji data`() {
+        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = 3, terms = 120_000)
+        install(
+            "kanjidic-en",
+            title = "KANJIDIC",
+            source = "KANJIDIC (inglês)",
+            compiledWith = 3,
+            terms = 0,
+            kanji = 13_000,
+        )
+        install(
+            "kanjidic-pt",
+            title = "KANJIDIC",
+            source = "KANJIDIC (português)",
+            compiledWith = 3,
+            terms = 0,
+            kanji = 2_000,
+        )
+
+        val activity = Robolectric.buildActivity(DictionaryActivity::class.java).setup().get()
+        val all = context.getString(R.string.dictionary_kanji_all)
+        val button = labels(activity.window.decorView as ViewGroup).first { it.text.toString() == all }
+        button.performClick()
+
+        val dialog = ShadowDialog.getLatestDialog() as AlertDialog
+        assertEquals(
+            "the chooser should offer «todos» plus each dictionary with kanji data, and no JMdict",
+            listOf(
+                all,
+                "KANJIDIC · KANJIDIC (inglês)",
+                "KANJIDIC · KANJIDIC (português)",
+            ),
+            items(dialog),
+        )
+
+        click(dialog, 2)
+
+        assertEquals("kanjidic-pt", AppSettings(activity).kanjiDictionary)
+        val after = labels(activity.window.decorView as ViewGroup).map { it.text.toString() }
+        assertTrue(
+            "the screen should now say which dictionary answers the kanji card: $after",
+            after.contains("KANJIDIC · KANJIDIC (português)"),
+        )
+    }
+
+    @Test
+    fun `without a kanji dictionary the card's choice is not offered`() {
+        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = 3, terms = 120_000)
+
+        val activity = Robolectric.buildActivity(DictionaryActivity::class.java).setup().get()
+        val texts = labels(activity.window.decorView as ViewGroup).map { it.text.toString() }
+
+        assertFalse(
+            "a chooser over nothing would be one more broken control: $texts",
+            texts.contains(context.getString(R.string.dictionary_kanji_all)),
+        )
+    }
+
+    private fun items(dialog: AlertDialog): List<String> {
+        val list = dialog.listView
+        return (0 until list.count).map { list.adapter.getItem(it).toString() }
+    }
+
+    private fun click(dialog: AlertDialog, index: Int) {
+        val list: ListView = dialog.listView
+        list.performItemClick(null, index, list.adapter.getItemId(index))
     }
 
     private fun labels(root: ViewGroup): List<TextView> {

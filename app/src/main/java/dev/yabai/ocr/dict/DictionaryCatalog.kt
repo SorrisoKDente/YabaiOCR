@@ -60,6 +60,18 @@ object DictionaryCatalog {
             attribution = "Jitendex by Stephen Kraus (CC BY-SA 4.0)",
         ),
         Entry(
+            id = "ggjz-pt",
+            name = "Jitendex em português (ggjz.org)",
+            description = "O Jitendex com as acepções traduzidas para o português brasileiro, mantendo a " +
+                "cobertura e os exemplos do dicionário original. É a melhor opção para ler a definição " +
+                "em português sem abrir mão do JMdict.",
+            language = "pt",
+            sizeLabel = "39 MB",
+            kind = Kind.TERMS,
+            indexUrl = "https://ggjz.org/yomitan-ptbr.json",
+            attribution = "Jitendex by Stephen Kraus; tradução PT-BR por ggjz.org (CC BY-SA 4.0)",
+        ),
+        Entry(
             id = "jmnedict",
             name = "JMnedict (nomes próprios)",
             description = "Nomes de pessoas, lugares, empresas e obras. Em mangá aparece nome o tempo todo " +
@@ -74,7 +86,7 @@ object DictionaryCatalog {
             id = "wty-ja-pt",
             name = "Wikcionário: japonês → português",
             description = "Acepções em português, extraídas do Wikcionário lusófono. Menor que o JMdict, " +
-                "mas é o único com definições em português.",
+                "mas resolve o básico sem baixar um arquivo grande.",
             language = "pt",
             sizeLabel = "0,4 MB",
             kind = Kind.TERMS,
