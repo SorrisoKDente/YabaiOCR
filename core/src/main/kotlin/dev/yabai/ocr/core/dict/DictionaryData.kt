@@ -22,6 +22,11 @@ data class KanjiEntry(
     val onYomi: String = "",
     /** The kun'yomi as the dictionary writes them (「・」-separated), or empty. */
     val kunYomi: String = "",
+    /**
+     * The dictionary that answered, so the card can say where the entry came from (R28). Empty for
+     * an entry built by hand, as the tests do.
+     */
+    val dictionaryTitle: String = "",
 )
 
 /** Everything read from the dictionary's `index.json`. */

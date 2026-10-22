@@ -73,6 +73,33 @@ class KanjiGridTest {
         assertNull(KanjiGrid.cell("腹", PixelBox(0, 0, 0, 0), 0, 0))
     }
 
+    /** R29: the mark of a word covers its kanji, and its edges are the edges of those cells. */
+    @Test
+    fun `a range of characters covers exactly their cells`() {
+        val text = "同時に"
+        val column = PixelBox(100, 100, 40, 120)
+        val first = KanjiGrid.boxOf(text, column, 0)
+        val second = KanjiGrid.boxOf(text, column, 1)
+        val third = KanjiGrid.boxOf(text, column, 2)
+
+        // 同時: from the top of the first cell to the bottom of the second, and no further.
+        assertEquals(
+            PixelBox(first.x, first.y, first.width, second.bottom - first.y),
+            KanjiGrid.boxOf(text, column, 0, 2),
+        )
+        // A range of one is the cell itself, so the two ways of asking agree.
+        assertEquals(second, KanjiGrid.boxOf(text, column, 1, 2))
+        assertEquals(third, KanjiGrid.boxOf(text, column, 2, 3))
+
+        val row = PixelBox(100, 300, 240, 40)
+        val left = KanjiGrid.boxOf(text, row, 0)
+        val right = KanjiGrid.boxOf(text, row, 2)
+        assertEquals(
+            PixelBox(left.x, left.y, right.right - left.x, row.height),
+            KanjiGrid.boxOf(text, row, 0, 3),
+        )
+    }
+
     @Test
     fun `a single character fills the whole strip`() {
         val cell = KanjiGrid.cell("腹", column, 310, 250)

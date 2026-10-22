@@ -59,6 +59,76 @@ class FuriganaTest {
         assertEquals(listOf(Furigana.Run("食", "た")), Furigana.split("食ベル", "たべる"))
     }
 
+    // --- where inside a kanji run the reading breaks (R29) ----------------------------------------
+
+    /** 同 reads どう and 時 じ, and どうじ is exactly the two of them: the division is written. */
+    @Test
+    fun `a compound is read one kanji at a time when the readings add up`() {
+        val readings = mapOf(
+            "同" to listOf("おな.じ", "ドウ"),
+            "時" to listOf("とき", "ジ"),
+        )
+
+        assertEquals(
+            listOf(Furigana.Run("同", "どう"), Furigana.Run("時", "じ")),
+            Furigana.perKanji("同時", "どうじ") { readings[it].orEmpty() },
+        )
+    }
+
+    /** The kana printed in the word keep their place and take no reading: 同時に → 同 どう, 時 じ. */
+    @Test
+    fun `the kana of the word are not part of the division`() {
+        val readings = mapOf("同" to listOf("ドウ"), "時" to listOf("ジ"))
+
+        assertEquals(
+            listOf(Furigana.Run("同", "どう"), Furigana.Run("時", "じ")),
+            Furigana.perKanji("同時に", "どうじに") { readings[it].orEmpty() },
+        )
+    }
+
+    /**
+     * 今日 きょう and 大人 おとな are read as words: no division of theirs adds up, and none is written.
+     *
+     * A division that «sort of» adds up is the trap: 今 こん + 日 ひ would spend きょ + う from the
+     * reading, which is not what either kanji reads. The division has to match the reading itself.
+     */
+    @Test
+    fun `a word whose reading does not divide per kanji is refused`() {
+        val readings = mapOf(
+            "今" to listOf("コン", "キン", "いま"),
+            "日" to listOf("ニチ", "ジツ", "ひ", "か"),
+            "大" to listOf("ダイ", "タイ", "おお"),
+            "人" to listOf("ジン", "ニン", "ひと"),
+        )
+
+        assertNull(Furigana.perKanji("今日", "きょう") { readings[it].orEmpty() })
+        assertNull(Furigana.perKanji("大人", "おとな") { readings[it].orEmpty() })
+    }
+
+    /** The division draws on the kanji entries; a kanji no dictionary knows cannot be divided. */
+    @Test
+    fun `a kanji that no dictionary knows is not divided`() {
+        val readings = mapOf("同" to listOf("ドウ"))
+
+        assertNull(Furigana.perKanji("同時", "どうじ") { readings[it].orEmpty() })
+    }
+
+    /** A lone kanji has nothing to tell apart, and a word in kana has no kanji at all. */
+    @Test
+    fun `one kanji needs no division`() {
+        assertNull(Furigana.perKanji("腹", "はら") { listOf("はら") })
+        assertNull(Furigana.perKanji("さん", "さん") { emptyList() })
+    }
+
+    /** Every reading the entry lists feeds the division — the cap of [Furigana.readingsOf] would not. */
+    @Test
+    fun `every reading the entry lists is available to the division`() {
+        val entry = KanjiEntry("同", "igual", onYomi = "ドウ", kunYomi = "おな.じ")
+
+        // The dot marks where the okurigana starts: beside the kanji, 同 reads おな, not おなじ.
+        assertEquals(listOf("おな", "ドウ"), Furigana.allReadings(entry))
+    }
+
     // --- the readings of a kanji standing on its own ----------------------------------------------
 
     @Test

@@ -64,10 +64,12 @@
     <string name="kanji_hint">Toque num kanji para ver a leitura · pinça para ampliar</string>
     <string name="kanji_on">音: %1$s</string>
     <string name="kanji_kun">訓: %1$s</string>
-    <string name="kanji_word_of">de %1$s</string>
+    <string name="kanji_parts">Leitura de cada kanji: %1$s</string>
     <string name="kanji_compounds">Nesta tela: %1$s</string>
     <string name="kanji_not_a_kanji">Isso não é um kanji.</string>
-    <string name="kanji_no_dictionary">Nenhum dicionário de kanji respondeu a este caractere — só a leitura da frase está disponível.</string>
+    <string name="kanji_no_dictionary">Nenhum dicionário de kanji tem este caractere — só a leitura da frase está disponível.</string>
+    <string name="kanji_dictionary_missing">Nenhum dicionário de kanji instalado. Baixe o KANJIDIC em «Dicionários» para ver as leituras e os significados dos kanji.</string>
+    <string name="kanji_dictionary_disabled">O dicionário de kanji está desativado em «Dicionários». Ative-o para ver as leituras e os significados dos kanji.</string>
     <string name="kanji_no_page">Nada legível foi reconhecido nesta tela.</string>
 
     <string name="result_title">Texto reconhecido</string>

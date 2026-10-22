@@ -47,17 +47,28 @@ object KanjiGrid {
      * neighbouring cells share an edge and never overlap, which is what makes the highlight drawn
      * on the page land on one character and not on two.
      */
-    fun boxOf(text: String, box: PixelBox, index: Int): PixelBox {
+    fun boxOf(text: String, box: PixelBox, index: Int): PixelBox =
+        boxOf(text, box, index, index + 1)
+
+    /**
+     * Where characters `[from, to)` of [text] sit inside [box] (R29).
+     *
+     * A mark over one character of a word whose card talks about the whole word contradicts the
+     * card; the kanji of 同時に are marked together. The boundaries are the same integers as the
+     * single cell, so a range that ends where the next character begins shares its edge with it.
+     */
+    fun boxOf(text: String, box: PixelBox, from: Int, to: Int): PixelBox {
         val count = text.length
         if (count == 0 || box.width <= 0 || box.height <= 0) return box
-        val at = index.coerceIn(0, count - 1)
+        val start = from.coerceIn(0, count - 1)
+        val end = to.coerceIn(start + 1, count)
         return if (box.height >= box.width) {
-            val top = box.y + (box.height.toLong() * at / count).toInt()
-            val bottom = box.y + (box.height.toLong() * (at + 1) / count).toInt()
+            val top = box.y + (box.height.toLong() * start / count).toInt()
+            val bottom = box.y + (box.height.toLong() * end / count).toInt()
             PixelBox(box.x, top, box.width, (bottom - top).coerceAtLeast(1))
         } else {
-            val left = box.x + (box.width.toLong() * at / count).toInt()
-            val right = box.x + (box.width.toLong() * (at + 1) / count).toInt()
+            val left = box.x + (box.width.toLong() * start / count).toInt()
+            val right = box.x + (box.width.toLong() * end / count).toInt()
             PixelBox(left, box.y, (right - left).coerceAtLeast(1), box.height)
         }
     }

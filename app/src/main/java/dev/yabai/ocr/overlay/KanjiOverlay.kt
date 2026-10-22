@@ -38,6 +38,12 @@ data class KanjiCard(
     /** The kanji dictionary's own text: meanings and statistics. */
     val meaning: String,
     val compounds: List<KanjiWord>,
+    /** The dictionary the entry came from, when one answered (R28). */
+    val source: String? = null,
+    /** The word's reading, one part per kanji, when the dictionaries justify a division (R29). */
+    val parts: List<KanjiPart> = emptyList(),
+    /** The kanji of the word to outline on the page, in the piece's characters (R29). */
+    val span: IntRange? = null,
     /** Said instead of the dictionary part when the kanji dictionary could not answer. */
     val note: String? = null,
 )
@@ -61,6 +67,9 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
 
     private val pageView = KanjiCanvasView(context)
 
+    /** The page tap that asked for the card on screen; the card marks the page when it arrives (R29). */
+    private var pressed: Pair<Int, Int>? = null
+
     private val card = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         background = roundedBackground(context.getColor(R.color.panel_bg), dp(16).toFloat(), 0x22FFFFFF)
@@ -79,6 +88,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         addView(pageView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
 
         pageView.onTapped = { piece, index ->
+            pressed = piece to index
             pageView.mark(piece, index)
             onKanjiTapped?.invoke(piece, index)
         }
@@ -118,6 +128,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
 
     /** A new capture: the previous card and the previous highlight belong to a page that is gone. */
     fun show(pieces: List<KanjiPiece>, page: Bitmap?) {
+        pressed = null
         pageView.setPieces(pieces)
         pageView.setPage(page)
         card.visibility = GONE
@@ -126,6 +137,13 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
     fun showCard(data: KanjiCard) {
         card.removeAllViews()
 
+        // R29: the mark covers the kanji the card talks about — 同時, not just the 同 — but only while
+        // the tap that asked for this card is still the last one.
+        val tap = pressed
+        if (tap != null && pageView.characterAt(tap.first, tap.second)?.toString() == data.character) {
+            pageView.mark(tap.first, data.span ?: (tap.second until tap.second + 1))
+        }
+
         val header = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -133,22 +151,12 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         header.addView(
             textLabel(data.character, 30f, context.getColor(R.color.text_primary), bold = true),
         )
-        if (!data.reading.isNullOrBlank()) {
+        // A reading beside the single character is that character's reading. The reading of a word is
+        // written beside the word, on its own line: 同 next to どうじに read as if 同 were どうじに.
+        if (data.word.isNullOrBlank() && !data.reading.isNullOrBlank()) {
             header.addView(
                 textLabel(data.reading, 20f, context.getColor(R.color.accent), bold = true).apply {
                     val gap = dp(10)
-                    setPadding(gap, 0, 0, 0)
-                },
-            )
-        }
-        if (!data.word.isNullOrBlank()) {
-            header.addView(
-                textLabel(
-                    context.getString(R.string.kanji_word_of, data.word),
-                    12f,
-                    context.getColor(R.color.text_secondary),
-                ).apply {
-                    val gap = dp(8)
                     setPadding(gap, 0, 0, 0)
                 },
             )
@@ -161,6 +169,50 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         )
         card.addView(header)
 
+        if (!data.word.isNullOrBlank()) {
+            val line = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            line.addView(textLabel(data.word, 17f, context.getColor(R.color.accent), bold = true))
+            if (!data.reading.isNullOrBlank()) {
+                // Weight of 1 with no width: the reading takes what is left and is ellipsised if the
+                // word is long, instead of being clipped off the edge of the card.
+                line.addView(
+                    textLabel(data.reading, 13f, context.getColor(R.color.text_secondary)).apply {
+                        val gap = dp(8)
+                        setPadding(gap, 0, 0, 0)
+                        maxLines = 1
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+                )
+            }
+            card.addView(
+                line,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(6) },
+            )
+        }
+        if (data.parts.isNotEmpty()) {
+            card.addView(
+                textLabel(
+                    context.getString(
+                        R.string.kanji_parts,
+                        data.parts.joinToString(" ・ ") { "${it.kanji} ${it.reading}" },
+                    ),
+                    12.5f,
+                    context.getColor(R.color.text_primary),
+                ),
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(6) },
+            )
+        }
+
         readings(data)?.let { value ->
             card.addView(
                 value,
@@ -168,6 +220,19 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).apply { topMargin = dp(8) },
+            )
+        }
+        if (!data.source.isNullOrBlank()) {
+            card.addView(
+                textLabel(
+                    context.getString(R.string.dictionary_source, data.source),
+                    11.5f,
+                    context.getColor(R.color.text_secondary),
+                ),
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(6) },
             )
         }
         if (data.meaning.isNotBlank()) {
@@ -330,11 +395,18 @@ private class KanjiCanvasView(context: Context) : View(context) {
         get() = page?.let { if (it.height > 0 && height > 0) height.toFloat() / it.height else 1f } ?: 1f
 
     /** Puts the accent border on the character that was just tapped. */
-    fun mark(piece: Int, index: Int) {
+    fun mark(piece: Int, index: Int) = mark(piece, index until index + 1)
+
+    /** Puts the accent border over a stretch of characters — the kanji of the word the card shows. */
+    fun mark(piece: Int, range: IntRange) {
         val target = pieces.getOrNull(piece) ?: return
-        highlight = KanjiGrid.boxOf(target.text, boxOf(target), index)
+        if (range.isEmpty() || target.text.isEmpty()) return
+        highlight = KanjiGrid.boxOf(target.text, boxOf(target), range.first, range.last + 1)
         invalidate()
     }
+
+    /** The character printed at [index] of [piece]; null when there is no such cell. */
+    fun characterAt(piece: Int, index: Int): Char? = pieces.getOrNull(piece)?.text?.getOrNull(index)
 
     internal val zoomScale: Float get() = zoom.scale
 

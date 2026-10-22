@@ -161,7 +161,8 @@ class KanjiOverlayTest {
     }
 
     @Test
-    fun `a tap away from every strip picks nothing and keeps the reader open`() {        var picked: Pair<Int, Int>? = null
+    fun `a tap away from every strip picks nothing and keeps the reader open`() {
+        var picked: Pair<Int, Int>? = null
         var dismissed = false
         val reader = overlay({ piece, index -> picked = piece to index }, { dismissed = true })
 
@@ -257,6 +258,110 @@ class KanjiOverlayTest {
 
         assertTrue(text, text.contains("Nenhum dicionário de kanji"))
         assertTrue("no empty 音 row", !text.contains("音:"))
+    }
+
+    /** R28: «de qual dicionário veio isto?» has an answer on the card, not only in the settings. */
+    @Test
+    fun `the card names the dictionary the kanji came from`() {
+        val reader = overlay()
+
+        reader.showCard(
+            KanjiCard(
+                character = "同",
+                reading = "どう",
+                word = "同時に",
+                onYomi = "ドウ",
+                kunYomi = "おな.じ",
+                meaning = "igual; o mesmo",
+                compounds = emptyList(),
+                source = "KANJIDIC (português)",
+            ),
+        )
+
+        val text = reader.cardText().orEmpty()
+
+        assertTrue(text, text.contains("Origem: KANJIDIC (português)"))
+    }
+
+    /** R29: the word and its reading sit together, and the division says which part is which kanji. */
+    @Test
+    fun `the card shows the word with its reading and how it divides`() {
+        val reader = overlay()
+
+        reader.showCard(
+            KanjiCard(
+                character = "同",
+                reading = "どうじに",
+                word = "同時に",
+                onYomi = "ドウ",
+                kunYomi = "おな.じ",
+                meaning = "igual",
+                compounds = emptyList(),
+                parts = listOf(KanjiPart("同", "どう"), KanjiPart("時", "じ")),
+            ),
+        )
+
+        val text = reader.cardText().orEmpty()
+
+        assertTrue(text, text.contains("Leitura de cada kanji: 同 どう ・ 時 じ"))
+        assertTrue(
+            "the word has to come before its reading: $text",
+            text.indexOf("同時に") < text.indexOf("どうじに"),
+        )
+    }
+
+    /** R29: the card talks about 同時, so the mark covers both kanji, not only the tapped one. */
+    @Test
+    fun `the card marks the kanji of the word it talks about`() {
+        val reader = KanjiOverlay(context).apply {
+            onKanjiTapped = { _, _ -> }
+            onDismiss = {}
+            show(
+                listOf(KanjiPiece("同時に", Rect(100, 100, 140, 220), vertical = true)),
+                Bitmap.createBitmap(320, 640, Bitmap.Config.ARGB_8888),
+            )
+            measure(
+                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(640, View.MeasureSpec.EXACTLY),
+            )
+            layout(0, 0, 320, 640)
+        }
+
+        tap(reader, 120f, 120f)
+        assertEquals("the tap marks the character at once", PixelBox(100, 100, 40, 40), reader.highlighted)
+
+        reader.showCard(
+            KanjiCard("同", "どうじに", "同時に", "", "", "", emptyList(), span = 0..1),
+        )
+
+        assertEquals(PixelBox(100, 100, 40, 80), reader.highlighted)
+    }
+
+    /** A card that arrives after the finger has moved on must not repaint the mark of the new tap. */
+    @Test
+    fun `a late card does not move the mark of another tap`() {
+        val reader = KanjiOverlay(context).apply {
+            onKanjiTapped = { _, _ -> }
+            onDismiss = {}
+            show(
+                listOf(KanjiPiece("同時に", Rect(100, 100, 140, 220), vertical = true)),
+                Bitmap.createBitmap(320, 640, Bitmap.Config.ARGB_8888),
+            )
+            measure(
+                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(640, View.MeasureSpec.EXACTLY),
+            )
+            layout(0, 0, 320, 640)
+        }
+
+        tap(reader, 120f, 120f)
+
+        // The card of the previous tap (同) arrives: the finger is on a different character now.
+        reader.showCard(
+            KanjiCard("時", "じ", null, "", "", "", emptyList(), span = 0..1),
+        )
+
+        assertEquals(PixelBox(100, 100, 40, 40), reader.highlighted)
     }
 
     /** Every label under [root], so a test can find the one the user would tap. */

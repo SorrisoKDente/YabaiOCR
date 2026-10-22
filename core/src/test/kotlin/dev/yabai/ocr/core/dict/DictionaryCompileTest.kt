@@ -401,6 +401,76 @@ class DictionaryCompileTest {
     }
 
     /**
+     * A narrowing that holds no kanji dictionary is widened instead of answering nothing (R28).
+     *
+     * The selector exists so the two sections of the panel speak with one voice, but picking a *word*
+     * dictionary in it silenced the kanji card for every character: the narrowed list had nothing to
+     * read a kanji from, so the card said «nenhum dicionário respondeu» while those same dictionaries
+     * were answering the words of the very same screen. A narrowing that does hold a kanji dictionary
+     * keeps its word, though — that is the previous test.
+     */
+    @Test
+    fun `a word-only narrowing still answers about a kanji`() {
+        val jmdict = compileInto("JMdict_english_without_proper_names.zip")
+        val kanjidic = compileInto("KANJIDIC_english.zip")
+        assumeTrue("dictionary fixtures not available", jmdict != null && kanjidic != null)
+
+        jmdict!!.first.use { words ->
+            kanjidic!!.first.use { kanji ->
+                val engine = LookupEngine(listOf(words, kanji))
+                val jmdictTitle = words.info.title
+                val kanjiTitle = kanji.info.title
+
+                val narrowed = engine.kanjiBreakdown("同", only = setOf(jmdictTitle))
+                assertEquals(
+                    "the kanji dictionary is the only one that can answer, so it has to",
+                    listOf(kanjiTitle),
+                    narrowed.map { it.dictionaryTitle },
+                )
+                assertEquals(
+                    "the entry must name the dictionary it came from, so the card can say it",
+                    kanjiTitle,
+                    engine.kanjiBreakdown("同", only = setOf(kanjiTitle)).first().dictionaryTitle,
+                )
+
+                // The lone-kanji reading walks the same path: a kanji no word covers still gets its
+                // furigana from a kanji dictionary the narrowing never mentioned.
+                assertTrue(
+                    "淀 should be read from KANJIDIC even with JMdict selected",
+                    engine.withFurigana("淀", emptyList(), only = setOf(jmdictTitle))
+                        ?.text?.contains("よど") == true,
+                )
+            }
+        }
+    }
+
+    /**
+     * R29: the pieces of a compound's reading, read from the kanji entries themselves.
+     *
+     * The word dictionary says 同時に is どうじに; only the kanji entries can say that どう is the 同
+     * and じ the 時. When they cannot — 今日 きょう — there is nothing to divide and the card says the
+     * word's reading whole.
+     */
+    @Test
+    fun `a compound whose readings add up is divided per kanji`() {
+        val kanjidic = compileInto("KANJIDIC_english.zip")
+        assumeTrue("kanji fixture not available", kanjidic != null)
+
+        kanjidic!!.first.use { kanji ->
+            val engine = LookupEngine(listOf(kanji))
+
+            assertEquals(
+                listOf(Furigana.Run("同", "どう"), Furigana.Run("時", "じ")),
+                engine.wordReadings("同時に", "どうじに"),
+            )
+            assertNull(
+                "今日 きょう is read as a word, not as 今 + 日",
+                engine.wordReadings("今日", "きょう"),
+            )
+        }
+    }
+
+    /**
      * The reading of a sentence, written from the words the lookup already found.
      *
      * 食べました is the case that makes this worth having: the dictionary knows 食べる, and only 食

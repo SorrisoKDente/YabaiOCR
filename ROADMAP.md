@@ -1943,6 +1943,95 @@ decisão, porque não custa uma tarde de código e custa **muito** de máquina.
 
 ---
 
+## 10. Sexta ronda — o cartão de kanji  (21/10/2026)
+
+O cartão do R17 voltou com dois pontos: um bug que apaga a seção de dicionário, e uma apresentação que
+lê a leitura da palavra como se fosse de um kanji só. Bugs primeiro, um item por vez.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R28 | `[x]` | **A ficha do kanji diz «nenhum dicionário respondeu»** para todo kanji | bug (consulta) |
+| R29 | `[x]` | **Um retângulo por kanji** quando o toque cai num composto, e a leitura de cada um | melhoria (ficha) |
+
+### R28 — «Nenhum dicionário de kanji respondeu»  `[x]` (21/10/2026)
+
+**Relato:** no cartão do kanji, «Nenhum dicionário de kanji respondeu a este caractere» para todo kanji
+tocado — enquanto a mesma tela mostrava «Nesta tela: 同時 どうじに», ou seja, os dicionários estavam
+respondendo às palavras.
+
+**Causa (aparelho):** nenhum dicionário de kanji estava instalado. A frase não era mentira, mas também não
+dizia nada: era a mesma para «nunca instalei», «desativei» e «escolhi um dicionário de palavras no painel»,
+e nenhum dos três se resolve sozinho. Pior: a ficha chamava de «caractere» o que era uma falta de
+dicionário.
+
+**Bug latente que a mesma frase escondia:** `kanjiCard` passava ao motor a **mesma seleção** do painel
+(`settings.dictionaryFilter`) — `engine.kanjiBreakdown(symbol, only = only)`. A seleção existe para as duas
+seções falarem a mesma língua, mas só um dicionário de **kanji** tem verbetes de kanji; com um dicionário
+de palavras escolhido, a lista filtrada não tinha de onde ler o kanji e o cartão responderia «nada» mesmo
+com o KANJIDIC instalado. A leitura de um kanji solto (`withFurigana`) caía na mesma armadilha.
+
+**Correção:** `LookupEngine.kanjiSources(only)` — a seleção é mantida quando ela **tem** um dicionário de
+kanji (aí a escolha é real: «só o KANJIDIC em português» continua calado sobre o 淀, que essa versão não
+traz); quando não tem nenhum, é **alargada** para os dicionários que têm. `kanjiBreakdown`, `withFurigana`
+e `readings` passam por ela.
+
+**A ficha agora se explica:** `KanjiEntry` carrega `dictionaryTitle` e o cartão mostra «Origem: …»; quando
+ainda assim não há verbete, a nota diz **qual dos três motivos** foi — nada instalado, instalado mas
+desativado, ou instalado e ativo sem esse caractere — em vez da frase única que culpava o caractere.
+
+**Testes de regressão:** `DictionaryCompileTest` — com JMdict e KANJIDIC instalados, a seleção no JMdict
+ainda responde 同 (pelo KANJIDIC, que o verbete nomeia) e a leitura do 淀 solto sai; a seleção no KANJIDIC
+continua respondendo só ele. `KanjiCardTextTest` — os três motivos. `KanjiOverlayTest` — a linha da origem
+no cartão. Non-vacuidade **5/5** (`%TEMP%\opencode\r28_nonvacuous.py`).
+
+**O que não está coberto:** a ligação do serviço com a ficha (`kanjiCard`) não tem teste — a mesma lacuna
+declarada de `FloatingOcrService`; o que o serviço escolhe (filtro, motivo, origem) é testado nas peças
+que ele usa.
+
+### R29 — A leitura de cada kanji do composto  `[x]` (21/10/2026)
+
+**Relato:** ao tocar no 同 de 同時に, o retângulo marca só o 同 e a leitura ao lado dele é `どうじに` — a
+leitura da **palavra**. Parece que 同 se lê `どうじに`. O pedido: o retângulo sobre os kanji do composto e
+a leitura de cada um.
+
+**O que o app sabia:** `Furigana.split` separa a leitura de uma palavra entre os **trechos de kanji**
+(申し込み → 申 もう, 込 こ), mas não dentro de um trecho: 同時 → 同時 どうじ, porque o dicionário não diz
+onde a leitura se parte. Partir `どうじ` em どう + じ seria palpite, e a regra do app é não escrever
+palpite.
+
+**Correção (a divisão):** `Furigana.perKanji` usa os **verbetes de kanji** como vocabulário e só aceita a
+divisão que **fecha**: cada kanji do trecho recebe uma das suas leituras (音 ou 訓, em kana) e a soma tem
+de ser exatamente a leitura do trecho. 同 ドウ + 時 ジ = どうじ ✓. 今日 きょう ✗ e 大人 おとな ✗ (nenhuma
+divisão fecha) — nesses a ficha continua com a leitura da palavra inteira, e **nada** é escrito por
+chute. O vocabulário vem de `Furigana.allReadings` (sem o limite de três que serve para um kanji sozinho) e
+o motor o monta em `LookupEngine.wordReadings`, escolhendo dicionários como o `kanjiBreakdown`.
+
+**Correção (a ficha e a marca):** a leitura sai de perto do kanji e passa a ficar **colada à palavra**, em
+linha própria (`同時に どうじに`), com a divisão logo abaixo (`Leitura de cada kanji: 同 どう ・ 時 じ`); a
+divisão só vira linha quando há mais de um kanji e cada parte é um kanji só. O retângulo da página passa a
+cobrir os **kanji do composto** (`KanjiGrid.boxOf(from, to)`, `KanjiCard.span`): o toque marca o caractere
+na hora e o cartão, quando chega, estende a marca — desde que o dedo ainda esteja no mesmo caractere, para
+um cartão atrasado não pintar a marca de outro toque.
+
+**Dependência declarada:** sem um dicionário de kanji instalado o R29 **não tem** de onde tirar as
+leituras — é o mesmo KANJIDIC que o R28 manda instalar.
+
+**Testes de regressão:** `FuriganaTest` (6) — a divisão que fecha, a que não fecha (今日/大人), o kanji
+sem verbete, um kanji só, o vocabulário completo. `DictionaryCompileTest` — com o KANJIDIC de verdade,
+同時に どうじに → 同 どう / 時 じ e 今日 きょう → nada. `KanjiGridTest` — a caixa da faixa cobre exatamente as
+células. `KanjiCardTextTest` (3) — a marca sem o に, o kanji que tem palavra própria, a linha só com dois
+kanji. `KanjiOverlayTest` (3) — a palavra antes da leitura na ficha, a marca que cresce para o composto e o
+cartão atrasado que não mexe na marca. Non-vacuidade **6/6** (`%TEMP%\opencode\r29_nonvacuous.py`).
+
+**O que não está coberto:** a ligação do serviço (`kanjiCard` chama `wordReadings` e `kanjiSpan`) não tem
+teste, como as demais do `FloatingOcrService`. A linha da palavra usa a leitura com peso 1 e reticências
+quando falta espaço — mas a largura real em tela estreita não foi medida num aparelho.
+
+**Fechamento da ronda:** `app:testDebugUnitTest` **228 / 0**, `core:test` **112 / 0 / 2 pulados** (com
+`-Pdicts`). Non-vacuidade **5/5** (R28) + **6/6** (R29).
+
+---
+
 ## Notas de ordem
 
 

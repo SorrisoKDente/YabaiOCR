@@ -41,9 +41,13 @@ para ~52 MB.
    - **Tela inteira** (cantos de tela) — reconhece tudo que está na tela e **desenha uma caixa sobre
      cada trecho** encontrado;
    - **Selecionar área** (marcas de corte) — arraste para marcar a região e toque em **Reconhecer**.
-   - **Ler kanji** (漢) — congela a tela e espera você tocar num **kanji**: o cartão mostra a leitura
-     dele naquela frase e as leituras do dicionário de kanji (音/訓), mais as palavras da tela que o
-     usam. A página também amplia com a pinça, como na tela de trechos.
+   - **Ler kanji** (漢) — congela a tela e espera você tocar num **kanji**: o cartão mostra a palavra
+     que o lê com a leitura dela, a leitura de **cada kanji** da palavra quando os verbetes deixam
+     dividir (同時に → 同 どう, 時 じ), as leituras do dicionário de kanji (音/訓), **de qual
+     dicionário** veio o verbete, mais as palavras da tela que o usam. O retângulo cobre os **kanji da
+     palavra**, não só o que você tocou. A página também amplia com a pinça, como na tela de trechos.
+     Sem dicionário de kanji instalado — ou com ele desativado — o cartão diz **o que fazer** em vez
+     de ficar vazio.
    - **Ajustes** (controles) e **Encerrar** (✕ vermelho) completam a faixa; os nomes aparecem na
      descrição de cada ícone, para leitores de tela.
 6. Na tela inteira, **toque no trecho** que interessa: só ele vai para o painel (e para a área de
@@ -267,7 +271,10 @@ respondendo e abre a lista com um toque:
   habilita e ordena os dicionários é **Gerenciar dicionários**, não o painel.
 - Se o dicionário escolhido for desativado ou removido depois, o filtro é **descartado** e o painel volta
   a consultar todos — em vez de não achar palavra nenhuma para sempre.
-- O bloco **Kanji** segue a mesma escolha, para uma seção não contradizer a outra.
+- O bloco **Kanji** segue a mesma escolha, para uma seção não contradizer a outra — com uma exceção: um
+  dicionário de **palavras** não tem verbetes de kanji, e escolhê-lo não pode deixar o cartão do kanji
+  mudo. Nesse caso o bloco do kanji consulta os dicionários que têm kanji; a escolha continua valendo
+  quando ela inclui um deles.
 
 ### Recolher o painel
 

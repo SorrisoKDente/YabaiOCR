@@ -641,6 +641,19 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private fun kanjiCard(target: KanjiPiece, index: Int, character: Char, page: String): KanjiCard {
         val symbol = character.toString()
         val repository = DictionaryRepository.get(this)
+
+        // Why the kanji section is empty is a question only the installed list can answer (R28):
+        // nothing installed, installed but switched off, or installed and enabled yet the character is
+        // not in it. Computed before the lookup because both ways out of this function need it — and
+        // because a word-only narrowing can no longer be the reason, since the core widens it.
+        val installed = repository.installed()
+        val note = getString(
+            KanjiCardText.missingNote(
+                installed = installed.any { it.info.kanjiCount > 0 },
+                enabled = installed.any { it.enabled && it.info.kanjiCount > 0 },
+            ),
+        )
+
         val engine = try {
             repository.lookupEngine()
         } catch (t: Throwable) {
@@ -656,7 +669,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 kunYomi = "",
                 meaning = "",
                 compounds = emptyList(),
-                note = getString(R.string.kanji_no_dictionary),
+                note = note,
             )
         }
 
@@ -679,6 +692,14 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         } catch (t: Throwable) {
             emptyList()
         }
+        // R29: where the word's reading breaks per kanji. Null (no line) when the dictionaries cannot
+        // justify a division — 今日 きょう is not 今 きょ + 日 う, and the card must not pretend it is.
+        val parts = try {
+            word?.let { KanjiCardText.parts(engine.wordReadings(it.surface, it.reading, only = only)) }
+        } catch (t: Throwable) {
+            Log.w(TAG, "kanji reading split failed", t)
+            null
+        }
 
         return KanjiCard(
             character = symbol,
@@ -687,8 +708,11 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             onYomi = KanjiCardText.onYomi(entry),
             kunYomi = KanjiCardText.kunYomi(entry),
             meaning = KanjiCardText.meaning(entry),
+            source = entry?.dictionaryTitle?.takeIf { it.isNotBlank() },
             compounds = KanjiCardText.compounds(others, symbol),
-            note = if (entry == null) getString(R.string.kanji_no_dictionary) else null,
+            parts = parts.orEmpty(),
+            span = KanjiCardText.kanjiSpan(target.text, words, index),
+            note = if (entry == null) note else null,
         )
     }
 

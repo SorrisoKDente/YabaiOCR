@@ -50,8 +50,9 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
      *
      * Showing a reading and stroke count for every kanji in a whole page of manga would bury the
      * definitions the panel exists to show; showing it for the one character you deliberately
-     * framed is exactly what you want. [only] narrows it exactly like [lookup] does, so the kanji
-     * section can never answer from a dictionary the dictionary section was told to leave out.
+     * framed is exactly what you want. [only] narrows it like [lookup] does, with one exception that
+     * [kanjiSources] explains: a narrowing that holds no kanji dictionary cannot answer, so it is
+     * widened instead of answering nothing (R28).
      */
     fun kanjiBreakdown(
         text: String,
@@ -61,12 +62,32 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         val trimmed = text.trim()
         if (trimmed.length != 1) return emptyList()
         val out = ArrayList<KanjiEntry>(2)
-        for (dictionary in selected(only)) {
+        for (dictionary in kanjiSources(only)) {
             if (out.size >= maxEntries) break
             val entry = dictionary.kanjiEntry(trimmed) ?: continue
             out.add(entry)
         }
         return out
+    }
+
+    /**
+     * The word's reading divided per kanji — 同時に どうじに → 同 どう, 時 じ (R29).
+     *
+     * The division is [Furigana.perKanji]'s: only one that adds up to the word's reading, and null
+     * when there is none. [only] picks the dictionaries like [kanjiBreakdown] does, widening a
+     * narrowing that holds no kanji dictionary.
+     */
+    fun wordReadings(
+        term: String,
+        reading: String,
+        only: Set<String> = emptySet(),
+    ): List<Furigana.Run>? {
+        val sources = kanjiSources(only)
+        return Furigana.perKanji(term, reading) { character ->
+            sources.mapNotNull { it.kanjiEntry(character) }
+                .flatMap { Furigana.allReadings(it) }
+                .distinct()
+        }
     }
 
     /**
@@ -76,16 +97,17 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
      *
      * [matches] is the segmentation [lookup] already produced — the reading of a word is part of the
      * hit, so nothing is looked up twice. Kanji that no word covered fall back to the kanji entries,
-     * which is the only guess in the whole path, and [only] narrows that fallback exactly like it
-     * narrows [lookup] and [kanjiBreakdown]: the panel cannot be told to read one dictionary and be
-     * answered by another.
+     * which is the only guess in the whole path, and [only] narrows that fallback like it narrows
+     * [lookup]: the panel cannot be told to read one dictionary and be answered by another. The one
+     * exception is [kanjiSources], which also keeps a word-only narrowing from silencing a reading
+     * the panel never offered to hide (R28).
      */
     fun withFurigana(
         text: String,
         matches: List<TokenMatch>,
         only: Set<String> = emptySet(),
     ): Furigana.Annotated? = Furigana.sentence(text, matches) { character ->
-        selected(only).firstNotNullOfOrNull { it.kanjiEntry(character) }
+        kanjiSources(only).firstNotNullOfOrNull { it.kanjiEntry(character) }
     }
 
     /**
@@ -99,7 +121,7 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         matches: List<TokenMatch>,
         only: Set<String> = emptySet(),
     ): List<Furigana.Reading> = Furigana.spans(text, matches) { character ->
-        selected(only).firstNotNullOfOrNull { it.kanjiEntry(character) }
+        kanjiSources(only).firstNotNullOfOrNull { it.kanjiEntry(character) }
     }
 
     /** Titles of the dictionaries that actually contributed at least one hit. */
@@ -109,6 +131,23 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
     /** The dictionaries a lookup may consult: the named ones, or all of them when none is named. */
     private fun selected(only: Set<String>): List<CompactDictionary> =
         if (only.isEmpty()) dictionaries else dictionaries.filter { it.info.title in only }
+
+    /**
+     * The dictionaries that can answer a question about a kanji, given the user's narrowing (R28).
+     *
+     * The narrowing exists so the two sections of the panel speak with one voice: words and kanji
+     * from the dictionary the user picked. But a dictionary with no kanji entries cannot answer at
+     * all, and its silence is not a choice anybody made — nobody narrows the panel to JMdict in
+     * order to read a kanji. So a narrowing that holds **no** kanji dictionary is widened to every
+     * dictionary that has one, while a narrowing that holds a kanji dictionary is kept exactly as it
+     * is: then the choice is real, and 「só o KANJIDIC em português» must stay silent about the rare
+     * kanji that build does not carry.
+     */
+    private fun kanjiSources(only: Set<String>): List<CompactDictionary> {
+        val chosen = selected(only)
+        if (chosen.any { it.info.kanjiCount > 0 }) return chosen
+        return dictionaries.filter { it.info.kanjiCount > 0 }
+    }
 
     /** Releases the blob file handles held by the dictionaries. */
     fun close() {

@@ -111,6 +111,67 @@ object Furigana {
     }
 
     /**
+     * The word's reading divided per kanji, e.g. 同 どう + 時 じ, or null when the division cannot be
+     * justified (R29).
+     *
+     * [split] stops at the kanji run: 同時 is one run read どうじ, because the dictionary gives the
+     * word's reading and not where it breaks. The kanji entries do know the pieces — 同 is read どう,
+     * 時 じ — so a run is divided **only** when one reading of each of its kanji, in order, adds up to
+     * exactly the run's reading. 今日 きょう and 大人 おとな have no such division, and there the answer
+     * is null instead of a guess: the card goes on showing the word's reading whole, which is true if
+     * less useful.
+     *
+     * [readings] answers with every kana reading a kanji has (see [allReadings]); empty means no kanji
+     * dictionary knows the character, and a run holding one of those is not divided either.
+     */
+    fun perKanji(term: String, reading: String, readings: (String) -> List<String>): List<Run>? {
+        val runs = split(term, reading) ?: return null
+        if (runs.sumOf { it.kanji.length } < 2) return null
+        val parts = ArrayList<Run>(runs.size + 2)
+        for (run in runs) {
+            if (run.kanji.length == 1) {
+                if (run.reading.isEmpty()) return null
+                parts.add(run)
+                continue
+            }
+            parts.addAll(divide(run.kanji, run.reading, readings) ?: return null)
+        }
+        return parts.takeIf { it.size >= 2 }
+    }
+
+    /**
+     * [kanji] (two characters or more) read [reading], one reading per character, or null.
+     *
+     * Depth-first over the characters, spending the run's own reading: a candidate only counts when
+     * it is exactly what the reading says at that position, and the last character has to spend the
+     * rest of it. The first division found wins, with the candidates in the order the entries list
+     * them (kun first, like [readingsOf]). A division that does not add up is not written.
+     */
+    private fun divide(kanji: String, reading: String, readings: (String) -> List<String>): List<Run>? {
+        val target = normaliseKana(reading)
+        if (target.isEmpty()) return null
+        val parts = ArrayList<Run>(kanji.length)
+        val dead = HashSet<Long>()
+
+        fun walk(index: Int, position: Int): Boolean {
+            if (index == kanji.length) return position == target.length
+            val key = (index.toLong() shl 32) or position.toLong()
+            if (!dead.add(key)) return false
+            val character = kanji[index].toString()
+            for (raw in readings(character)) {
+                val candidate = normaliseKana(raw)
+                if (candidate.isEmpty() || !target.startsWith(candidate, position)) continue
+                parts.add(Run(character, reading.substring(position, position + candidate.length)))
+                if (walk(index + 1, position + candidate.length)) return true
+                parts.removeAt(parts.size - 1)
+            }
+            return false
+        }
+
+        return if (walk(0, 0)) parts.toList() else null
+    }
+
+    /**
      * The sentence with a reading after every kanji run the dictionaries can account for.
      *
      * [matches] is the segmentation a lookup already produced; [kanji] answers for a single character
@@ -205,6 +266,16 @@ object Furigana {
      */
     fun readingsOf(entry: KanjiEntry): List<String> =
         (kanaReadings(entry.kunYomi) + kanaReadings(entry.onYomi)).distinct().take(MAX_LONE_READINGS)
+
+    /**
+     * Every reading a kanji entry lists, kun then on, in kana — the vocabulary [perKanji] divides a
+     * word's reading with (R29).
+     *
+     * Unlike [readingsOf] nothing is capped: three readings are enough next to a lone kanji, but a
+     * cap would make a division fail for a kanji whose fourth reading is the one the word uses.
+     */
+    fun allReadings(entry: KanjiEntry): List<String> =
+        (kanaReadings(entry.kunYomi) + kanaReadings(entry.onYomi)).distinct()
 
     // --- internals -------------------------------------------------------------------------------
 

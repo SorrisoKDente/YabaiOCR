@@ -131,7 +131,7 @@ class CompactDictionary private constructor(
         if (body.isBlank()) return null
         // The readings are kept apart from the rendered body because the furigana pass needs them
         // as readings, not as a line of text: 訓: た.べる is not something to write after a kanji.
-        return KanjiEntry(character, body, onYomi, kunYomi)
+        return KanjiEntry(character, body, onYomi, kunYomi, info.title)
     }
 
     private fun decodeEntry(index: Index, id: Int): DictionaryEntry? {
