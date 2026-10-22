@@ -37,7 +37,7 @@ class DefinitionPanelTest {
         "→ You should eat more fruit.\n" +
         "2. to live on (e.g. a salary)"
 
-    private fun panel(): ResultOverlay = ResultOverlay(context).apply {
+    private fun panel(stale: List<String> = emptyList()): ResultOverlay = ResultOverlay(context).apply {
         showResult(
             text = "食べる",
             meta = "Google Lens · 812 ms · ja",
@@ -69,6 +69,7 @@ class DefinitionPanelTest {
                 ),
                 kanji = emptyList(),
                 dictionaryCount = 1,
+                stale = stale,
             ),
         )
     }
@@ -122,6 +123,32 @@ class DefinitionPanelTest {
         assertTrue(
             "the tags should be shown with the dictionary: '${details!!.text}'",
             details.text.contains("1-dan・transitive"),
+        )
+    }
+
+    /**
+     * Regression R26: a dictionary compiled by an older version keeps the definitions it was
+     * imported with, and the panel is the screen where the difference is read. It has to say why —
+     * and name the dictionary the user has to reimport — or the stale text looks like a bug in the
+     * app.
+     */
+    @Test
+    fun `a dictionary from an old format says so above its definitions`() {
+        val panel = panel(stale = listOf("JMdict · JMdict (inglês)"))
+
+        val note = labels(panel).firstOrNull {
+            it.text.contains("formato antigo") && it.text.contains("JMdict (inglês)")
+        }
+        assertNotNull("the panel kept quiet about the old format: ${labels(panel).map { it.text }}", note)
+    }
+
+    @Test
+    fun `a current dictionary adds no warning`() {
+        val panel = panel()
+
+        assertTrue(
+            "the panel warned about a dictionary that is current",
+            labels(panel).none { it.text.contains("formato antigo") },
         )
     }
 

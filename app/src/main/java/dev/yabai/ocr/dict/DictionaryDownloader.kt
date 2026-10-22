@@ -2,6 +2,9 @@ package dev.yabai.ocr.dict
 
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -36,7 +39,13 @@ class DictionaryDownloader {
 
         target.parentFile?.mkdirs()
         val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
-        client.newCall(request).execute().use { response ->
+        val call = client.newCall(request)
+        // Cancelling the coroutine must close the socket, not only stop the loop: a read can block
+        // for the whole 60 s read timeout, and «Cancelar» cannot mean «wait a minute» (R21).
+        currentCoroutineContext().job.invokeOnCompletion { cause ->
+            if (cause != null) runCatching { call.cancel() }
+        }
+        call.execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("O servidor respondeu ${response.code} ao baixar ${entry.name}.")
             }
@@ -69,7 +78,7 @@ class DictionaryDownloader {
         }
     }
 
-    private suspend fun copyWithProgress(
+    internal suspend fun copyWithProgress(
         input: InputStream,
         output: java.io.OutputStream,
         total: Long,
@@ -79,6 +88,9 @@ class DictionaryDownloader {
         var read = 0L
         var lastReport = 0L
         while (true) {
+            // The job may be cancelled between two chunks; without this the archive would finish
+            // downloading after the user asked it to stop (R21).
+            currentCoroutineContext().ensureActive()
             val count = input.read(buffer)
             if (count < 0) break
             output.write(buffer, 0, count)

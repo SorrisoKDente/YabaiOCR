@@ -119,6 +119,11 @@ OCR erra kanji, e quando erra você normalmente sabe qual era. O texto reconheci
 refeitas sozinhas, com o texto corrigido. Não é preciso capturar a tela de novo — e as seções mostram
 «Traduzindo…»/«Consultando…» enquanto trabalham, para não parecer que nada aconteceu.
 
+**A leitura na tela não é o que sai dela.** As leituras que o painel escreve no texto (`職員（しょくいん）
+さん`) são para ler, não para enviar: **Copiar original** e **Perguntar à IA** mandam a frase
+**reconhecida**, sem os parênteses — `職員さん`. Se você editou o texto, o seu texto é que sai: a
+correção é a única cópia que a tem.
+
 ### Furigana (a leitura ao lado do kanji)
 
 Mangá imprime a leitura dos kanji em kana pequenas encostadas neles — e o Lens reporta isso como **texto**,
@@ -287,7 +292,7 @@ licença). Você baixa ou importa em **Gerenciar dicionários**:
 
 | Caminho | Como funciona |
 | --- | --- |
-| Lista do app | Baixa o `.zip` oficial mais recente, converte uma vez e instala. Tem barra de progresso. |
+| Lista do app | Baixa o `.zip` oficial mais recente, converte uma vez e instala. Tem barra de progresso, e enquanto baixa o próprio botão vira **Cancelar** (o download para de verdade, sem esperar o arquivo terminar). |
 | **Importar arquivo** | Escolhe qualquer `.zip` no formato **Yomitan/Yomichan** pelo seletor do sistema e converte igual. |
 
 O que está na lista:
@@ -323,6 +328,13 @@ A definição é convertida **na importação**. Um dicionário importado antes 
 continua com o texto antigo e a lista de dicionários avisa («Compilado com uma versão antiga do
 app…»): importe de novo para ver o texto novo. O app não guarda o `.zip` de origem, então não há como
 reconverter sozinho.
+
+O aviso aparece em **dois lugares**, porque um só não bastava: num **aviso no topo da lista de
+dicionários**, com o nome de cada dicionário antigo, e numa **nota no painel** logo que uma consulta
+usa um deles — é a tela onde a diferença é lida. Cada linha mostra ainda **de onde o dicionário veio**
+(«Origem: JMdict (inglês)»): o título vem de dentro do arquivo e se repete entre as variantes — o
+JMdict em inglês e o português, os três Wikcionários —, então sem essa linha duas entradas ficavam
+idênticas na tela.
 
 **Como a definição é desenhada.** Sentidos numerados um por linha (`1.`, `2.`), e as definições do
 mesmo sentido juntas, separadas por `;`. Notas (`ℹ`) e exemplos (`例`, com a tradução em `→`) vêm logo
@@ -410,6 +422,11 @@ coluna primeiro; os retângulos que ele mesmo devolve são a única coisa que sa
 
 Além disso, a imagem vai com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`) e o
 idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1600.
+
+As caixas da tela de trechos são desenhadas **na escala da página**, não na da janela. Quando a janela
+fica menor que a captura — a barra de status volta a aparecer, por exemplo —, a página é esticada para
+caber e as caixas esticam junto, no desenho e no toque. Antes elas ficavam nos pixels da captura: numa
+página com **tarja preta em cima e embaixo** a caixa errava o alvo na mesma proporção das barras.
 
 Esse número foi medido duas vezes, e a segunda corrigiu a primeira:
 

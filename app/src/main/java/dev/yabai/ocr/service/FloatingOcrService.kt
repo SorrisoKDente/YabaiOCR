@@ -25,6 +25,7 @@ import android.util.Log
 import android.view.Display
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.MainActivity
@@ -272,10 +273,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
     override fun onRegionRequested() {
         if (busy) return
-        if (capture == null) {
-            toast(getString(R.string.capture_failed))
-            return
-        }
+        if (!requireLiveCapture()) return
         overlays.showRegionSelector()
     }
 
@@ -412,6 +410,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         kanji: Boolean = false,
     ) {
         if (busy) return
+        if (!requireLiveCapture()) return
         val session = capture
         if (session == null) {
             toast(getString(R.string.capture_failed))
@@ -819,8 +818,13 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         withContext(Dispatchers.Default) {
             val engine = repository.lookupEngine()
             val titles = repository.enabledTitles()
+            // Named here, once: the dictionary screen says the same names (R22), so the note points
+            // at the exact card to delete (R26).
+            val stale = repository.installed()
+                .filter { it.enabled && it.info.outdated }
+                .map { it.displayName }
             if (engine == null) {
-                ResultOverlay.WordsState.Done(emptyList(), emptyList(), 0, titles = titles)
+                ResultOverlay.WordsState.Done(emptyList(), emptyList(), 0, titles = titles, stale = stale)
             } else {
                 // The filter is a dictionary title. One that no enabled dictionary answers to is a
                 // leftover — the dictionary was disabled or removed — and honouring it would return
@@ -838,6 +842,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                     dictionaryCount = titles.size,
                     titles = titles,
                     selected = filter,
+                    stale = stale,
                     // Written from the same segmentation the word list came from: the reading of a
                     // word is part of the hit, so this costs a pass over the text, not a lookup.
                     furigana = if (settings.showFurigana) engine.withFurigana(text, matches, only) else null,
@@ -879,6 +884,44 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         val cropped = Bitmap.createBitmap(source, left, top, right - left, bottom - top)
         if (cropped !== source) source.recycle()
         return cropped
+    }
+
+    /**
+     * Whether the system still shows the «OCR ativo» notification.
+     *
+     * From Android 13 the user can swipe a foreground-service notification away, and the service —
+     * with its media projection — carries on just well enough that the next capture times out and
+     * the panel says «falha ao capturar» (R24). The notification is the only sign on screen that the
+     * capture is live, so a missing notification means the capture is over.
+     *
+     * Notifications turned off for the app are **not** a dismissal: that is a permission the user
+     * refused, the service still has its capture, and stopping there would break the app for
+     * someone who simply does not want the shade filled.
+     */
+    private fun captureAdvertised(): Boolean {
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return true
+        val manager = getSystemService(NotificationManager::class.java) ?: return true
+        return try {
+            manager.activeNotifications.any { it.id == NOTIFICATION_ID }
+        } catch (t: Throwable) {
+            // An OEM that refuses the query is not evidence that the notification is gone.
+            true
+        }
+    }
+
+    /**
+     * A capture the user can still use, or an honest stop (R24).
+     *
+     * Answering a tap with «falha ao capturar» while the bubble stays on screen is the worst of
+     * both: the user is told something went wrong and given no way to fix it. Once the capture is
+     * gone, the bubble has nothing left to offer, so it goes with it and the toast says how to come
+     * back.
+     */
+    private fun requireLiveCapture(): Boolean {
+        if (capture != null && captureAdvertised()) return true
+        toast(getString(R.string.capture_dismissed))
+        stopSelf()
+        return false
     }
 
     private fun realDisplayMetrics(): DisplayMetrics {
@@ -1002,7 +1045,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         manager.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(): Notification {
+    internal fun buildNotification(): Notification {
         val open = PendingIntent.getActivity(
             this,
             0,
@@ -1023,6 +1066,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             .setContentText(getString(R.string.notification_text))
             .setContentIntent(open)
             .setOngoing(true)
+            // Swiping it away is «stop», the same as its own «Parar» action (R24). Android 13 lets a
+            // foreground-service notification be dismissed, and this is the one place that says so.
+            .setDeleteIntent(stop)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)

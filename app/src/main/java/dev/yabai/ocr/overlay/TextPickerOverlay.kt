@@ -244,6 +244,18 @@ private class BlockCanvasView(context: Context) : View(context) {
         invalidate()
     }
 
+    /** View pixels per page pixel: 1 when the window is exactly the capture, less when it is not. */
+    private val pageScaleX: Float
+        get() = page?.let { if (it.width > 0 && width > 0) width.toFloat() / it.width else 1f } ?: 1f
+
+    private val pageScaleY: Float
+        get() = page?.let { if (it.height > 0 && height > 0) height.toFloat() / it.height else 1f } ?: 1f
+
+    /** A point of the window in page pixels: undo the zoom, then the stretch to the window (R23). */
+    private fun pageX(x: Float): Float = zoom.toPageX(x) / pageScaleX
+
+    private fun pageY(y: Float): Float = zoom.toPageY(y) / pageScaleY
+
     internal val zoomScale: Float get() = zoom.scale
 
     internal fun zoomBy(factor: Float, focusX: Float, focusY: Float) {
@@ -264,9 +276,19 @@ private class BlockCanvasView(context: Context) : View(context) {
         canvas.save()
         canvas.translate(zoom.offsetX, zoom.offsetY)
         canvas.scale(zoom.scale, zoom.scale)
+        // …and that system is the capture, not the window. The page is drawn stretched into the
+        // window (a full-screen capture into a window that the system made shorter when the status
+        // bar came back), so the boxes have to take the same stretch. Without this, every box sits
+        // a few pixels off its text and the error grows toward the side the bars took (R23).
+        canvas.scale(pageScaleX, pageScaleY)
 
         page?.let { bitmap ->
-            canvas.drawBitmap(bitmap, null, RectF(0f, 0f, width.toFloat(), height.toFloat()), pagePaint)
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat()),
+                pagePaint,
+            )
         }
 
         for ((index, block) in blocks.withIndex()) {
@@ -336,7 +358,9 @@ private class BlockCanvasView(context: Context) : View(context) {
     /** The balloon's sentence with its readings, in a strip that fits beside it. */
     private fun drawLabel(canvas: Canvas, index: Int, block: PickerBlock) {
         val text = block.label ?: return
-        val maxWidth = min(width * 0.62f, width - labelPad * 2)
+        // Page pixels, like the boxes: the canvas stretch takes them to the window.
+        val pageWidth = page?.width?.toFloat() ?: width.toFloat()
+        val maxWidth = min(pageWidth * 0.62f, pageWidth - labelPad * 2)
         if (maxWidth < labelPad * 4) return
         val lines = wrap(text, labelPaint, maxWidth, MAX_LABEL_LINES)
         if (lines.isEmpty()) return
@@ -353,8 +377,8 @@ private class BlockCanvasView(context: Context) : View(context) {
             boxBottom = block.rect.bottom,
             width = chipWidth,
             height = chipHeight,
-            screenWidth = width,
-            screenHeight = height,
+            screenWidth = page?.width ?: width,
+            screenHeight = page?.height ?: height,
             taken = placed,
         )
         placed += Strip(chip.left, chip.top, chip.left + chipWidth, chip.top + chipHeight)
@@ -383,7 +407,7 @@ private class BlockCanvasView(context: Context) : View(context) {
                 pinched = false
                 lastX = event.x
                 lastY = event.y
-                pressed = hitTest(zoom.toPageX(event.x), zoom.toPageY(event.y))
+                pressed = hitTest(pageX(event.x), pageY(event.y))
                 invalidate()
                 return true
             }
@@ -427,7 +451,7 @@ private class BlockCanvasView(context: Context) : View(context) {
                     invalidate()
                     return true
                 }
-                val index = hitTest(zoom.toPageX(event.x), zoom.toPageY(event.y))
+                val index = hitTest(pageX(event.x), pageY(event.y))
                 if (index != pressed) {
                     pressed = index
                     invalidate()
@@ -438,8 +462,8 @@ private class BlockCanvasView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 val tapped = !dragging && !pinched
                 val index = if (tapped) {
-                    hitTest(zoom.toPageX(event.x), zoom.toPageY(event.y)).takeIf { it >= 0 }
-                        ?: stripHit(zoom.toPageX(event.x), zoom.toPageY(event.y))
+                    hitTest(pageX(event.x), pageY(event.y)).takeIf { it >= 0 }
+                        ?: stripHit(pageX(event.x), pageY(event.y))
                 } else {
                     -1
                 }

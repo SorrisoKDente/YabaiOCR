@@ -106,6 +106,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             /** The one dictionary the lookup was narrowed to, or null for all of them. */
             val selected: String? = null,
             /**
+             * Enabled dictionaries compiled by an older version of the app, if any (R26).
+             *
+             * Their definitions were baked in with the old rendering, so the panel that shows them
+             * has to say why they look different from the rest — on the screen the user is looking
+             * at, not only in the dictionaries screen they would have to think to open.
+             */
+            val stale: List<String> = emptyList(),
+            /**
              * The sentence with a reading after every kanji the dictionaries can account for, or
              * null when there is nothing to write (or the setting is off). The panel writes it into
              * the recognised text itself, beside the kanji it reads.
@@ -161,7 +169,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     }
 
     private val btCopyOriginal = context.actionButton(context.getString(R.string.result_copy_original)) {
-        callbacks?.onCopyOriginal(originalEditor.text.toString())
+        callbacks?.onCopyOriginal(textToSend())
     }
     private val btCopyTranslation = context.actionButton(context.getString(R.string.result_copy_translation)) {
         val text = translationText
@@ -490,7 +498,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             // buttons are the answer to a piece of it.
             actions.add(
                 context.actionButton(context.getString(R.string.result_ask_ai)) {
-                    callbacks?.onAskAi(originalEditor.text.toString())
+                    callbacks?.onAskAi(textToSend())
                 },
             )
         }
@@ -572,6 +580,21 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     /** The text the user is looking at, edited or not. */
     fun currentText(): String = originalEditor.text.toString()
+
+    /**
+     * The text «Copiar original» and «Perguntar à IA» hand out (R20).
+     *
+     * The panel writes the readings into the sentence so the furigana sits beside the kanji it reads
+     * — 「職員（しょくいん）さんに聞（き）いた」. That is the right thing to *read* and the wrong thing to
+     * *send*: the clipboard and another app want the sentence, not the study notes. So the recognised
+     * text is kept aside the moment the panel opens, and it is what leaves the panel — the readings
+     * are a view of it, not a replacement for it.
+     *
+     * A text the user has typed is theirs: once they correct a kanji, the editor is the only copy
+     * that has the correction, and sending the clean original would silently undo their work.
+     */
+    private fun textToSend(): String =
+        if (userEdited) originalEditor.text.toString() else cleanText
 
     /** Writes [text] into the editor as the panel's own change, not as the user's edit. */
     private fun showText(text: String) {
@@ -671,6 +694,18 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // The reading belongs to the sentence above, not to a section of its own: it goes into the
         // recognised text, beside the kanji it reads, the moment the lookup that produced it lands.
         applyReading(state.furigana)
+        if (state.stale.isNotEmpty()) {
+            // Said before the definitions it explains, so the user reads the banner and the text in
+            // that order (R26).
+            wordsSection.addView(
+                noteView(
+                    context.getString(
+                        R.string.result_stale_dictionary,
+                        state.stale.joinToString("; "),
+                    ),
+                ),
+            )
+        }
         if ((state.furigana?.uncertain ?: 0) > 0) {
             // A guess is still said out loud, under the words: what is between the parentheses came
             // from the kanji data, not from a word, and the `?` in the text is what this explains.

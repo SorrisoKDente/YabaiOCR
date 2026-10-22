@@ -22,7 +22,22 @@ data class InstalledDictionary(
     val sourceName: String,
     val enabled: Boolean,
     val sizeBytes: Long,
-)
+) {
+    /**
+     * The dictionary as the user has to see it when several can be confused (R22).
+     *
+     * The title comes from inside the archive — «JMdict», «Wikcionário» — and it is the same for
+     * every variant of the same dictionary: the English and the Portuguese JMdict, three
+     * Wikcionários in three languages. What the user picked (the catalog entry, or the file name)
+     * carries the language, so it is shown beside the title whenever it is not the title already.
+     */
+    val displayName: String
+        get() = if (sourceName.isNotBlank() && sourceName != info.title) {
+            "${info.title} · $sourceName"
+        } else {
+            info.title
+        }
+}
 
 /**
  * Owns the compiled dictionaries on disk and the single [LookupEngine] built from them.
@@ -257,10 +272,23 @@ class DictionaryRepository private constructor(private val appContext: Context) 
         @Volatile
         private var instance: DictionaryRepository? = null
 
-        fun get(context: Context): DictionaryRepository =
-            instance ?: synchronized(this) {
-                instance ?: DictionaryRepository(context.applicationContext).also { instance = it }
+        /**
+         * The one repository of this application.
+         *
+         * It is keyed to the application context, not merely created once: the caches it holds —
+         * the installed list, the compiled index — belong to a directory tree, and a process can
+         * hold more than one application (the test runner does, one per test). Reusing the first
+         * repository for a second application would answer about the wrong files, which is exactly
+         * what the dictionary screen showed when it was tested with the rest of the suite.
+         */
+        fun get(context: Context): DictionaryRepository {
+            val app = context.applicationContext
+            instance?.let { if (it.appContext === app) return it }
+            return synchronized(this) {
+                instance?.let { if (it.appContext === app) return@synchronized it }
+                DictionaryRepository(app).also { instance = it }
             }
+        }
 
         /** A stable, filesystem-safe id for a dictionary the user imported by hand. */
         fun importedId(title: String): String {

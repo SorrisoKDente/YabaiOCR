@@ -89,6 +89,37 @@ class TextPickerOverlayTest {
         assertFalse("a tap inside a box is not a cancel", cancelled)
     }
 
+    /**
+     * Regression R23: the window is not always exactly the capture.
+     *
+     * With the status bar on screen the picker's window is shorter than the screenshot, and the page
+     * is drawn squeezed into it. The box has to be squeezed with the page: a tap where the box is
+     * *drawn* is a tap on the box, or every box drifts off its text by the height of the bars.
+     */
+    @Test
+    fun `a tap lands on the box it covers when the window is shorter than the page`() {
+        var picked = -1
+        val overlay = TextPickerOverlay(context).apply {
+            onPick = { picked = it }
+            onCancel = {}
+            show(
+                // Page 320..360, which the 600-pixel-tall window draws at 300..337.
+                listOf(PickerBlock(Rect(100, 320, 200, 360))),
+                PickerReadingMode.OFF,
+                Bitmap.createBitmap(320, 640, Bitmap.Config.ARGB_8888),
+            )
+            measure(
+                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY),
+            )
+            layout(0, 0, 320, 600)
+        }
+
+        tap(overlay, 150f, 310f)
+
+        assertEquals("a tap on the drawn box missed it", 0, picked)
+    }
+
     @Test
     fun `a tap outside every box still closes the picker`() {
         var cancelled = false

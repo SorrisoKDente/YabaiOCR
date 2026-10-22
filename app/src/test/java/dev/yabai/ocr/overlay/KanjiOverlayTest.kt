@@ -2,6 +2,8 @@ package dev.yabai.ocr.overlay
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Rect
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -11,6 +13,7 @@ import android.widget.TextView
 import dev.yabai.ocr.R
 import dev.yabai.ocr.core.lens.PixelBox
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -19,6 +22,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * The kanji reader: pointing at a character on the frozen page (R17).
@@ -95,9 +99,69 @@ class KanjiOverlayTest {
         assertEquals(0 to 2, picked)
     }
 
+    /** Regression R23: a window shorter than the capture must still point at the printed character. */
     @Test
-    fun `a tap away from every strip picks nothing and keeps the reader open`() {
+    fun `a tap lands on the character when the window is shorter than the page`() {
         var picked: Pair<Int, Int>? = null
+        val reader = KanjiOverlay(context).apply {
+            onKanjiTapped = { piece, index -> picked = piece to index }
+            onDismiss = {}
+            show(
+                listOf(KanjiPiece("\u8179\u304c\u6e1b\u3063\u3066\u306f", column, vertical = true)),
+                Bitmap.createBitmap(320, 640, Bitmap.Config.ARGB_8888),
+            )
+            measure(
+                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY),
+            )
+            layout(0, 0, 320, 600)
+        }
+
+        // View 175 is page 186.7 in a 600-tall window: the third cell (180..220), not the second.
+        tap(reader, 120f, 175f)
+
+        assertEquals(0 to 2, picked)
+    }
+
+    /**
+     * Regression R23: the mark is painted where the page under the finger is.
+     *
+     * Same stretch as the picker: a shorter window draws the page squeezed, and a mark drawn with the
+     * page's own pixels would outline a character two rows away from the one that was tapped.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `the mark is drawn over the character the finger is on`() {
+        val reader = KanjiOverlay(context).apply {
+            onKanjiTapped = { _, _ -> }
+            onDismiss = {}
+            show(
+                listOf(KanjiPiece("\u8179\u304c\u6e1b\u3063\u3066\u306f", column, vertical = true)),
+                Bitmap.createBitmap(320, 640, Bitmap.Config.ARGB_8888),
+            )
+            measure(
+                View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY),
+            )
+            layout(0, 0, 320, 600)
+        }
+
+        // View 248 is page 264.5: the fifth character (page 260..300), drawn at 243..281.
+        tap(reader, 120f, 248f)
+        val shot = Bitmap.createBitmap(320, 600, Bitmap.Config.ARGB_8888)
+        shot.eraseColor(Color.WHITE)
+        reader.draw(Canvas(shot))
+
+        val unmarked = shot.getPixel(120, 150)
+        assertNotEquals(
+            "the mark is not drawn where the finger is",
+            unmarked,
+            shot.getPixel(120, 250),
+        )
+    }
+
+    @Test
+    fun `a tap away from every strip picks nothing and keeps the reader open`() {        var picked: Pair<Int, Int>? = null
         var dismissed = false
         val reader = overlay({ piece, index -> picked = piece to index }, { dismissed = true })
 

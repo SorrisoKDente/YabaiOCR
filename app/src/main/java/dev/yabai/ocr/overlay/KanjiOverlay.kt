@@ -322,6 +322,13 @@ private class KanjiCanvasView(context: Context) : View(context) {
         invalidate()
     }
 
+    /** View pixels per page pixel: 1 when the window is exactly the capture. */
+    private val pageScaleX: Float
+        get() = page?.let { if (it.width > 0 && width > 0) width.toFloat() / it.width else 1f } ?: 1f
+
+    private val pageScaleY: Float
+        get() = page?.let { if (it.height > 0 && height > 0) height.toFloat() / it.height else 1f } ?: 1f
+
     /** Puts the accent border on the character that was just tapped. */
     fun mark(piece: Int, index: Int) {
         val target = pieces.getOrNull(piece) ?: return
@@ -347,9 +354,17 @@ private class KanjiCanvasView(context: Context) : View(context) {
         canvas.save()
         canvas.translate(zoom.offsetX, zoom.offsetY)
         canvas.scale(zoom.scale, zoom.scale)
+        // The page is stretched into the window, so the strips and the mark take the same stretch
+        // (R23): the window is not always exactly the capture.
+        canvas.scale(pageScaleX, pageScaleY)
 
         page?.let { bitmap ->
-            canvas.drawBitmap(bitmap, null, RectF(0f, 0f, width.toFloat(), height.toFloat()), pagePaint)
+            canvas.drawBitmap(
+                bitmap,
+                null,
+                RectF(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat()),
+                pagePaint,
+            )
         }
 
         for (piece in pieces) {
@@ -413,7 +428,9 @@ private class KanjiCanvasView(context: Context) : View(context) {
                 val tapped = !dragging && !pinched
                 dragging = false
                 pinched = false
-                if (tapped) tap(zoom.toPageX(event.x), zoom.toPageY(event.y))
+                if (tapped) {
+                    tap(zoom.toPageX(event.x) / pageScaleX, zoom.toPageY(event.y) / pageScaleY)
+                }
                 return true
             }
 

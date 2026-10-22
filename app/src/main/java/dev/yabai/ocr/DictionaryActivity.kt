@@ -26,6 +26,7 @@ import dev.yabai.ocr.overlay.textLabel
 import dev.yabai.ocr.util.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -49,8 +50,14 @@ class DictionaryActivity : AppCompatActivity() {
     private lateinit var installedContainer: LinearLayout
     private lateinit var availableContainer: LinearLayout
 
+    /** The «old format» banner above the installed list; empty when every dictionary is current (R26). */
+    private lateinit var staleContainer: LinearLayout
+
     /** One download at a time: two 37 MB archives at once is a good way to run out of memory. */
     private var busy: String? = null
+
+    /** The download the «Cancelar» button of the running row can stop (R21). */
+    private var downloadJob: Job? = null
 
     private val pickZip = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importZip(uri)
@@ -92,6 +99,8 @@ class DictionaryActivity : AppCompatActivity() {
             },
         )
         installedContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        staleContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(staleContainer)
         column.addView(installedContainer)
 
         column.addView(sectionHeader(getString(R.string.dictionary_import_section)))
@@ -135,8 +144,39 @@ class DictionaryActivity : AppCompatActivity() {
     // --- content -------------------------------------------------------------------------------
 
     private fun refresh() {
-        renderInstalled(repository.installed())
+        val items = repository.installed()
+        renderStale(items)
+        renderInstalled(items)
         renderAvailable()
+    }
+
+    /**
+     * The banner that says the definitions come from an older format (R26).
+     *
+     * The per-dictionary line is the last line of a card, under the counts and the source, and it
+     * only helps someone who already knows to look for it. The banner sits above the list and names
+     * the dictionaries, so the screen says it on its own the first time it is opened after an
+     * update — which is exactly when the definitions look unchanged.
+     */
+    private fun renderStale(items: List<InstalledDictionary>) {
+        staleContainer.removeAllViews()
+        val stale = items.filter { it.info.outdated }
+        if (stale.isEmpty()) return
+        staleContainer.addView(
+            textLabel(
+                getString(R.string.dictionary_stale_banner, stale.joinToString("; ") { it.displayName }),
+                12f,
+                getColor(R.color.text_primary),
+            ).apply {
+                background = roundedBackground(0x33FFB300, dp(12).toFloat(), 0x66FFB300)
+                setPadding(dp(14), dp(10), dp(14), dp(10))
+                setLineSpacing(dp(3).toFloat(), 1f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = dp(10) }
+            },
+        )
     }
 
     private fun renderInstalled(items: List<InstalledDictionary>) {
@@ -251,6 +291,10 @@ class DictionaryActivity : AppCompatActivity() {
         val attribution = item.info.attribution?.takeIf { it.isNotBlank() }
         val lines = ArrayList<String>(3)
         lines.add(parts.joinToString(" · "))
+        // Which one this is, when the title alone cannot say it (R22).
+        if (item.displayName != item.info.title) {
+            lines.add(getString(R.string.dictionary_source, item.sourceName))
+        }
         if (attribution != null) lines.add(getString(R.string.dictionary_attribution, attribution))
         if (item.info.outdated) lines.add(getString(R.string.dictionary_outdated))
         return lines.joinToString("\n")
@@ -302,11 +346,14 @@ class DictionaryActivity : AppCompatActivity() {
 
         val action = actionButton(
             if (installed) getString(R.string.dictionary_delete) else getString(R.string.dictionary_download),
-        ) {
+        ) { }
+        // Set after the button exists: the running download needs the button itself, to turn it into
+        // «Cancelar» and then back into «Baixar» (R21).
+        action.setOnClickListener {
             if (installed) {
                 repository.installed().firstOrNull { it.id == entry.id }?.let { confirmDelete(it) }
             } else {
-                startDownload(entry, status)
+                startDownload(entry, status, action)
             }
         }
         buttons.addView(action)
@@ -332,7 +379,7 @@ class DictionaryActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun startDownload(entry: DictionaryCatalog.Entry, status: TextView) {
+    private fun startDownload(entry: DictionaryCatalog.Entry, status: TextView, button: TextView) {
         if (busy != null) {
             toast(getString(R.string.dictionary_download_failed, "outro download em andamento"))
             return
@@ -340,8 +387,12 @@ class DictionaryActivity : AppCompatActivity() {
         busy = entry.id
         status.visibility = View.VISIBLE
         status.text = getString(R.string.dictionary_downloading, "0%")
+        // The row's own button is the cancel button while its download runs (R21): a 37 MB archive
+        // on mobile data is exactly the thing one wants to take back.
+        button.text = getString(R.string.dictionary_cancel)
+        button.setOnClickListener { downloadJob?.cancel() }
 
-        scope.launch {
+        downloadJob = scope.launch {
             val archive = File(cacheDir, "dict-${entry.id}.zip")
             try {
                 downloader.download(entry, archive) { read, total ->
@@ -361,12 +412,19 @@ class DictionaryActivity : AppCompatActivity() {
                 }
                 toast(getString(R.string.dictionary_installed_done, installed.info.title))
                 refresh()
+            } catch (t: kotlinx.coroutines.CancellationException) {
+                status.visibility = View.GONE
+                toast(getString(R.string.dictionary_download_cancelled))
             } catch (t: Throwable) {
                 status.visibility = View.GONE
                 showFailure(R.string.dictionary_download_failed, t)
             } finally {
                 archive.delete()
                 busy = null
+                downloadJob = null
+                // The row may still be on screen (a cancel or a failure does not refresh the list).
+                button.text = getString(R.string.dictionary_download)
+                button.setOnClickListener { startDownload(entry, status, button) }
             }
         }
     }

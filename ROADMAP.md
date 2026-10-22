@@ -1776,7 +1776,176 @@ definição) e ordenar sentidos por frequência (o dicionário já vem na ordem 
 
 ---
 
+## 9. Quinta ronda — o que o aparelho mostrou  (21/10/2026)
+
+Sete pedidos de uma vez: dois bugs que atrapalham o uso, um que só aparece em página com tarja preta,
+três melhorias de dicionário e uma pergunta sobre traduzir um dicionário inteiro. As regras de sempre
+valem: **bugs primeiro**, um item por vez, cada um com teste de regressão provado não vazio antes do
+`[x]`.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R20 | `[x]` | **«Copiar original» e «Perguntar à IA» mandam o texto com o furigana** escrito nele | bug (texto) |
+| R21 | `[x]` | **Cancelar um download** em andamento, sem esperar o arquivo inteiro | função (dicionário) |
+| R22 | `[x]` | **Qual dicionário é qual**: dois títulos iguais na lista, sem nada que os distinga | melhoria |
+| R23 | `[x]` | **Caixas fora do texto** em páginas com barra preta em cima e embaixo | bug (geometria) |
+| R24 | `[x]` | **Fechar a notificação do OCR** deixa a captura num estado que só dá erro | bug (serviço) |
+| R25 | `[x]` | **Pouco furigana vindo do Lens** (página 9, capítulo 13) | não se repetiu |
+| R26 | `[x]` | **Aviso de formato antigo** que o usuário não viu antes de reimportar | melhoria |
+| R27 | `[ ]` | **Traduzir um dicionário inglês para português** com IA: vale a pena? (análise) | estudo |
+
+### R20 — O texto que sai do painel  `[x]` (21/10/2026)
+
+**Relato:** «Copiar original» e «Perguntar à IA» copiam o texto **como ele aparece na tela**, com as
+leituras dentro — `職員（しょくいん）さんに聞（き）いた`. No bloco de notas e na conversa com a IA, os
+parênteses não fazem parte da frase.
+
+**Causa:** as duas ações liam `originalEditor.text`, e é o editor que recebe o texto anotado quando o
+dicionário responde (`applyReading`). O texto **reconhecido** estava guardado desde a abertura do
+painel (`cleanText`), mas ninguém o usava para sair.
+
+**Correção:** `textToSend()` — a **frase reconhecida**, menos quando o usuário editou: aí o editor é a
+única cópia que tem a correção dele, e mandar o original desfaria o trabalho. As leituras continuam
+sendo uma **vista** do texto, não o texto.
+
+**Testes de regressão:** `CopyCleanTextTest` (4) — o painel realmente escreve as leituras na frase
+(premissa), «Copiar original» e «Perguntar à IA» mandam a frase sem elas, e uma frase corrigida à mão
+sai como o usuário a escreveu. Non-vacuidade **1/1**.
+
+### R21 — Cancelar o download  `[x]` (21/10/2026)
+
+**Relato:** um arquivo de 37 MB em dados móveis começa sem querer e não há como voltar atrás.
+
+**Correção:** enquanto um download roda, o próprio botão da linha vira **Cancelar**; ele cancela a
+`Job` daquele download e volta a ser «Baixar» ao terminar (inclusive quando falha). O downloader passou
+a ser cooperativo em dois pontos: `copyWithProgress` verifica `ensureActive()` **entre dois blocos** —
+sem isso a cópia terminaria depois do cancelamento — e `download` registra o cancelamento da corrotina
+para fechar a **conexão** (`call.cancel()`), porque uma leitura pode ficar presa até o tempo limite de
+60 s e «Cancelar» não pode significar «espere um minuto». O `.zip` parcial é apagado no `finally`, como
+antes, e o usuário recebe «Download cancelado.».
+
+**Testes de regressão:** `DictionaryDownloaderTest` (2) — um `InputStream` lento de 3,75 MB: o job é
+cancelado no meio e a cópia **para** (menos bytes do que o total e mais do que zero, para o teste não
+passar por não copiar nada); e a cópia não cancelada entrega todos os bytes. Non-vacuidade **1/1**.
+
+**O que não está coberto:** a ligação do botão com o download não tem teste — o downloader precisa de
+rede. É a mesma lacuna declarada de `FloatingOcrService`.
+
+### R22 — Qual dicionário é qual  `[x]` (21/10/2026)
+
+**Relato:** na lista de instalados os nomes se repetem e não há como saber qual é qual.
+
+**Causa:** o título vem de **dentro do arquivo** («JMdict», «Wikcionário») e é o mesmo para todas as
+variantes do mesmo dicionário — o JMdict em inglês e o português, os três Wikcionários. O que o usuário
+escolheu (a entrada da lista do app, ou o nome do arquivo importado) é que diz o idioma, e isso ficava
+só no `meta.json`.
+
+**Correção:** `InstalledDictionary.displayName` = título + origem quando diferem, e a linha de apoio da
+lista mostra «Origem: JMdict (inglês)». A mesma função nomeia o dicionário no aviso de formato antigo,
+na lista e no painel, para os dois lugares falarem do mesmo cartão.
+
+**Testes de regressão:** `InstalledDictionaryTest` (3) — origem diferente vira parte do nome, origem
+igual não se repete, origem vazia não inventa nada. `DictionaryScreenTest` confere a linha na tela.
+Non-vacuidade **1/1**.
+
+### R23 — As caixas fora do texto  `[x]` (21/10/2026)
+
+**Relato:** em páginas com **barra preta em cima e embaixo** (mangá e jogos), as caixas de tradução
+aparecem deslocadas em relação ao texto original.
+
+**Causa:** a página e as caixas viviam em dois sistemas de coordenadas diferentes. A **imagem** era
+desenhada esticada para a janela (`drawBitmap(bitmap, null, RectF(0, 0, width, height), …)`), mas as
+caixas vinham em **pixels da captura** e eram desenhadas — e tocadas — sem essa escala. Enquanto a
+janela e a captura coincidiam, os dois números eram iguais e o erro era zero; quando o sistema encolhe
+a janela (a barra de status voltando durante a captura, o que acontece justamente quando o app já está
+em cima de um conteúdo de tela cheia), a imagem encolhia e as caixas não. Valia para o seletor de
+trechos **e** para o leitor de kanji, que herdou o mesmo desenho.
+
+**Correção:** a escala **página → janela** passou a ser explícita nos dois canvas
+(`pageScaleX`/`pageScaleY`) e aplicada em três lugares que têm de concordar: o **desenho** (um
+`canvas.scale` depois do zoom), a **conversão do toque** (`pageX`/`pageY` desfazem o zoom e a escala) e
+o **layout das etiquetas**, que passa a ser calculado em pixels de página e esticado junto. Com isso o
+sistema de coordenadas é um só — o da captura —, e a janela é só a lente por onde ele é visto.
+
+**Testes de regressão (quatro, dois por canvas):** `TextPickerOverlayTest` — um toque onde a caixa é
+**desenhada** numa janela de 600 px de altura acerta a caixa (antes errava por 10 px); `PickerPageDrawTest`
+— em `@GraphicsMode(NATIVE)`, a caixa é **pintada** por cima do pedaço de página que ela representa, e o
+que está fora dela continua sendo página; `KanjiOverlayTest` — o toque aponta o caractere em que o dedo
+está e, no desenho, a **marca** cai sobre esse caractere, não dois caracteres abaixo.
+Non-vacuidade **4/4**.
+
+### R24 — Fechar a notificação do OCR  `[x]` (21/10/2026)
+
+**Relato:** fechar a notificação «OCR ativo» faz a próxima captura falhar; ou a notificação não devia
+poder ser fechada sem «Parar», ou fechá-la devia encerrar o OCR.
+
+**Causa:** o serviço é um *foreground service* de projeção e a notificação é o que o anuncia. A partir
+do **Android 13** o usuário pode descartar a notificação de um serviço em primeiro plano, e o serviço
+continua rodando com a projeção já sem utilidade: o toque seguinte não tem quadro nenhum para ler, e o
+painel responde «Falha ao capturar a tela». A notificação não pode ser tornada in-fechável — o sistema
+permite o descarte desde o 13, por decisão dele, não do app.
+
+**Correção:** o caminho escolhido foi o segundo dos dois que o pedido oferecia — **fechar encerra**. A
+notificação ganhou `deleteIntent` com a mesma ação «Parar» do botão (nos aparelhos que reportam o
+descarte), e a checagem que decide de verdade: antes de cada captura e de abrir o seletor de área, o
+serviço pergunta ao sistema se a notificação ainda está lá
+(`NotificationManager.getActiveNotifications`). Se não está, ele avisa («A notificação da captura foi
+fechada, então o OCR foi encerrado…») e faz `stopSelf()` — a bolha sai junto, em vez de ficar na tela
+respondendo erro. **Notificações desligadas para o app não contam como descarte**: é uma permissão que o
+usuário recusou, a captura continua valendo e encerrar ali quebraria o app para quem só não quer a
+gaveta cheia.
+
+**Testes de regressão:** `CaptureNotificationTest` (3) — `Robolectric.buildService` de verdade: a
+notificação pede a parada ao ser descartada, oferece o próprio «Parar», e a ação «Parar» encerra o
+serviço (`ShadowService.isStoppedBySelf`). Non-vacuidade **1/1**.
+
+**O que não está coberto:** o descarte em si — o Robolectric não simula barrer uma notificação de
+serviço nem o encolhimento da janela pela barra de status. O teste fixa o contrato (descarte ⇒ parada);
+o caminho real depende do aparelho.
+
+### R25 — Pouco furigana vindo do Lens  `[x]` (21/10/2026)
+
+**Relato:** na página 9, capítulo 13, o Lens quase não devolveu leitura enquanto o offline achou mais.
+
+**Fechado sem mudança de código.** O usuário retestou na versão nova, com a mesma página, e a leitura
+apareceu normalmente. Não se reproduz mais; a leitura do Lens depende do que ele decide reportar como
+texto anotado naquela imagem, e nada no app mudou desde o relato. Fica registrado para reabrir se
+voltar.
+
+### R26 — O aviso de formato antigo  `[x]` (21/10/2026)
+
+**Relato:** depois de apagar e reimportar o dicionário, o usuário não viu aviso nenhum de que o formato
+antigo estava em uso — só soube porque foi avisado na conversa.
+
+**Causa:** o aviso existia desde o R19 (`DictionaryInfo.outdated`), mas **num lugar só**: a última linha
+de um cartão da tela de dicionários, abaixo do tamanho, da revisão e da atribuição, em letra secundária
+de 12 sp. É a linha que só encontra quem já sabe que deve procurar por ela — e a tela onde a diferença
+de definição é lida é o **painel**, que não dizia nada.
+
+**Correção:** o mesmo fato passou a ser dito em três lugares, do mais visível para o mais específico:
+um **aviso no topo da lista de instalados**, nomeando cada dicionário antigo; a linha do cartão, como
+antes; e uma **nota no painel**, logo acima das definições, com o nome que o usuário vê na outra tela
+(`WordsState.Done.stale`), para o texto velho não parecer defeito do app. O nome usado no aviso é o
+`displayName` do R22, então os dois lugares falam do mesmo cartão.
+
+**Testes de regressão:** `DictionaryScreenTest` — o aviso existe, nomeia o dicionário antigo e **não**
+culpa o que está atual; `DefinitionPanelTest` — a nota aparece com o nome do dicionário em formato
+antigo e **não** aparece quando todos estão atuais. Non-vacuidade **2/2**.
+
+### R27 — Traduzir um dicionário para português  `[ ]` (21/10/2026)
+
+Pergunta: dá para pegar um dicionário em inglês (JMdict/Jitendex) e traduzir para português com IA, de
+graça, com qualidade que valha a pena? Análise entregue na conversa — o item fica aberto esperando
+decisão, porque não custa uma tarde de código e custa **muito** de máquina.
+
+**Fechamento da ronda:** `app:testDebugUnitTest` **220 / 0**, `core:test` **103 / 0 / 2 pulados** (com
+`-Pdicts`). Non-vacuidade **10/10** (`%TEMP%\opencode\r20_nonvacuous.py`).
+
+---
+
 ## Notas de ordem
+
+
 
 - B1 antes de tudo: é regressão visual e esconde um botão.
 - B2 é trivial, mas a decisão é do usuário; entra logo depois.

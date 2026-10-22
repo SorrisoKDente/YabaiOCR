@@ -99,6 +99,7 @@
     <string name="result_unfold_section">Mostrar a seção</string>
 
     <string name="capture_failed">Falha ao capturar a tela. Tente novamente.</string>
+    <string name="capture_dismissed">A notificação da captura foi fechada, então o OCR foi encerrado. Toque em «Iniciar OCR flutuante» para voltar.</string>
     <string name="capture_restart_needed">A tela girou e a captura precisa ser reiniciada. Toque em «Iniciar OCR flutuante» novamente.</string>
     <string name="recognizing">Reconhecendo…</string>
 
@@ -169,6 +170,7 @@
     <string name="dictionary_terms">%1$s verbetes</string>
     <string name="dictionary_kanji_count">%1$s kanji</string>
     <string name="dictionary_download">Baixar</string>
+    <string name="dictionary_download_cancelled">Download cancelado.</string>
     <string name="dictionary_downloading">Baixando… %1$s</string>
     <string name="dictionary_installing">Convertendo… %1$s</string>
     <string name="dictionary_installed_done">«%1$s» instalado</string>
@@ -183,5 +185,8 @@
     <string name="dictionary_download_failed">Falha ao baixar: %1$s</string>
     <string name="dictionary_attribution">Fonte: %1$s</string>
     <string name="dictionary_release">Revisão %1$s</string>
+    <string name="dictionary_source">Origem: %1$s</string>
+    <string name="dictionary_stale_banner">Compilados por uma versão antiga do app, estes dicionários ainda mostram as definições no formato antigo: %1$s. Apague e importe de novo para atualizá-los.</string>
+    <string name="result_stale_dictionary">Dicionário em formato antigo: %1$s. Em «Dicionários», apague e importe de novo para atualizar as definições.</string>
     <string name="dictionary_outdated">Compilado com uma versão antiga do app: importe este dicionário de novo para ver as definições organizadas.</string>
 </resources>
