@@ -37,7 +37,11 @@ data class KanjiCard(
     val kunYomi: String,
     /** The kanji dictionary's own text: meanings and statistics. */
     val meaning: String,
-    val compounds: List<KanjiWord>,
+    /**
+     * What the word dictionary says the word above means (R34a). The kanji entry explains the
+     * character; this explains the compound the character was tapped inside.
+     */
+    val wordMeaning: String = "",
     /** The dictionary the entry came from, when one answered (R28). */
     val source: String? = null,
     /** The word's reading, one part per kanji, when the dictionaries justify a division (R29). */
@@ -196,6 +200,20 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
                 ).apply { topMargin = dp(6) },
             )
         }
+        // R34a: the meaning of the compound the word line just named. Without it the card answered
+        // «技 is skill; art; craft» for 剣技, which is the meaning of a third of the word.
+        if (!data.word.isNullOrBlank() && data.wordMeaning.isNotBlank()) {
+            card.addView(
+                textLabel(data.wordMeaning, 12.5f, context.getColor(R.color.text_primary)).apply {
+                    maxLines = 6
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(6) },
+            )
+        }
         if (data.parts.isNotEmpty()) {
             card.addView(
                 textLabel(
@@ -241,22 +259,6 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
                     maxLines = 8
                     ellipsize = android.text.TextUtils.TruncateAt.END
                 },
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { topMargin = dp(8) },
-            )
-        }
-        if (data.compounds.isNotEmpty()) {
-            card.addView(
-                textLabel(
-                    context.getString(
-                        R.string.kanji_compounds,
-                        data.compounds.joinToString(", ") { "${it.surface} ${it.reading}" },
-                    ),
-                    12f,
-                    context.getColor(R.color.text_secondary),
-                ),
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,

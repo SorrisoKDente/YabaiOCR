@@ -1,5 +1,7 @@
 package dev.yabai.ocr.overlay
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.os.Looper
 import android.view.KeyEvent
@@ -20,6 +22,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 import java.time.Duration
 
 /**
@@ -188,6 +191,117 @@ class DictionarySearchPanelTest {
         assertEquals("there is no capture behind a search to go back to", 1, recorder.dismissed)
     }
 
+    @Test
+    fun `space in the search box does not close it`() {
+        val recorder = Recorder()
+        val panel = searchPanel(recorder)
+
+        panel.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SPACE))
+        panel.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SPACE))
+
+        assertEquals("the keyboard's space closed the search", 0, recorder.dismissed)
+    }
+
+    @Test
+    fun `the clear button empties the field and asks for an empty answer`() {
+        val recorder = Recorder()
+        val panel = searchPanel(recorder)
+        editor(panel).setText("日本")
+        idleForSearch()
+        assertEquals(listOf("日本"), recorder.searches)
+
+        // Acha o botão ✕ ao lado do campo pelo conteúdo de acessibilidade
+        val clearButton = labels(panel).firstOrNull {
+            it.contentDescription?.toString() == context.getString(R.string.dictionary_search_clear)
+        } ?: error("the clear button was not found: ${labels(panel).map { it.contentDescription }}")
+        clearButton.performClick()
+
+        assertEquals("the clear button did not empty the field", "", editor(panel).text.toString())
+        idleForSearch()
+        assertEquals(listOf("日本", ""), recorder.searches)
+    }
+
+    @Test
+    fun `the button beside an empty box pastes the clipboard and searches`() {
+        val recorder = Recorder()
+        val panel = searchPanel(recorder)
+        clipboard.setPrimaryClip(ClipData.newPlainText("test", "  剣技\n"))
+
+        val paste = searchButton(panel, R.string.dictionary_search_paste_description)
+        paste.performClick()
+
+        assertEquals("the pasted query did not reach the box", "剣技", editor(panel).text.toString())
+        assertEquals(
+            "after pasting, the button has something to clear again",
+            context.getString(R.string.dictionary_search_clear),
+            paste.contentDescription.toString(),
+        )
+        idleForSearch()
+        assertEquals(listOf("剣技"), recorder.searches)
+    }
+
+    @Test
+    fun `the button turns back into Colar when the field is emptied`() {
+        val panel = searchPanel()
+
+        assertEquals(
+            "an empty box offers the paste action",
+            context.getString(R.string.dictionary_search_paste),
+            searchButton(panel, R.string.dictionary_search_paste_description).text.toString(),
+        )
+
+        editor(panel).setText("日本")
+        val clear = searchButton(panel, R.string.dictionary_search_clear)
+        assertEquals("✕", clear.text.toString())
+
+        clear.performClick()
+
+        assertEquals("", editor(panel).text.toString())
+        searchButton(panel, R.string.dictionary_search_paste_description)
+    }
+
+    @Test
+    fun `an empty clipboard says so instead of emptying the box`() {
+        val recorder = Recorder()
+        val panel = searchPanel(recorder)
+        clipboard.setPrimaryClip(ClipData.newPlainText("vazio", ""))
+
+        searchButton(panel, R.string.dictionary_search_paste_description).performClick()
+
+        assertEquals("an empty clipboard must not write anything", "", editor(panel).text.toString())
+        assertEquals(
+            context.getString(R.string.dictionary_search_clipboard_empty),
+            ShadowToast.getTextOfLatestToast(),
+        )
+        idleForSearch()
+        assertTrue(
+            "an empty clipboard must not ask the dictionary: " +
+                recorder.searches.joinToString("|") { "<$it>" },
+            recorder.searches.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `the last query is pre-filled when passed to the search card`() {
+        val recorder = Recorder()
+        val panel = ResultOverlay(context).apply {
+            callbacks = recorder
+            showSearch(TITLES, null, TITLES.size, initialQuery = "日本")
+            layout(this)
+        }
+
+        assertEquals("the field did not start with the last query", "日本", editor(panel).text.toString())
+        // A busca da query pré-preenchida é disparada logo ao abrir (sem esperar a pausa de digitação).
+        assertTrue("the pre-filled query was not searched: ${recorder.searches}",
+            recorder.searches.contains("日本"))
+        idleForSearch()
+        assertEquals(
+            "opening the card must not search the same query twice",
+            listOf("日本"),
+            recorder.searches,
+        )
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private fun searchPanel(
@@ -210,6 +324,16 @@ class DictionarySearchPanelTest {
     private fun idleForSearch() {
         shadowOf(Looper.getMainLooper()).idleFor(SEARCH_DELAY)
     }
+
+    private val clipboard get() = context.getSystemService(ClipboardManager::class.java)
+
+    /** O botão ao lado do campo, encontrado pelo estado que ele anuncia (R35b). */
+    private fun searchButton(root: ViewGroup, description: Int): TextView =
+        labels(root).firstOrNull { it.contentDescription?.toString() == context.getString(description) }
+            ?: error(
+                "no button described as «${context.getString(description)}»: " +
+                    labels(root).map { it.contentDescription },
+            )
 
     private fun editor(root: ViewGroup): EditText {
         fun find(group: ViewGroup): EditText? {

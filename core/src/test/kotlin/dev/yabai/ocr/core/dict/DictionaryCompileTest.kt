@@ -206,6 +206,7 @@ class DictionaryCompileTest {
             "kty-ja-pt.zip",
             "kty-ja-ja.zip",
             "kty-ja-en.zip",
+            "surasura.zip",
         )
         var checked = 0
         for (name in offered) {
@@ -362,6 +363,57 @@ class DictionaryCompileTest {
             assertFalse("the exact reading is the answer, not a suggestion", byReading.contains("日本"))
 
             assertTrue("nothing can be suggested for an empty query", engine.suggest("").isEmpty())
+        }
+    }
+
+    /** R31 + romaji: uma consulta em romaji é convertida para hiragana e encontrada como leitura. */
+    @Test
+    fun `search finds Japanese words by romaji reading`() {
+        val words = compileInto("JMdict_english_without_proper_names.zip")
+        assumeTrue("JMdict fixture not available", words != null)
+        words!!.first.use { jmdict ->
+            val engine = LookupEngine(listOf(jmdict))
+
+            // nihon → にほん → 日本 (leitura de 日本)
+            val nihon = engine.search("nihon")
+            println("nihon -> $nihon")
+            assertTrue("nihon should find 日本: $nihon", nihon.any { it.entry.term == "日本" })
+
+            // toukyou → とうきょう → 東京 (leitura de 東京, com o longo escrito como ou)
+            val tokyo = engine.search("toukyou")
+            println("toukyou -> $tokyo")
+            assertTrue("toukyou should find 東京: $tokyo", tokyo.any { it.entry.term == "東京" })
+
+            // tōkyō com acento também funciona
+            val tokyoAccented = engine.search("tōkyō")
+            println("tōkyō -> $tokyoAccented")
+            assertTrue("tōkyō should find 東京: $tokyoAccented", tokyoAccented.any { it.entry.term == "東京" })
+
+            // Consulta japonesa direta continua funcionando
+            val nihongo = engine.search("日本語")
+            assertTrue("日本語 should find 日本語: $nihongo", nihongo.any { it.entry.term == "日本語" })
+        }
+    }
+
+    /** R31: sugestões incluem correspondência de leitura quando solicitado (romaji). */
+    @Test
+    fun `suggest with includeReadingMatch finds entries by reading`() {
+        val words = compileInto("JMdict_english_without_proper_names.zip")
+        assumeTrue("JMdict fixture not available", words != null)
+        words!!.first.use { jmdict ->
+            val engine = LookupEngine(listOf(jmdict))
+
+            // Sem includeReadingMatch: 日本 não aparece porque a leitura é igual à consulta
+            val without = engine.suggest("にほん")
+            assertFalse("日本 should not be a suggestion without includeReadingMatch: $without",
+                without.contains("日本"))
+
+            // Com includeReadingMatch: 日本 aparece porque a leitura corresponde
+            val withReading = engine.suggest("にほん", includeReadingMatch = true)
+            assertTrue("日本 should be a suggestion with includeReadingMatch: $withReading",
+                withReading.contains("日本"))
+            assertTrue("日本語 should be among suggestions: $withReading",
+                withReading.contains("日本語"))
         }
     }
 
@@ -663,6 +715,53 @@ class DictionaryCompileTest {
                 assertNull(
                     "the Portuguese build has no 淀 to read",
                     engine.withFurigana("淀", emptyList(), only = setOf(portugueseTitle)),
+                )
+            }
+        }
+    }
+
+    /**
+     * R33e: the onomatopoeia dictionary earns its place by answering what the word dictionary misses.
+     *
+     * JMdict and Jitendex list most of the mimetic words of manga, so a second dictionary is only
+     * worth offering if it covers the rest. The check is therefore a pair: the word is in surasura,
+     * and it is *not* in JMdict — a dictionary that answered nothing new would be dead weight in the
+     * settings screen.
+     */
+    @Test
+    fun `the onomatopoeia dictionary answers words jmdict does not have`() {
+        val onomatopoeia = compileInto("surasura.zip")
+        val words = compileInto("JMdict_english_without_proper_names.zip")
+        assumeTrue("dictionary fixtures not available", onomatopoeia != null && words != null)
+
+        onomatopoeia!!.first.use { surasura ->
+            words!!.first.use { jmdict ->
+                println("surasura compiled: ${surasura.termCount} terms")
+                assertTrue(
+                    "expected onomatopoeia entries, got ${surasura.termCount}",
+                    surasura.termCount > 500,
+                )
+
+                val word = "ぴくりぴくり"
+                val entry = surasura.termEntries(word).firstOrNull()
+                assertNotNull("$word must be in surasura", entry)
+                println("$word -> ${entry!!.definition.take(200)}")
+                assertTrue(
+                    "the definition came out as markup: ${entry.definition.take(200)}",
+                    entry.definition.contains("ふるえ") && !entry.definition.contains("\"tag\""),
+                )
+                assertTrue(
+                    "the word is in JMdict, so this dictionary adds nothing for it",
+                    jmdict.termEntries(word).isEmpty(),
+                )
+
+                // In a sentence the dictionary has to be found by the same lookup the panel uses.
+                val engine = LookupEngine(listOf(surasura, jmdict))
+                val matches = engine.lookup("猫がぴくりぴくりと動いた。")
+                println("sentence -> ${matches.map { "${it.surface}=${it.entry.term}" }}")
+                assertTrue(
+                    "the onomatopoeia was not found in a sentence: ${matches.map { it.surface }}",
+                    matches.any { it.entry.term == word },
                 )
             }
         }

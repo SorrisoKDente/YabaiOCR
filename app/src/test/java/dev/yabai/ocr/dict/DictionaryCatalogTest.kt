@@ -55,6 +55,25 @@ class DictionaryCatalogTest {
     }
 
     @Test
+    fun `the onomatopoeia dictionary is offered as a word dictionary`() {
+        val entry = DictionaryCatalog.find("surasura-ja")
+
+        assertTrue("the onomatopoeia dictionary is not in the catalogue", entry != null)
+        entry!!
+        assertEquals(DictionaryCatalog.Kind.TERMS, entry.kind)
+        assertEquals("ja", entry.language)
+        assertTrue("the name should say it is about onomatopoeia: ${entry.name}", entry.name.contains("Onomatopeia"))
+        assertTrue(
+            "the address must be the file itself, not a page: ${entry.url}",
+            entry.url == "https://github.com/MarvNC/yomitan-dictionaries/raw/master/dl/%5BMonolingual%5D%20surasura.zip",
+        )
+        assertTrue(
+            "the attribution should say where the content came from: ${entry.attribution}",
+            entry.attribution.contains("surasura.com"),
+        )
+    }
+
+    @Test
     fun `kanji dictionaries are marked as such, so the card can choose between them`() {
         val kanji = DictionaryCatalog.entries.filter { it.kind == DictionaryCatalog.Kind.KANJI }
 

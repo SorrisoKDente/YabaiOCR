@@ -16,9 +16,9 @@ data class KanjiPart(val kanji: String, val reading: String)
  * What the card says about a kanji, taken from the dictionaries the panel already uses (R17).
  *
  * Kept free of the lookup engine and of Android widgets, so the decisions that are easy to get wrong
- * — *which* word covers the tapped character, *which* words elsewhere on the page use it, and *what
- * to say when no kanji dictionary answered* — are fixed by plain tests instead of by looking at a
- * phone. Only resource **ids** are named here, never a `Context`.
+ * — *which* word covers the tapped character, *what that word means*, and *what to say when no kanji
+ * dictionary answered* — are fixed by plain tests instead of by looking at a phone. Only resource
+ * **ids** are named here, never a `Context`.
  */
 object KanjiCardText {
 
@@ -52,21 +52,17 @@ object KanjiCardText {
     }
 
     /**
-     * The other words of the page that use [character], as «surface reading», without repeats.
+     * The definition the word dictionary gives the word that reads [index], or empty (R34a).
      *
-     * The compiled dictionary is indexed by headword, so «the most common compounds of a kanji» would
-     * need an index this app does not keep. The words of the page are the honest version of the same
-     * idea — they are compounds in the text the user is reading, and they come from the same lookup
-     * that is already being drawn.
+     * The kanji entry answers «what does 技 mean?»; this answers «what does 剣技 mean?» — the
+     * question the user is actually asking when the tap lands inside a compound. It is the same
+     * narrowest word [wordAt] uses, so the meaning belongs to the word the card already names.
+     *
+     * Numbered senses are kept as the dictionary renders them («1. esgrima»), because the card
+     * shows the same text the panel would.
      */
-    fun compounds(matches: List<TokenMatch>, character: String, limit: Int = 6): List<KanjiWord> =
-        matches
-            .asSequence()
-            .filter { it.entry.reading.isNotBlank() && it.surface.contains(character) }
-            .map { KanjiWord(it.surface, it.entry.reading) }
-            .distinctBy { it.surface to it.reading }
-            .take(limit)
-            .toList()
+    fun wordMeaning(matches: List<TokenMatch>, index: Int): String =
+        narrowestAt(matches, index)?.entry?.definition?.trim().orEmpty()
 
     /** The on'yomi as the dictionary writes them, ready for the card; empty when it has none. */
     fun onYomi(entry: KanjiEntry?): String = entry?.onYomi?.trim().orEmpty()

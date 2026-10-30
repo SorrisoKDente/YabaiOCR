@@ -97,10 +97,27 @@ class BackAndOutsideTest {
         assertEquals(emptyList<String>(), asked)
     }
 
+    /**
+     * SPACE belongs to the keyboard: it changes language, and in the field it types a space. The
+     * panel used to be a focused, clickable view, and Android turns SPACE on such a view into a
+     * click — the panel's own «tap outside» step — so changing language closed the search before
+     * the language list could appear (R32).
+     */
+    @Test
+    fun `space does not step out of the panel`() {
+        val asked = ArrayList<String>()
+        val panel = layout(panel(canRepick = true, asked = asked))
+
+        panel.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SPACE))
+        panel.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_SPACE))
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals("the keyboard's space closed the panel", emptyList<String>(), asked)
+    }
+
     /** While the boxes are up, BACK is «Cancelar» rather than a back in the app underneath. */
     @Test
-    fun `back leaves the segment picker`() {
-        var cancelled = 0
+    fun `back leaves the segment picker`() {        var cancelled = 0
         val picker = TextPickerOverlay(context).apply { onCancel = { cancelled++ } }
         picker.show(listOf(PickerBlock(Rect(10, 10, 100, 100))), PickerReadingMode.OFF)
         layout(picker)

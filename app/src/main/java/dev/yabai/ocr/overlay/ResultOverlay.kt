@@ -1,5 +1,6 @@
 package dev.yabai.ocr.overlay
 
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -20,10 +21,12 @@ import android.text.style.StyleSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.View.MeasureSpec
 import android.view.ViewGroup
 import android.view.ViewGroup.MarginLayoutParams
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -33,6 +36,8 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import androidx.core.view.WindowInsetsCompat
 import dev.yabai.ocr.R
 import dev.yabai.ocr.core.dict.Furigana
 import dev.yabai.ocr.core.dict.KanjiEntry
@@ -182,6 +187,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         setLineSpacing(dp(4).toFloat(), 1f)
     }
 
+    /** The panel's own Copiar/Recortar/Colar menu — see [SelectionToolbar] (R33b). */
+    private val selectionToolbar by lazy { SelectionToolbar(this, context) }
+
     private val btCopyOriginal = context.actionButton(context.getString(R.string.result_copy_original)) {
         callbacks?.onCopyOriginal(textToSend())
     }
@@ -226,6 +234,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     /** True while the panel is writing into the editor, so its own change is not read as the user's. */
     private var writingText: Boolean = false
+
+    /** The single button beside the search box: «✕» with text, «Colar» when empty (R35b). */
+    private var searchAction: TextView? = null
 
     private var showLines: Boolean = false
     private var segmentLines: List<String> = emptyList()
@@ -301,6 +312,21 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     private var scroller: MaxHeightScrollView? = null
 
     init {
+        // Focusable so text can be edited and BACK can step out of the panel instead of leaking
+        // through to the app underneath. It is deliberately **not** clickable: a focused clickable
+        // ViewGroup turns SPACE into a click, and the space bar is how a soft keyboard changes
+        // language. That click closed the panel before the language list could open (R32). The
+        // outside tap is a touch listener instead, which no key press can trigger.
+        isFocusableInTouchMode = true
+        setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                val insideCard = event.x >= card.left && event.x < card.right &&
+                    event.y >= card.top && event.y < card.bottom
+                if (!insideCard) stepBack()
+            }
+            true
+        }
+
         addView(
             card,
             LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.TOP).apply {
@@ -310,18 +336,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             },
         )
 
-        // Focusable so text can be edited and BACK can step out of the panel instead of leaking
-        // through to the app underneath. The empty area of the window belongs to the panel too, so a
-        // tap there is the same step; the window used to be only as tall as the card, and the gesture
-        // existed nowhere.
-        isFocusableInTouchMode = true
-        isClickable = true
-        setOnClickListener { stepBack() }
+        installSelection(originalEditor, selectionToolbar)
 
         originalEditor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
             override fun afterTextChanged(s: Editable?) {
+                // R35b: the button beside the field is «✕» or «Colar» depending on what is in it,
+                // including while the panel itself writes a reading.
+                updateSearchAction()
                 // A reading the panel wrote is not a correction: asking the dictionary to read its
                 // own answer back would double every reading and never settle.
                 if (writingText) return
@@ -341,8 +364,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         // The panel is taken out of the window whenever it goes away, so this is also the dismissal
-        // path: nothing should be looked up for a panel the user has already closed.
+        // path: nothing should be looked up for a panel the user has already closed, and a pending
+        // focus check must not fire on a panel that is gone.
         analyseHandler.removeCallbacks(analyseSoon)
+        focusLossCheck?.let(analyseHandler::removeCallbacks)
+        focusLossCheck = null
+        selectionToolbar.hide()
     }
 
     /**
@@ -356,10 +383,73 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      */
     var onWindowLost: (() -> Unit)? = null
 
+    /**
+     * Whether the keyboard is on screen, as told by the last window insets.
+     *
+     * The keyboard opens windows of its own — the language list, the emoji panel, the clipboard —
+     * and they take the focus from the panel while they are up. That is not the user leaving the
+     * app: the panel waits for the keyboard instead of closing (R32).
+     */
+    private var imeVisible = false
+
+    /**
+     * The keyboard check, behind a function so a test can pretend it is up: Robolectric has no
+     * input method to open one, the same way it has no ML Kit engine to recognise with.
+     */
+    internal var keyboardVisible: () -> Boolean = { imeVisible }
+
+    /** Whether the window is the one with the focus, as of the last focus change. */
+    private var windowFocused = true
+
+    /** The pending «did the user really leave?» check started by a focus loss; null when none. */
+    private var focusLossCheck: Runnable? = null
+
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        imeVisible = WindowInsetsCompat.toWindowInsetsCompat(insets, this)
+            .isVisible(WindowInsetsCompat.Type.ime())
+        return super.onApplyWindowInsets(insets)
+    }
+
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
-        // Gaining focus is the panel's normal state; only losing it means the user went elsewhere.
-        if (!hasWindowFocus) onWindowLost?.invoke()
+        // Gaining focus is the panel's normal state; only losing it can mean the user went
+        // elsewhere. Even then the loss is confirmed first: the keyboard takes the focus for a
+        // moment when it changes language, and closing on the first loss ended the search before
+        // the language list appeared (R32).
+        windowFocused = hasWindowFocus
+        focusLossCheck?.let(analyseHandler::removeCallbacks)
+        focusLossCheck = null
+        if (hasWindowFocus) return
+        confirmFocusLoss()
+    }
+
+    /**
+     * Closes the panel when a lost window focus is not given back.
+     *
+     * The keyboard is the reason this waits. Its own windows (the list of languages, the emoji
+     * picker) take the focus and return it when they close; the panel must survive that. A real
+     * departure — HOME, recents, another app — never returns the focus, and takes the keyboard with
+     * it, so the next check closes the panel (R9).
+     */
+    private fun confirmFocusLoss() {
+        var waited = 0L
+        val check = object : Runnable {
+            override fun run() {
+                if (windowFocused) {
+                    focusLossCheck = null
+                    return
+                }
+                if (keyboardVisible() && waited < FOCUS_WAIT_MAX_MS) {
+                    waited += FOCUS_CHECK_MS
+                    analyseHandler.postDelayed(this, FOCUS_CHECK_MS)
+                    return
+                }
+                focusLossCheck = null
+                onWindowLost?.invoke()
+            }
+        }
+        focusLossCheck = check
+        analyseHandler.postDelayed(check, FOCUS_CHECK_MS)
     }
 
     /**
@@ -374,6 +464,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             stepBack()
             return true
         }
+        // SPACE is left to the view hierarchy on purpose. The panel is not clickable, so a space
+        // cannot be read as a click on it; if the field has the focus the space is a space (or the
+        // keyboard's language key), and swallowing it here would break typing in a correction.
         return super.dispatchKeyEvent(event)
     }
 
@@ -390,6 +483,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * panel, and the words, exactly as they were (R16).
      */
     private fun stepBack() {
+        if (selectionToolbar.shown) {
+            selectionToolbar.hide()
+            return
+        }
         if (pickerOpen) {
             pickerOpen = false
             wordsState?.let { renderWords(it) }
@@ -413,8 +510,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         selected: String?,
         dictionaryCount: Int,
         stale: List<String> = emptyList(),
+        initialQuery: String = "",
     ) {
         card.removeAllViews()
+        selectionToolbar.hide()
+        // An analysis scheduled for the card being replaced must not reach the dictionary as a query.
+        analyseHandler.removeCallbacks(analyseSoon)
         searching = true
         canGoBack = false
         minimised = false
@@ -433,15 +534,41 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         cleanText = ""
 
         configureSearchEditor()
-        showText("")
+        showText(initialQuery)
 
         card.addView(buildHeader("", R.string.dictionary_search_title))
         (originalEditor.parent as? ViewGroup)?.removeView(originalEditor)
         card.addView(
-            originalEditor,
-            LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
-                .apply { topMargin = dp(4) },
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(4), 0, 0)
+                addView(
+                    originalEditor,
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+                )
+                addView(
+                    context.actionButton("✕", background = 0x00000000) { onSearchAction() }.apply {
+                        contentDescription = context.getString(R.string.dictionary_search_clear)
+                        setPadding(dp(10), dp(8), dp(10), dp(8))
+                        minWidth = dp(40)
+                        minHeight = dp(40)
+                        searchAction = this
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { marginStart = dp(2) },
+                )
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
         )
+
+        // The button follows the field's content from the start: a pre-filled query opens as «✕».
+        updateSearchAction()
 
         for (view in listOf(translationSection, wordsSection)) {
             (view.parent as? ViewGroup)?.removeView(view)
@@ -476,6 +603,67 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         applyFold()
         originalEditor.requestFocus()
         originalEditor.setSelection(originalEditor.text.length)
+        // Se a escolha de guardar a última busca estiver ligada e houver uma, consulta logo: o
+        // usuário reabre o dicionário e já vê o que pesquisou da vez passada (R31 + opção).
+        if (initialQuery.isNotBlank()) callbacks?.onSearchChanged(initialQuery)
+    }
+
+    /** Limpa o campo de busca; o watcher dispara a busca vazia que mostra «digite para consultar» (R31). */
+    private fun clearSearch() {
+        originalEditor.setText("")
+        originalEditor.setSelection(0)
+    }
+
+    /**
+     * O botão ao lado do campo, que muda de função conforme o que há nele (R35b).
+     *
+     * Com texto, limpa — o «✕» de sempre. Vazio, cola: quem copiou uma palavra no leitor não tem o
+     * que limpar, e colar é exatamente o gesto que ele faria com o menu de seleção.
+     */
+    private fun onSearchAction() {
+        if (originalEditor.text.isNullOrBlank()) pasteIntoSearch() else clearSearch()
+    }
+
+    /**
+     * Põe na busca o texto que está na área de transferência, como se tivesse sido digitado.
+     *
+     * A consulta sai pelo mesmo caminho da digitação (o `TextWatcher` agenda a pausa), então não há
+     * um segundo jeito de pedir ao dicionário. Espaços e quebras de linha viram um espaço só: o
+     * campo é de uma linha, e um texto copiado de um livro vem quebrado.
+     */
+    private fun pasteIntoSearch() {
+        val text = clipboardText()
+            ?.trim()
+            ?.replace(WHITESPACE, " ")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+        if (text == null) {
+            Toast.makeText(context, R.string.dictionary_search_clipboard_empty, Toast.LENGTH_SHORT)
+                .show()
+            return
+        }
+        originalEditor.setText(text)
+        originalEditor.setSelection(originalEditor.text.length)
+    }
+
+    /** The clipboard as plain text, or null when it is empty or holds something that is not text. */
+    private fun clipboardText(): String? {
+        val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return null
+        val clip = clipboard.primaryClip ?: return null
+        if (clip.itemCount == 0) return null
+        return clip.getItemAt(0).coerceToText(context)?.toString()?.takeIf { it.isNotEmpty() }
+    }
+
+    /** Keeps the button's label and description in step with the field (R35b). */
+    private fun updateSearchAction() {
+        if (!searching) return
+        val button = searchAction ?: return
+        val empty = originalEditor.text.isNullOrBlank()
+        button.text = if (empty) context.getString(R.string.dictionary_search_paste) else "✕"
+        button.contentDescription = context.getString(
+            if (empty) R.string.dictionary_search_paste_description
+            else R.string.dictionary_search_clear,
+        )
     }
 
     /**
@@ -492,8 +680,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         manager?.showSoftInput(originalEditor, InputMethodManager.SHOW_IMPLICIT)
     }
 
-    /** The shared editor as a one-line search field, with the keyboard's «search» key. */
-    private fun configureSearchEditor() {
+    /**
+     * The shared editor as a one-line search field, with the keyboard's «search» key.
+     *
+     * Changing `inputType` makes Android re-apply the text to the field, which reaches the watcher
+     * as an edit. It is the panel configuring itself, not the user typing, so the flag keeps it from
+     * scheduling a lookup of the text that was already there (R35b).
+     */
+    private fun configureSearchEditor() = asPanelEdit {
         originalEditor.setHint(R.string.dictionary_search_hint)
         originalEditor.inputType = InputType.TYPE_CLASS_TEXT
         originalEditor.isSingleLine = true
@@ -506,7 +700,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     }
 
     /** Puts the editor back to holding recognized text after a search (R31). */
-    private fun configureResultEditor() {
+    private fun configureResultEditor() = asPanelEdit {
         originalEditor.setHint(R.string.result_original_hint)
         originalEditor.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         originalEditor.isSingleLine = false
@@ -517,8 +711,20 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         originalEditor.setPadding(dp(10), dp(10), dp(10), dp(10))
     }
 
+    /** Runs [block] as the panel's own edit, which must not be mistaken for the user's typing. */
+    private inline fun asPanelEdit(block: () -> Unit) {
+        val wasWriting = writingText
+        writingText = true
+        try {
+            block()
+        } finally {
+            writingText = wasWriting
+        }
+    }
+
     fun showLoading() {
         card.removeAllViews()
+        selectionToolbar.hide()
         // A spinner is not a search box, and a query typed into the previous card is not a capture.
         searching = false
         configureResultEditor()
@@ -565,6 +771,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         canAskAi: Boolean = false,
     ) {
         card.removeAllViews()
+        selectionToolbar.hide()
         // A capture replaces the search card, if that is what was open: the editor goes back to
         // holding recognized text, not a query (R31).
         searching = false
@@ -713,6 +920,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     fun showError(message: String, offlineAvailable: Boolean) {
         card.removeAllViews()
+        selectionToolbar.hide()
         // An error card has no search box and no capture behind it.
         searching = false
         configureResultEditor()
@@ -806,7 +1014,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                     section(SECTION_TRANSLATION, context.getString(R.string.result_translation_label)) { body ->
                         body.addView(
                             textLabel(state.text, 17f, context.getColor(R.color.text_primary)).apply {
-                                setTextIsSelectable(true)
+                                installSelection(this, selectionToolbar)
                                 setLineSpacing(dp(4).toFloat(), 1f)
                                 setPadding(dp(2), dp(4), dp(2), dp(10))
                             },
@@ -1084,7 +1292,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         }
         column.addView(
             textLabel(styledDefinition(definition), 14f, context.getColor(R.color.text_primary)).apply {
-                setTextIsSelectable(true)
+                installSelection(this, selectionToolbar)
                 setLineSpacing(dp(3).toFloat(), 1f)
                 setPadding(dp(10), 0, 0, 0)
             },
@@ -1129,7 +1337,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         addView(textLabel(kanji.character, 26f, context.getColor(R.color.accent), bold = true))
         addView(
             textLabel(kanji.body, 14f, context.getColor(R.color.text_primary)).apply {
-                setTextIsSelectable(true)
+                installSelection(this, selectionToolbar)
                 setLineSpacing(dp(3).toFloat(), 1f)
             },
         )
@@ -1528,6 +1736,22 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         /** A search box should answer a pause, not wait like a sentence analysis (R31). */
         private const val SEARCH_DELAY_MS = 250L
+
+        /** A pasted query is one line: every run of blanks becomes a single space (R35b). */
+        private val WHITESPACE = Regex("\\s+")
+
+        /**
+         * How long a lost window focus is left alone before it is taken as «the user left» (R9).
+         * The keyboard's own windows take the focus and give it back; a departure does not.
+         */
+        private const val FOCUS_CHECK_MS = 250L
+
+        /**
+         * The longest a keyboard may hold the focus before the panel closes anyway. A language list
+         * is picked from in a second or two; keeping the panel alive longer would strand it over
+         * whatever took the focus.
+         */
+        private const val FOCUS_WAIT_MAX_MS = 5_000L
 
         /**
          * The rule table names inflections in English ("polite past"). Naming them in the language

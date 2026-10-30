@@ -17,6 +17,13 @@
     <string name="permission_granted">Concedida</string>
     <string name="permission_missing">Não concedida</string>
     <string name="permission_grant">Conceder</string>
+    <string name="permission_remove">Remover</string>
+    <string name="permission_cancel">Cancelar</string>
+    <string name="permission_remove_overlay_title">Remover a permissão de sobreposição?</string>
+    <string name="permission_remove_overlay_message">Sem ela a bolha do OCR não aparece sobre os outros apps e o dicionário flutuante não abre. Você pode conceder de novo quando quiser.</string>
+    <string name="permission_remove_notifications_title">Remover a permissão de notificações?</string>
+    <string name="permission_remove_notifications_message">Sem ela, o aviso de que o OCR está ativo some — e o sistema pode encerrar a captura. Você pode conceder de novo quando quiser.</string>
+    <string name="permission_remove_confirm">Remover</string>
 
     <string name="engine_auto">Automático — Lens com ML Kit de reserva</string>
     <string name="engine_auto_desc">Usa o Google Lens (mais preciso) e cai para o ML Kit offline se não houver internet.</string>
@@ -28,7 +35,9 @@
     <string name="setting_auto_copy">Copiar automaticamente ao reconhecer</string>
     <string name="setting_show_segments">Listar o texto linha por linha</string>
     <string name="setting_pick_text">Escolher o trecho da tela (como o Google Lens)</string>
-    <string name="setting_upscale">Ampliar recortes pequenos (ajuda em letras pequenas)</string>
+    <string name="dictionary_strip_readings">Ignorar as leituras entre parênteses na busca</string>
+    <string name="dictionary_strip_readings_hint">Só na consulta digitada: 職員（しょくいん） é procurado como 職員. O texto exibido e o copiado não mudam.</string>
+    <string name="setting_bubble_on_edge">Prender a bolha nas bordas</string>    <string name="setting_upscale">Ampliar recortes pequenos (ajuda em letras pequenas)</string>
     <string name="setting_show_image">Mostrar a imagem capturada ao lado do texto</string>
     <string name="setting_furigana">Manter o furigana que a página imprime — 職員（しょくいん）</string>
     <string name="setting_furigana_readings">Escrever no painel a leitura do dicionário — 職員（しょくいん）さんに聞（き）いた</string>
@@ -39,6 +48,7 @@
 
     <string name="start_button">Iniciar OCR flutuante</string>
     <string name="start_button_running">OCR flutuante ativo — toque para reabrir os ajustes</string>
+    <string name="start_button_paused">OCR flutuante pausado — toque em «Retomar» na notificação</string>
     <string name="stop_button">Parar OCR flutuante</string>
 
     <string name="howto_title">Como usar</string>
@@ -66,7 +76,6 @@
     <string name="kanji_on">音: %1$s</string>
     <string name="kanji_kun">訓: %1$s</string>
     <string name="kanji_parts">Leitura de cada kanji: %1$s</string>
-    <string name="kanji_compounds">Nesta tela: %1$s</string>
     <string name="kanji_not_a_kanji">Isso não é um kanji.</string>
     <string name="kanji_no_dictionary">Nenhum dicionário de kanji tem este caractere — só a leitura da frase está disponível.</string>
     <string name="kanji_dictionary_missing">Nenhum dicionário de kanji instalado. Baixe o KANJIDIC em «Dicionários» para ver as leituras e os significados dos kanji.</string>
@@ -110,6 +119,10 @@
     <string name="notification_channel_desc">Mostra quando o Yabai OCR está capturando a tela.</string>
     <string name="notification_title">Yabai OCR ativo</string>
     <string name="notification_text">Toque na bolha para ler o texto da tela.</string>
+    <string name="notification_title_paused">Yabai OCR pausado</string>
+    <string name="notification_text_paused">Toque em «Retomar» para voltar a ler a tela.</string>
+    <string name="notification_pause">Pausar</string>
+    <string name="notification_resume">Retomar</string>
     <string name="notification_stop">Parar</string>
 
     <string name="need_overlay_permission">Conceda a permissão de sobreposição para continuar.</string>
@@ -117,6 +130,7 @@
     <string name="projection_denied">Captura de tela recusada.</string>
 
     <string name="status_running">Ativo</string>
+    <string name="status_paused">Pausado</string>
     <string name="status_stopped">Parado</string>
 
     <string name="section_usage">7. Uso do Google Lens</string>
@@ -146,11 +160,16 @@
     <string name="dictionary_search_title">Dicionário</string>
     <string name="dictionary_search_hint">Pesquisar palavra, kanji ou leitura…</string>
     <string name="dictionary_search_empty">Digite uma palavra, um kanji ou uma leitura para consultar os dicionários instalados.</string>
+    <string name="dictionary_search_clear">Limpar a consulta</string>
+    <string name="dictionary_search_paste">Colar</string>
+    <string name="dictionary_search_paste_description">Colar o texto copiado na consulta</string>
+    <string name="dictionary_search_clipboard_empty">Não há texto copiado para colar.</string>
     <string name="dictionary_suggestions">Sugestões</string>
     <string name="dictionary_suggestion_description">Consultar «%1$s»</string>
 
     <string name="section_translation">5. Tradução e dicionários</string>
     <string name="setting_dictionary">Consultar os dicionários instalados</string>
+    <string name="setting_dictionary_keep_last">Manter a última busca aberta no dicionário</string>
     <string name="setting_translate">Traduzir a frase com o modelo offline</string>
     <string name="setting_translate_target">Idioma da tradução</string>
     <string name="translate_target_pt">Português</string>

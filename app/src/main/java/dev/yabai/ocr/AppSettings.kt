@@ -3,6 +3,7 @@ package dev.yabai.ocr
 import android.content.Context
 import androidx.core.content.edit
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.core.dict.DictionaryQuery
 import dev.yabai.ocr.overlay.PickerReadingMode
 
 enum class EngineChoice { AUTO, LENS, MLKIT }
@@ -41,6 +42,37 @@ class AppSettings(context: Context) {
     var upscaleSmall: Boolean
         get() = prefs.getBoolean(KEY_UPSCALE, true)
         set(value) = prefs.edit { putBoolean(KEY_UPSCALE, value) }
+
+    /**
+     * Whether a drag always ends with the bubble stuck to the nearest side (R35c).
+     *
+     * Off by default: the bubble is left exactly where it was dropped, kept only inside the screen.
+     * Pinning is for whoever wants the bubble out of the way of the page and always in the same
+     * place; free placement is for whoever works on one part of the screen and wants it beside it.
+     */
+    var bubbleOnEdge: Boolean
+        get() = prefs.getBoolean(KEY_BUBBLE_ON_EDGE, false)
+        set(value) = prefs.edit { putBoolean(KEY_BUBBLE_ON_EDGE, value) }
+
+    /**
+     * Whether the dictionary search ignores kana readings printed in brackets (R35d).
+     *
+     * Off by default: the box looks the text up exactly as typed. On, only the **lookup** drops
+     * `（しょくいん）` — what the panel shows and what «Copiar» copies is still the text the user
+     * typed, so the change is never silent.
+     */
+    var stripSearchReadings: Boolean
+        get() = prefs.getBoolean(KEY_STRIP_SEARCH_READINGS, false)
+        set(value) = prefs.edit { putBoolean(KEY_STRIP_SEARCH_READINGS, value) }
+
+    /**
+     * The text actually handed to the dictionary for a typed [query] (R35d).
+     *
+     * One place decides the policy, so the search box cannot half-obey the setting: the panel keeps
+     * [query] on screen, this is what [DictionaryQuery.stripReadings] makes of it.
+     */
+    fun dictionaryQuery(query: String): String =
+        if (stripSearchReadings) DictionaryQuery.stripReadings(query) else query
 
     /**
      * Longest side sent to Lens. The reference client uses 1200; 1600 is the size a whole phone
@@ -85,6 +117,24 @@ class AppSettings(context: Context) {
     var kanjiDictionary: String
         get() = prefs.getString(KEY_KANJI_DICTIONARY, "") ?: ""
         set(value) = prefs.edit { putString(KEY_KANJI_DICTIONARY, value) }
+
+    /**
+     * When the dictionary search is opened, pre-fill the field with the last query typed there.
+     *
+     * Off by default: opening the dictionary starts empty, which is what a first-time user expects.
+     * Whoever looks up several words in a row gets the last one back instead of an empty field.
+     */
+    var dictionaryKeepLastSearch: Boolean
+        get() = prefs.getBoolean(KEY_DICTIONARY_KEEP_LAST, false)
+        set(value) = prefs.edit { putBoolean(KEY_DICTIONARY_KEEP_LAST, value) }
+
+    /**
+     * The last query typed in the dictionary search (R31), kept only when
+     * [dictionaryKeepLastSearch] is on.
+     */
+    var dictionaryLastQuery: String
+        get() = prefs.getString(KEY_DICTIONARY_LAST_QUERY, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_DICTIONARY_LAST_QUERY, value) }
 
     /** Translate the whole recognised sentence with the offline ML Kit model. */
     var translateSentence: Boolean
@@ -208,11 +258,15 @@ class AppSettings(context: Context) {
         private const val KEY_SHOW_SEGMENTS = "show_segments"
         private const val KEY_PICK_TEXT = "pick_text"
         private const val KEY_UPSCALE = "upscale_small"
+        private const val KEY_BUBBLE_ON_EDGE = "bubble_on_edge"
+        private const val KEY_STRIP_SEARCH_READINGS = "strip_search_readings"
         private const val KEY_MAX_DIMENSION = "max_dimension"
         private const val KEY_LANGUAGE = "language"
         private const val KEY_DICTIONARY = "dictionary_lookup"
         private const val KEY_DICTIONARY_FILTER = "dictionary_filter"
         private const val KEY_KANJI_DICTIONARY = "kanji_dictionary"
+        private const val KEY_DICTIONARY_KEEP_LAST = "dictionary_keep_last_search"
+        private const val KEY_DICTIONARY_LAST_QUERY = "dictionary_last_query"
         private const val KEY_TRANSLATE = "translate_sentence"
         private const val KEY_FURIGANA = "furigana_parentheses"
         private const val KEY_SHOW_FURIGANA = "show_furigana"

@@ -3,6 +3,7 @@ package dev.yabai.ocr.overlay
 import android.content.Context
 import android.os.Looper
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -211,7 +212,7 @@ class ResultOverlayLayoutTest {
 
         // The tap outside the card is the same step, so it has to close the list too.
         openChooser(panel)
-        panel.performClick()
+        tapOutside(panel)
         assertNull(
             "a tap outside left the dictionary list open",
             panel.findViewWithTag<View>(ResultOverlay.DICTIONARY_CHOOSER_TAG),
@@ -240,6 +241,21 @@ class ResultOverlayLayoutTest {
     private fun back(view: View) {
         view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
         view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+    }
+
+    /**
+     * A tap in the margin beside the card. The gesture is a touch listener on the panel, not a
+     * click: a click would also fire on SPACE, and space is the keyboard's language key (R32).
+     */
+    private fun tapOutside(view: View) {
+        val x = 2f
+        val y = view.height / 2f
+        val down = MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, x, y, 0)
+        val up = MotionEvent.obtain(0, 10, MotionEvent.ACTION_UP, x, y, 0)
+        view.dispatchTouchEvent(down)
+        view.dispatchTouchEvent(up)
+        down.recycle()
+        up.recycle()
     }
 
     /** A result whose dictionary section can offer a chooser: two dictionaries, nothing selected. */

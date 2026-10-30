@@ -4,9 +4,10 @@ package dev.yabai.ocr.dict
  * Dictionaries the app offers to download by itself.
  *
  * Every URL here was checked by hand and points at a publisher's "latest release" asset, so it keeps
- * working as the dictionaries are updated. Nothing is bundled in the APK: the smallest useful
- * dictionary is a third of a megabyte and the largest is 37 MB, and shipping them would also mean
- * shipping someone else's licence inside this app.
+ * working as the dictionaries are updated — the one exception is the onomatopoeia dictionary, which
+ * exists only as a file in its maintainer's repository (see [SURASURA_URL]). Nothing is bundled in
+ * the APK: the smallest useful dictionary is a tenth of a megabyte and the largest is 37 MB, and
+ * shipping them would also mean shipping someone else's licence inside this app.
  *
  * The Wiktionary entries ([indexUrl] instead of [url]) are a two-step download: the publisher only
  * hosts small descriptor files on GitHub, and the archive itself lives behind a URL recorded in the
@@ -35,6 +36,14 @@ object DictionaryCatalog {
 
     private const val WTY_RELEASES =
         "https://github.com/yomidevs/wiktionary-to-yomitan/releases/latest/download"
+
+    /**
+     * The onomatopoeia dictionary has no release of its own: it is one file inside the maintainer's
+     * repository, and that path is the only address it has ever had (checked by hand; the file is
+     * still there). It is 0,1 MB, so a stale copy costs nothing to replace.
+     */
+    private const val SURASURA_URL =
+        "https://github.com/MarvNC/yomitan-dictionaries/raw/master/dl/%5BMonolingual%5D%20surasura.zip"
 
     val entries: List<Entry> = listOf(
         Entry(
@@ -114,6 +123,18 @@ object DictionaryCatalog {
             kind = Kind.TERMS,
             indexUrl = "$WTY_RELEASES/kty-ja-en-index.json",
             attribution = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
+        ),
+        Entry(
+            id = "surasura-ja",
+            name = "Onomatopeias (surasura)",
+            description = "Só onomatopeias e palavras miméticas (ドキドキ, ぴくりぴくり), com uma explicação " +
+                "mais longa e exemplos. O JMdict e o Jitendex cobrem boa parte delas, mas não todas — " +
+                "e as que faltam são justamente as que aparecem em mangá. As definições são em japonês.",
+            language = "ja",
+            sizeLabel = "0,1 MB",
+            kind = Kind.TERMS,
+            url = "$SURASURA_URL",
+            attribution = "surasura.com, conversão de MarvNC (licença não declarada)",
         ),
         Entry(
             id = "kanjidic-en",

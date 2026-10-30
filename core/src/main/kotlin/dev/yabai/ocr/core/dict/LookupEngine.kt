@@ -52,13 +52,35 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
      * wrong for a whole query that happens to be a reading: にほん must answer 日本, not the particle
      * に followed by ほ. So the whole query is tried as a headword or reading first, and only a query
      * that is not a word at all — a conjugated form, a phrase — falls back to [lookup].
+     *
+     * Romaji é convertido para hiragana (`nihon` → `にほん`) para que a consulta possa ser procurada
+     * como leitura nos dicionários (R31 + romaji).
      */
     fun search(text: String, maxMatches: Int = 60, only: Set<String> = emptySet()): List<TokenMatch> {
         val query = text.trim()
         if (query.isEmpty()) return emptyList()
         val usable = selected(only)
         if (usable.isEmpty()) return emptyList()
+
+        // Romaji → hiragana: buscar por leitura (nihon → にほん → 日本).
+        val hiragana = Romaji.toHiragana(query)
+        val converted = hiragana != query
+
+        // Tenta correspondência exata como cabeça (headword) — consulta japonesa direta ou hiragana
+        // convertida de romaji.
         exactMatch(query, 0, query.length, usable)?.let { return listOf(it) }
+        if (converted) {
+            exactMatch(hiragana, 0, hiragana.length, usable)?.let { return listOf(it) }
+        }
+
+        // Se o romaji foi convertido e não houve cabeça igual, procura verbetes cuja leitura seja
+        // o hiragana (inclui correspondência de leitura nas sugestões) e depois cada termo sugerido.
+        if (converted) {
+            for (term in suggest(hiragana, maxSuggestions = maxMatches, only = only, includeReadingMatch = true)) {
+                exactMatch(term, 0, term.length, usable)?.let { return listOf(it) }
+            }
+        }
+
         return lookup(query, maxMatches, only)
     }
 
@@ -66,15 +88,19 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
      * Headwords that begin with [text], for the search box's suggestions (R31).
      *
      * The index holds headwords and readings together, so 日本 offers 日本語 and 日本人, while にほん
-     * reaches the same compounds through their readings. The query itself is left out: it is already
-     * the answer above the suggestions, and repeating it would waste the row. [only] narrows exactly
-     * like [lookup] — a suggestion must not come from a dictionary the user told the panel to leave
-     * out.
+     * reaches the same compounds through their readings. The query itself is left out as a headword
+     * (it is already the answer above the suggestions), but when [includeReadingMatch] is true,
+     * entries whose **reading** equals the query are kept — that is how a romaji query like `nihon`
+     * finds 日本 (reading `にほん`).
+     *
+     * [only] narrows exactly like [lookup] — a suggestion must not come from a dictionary the user
+     * told the panel to leave out.
      */
     fun suggest(
         text: String,
         maxSuggestions: Int = 10,
         only: Set<String> = emptySet(),
+        includeReadingMatch: Boolean = false,
     ): List<String> {
         val query = text.trim()
         if (query.isEmpty() || maxSuggestions <= 0) return emptyList()
@@ -87,7 +113,8 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
             // size; entries are deduplicated by headword as they come.
             for (key in dictionary.keysStartingWith(query, maxSuggestions * 8)) {
                 for (entry in dictionary.termEntries(key)) {
-                    if (entry.term == query || entry.reading == query) continue
+                    if (entry.term == query) continue
+                    if (!includeReadingMatch && entry.reading == query) continue
                     if (!entry.term.startsWith(query) && !entry.reading.startsWith(query)) continue
                     found.putIfAbsent(entry.term, entry)
                     if (found.size >= maxSuggestions * CANDIDATE_FACTOR) break

@@ -122,9 +122,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     /** The strips of the last capture, while the kanji reader is on screen (R17). */
     private var pendingKanji: List<KanjiPiece> = emptyList()
 
-    /** The page as one text, for the «nesta tela» words of the kanji card. */
-    private var pendingKanjiText: String = ""
-
     private var lastOutcome: OcrOutcome? = null
     private var lastForceOffline = false
 
@@ -162,6 +159,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        isPaused = false
         settings = AppSettings(this)
         dispatcher = OcrDispatcher(settings, UsageTracker(this))
         overlays = OverlayController(this).apply {
@@ -173,6 +171,16 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         when (intent?.action) {
             ACTION_STOP -> {
                 stopSelf()
+                return START_NOT_STICKY
+            }
+
+            ACTION_PAUSE -> {
+                pause()
+                return START_NOT_STICKY
+            }
+
+            ACTION_RESUME -> {
+                resume()
                 return START_NOT_STICKY
             }
 
@@ -194,6 +202,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
     override fun onDestroy() {
         isRunning = false
+        isPaused = false
         analysisJob?.cancel()
         scope.cancel()
         handler.removeCallbacksAndMessages(null)
@@ -210,6 +219,35 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     }
 
     // --- startup -------------------------------------------------------------------------------
+
+    /**
+     * Pauses the reader without ending it (R33c).
+     *
+     * The capture session and the foreground service stay alive — that is the difference from
+     * «Parar» — but the bubble and every panel it owns go off screen, and the notification turns
+     * into the way back. This is an action the notification itself offers; it is also what the
+     * settings button does while the reader is paused.
+     */
+    private fun pause() {
+        if (isPaused) return
+        isPaused = true
+        // A lookup that lands after the pause must not put a panel back on the screen.
+        analysisJob?.cancel()
+        analysisJob = null
+        searchJob?.cancel()
+        searchJob = null
+        busy = false
+        overlays.setPaused(true)
+        startForegroundWithNotification()
+    }
+
+    /** Brings the bubble back where it was, without asking for the screen capture again. */
+    private fun resume() {
+        if (!isPaused) return
+        isPaused = false
+        overlays.setPaused(false)
+        startForegroundWithNotification()
+    }
 
     private fun startCapture(resultCode: Int, data: Intent) {
         if (!overlays.canDrawOverlays()) {
@@ -361,9 +399,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             toast(getString(R.string.kanji_not_a_kanji))
             return
         }
-        val page = pendingKanjiText
         scope.launch {
-            val card = withContext(Dispatchers.Default) { kanjiCard(target, index, character, page) }
+            val card = withContext(Dispatchers.Default) { kanjiCard(target, index, character) }
             overlays.showKanjiCard(card)
         }
     }
@@ -428,11 +465,13 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         searchingDictionary = true
         searchQuery = ""
         searchJob?.cancel()
+        val initialQuery = if (settings.dictionaryKeepLastSearch) settings.dictionaryLastQuery else ""
         overlays.showDictionarySearch(
             titles = titles,
             selected = filter,
             dictionaryCount = titles.size,
             stale = stale,
+            initialQuery = initialQuery,
         )
     }
 
@@ -447,6 +486,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         searchJob?.cancel()
         searchJob = scope.launch {
             val state = runSearch(query)
+            if (settings.dictionaryKeepLastSearch && query.isNotBlank()) {
+                settings.dictionaryLastQuery = query
+            }
             if (isActive && searchQuery == query) overlays.showResultWords(state)
         }
     }
@@ -460,7 +502,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         pendingPicker = emptyList()
         pendingReadingMode = PickerReadingMode.OFF
         pendingKanji = emptyList()
-        pendingKanjiText = ""
     }
 
     // --- capture pipeline ----------------------------------------------------------------------
@@ -471,6 +512,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         kanji: Boolean = false,
     ) {
         if (busy) return
+        // Paused means paused: a tap that was already in flight must not capture and reopen panels.
+        if (isPaused) return
         if (!requireLiveCapture()) return
         // A capture replaces the search box, if that is what was open: the panel is about to show a
         // recognised text, and a later dictionary pick must re-analyse it, not re-run a query.
@@ -530,7 +573,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                     val strips = kanjiPieces(outcome, shot)
                     if (strips.isNotEmpty() && overlays.showKanji(strips, shot)) {
                         pendingKanji = strips
-                        pendingKanjiText = outcome.text
                         overlays.hideResult()
                         return@launch
                     }
@@ -588,6 +630,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         canRepick: Boolean,
         image: Bitmap?,
     ) {
+        // The pause can arrive while Lens is working. When it does, the capture is dropped whole:
+        // no panel, no clipboard write and no analysis behind a bubble that is no longer there.
+        if (isPaused) return
         if (settings.autoCopy && text.isNotBlank()) {
             copyToClipboard(text)
             toast(getString(R.string.result_copied))
@@ -699,13 +744,14 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     /**
      * What the card says about the kanji under the finger.
      *
-     * Two answers in one card, because they answer different questions: the **reading in this
-     * sentence** comes from the word the character is part of (腹 is はら in 腹が減っては), and the
+     * Three answers in one card, because they answer different questions: the **reading in this
+     * sentence** comes from the word the character is part of (腹 is はら in 腹が減っては), the
+     * **meaning of that word** comes from the word dictionary (剣技 is fencing, not just 技), and the
      * **dictionary readings** come from the kanji entry itself (音 フク, 訓 はら). A single kanji
-     * looked up cold can only give the second, and a word cannot give the first for a character it
-     * does not cover — which is why both are worth the space.
+     * looked up cold can only give the third, and a word cannot give the third for a character it
+     * does not cover — which is why they are worth the space together.
      */
-    private fun kanjiCard(target: KanjiPiece, index: Int, character: Char, page: String): KanjiCard {
+    private fun kanjiCard(target: KanjiPiece, index: Int, character: Char): KanjiCard {
         val symbol = character.toString()
         val repository = DictionaryRepository.get(this)
 
@@ -735,7 +781,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 onYomi = "",
                 kunYomi = "",
                 meaning = "",
-                compounds = emptyList(),
                 note = note,
             )
         }
@@ -760,11 +805,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             Log.w(TAG, "kanji entry lookup failed", t)
             null
         }
-        val others = try {
-            engine.lookup(page, only = only)
-        } catch (t: Throwable) {
-            emptyList()
-        }
         // R29: where the word's reading breaks per kanji. Null (no line) when the dictionaries cannot
         // justify a division — 今日 きょう is not 今 きょ + 日 う, and the card must not pretend it is.
         val parts = try {
@@ -781,8 +821,14 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             onYomi = KanjiCardText.onYomi(entry),
             kunYomi = KanjiCardText.kunYomi(entry),
             meaning = KanjiCardText.meaning(entry),
+            // R34a: the meaning belongs to the compound the card names. Asked only for a word worth
+            // naming: a single kanji already has the kanji entry's meaning right below.
+            wordMeaning = if (word != null && word.surface != symbol) {
+                KanjiCardText.wordMeaning(words, index)
+            } else {
+                ""
+            },
             source = entry?.dictionaryTitle?.takeIf { it.isNotBlank() },
-            compounds = KanjiCardText.compounds(others, symbol),
             parts = parts.orEmpty(),
             span = KanjiCardText.kanjiSpan(target.text, words, index),
             note = if (entry == null) note else null,
@@ -972,7 +1018,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 settings.dictionaryFilter = ""
             }
             val only = filter?.let { setOf(it) }.orEmpty()
-            val text = query.trim()
+            val text = settings.dictionaryQuery(query.trim())
             if (engine == null || text.isEmpty()) {
                 ResultOverlay.WordsState.Done(
                     matches = emptyList(),
@@ -1206,11 +1252,24 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             Intent(this, FloatingOcrService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        // Pause and resume are one action whose wording and target depend on the state (R33c).
+        val paused = isPaused
+        val toggle = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, FloatingOcrService::class.java)
+                .setAction(if (paused) ACTION_RESUME else ACTION_PAUSE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_scan)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
+            .setContentTitle(
+                getString(if (paused) R.string.notification_title_paused else R.string.notification_title),
+            )
+            .setContentText(
+                getString(if (paused) R.string.notification_text_paused else R.string.notification_text),
+            )
             .setContentIntent(open)
             .setOngoing(true)
             // Swiping it away is «stop», the same as its own «Parar» action (R24). Android 13 lets a
@@ -1219,6 +1278,11 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .addAction(
+                0,
+                getString(if (paused) R.string.notification_resume else R.string.notification_pause),
+                toggle,
+            )
             .addAction(0, getString(R.string.notification_stop), stop)
             .build()
     }
@@ -1248,11 +1312,20 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
         const val ACTION_START = "dev.yabai.ocr.action.START"
         const val ACTION_STOP = "dev.yabai.ocr.action.STOP"
+        const val ACTION_PAUSE = "dev.yabai.ocr.action.PAUSE"
+        const val ACTION_RESUME = "dev.yabai.ocr.action.RESUME"
         const val EXTRA_RESULT_CODE = "dev.yabai.ocr.extra.RESULT_CODE"
         const val EXTRA_RESULT_DATA = "dev.yabai.ocr.extra.RESULT_DATA"
 
         /** Lets the settings screen tell whether the bubble is already up. */
         @Volatile
         var isRunning: Boolean = false
+
+        /**
+         * Whether the reader is up but paused (R33c): the service is alive and the capture session is
+         * still valid, so the settings button must resume instead of asking for the screen again.
+         */
+        @Volatile
+        var isPaused: Boolean = false
     }
 }

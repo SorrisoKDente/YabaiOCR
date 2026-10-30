@@ -1,6 +1,7 @@
 package dev.yabai.ocr.overlay
 
 import android.content.Context
+import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -14,10 +15,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowSettings
 import org.robolectric.shadows.ShadowWindowManagerImpl
+import java.time.Duration
 
 /**
  * Tests for the panel going away when the user leaves the app (R9).
@@ -45,6 +48,9 @@ class FocusLossTest {
         val panel = panelOnScreen() ?: error("the controller did not put a result panel on screen")
 
         panel.onWindowFocusChanged(false)
+        // The loss is confirmed before it is acted on: the keyboard takes the focus for a moment
+        // when it changes language (R32).
+        shadowOf(Looper.getMainLooper()).idleFor(FOCUS_CONFIRM)
 
         assertTrue("the panel was left floating over the launcher", panelOnScreen() == null)
         assertTrue(
@@ -77,6 +83,7 @@ class FocusLossTest {
         controller.showAskAiApps(listOf(AskAi.Target("ChatGPT", "com.openai.chatgpt")), SENTENCE)
 
         panel.onWindowFocusChanged(false)
+        shadowOf(Looper.getMainLooper()).idleFor(FOCUS_CONFIRM)
 
         assertSame("the panel went away under the list of apps", panel, panelOnScreen())
         assertTrue("the list of apps went away with it", windows().any { it is AppPickerOverlay })
@@ -99,8 +106,37 @@ class FocusLossTest {
 
         findButton(panel, context.getString(R.string.result_close))!!.performClick()
         panel.onWindowFocusChanged(false)
+        shadowOf(Looper.getMainLooper()).idleFor(FOCUS_CONFIRM)
 
         assertEquals(listOf("result dismissed"), callbacks.calls)
+    }
+
+    /**
+     * The keyboard opens windows of its own — the list of languages, the emoji panel — and they take
+     * the focus while they are up. That is not «the user left»: closing there ended the search
+     * before the language list could even appear (R32). The panel only goes when the keyboard is
+     * gone too, which is what a real departure does.
+     */
+    @Test
+    fun `a keyboard window taking the focus does not take the panel with it`() {
+        val controller = openPanel(RecordingCallbacks())
+        val panel = panelOnScreen() ?: error("the controller did not put a result panel on screen")
+
+        panel.keyboardVisible = { true }
+        panel.onWindowFocusChanged(false)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(2_000))
+
+        assertSame("the panel went away when the keyboard took the focus", panel, panelOnScreen())
+        assertTrue("the controller thinks the panel is gone", controller.isResultVisible())
+
+        // The keyboard went too: the loss was real after all (leaving the app while typing).
+        panel.keyboardVisible = { false }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1_000))
+
+        assertTrue(
+            "the panel was left floating after the keyboard and the app went away",
+            panelOnScreen() == null,
+        )
     }
 
     // --- the panel under test -------------------------------------------------------------------
@@ -140,5 +176,8 @@ class FocusLossTest {
 
     private companion object {
         const val SENTENCE = "職員さんに聞いた"
+
+        /** Longer than the panel's 250 ms confirmation, so the decision has been made. */
+        val FOCUS_CONFIRM: Duration = Duration.ofMillis(400)
     }
 }

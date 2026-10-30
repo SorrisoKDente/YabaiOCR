@@ -42,10 +42,11 @@ para ~52 MB.
      cada trecho** encontrado;
    - **Selecionar área** (marcas de corte) — arraste para marcar a região e toque em **Reconhecer**.
    - **Ler kanji** (漢) — congela a tela e espera você tocar num **kanji**: o cartão mostra a palavra
-     que o lê com a leitura dela, a leitura de **cada kanji** da palavra quando os verbetes deixam
-     dividir (同時に → 同 どう, 時 じ), as leituras do dicionário de kanji (音/訓), **de qual
-     dicionário** veio o verbete, mais as palavras da tela que o usam. O retângulo cobre os **kanji da
-     palavra**, não só o que você tocou. A página também amplia com a pinça, como na tela de trechos.
+     que o lê com a leitura dela e **o significado da palavra** (剣技 → esgrima, não só 技 → técnica),
+     a leitura de **cada kanji** da palavra quando os verbetes deixam dividir (同時に → 同 どう, 時 じ),
+     as leituras do dicionário de kanji (音/訓) e **de qual dicionário** veio o verbete. O retângulo
+     cobre os **kanji da palavra**, não só o que você tocou. A página também amplia com a pinça, como
+     na tela de trechos.
      Sem dicionário de kanji instalado — ou com ele desativado — o cartão diz **o que fazer** em vez
      de ficar vazio.
    - **Dicionário** (livro) — abre o painel como um **dicionário de consulta**: digite `日本` e veja a
@@ -65,12 +66,14 @@ para ~52 MB.
 
 Detalhes úteis:
 
-- A bolha pode ser **arrastada** para qualquer canto e "gruda" na borda mais próxima.
+- A bolha pode ser **arrastada** para onde você quiser: de fábrica ela **fica onde o dedo solta** e só
+  não sai da tela. Para quem prefere a bolha sempre fora do caminho, **«Prender a bolha nas bordas»**,
+  nos ajustes, traz de volta o encaixe na lateral mais próxima.
 - Para **encerrar**, arraste a bolha até o ✕ que aparece no centro de baixo: o puxão começa a 192 dp
   do ✕ (três vezes o tamanho dele), cresce depressa — na metade do caminho a bolha já andou metade do
   que o dedo andou — e a bolha **encolhe** até 70 % como se fosse sugada; com o dedo em cima do ✕ ela
   fica exatamente no centro dele, que fica vermelho, e ao soltar o app pergunta antes de desligar.
-  Soltar em qualquer outro lugar devolve a bolha ao tamanho normal e para a borda mais próxima.
+  Soltar em qualquer outro lugar devolve a bolha ao tamanho normal e a deixa onde o dedo soltou.
 - Toque na bolha **para abrir os ícones**; com o menu aberto, toque em qualquer outro lugar da tela
   para fechá-lo.
 - Com o **painel de resultado** aberto, a tela pertence ao painel: **VOLTAR** ou um toque fora do
@@ -79,10 +82,37 @@ Detalhes úteis:
 - **HOME** e a tela de **apps recentes** fecham o painel: ele não pertence a tarefa nenhuma e ficaria
   flutuando sobre a tela inicial. Quem avisa é o foco da janela, sem permissão nova — a mesma que o
   painel já usa para o texto editável. A bolha continua onde estava.
+- A **barra de espaço** do teclado nunca fecha o painel — nem o do dicionário, nem o da tradução: ela
+  troca de língua (a lista de línguas aparece normalmente) ou insere um espaço no campo. O teclado
+  abre janelas próprias e devolve o foco ao fechar; só uma perda de foco que **não volta** conta
+  como ter saído do app.
 - A faixa de ícones fica centrada sob a bolha; perto da borda ela encosta na tela, e quando não há
   espaço abaixo ela aparece **em cima** da bolha.
 - Na faixa, **Ajustes** reabre a tela de configuração e **Encerrar** desliga o serviço.
-- Toque longo no texto seleciona, como em qualquer TextView.
+- A **notificação** do OCR tem dois botões: **Pausar/Retomar** e **Parar**. Pausar não encerra nada —
+  a sessão de captura continua viva, mas a bolha e o painel saem da tela e a notificação passa a dizer
+  «Yabai OCR pausado» com o botão **Retomar**, que devolve a bolha exatamente ao lugar onde estava,
+  sem pedir a captura de novo. **Parar** continua encerrando de verdade. Nos ajustes o status mostra
+  **Pausado** e o botão principal também retoma.
+- **Selecionar texto** no painel (texto reconhecido, tradução, definição, ficha de kanji, busca do
+  dicionário): toque longo numa palavra seleciona ela e abre uma barrinha com **Copiar · Recortar ·
+  Colar · Selecionar tudo**, dentro do próprio painel. O popup do sistema não aparece em janela
+  flutuante — ele pertence à janela de um app comum —, então o painel desenha o seu: a barra fica acima
+  da linha selecionada (abaixo, quando não há espaço), um toque fora dela a fecha e o **VOLTAR** fecha
+  só ela antes de sair do painel. As ações valem sobre a palavra marcada mesmo que o teclado mexa na
+  seleção entre o toque longo e o toque no botão. **Recortar** copia e apaga, como num campo normal: a
+  palavra vai para a área de transferência antes de sair da tela.
+- **Estender a seleção** funciona como num campo comum: depois do toque longo aparecem duas **alças**
+  redondas nas pontas da seleção, e arrastar uma delas estica a marcação letra a letra enquanto o dedo
+  anda. A barra se esconde durante o arrasto, para não cobrir justamente o texto que você está pegando,
+  e volta com as ações quando o dedo solta.
+- As duas **permissões** também se removem pelo app: com a permissão concedida o botão deixa de dizer
+  «Conceder» e passa a dizer **Remover**. Ele pergunta antes («Remover a permissão de sobreposição?»,
+  com a consequência escrita) e só então abre a tela do sistema no ponto certo — o Android não deixa
+  um app revogar a própria permissão, quem desliga o interruptor é você. **Cancelar** não abre nada.
+- O botão principal cresce quando precisa: com o OCR ativo o texto vira «OCR flutuante ativo — toque
+  para reabrir os ajustes», que ocupa duas ou três linhas, e a altura acompanha o texto em vez de
+  cortar a última linha.
 - **A seção dobra sozinha:** toque no título «Tradução», «Sugestões», «Kanji» ou «Dicionário» (ou no
   chevron ao lado) e só aquela seção se recolhe. O chevron do cabeçalho do painel dobra o painel
   **inteiro** numa linha só, que passa a mostrar a tradução.
@@ -141,10 +171,32 @@ mesmos dicionários ativos e obedecem ao mesmo seletor do cabeçalho («Todos» 
 
 - A consulta inteira é tentada **primeiro como palavra**: `にほん` acha `日本` e `食べました` acha
   `食べる`, sem passar pela segmentação de frase.
+- **Romaji também funciona:** digite `nihon` ou `toukyou` e o app converte para hiragana
+  (`にほん`, `とうきょう`) antes de procurar. Vogais longas com acento (`tōkyō`) também são aceitas.
+  Romaji sem acento de vogal longa (`tokyo`) é ambíguo — prefira `toukyou` ou `tōkyō`.
 - Tocar numa sugestão preenche o campo e consulta na hora; dá para continuar editando o que ela escreveu.
-- **VOLTAR** ou um toque fora do cartão fecham a busca — não há captura atrás dela. Copiar, perguntar à
-  IA, imagem e trechos não aparecem: a busca não reconheceu texto nenhum.
+- O botão ao lado do campo muda com o que há nele: **×** limpa a consulta inteira; com o campo
+  **vazio** ele vira **Colar** e traz o texto que está na área de transferência (o mesmo de um Ctrl+C),
+  já consultando. Sem nada copiado, um aviso curto explica em vez de não fazer nada.
+- Texto copiado de um leitor costuma vir com a leitura impressa — `職員（しょくいん）`. Em **Gerenciar
+  dicionários**, ligue **«Ignorar as leituras entre parênteses na busca»**: a consulta descarta só os
+  grupos que são **somente kana** (`職員（しょくいん）` → `職員`, `双(そう)眸(ぼう)` → `双眸`), nos dois tipos
+  de parêntese. O campo continua mostrando o texto inteiro, e `(笑)`, `(2024)` e um parêntese sem par
+  **não** são tocados. Vem desligada: sem a opção, a consulta é exatamente a digitada.
+- **VOLTAR** ou um toque fora do cartão fecham a busca — não há captura atrás dela. Copiar, perguntar
+  à IA, imagem e trechos não aparecem: a busca não reconheceu texto nenhum.
+- A **barra de espaço** do teclado nunca fecha o dicionário: ela muda de língua ou insere espaço no
+  campo.
 - A escolha de dicionário vale para a busca e fica guardada, como no painel de uma captura.
+- Nos ajustes, ligue **«Manter a última busca aberta no dicionário»** para que o campo comece sempre
+  com a última coisa que você pesquisou — útil quando consulta várias palavras seguidas.
+- **Outros apps podem mandar a palavra:** selecione um texto no leitor (ReadEra, por exemplo) e escolha
+  **Yabai OCR** em «Aplicativos disponíveis» / «Compartilhar». A mesma tela de busca abre já com a
+  palavra no campo, sem bolha, sem captura e sem precisar da permissão de sobreposição. O app responde
+  às duas portas padrão do Android — **«Processar texto»** (`ACTION_PROCESS_TEXT`) e o
+  **compartilhamento de texto simples** (`ACTION_SEND`, `text/plain`) —, que é como os leitores montam a
+  lista de dicionários/tradutores instalados. O filtro de dicionários e a limpeza de parênteses valem
+  do mesmo jeito.
 
 ### Furigana (a leitura ao lado do kanji)
 
@@ -301,6 +353,10 @@ fala do texto reconhecido; este, de um kanji) e é guardada pelo **id** do dicio
 continua valendo depois de uma atualização que mude a data no título. Se o escolhido for removido,
 desativado ou for de palavras, o cartão volta a consultar todos em vez de ficar mudo.
 
+O **significado do composto** (剣技 → esgrima) segue outra escolha: a do **painel**, não a do cartão de
+kanji — quem tem o composto é um dicionário de palavras, e o KANJIDIC só conhece o 技 sozinho. Com o
+Jitendex em português ativo, o significado sai em português; com o JMdict, em inglês.
+
 ### Recolher o painel
 
 O painel cresce de cima para baixo e, num mangá com um kanji diferente por quadro, a seção do
@@ -319,7 +375,7 @@ pediu.
 
 ### Dicionários
 
-Nenhum dicionário vem dentro do APK (o menor útil tem 300 KB e o maior 37 MB, e cada um tem sua
+Nenhum dicionário vem dentro do APK (o menor útil tem 100 KB e o maior 37 MB, e cada um tem sua
 licença). Você baixa ou importa em **Gerenciar dicionários**:
 
 | Caminho | Como funciona |
@@ -338,6 +394,7 @@ O que está na lista:
 | Wikcionário japonês → português | português | 0,4 MB |
 | Wikcionário japonês (monolíngue) | japonês | 12 MB |
 | Wikcionário japonês → inglês | inglês | 21 MB |
+| Onomatopeias (surasura) | japonês | 0,1 MB |
 | KANJIDIC | inglês | 0,7 MB |
 | KANJIDIC | português | 0,3 MB |
 
@@ -358,6 +415,16 @@ Duas ressalvas honestas:
   arquivo sob demanda): cerca de 17 MB para o JMdict, 18 MB para o Jitendex, 21 MB para o JMnedict,
   29 MB para o Wikcionário inglês. Todos juntos passam de 80 MB. Se o celular tiver pouca memória,
   deixe ativos só os que você usa.
+
+**Katakana e onomatopeia.** As palavras em katakana (コンビニ, アルバイト, サラリーマン) já estão no
+JMdict, no Jitendex e no Jitendex PT-BR como verbete comum, com a marca de «geralmente escrito em
+katakana» — não existe (nem faz falta) um dicionário separado só de katakana. Onomatopeia é onde
+falta alguma coisa: as miméticas de mangá que o JMdict não lista. Para elas a lista traz
+**Onomatopeias (surasura)** — 1.421 entradas, definições em japonês com exemplos, 0,1 MB, e é o que
+faz ぴくりぴくり responder. Existe também um dicionário japonês → inglês de onomatopeias, o
+«Onomatoproject» (12,2 MB), mas ele só é distribuído numa pasta do Google Drive, sem endereço fixo
+por arquivo: **Importar arquivo** aceita o `.zip` dele, e a lista curada não o oferece porque o link
+poderia morrer de uma atualização para outra.
 
 A definição é convertida **na importação**. Um dicionário importado antes de uma mudança no formato
 continua com o texto antigo e a lista de dicionários avisa («Compilado com uma versão antiga do
@@ -546,6 +613,7 @@ core/   Kotlin JVM puro — nada de Android aqui
   dict/DictionaryCompiler.kt  .zip do Yomitan → formato compacto em disco
   dict/CompactDictionary.kt   leitura do formato compacto (índice na RAM, verbete no disco)
   dict/LookupEngine.kt        segmentação por maior correspondência, consulta inteira e sugestões
+  dict/DictionaryQuery.kt     limpa a consulta digitada (tira as leituras entre parênteses)
   dict/Furigana.kt           a leitura da palavra escrita ao lado dos kanji que ela lê
   dict/Deinflector.kt         conjugações → forma de dicionário (tabela do Yomichan)
   dict/GlossaryRenderer.kt    structured-content dos dicionários modernos → texto
@@ -553,6 +621,7 @@ core/   Kotlin JVM puro — nada de Android aqui
 
 app/    o app Android
   MainActivity.kt           permissões + ajustes + painel de uso
+  LookupActivity.kt         a palavra que outro app manda (ReadEra, compartilhar) abre a busca
   DictionaryActivity.kt     baixar/importar/ativar/reordenar/remover dicionários
   AppSettings.kt            preferências compartilhadas
   UsageTracker.kt           contador local de requisições ao Lens (o Google não expõe cota)
@@ -610,8 +679,8 @@ gradle :core:test
 ```
 
 Há uma bateria de testes que compila **dicionários de verdade** (JMdict, Jitendex, JMnedict,
-KANJIDIC, Wikcionário), mede quanta memória cada índice ocupa e confere que uma busca responde. Ela é
-opcional e aponta para uma pasta com os `.zip` baixados:
+KANJIDIC, Wikcionário, onomatopeias), mede quanta memória cada índice ocupa e confere que uma busca
+responde. Ela é opcional e aponta para uma pasta com os `.zip` baixados:
 
 ```powershell
 gradle :core:test -Pdicts="C:\caminho\para\os\dicionarios"
@@ -619,7 +688,8 @@ gradle :core:test -Pdicts="C:\caminho\para\os\dicionarios"
 
 Os nomes de arquivo esperados são os mesmos da lista do app (`JMdict_english.zip`,
 `jitendex-yomitan.zip`, `JMnedict.zip`, `KANJIDIC_english.zip`, `KANJIDIC_portuguese.zip`,
-`kty-ja-pt.zip`, `kty-ja-ja.zip`, `kty-ja-en.zip`); o que faltar é simplesmente ignorado.
+`kty-ja-pt.zip`, `kty-ja-ja.zip`, `kty-ja-en.zip`, `surasura.zip`); o que faltar é simplesmente
+ignorado.
 
 Existe um teste que fala com o endpoint de verdade, desligado por padrão:
 

@@ -22,6 +22,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.R
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.util.dp
@@ -36,7 +37,16 @@ import kotlin.math.roundToInt
  * panel takes input focus and a leftover invisible focusable window would swallow touches meant
  * for the app underneath.
  */
-class OverlayController(private val context: Context) {
+class OverlayController(
+    private val context: Context,
+    /**
+     * Whether a drag ends with the bubble stuck to the nearest side (R35c).
+     *
+     * A lambda rather than a value: the settings screen can change it while the service is running,
+     * and the next drag is what has to obey the new choice.
+     */
+    private val pinnedToEdge: () -> Boolean = { AppSettings(context).bubbleOnEdge },
+) {
 
     interface Callbacks {
         fun onFullScreenRequested()
@@ -124,6 +134,13 @@ class OverlayController(private val context: Context) {
 
     private var bubbleView: View? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+
+    /**
+     * Whether the bubble is paused (R33c): the capture session is still alive, but nothing of the
+     * reader is on screen until the notification asks it back. A capture that was already running
+     * when the pause arrived must not bring the bubble back — [restoreAfterCapture] checks this.
+     */
+    private var paused = false
     private var menuView: View? = null
     private var closeTargetView: ImageView? = null
     private var closeTargetArmed = false
@@ -147,13 +164,23 @@ class OverlayController(private val context: Context) {
     private var startY = 0
     private var dragging = false
 
+    /**
+     * Where the bubble last came to rest, in window coordinates (R35c).
+     *
+     * A drag that is cancelled, or a question that is answered «não», has to put the bubble back
+     * where it was — in free mode that is the last drop, not an edge. `Int.MIN_VALUE` means «no rest
+     * position yet», which only happens before the first [showBubble].
+     */
+    private var restingX = Int.MIN_VALUE
+    private var restingY = Int.MIN_VALUE
+
     fun canDrawOverlays(): Boolean = Settings.canDrawOverlays(context)
 
     // --- bubble --------------------------------------------------------------------------------
 
     fun showBubble() {
         if (bubbleView != null) {
-            bubbleView?.visibility = View.VISIBLE
+            bubbleView?.visibility = if (paused) View.GONE else View.VISIBLE
             return
         }
         val icon = ImageView(context).apply {
@@ -177,7 +204,10 @@ class OverlayController(private val context: Context) {
 
         bubbleView = bubble
         bubbleParams = params
+        restingX = params.x
+        restingY = params.y
         addWindow(bubble, params)
+        if (paused) bubble.visibility = View.GONE
     }
 
     fun hideBubble() {
@@ -185,6 +215,8 @@ class OverlayController(private val context: Context) {
         removeWindow(view)
         bubbleView = null
         bubbleParams = null
+        restingX = Int.MIN_VALUE
+        restingY = Int.MIN_VALUE
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -233,7 +265,15 @@ class OverlayController(private val context: Context) {
                 view.scaleX = 1f
                 view.scaleY = 1f
                 if (dragging) {
-                    endDrag(params.x, params.y)
+                    // The drop is judged where the bubble is *drawn* (pulled onto the ✕), but in
+                    // free mode it lands where the finger let go: the pull is a preview of closing,
+                    // not a place to leave the bubble (R35c).
+                    endDrag(
+                        params.x,
+                        params.y,
+                        startX + (event.rawX - downRawX).toInt(),
+                        startY + (event.rawY - downRawY).toInt(),
+                    )
                 } else {
                     view.performClick()
                     toggleMenu()
@@ -249,7 +289,7 @@ class OverlayController(private val context: Context) {
                 view.scaleY = 1f
                 if (dragging) {
                     hideCloseTarget()
-                    putBubbleOnEdge()
+                    restBubble()
                 }
                 dragging = false
                 return true
@@ -593,18 +633,28 @@ class OverlayController(private val context: Context) {
      * accident, so the service keeps running until the user answers. Anywhere else the bubble goes
      * back to the nearest edge, which is where it lives between uses.
      */
-    internal fun endDrag(bubbleX: Int, bubbleY: Int) {
+    /**
+     * The end of a drag: the bubble is drawn with its corner at ([bubbleX], [bubbleY]) and the
+     * finger let go at ([landX], [landY]).
+     *
+     * A drop on the ✕ is only a *question*, and it is judged on the drawn position — what the user
+     * sees coming is what happens on release. Closing a floating reader is not something to do by
+     * accident, so the service keeps running until the user answers. Anywhere else the bubble settles
+     * where the finger let go (free mode) or at the nearest edge (pinned mode) — see [settleBubble].
+     */
+    internal fun endDrag(
+        bubbleX: Int,
+        bubbleY: Int,
+        landX: Int = bubbleX,
+        landY: Int = bubbleY,
+    ) {
         val overTarget = isOverCloseTarget(bubbleX, bubbleY)
         hideCloseTarget()
         if (overTarget) {
             showCloseConfirm()
             return
         }
-        val params = bubbleParams ?: return
-        params.x = bubbleX
-        params.y = bubbleY
-        snapToEdge(params)
-        bubbleView?.let { updateWindow(it, params) }
+        settleBubble(landX, landY)
     }
 
     /**
@@ -614,11 +664,11 @@ class OverlayController(private val context: Context) {
     private fun showCloseConfirm() {
         if (confirmView != null) return
         val root = FrameLayout(context).apply {
-            // A tap outside is a «não»: the question goes away and the bubble goes back to its edge.
+            // A tap outside is a «não»: the question goes away and the bubble goes back to rest.
             isClickable = true
             setOnClickListener {
                 hideCloseConfirm()
-                putBubbleOnEdge()
+                restBubble()
             }
         }
         root.addView(
@@ -661,7 +711,7 @@ class OverlayController(private val context: Context) {
         answers.addView(
             context.actionButton(context.getString(R.string.region_cancel)) {
                 hideCloseConfirm()
-                putBubbleOnEdge()
+                restBubble()
             },
             answerParams(start = 0),
         )
@@ -688,21 +738,43 @@ class OverlayController(private val context: Context) {
             ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { marginStart = start }
 
-    /** Puts the bubble back on the edge it belongs to: the answer to a drag that closed nothing. */
-    private fun putBubbleOnEdge() {
+    /** Puts the bubble where it belongs after an unanswered question or a cancelled drag (R35c). */
+    private fun restBubble() {
         val params = bubbleParams ?: return
         bubbleView?.let {
             it.scaleX = 1f
             it.scaleY = 1f
         }
-        snapToEdge(params)
+        if (pinnedToEdge() || restingX == Int.MIN_VALUE) {
+            snapToEdge(params)
+            restingX = params.x
+            restingY = params.y
+            bubbleView?.let { updateWindow(it, params) }
+            return
+        }
+        settleBubble(restingX, restingY)
+    }
+
+    /**
+     * Leaves the bubble at ([x], [y]), obeying the placement the user chose (R35c).
+     *
+     * Free mode only keeps it inside the screen, so a drop in the middle of the page stays there.
+     * Pinned mode snaps it to the nearest side, which is where it always used to live.
+     */
+    private fun settleBubble(x: Int, y: Int) {
+        val params = bubbleParams ?: return
+        params.x = x
+        params.y = y
+        if (pinnedToEdge()) snapToEdge(params) else clampBubble(params)
+        restingX = params.x
+        restingY = params.y
         bubbleView?.let { updateWindow(it, params) }
     }
 
     // --- region selector -----------------------------------------------------------------------
 
     fun showRegionSelector() {
-        if (regionView != null || !canDrawOverlays()) return
+        if (regionView != null || !canDrawOverlays() || paused) return
         val overlay = RegionOverlay(context).apply {
             onConfirm = { rect ->
                 hideRegionSelector()
@@ -738,7 +810,7 @@ class OverlayController(private val context: Context) {
      * still works, just with nothing to zoom.
      */
     fun showTextPicker(blocks: List<PickerBlock>, mode: PickerReadingMode, page: Bitmap?): Boolean {
-        if (blocks.isEmpty() || !canDrawOverlays()) return false
+        if (blocks.isEmpty() || !canDrawOverlays() || paused) return false
         hideTextPicker()
 
         val overlay = TextPickerOverlay(context).apply {
@@ -773,7 +845,7 @@ class OverlayController(private val context: Context) {
      * coordinate system and the tap is a position in the text, not in the window.
      */
     fun showKanji(pieces: List<KanjiPiece>, page: Bitmap?): Boolean {
-        if (pieces.isEmpty() || !canDrawOverlays()) return false
+        if (pieces.isEmpty() || !canDrawOverlays() || paused) return false
         hideKanji()
 
         val overlay = KanjiOverlay(context).apply {
@@ -800,6 +872,9 @@ class OverlayController(private val context: Context) {
 
     private fun ensureResultPanel(): ResultOverlay? {
         if (!canDrawOverlays()) return null
+        // A capture that was already running when the pause arrived finishes into nothing: the
+        // panel must not come back without the bubble (R33c).
+        if (paused) return null
         resultView?.let { return it }
 
         val panel = ResultOverlay(context).apply {
@@ -927,10 +1002,11 @@ class OverlayController(private val context: Context) {
         selected: String?,
         dictionaryCount: Int,
         stale: List<String> = emptyList(),
+        initialQuery: String = "",
     ) {
         if (!canDrawOverlays()) return
         val panel = ensureResultPanel() ?: return
-        panel.showSearch(titles, selected, dictionaryCount, stale)
+        panel.showSearch(titles, selected, dictionaryCount, stale, initialQuery)
         panel.post { panel.showKeyboard() }
     }
 
@@ -1040,8 +1116,35 @@ class OverlayController(private val context: Context) {
     }
 
     fun restoreAfterCapture() {
-        bubbleView?.visibility = View.VISIBLE
+        bubbleView?.visibility = if (paused) View.GONE else View.VISIBLE
     }
+
+    /**
+     * Pauses or resumes the floating reader (R33c).
+     *
+     * Pausing takes down everything the reader owns — the bubble, the result panel, the pickers, the
+     * dragging target — because a «paused» OCR that still covers the page would be worse than none.
+     * The bubble keeps its view and its position, so resuming puts it back exactly where the user
+     * left it instead of at the default corner. Stopping is the other action: this one keeps the
+     * capture session and the foreground service alive.
+     */
+    fun setPaused(paused: Boolean) {
+        this.paused = paused
+        if (paused) {
+            hideMenu()
+            hideCloseTarget()
+            hideCloseConfirm()
+            hideRegionSelector()
+            hideTextPicker()
+            hideKanji()
+            hideAppPicker()
+            hideResult()
+        }
+        bubbleView?.visibility = if (paused) View.GONE else View.VISIBLE
+    }
+
+    /** Whether the reader is paused; a test seam, the bubble's visibility is the visible effect. */
+    internal fun isPaused(): Boolean = paused
 
     fun destroy() {
         hideMenu()

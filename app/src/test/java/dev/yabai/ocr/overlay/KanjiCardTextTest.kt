@@ -20,7 +20,13 @@ import org.junit.Test
  */
 class KanjiCardTextTest {
 
-    private fun hit(surface: String, reading: String, start: Int, end: Int) = TokenMatch(
+    private fun hit(
+        surface: String,
+        reading: String,
+        start: Int,
+        end: Int,
+        definition: String = "…",
+    ) = TokenMatch(
         surface = surface,
         start = start,
         end = end,
@@ -30,7 +36,7 @@ class KanjiCardTextTest {
             tags = "n",
             rulesFlags = 0,
             score = 1,
-            definition = "…",
+            definition = definition,
         ),
         dictionaryTitle = "JMdict",
         reasons = emptyList(),
@@ -63,34 +69,29 @@ class KanjiCardTextTest {
         assertEquals(KanjiWord("腹", "はら"), KanjiCardText.wordAt(matches, 0))
     }
 
+    /**
+     * R34a: the card answered «技 is skill; art; craft» for 剣技, and never said what 剣技 means.
+     *
+     * The meaning has to be the one of the word the card names — the same narrowest hit that gives
+     * the reading — and it has to be trimmed, because the compiled definition carries the dictionary
+     * renderer's padding.
+     */
     @Test
-    fun `the words on the page are the compounds the card shows`() {
+    fun `the meaning is the one of the word that reads the character`() {
         val matches = listOf(
-            hit("職員", "しょくいん", 0, 2),
-            hit("職", "しょく", 0, 1),
-            hit("員", "いん", 1, 2),
+            hit("剣技", "けんぎ", 0, 2, definition = " 1. fencing; swordsmanship "),
+            hit("技", "わざ", 1, 2, definition = "1. technique"),
         )
 
-        val compounds = KanjiCardText.compounds(matches, "職")
-
-        assertEquals(listOf(KanjiWord("職員", "しょくいん"), KanjiWord("職", "しょく")), compounds)
+        assertEquals("1. technique", KanjiCardText.wordMeaning(matches, 1))
+        assertEquals("1. fencing; swordsmanship", KanjiCardText.wordMeaning(matches, 0))
     }
 
     @Test
-    fun `the same word twice is said once`() {
-        val matches = listOf(
-            hit("職員", "しょくいん", 0, 2),
-            hit("職員", "しょくいん", 10, 12),
-        )
+    fun `a character no word covers has no word meaning`() {
+        val matches = listOf(hit("剣技", "けんぎ", 0, 2, definition = "1. fencing"))
 
-        assertEquals(1, KanjiCardText.compounds(matches, "職").size)
-    }
-
-    @Test
-    fun `the list of compounds stops at the limit`() {
-        val matches = (1..9).map { hit("職$it", "しょく$it", 0, 2) }
-
-        assertEquals(4, KanjiCardText.compounds(matches, "職", limit = 4).size)
+        assertEquals("", KanjiCardText.wordMeaning(matches, 5))
     }
 
     @Test

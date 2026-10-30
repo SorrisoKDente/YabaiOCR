@@ -212,7 +212,7 @@ class KanjiOverlayTest {
     }
 
     @Test
-    fun `the card shows the reading, the dictionary readings and the compounds`() {
+    fun `the card shows the reading, the dictionary readings and the meanings`() {
         val reader = overlay()
 
         reader.showCard(
@@ -223,7 +223,7 @@ class KanjiOverlayTest {
                 onYomi = "フク",
                 kunYomi = "はら",
                 meaning = "barriga; estômago",
-                compounds = listOf(KanjiWord("腹が減る", "はらがへる")),
+                wordMeaning = "1. estar com fome; ficar com fome",
             ),
         )
 
@@ -234,7 +234,39 @@ class KanjiOverlayTest {
         assertTrue(text, text.contains("音: フク"))
         assertTrue(text, text.contains("訓: はら"))
         assertTrue(text, text.contains("barriga"))
-        assertTrue(text, text.contains("Nesta tela: 腹が減る はらがへる"))
+        assertTrue(text, text.contains("1. estar com fome; ficar com fome"))
+    }
+
+    /**
+     * R34a: tapping 技 inside 剣技 asked what 剣技 means, and the card answered only about 技.
+     *
+     * The compound's meaning has to sit with the compound — between the word and the kanji entry's
+     * readings — so it is not read as another sense of the single character.
+     */
+    @Test
+    fun `the card shows the meaning of the compound beside the compound`() {
+        val reader = overlay()
+
+        reader.showCard(
+            KanjiCard(
+                character = "技",
+                reading = "けんぎ",
+                word = "剣技",
+                onYomi = "ギ",
+                kunYomi = "わざ",
+                meaning = "skill; art; craft",
+                wordMeaning = "1. fencing; swordsmanship",
+            ),
+        )
+
+        val text = reader.cardText().orEmpty()
+
+        assertTrue(text, text.contains("1. fencing; swordsmanship"))
+        assertTrue(
+            "the compound's meaning has to come right after the compound, before the kanji entry: $text",
+            text.indexOf("剣技") < text.indexOf("1. fencing") &&
+                text.indexOf("1. fencing") < text.indexOf("音: ギ"),
+        )
     }
 
     @Test
@@ -249,7 +281,6 @@ class KanjiOverlayTest {
                 onYomi = "",
                 kunYomi = "",
                 meaning = "",
-                compounds = emptyList(),
                 note = "Nenhum dicionário de kanji respondeu a este caractere.",
             ),
         )
@@ -273,7 +304,6 @@ class KanjiOverlayTest {
                 onYomi = "ドウ",
                 kunYomi = "おな.じ",
                 meaning = "igual; o mesmo",
-                compounds = emptyList(),
                 source = "KANJIDIC (português)",
             ),
         )
@@ -296,7 +326,6 @@ class KanjiOverlayTest {
                 onYomi = "ドウ",
                 kunYomi = "おな.じ",
                 meaning = "igual",
-                compounds = emptyList(),
                 parts = listOf(KanjiPart("同", "どう"), KanjiPart("時", "じ")),
             ),
         )
@@ -331,7 +360,7 @@ class KanjiOverlayTest {
         assertEquals("the tap marks the character at once", PixelBox(100, 100, 40, 40), reader.highlighted)
 
         reader.showCard(
-            KanjiCard("同", "どうじに", "同時に", "", "", "", emptyList(), span = 0..1),
+            KanjiCard("同", "どうじに", "同時に", "", "", "", "", span = 0..1),
         )
 
         assertEquals(PixelBox(100, 100, 40, 80), reader.highlighted)
@@ -358,7 +387,7 @@ class KanjiOverlayTest {
 
         // The card of the previous tap (同) arrives: the finger is on a different character now.
         reader.showCard(
-            KanjiCard("時", "じ", null, "", "", "", emptyList(), span = 0..1),
+            KanjiCard("時", "じ", null, "", "", "", "", span = 0..1),
         )
 
         assertEquals(PixelBox(100, 100, 40, 40), reader.highlighted)
@@ -383,7 +412,7 @@ class KanjiOverlayTest {
     fun `a new page takes the card of the old one away`() {
         val reader = overlay()
         reader.showCard(
-            KanjiCard("腹", "はら", null, "フク", "はら", "barriga", emptyList()),
+            KanjiCard("腹", "はら", null, "フク", "はら", "barriga", ""),
         )
         assertTrue(reader.cardText() != null)
 

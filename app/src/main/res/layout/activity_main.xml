@@ -260,6 +260,13 @@
                 android:textColor="@color/text_primary" />
 
             <CheckBox
+                android:id="@+id/checkBubbleOnEdge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/setting_bubble_on_edge"
+                android:textColor="@color/text_primary" />
+
+            <CheckBox
                 android:id="@+id/checkUpscale"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -334,9 +341,10 @@
         <Button
             android:id="@+id/btnStart"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:backgroundTint="@color/accent"
+            android:minHeight="56dp"
             android:text="@string/start_button"
             android:textColor="#FFFFFFFF"
             android:textSize="16sp" />
@@ -370,6 +378,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/setting_dictionary"
+                android:textColor="@color/text_primary" />
+
+            <CheckBox
+                android:id="@+id/checkDictionaryKeepLast"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="34dp"
+                android:text="@string/setting_dictionary_keep_last"
                 android:textColor="@color/text_primary" />
 
             <TextView

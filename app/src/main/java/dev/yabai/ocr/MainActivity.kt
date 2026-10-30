@@ -45,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var notificationStatus: TextView
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
+    private lateinit var btnOverlayPermission: Button
+    private lateinit var btnNotificationPermission: Button
 
     private lateinit var usageToday: TextView
     private lateinit var usageTotal: TextView
@@ -112,6 +114,8 @@ class MainActivity : AppCompatActivity() {
         notificationStatus = findViewById(R.id.notificationStatus)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
+        btnOverlayPermission = findViewById(R.id.btnOverlayPermission)
+        btnNotificationPermission = findViewById(R.id.btnNotificationPermission)
 
         usageToday = findViewById(R.id.usageToday)
         usageTotal = findViewById(R.id.usageTotal)
@@ -119,8 +123,12 @@ class MainActivity : AppCompatActivity() {
         usageLimit = findViewById(R.id.usageLimit)
         dictionarySummary = findViewById(R.id.dictionarySummary)
 
-        findViewById<Button>(R.id.btnOverlayPermission).setOnClickListener { requestOverlayPermission() }
-        findViewById<Button>(R.id.btnNotificationPermission).setOnClickListener { requestNotifications() }
+        btnOverlayPermission.setOnClickListener {
+            if (Settings.canDrawOverlays(this)) confirmRemoveOverlay() else requestOverlayPermission()
+        }
+        btnNotificationPermission.setOnClickListener {
+            if (hasNotificationPermission()) confirmRemoveNotifications() else requestNotifications()
+        }
         findViewById<Button>(R.id.btnResetUsage).setOnClickListener {
             usage.reset()
             refreshUsage()
@@ -181,6 +189,13 @@ class MainActivity : AppCompatActivity() {
 
         val pickText = findViewById<CheckBox>(R.id.checkPickText).apply { isChecked = settings.pickText }
         pickText.setOnCheckedChangeListener { _, checked -> settings.pickText = checked }
+
+        // Free placement is the default: the bubble stays where it is dropped, inside the screen
+        // (R35c). Pinning is for whoever wants it always out of the way on the same side.
+        val bubbleOnEdge = findViewById<CheckBox>(R.id.checkBubbleOnEdge).apply {
+            isChecked = settings.bubbleOnEdge
+        }
+        bubbleOnEdge.setOnCheckedChangeListener { _, checked -> settings.bubbleOnEdge = checked }
 
         val upscale = findViewById<CheckBox>(R.id.checkUpscale).apply { isChecked = settings.upscaleSmall }
         upscale.setOnCheckedChangeListener { _, checked -> settings.upscaleSmall = checked }
@@ -243,6 +258,14 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnManageDictionaries).setOnClickListener {
             startActivity(DictionaryActivity.intent(this))
+        }
+
+        val keepLast = findViewById<CheckBox>(R.id.checkDictionaryKeepLast).apply {
+            isChecked = settings.dictionaryKeepLastSearch
+        }
+        keepLast.setOnCheckedChangeListener { _, checked ->
+            settings.dictionaryKeepLastSearch = checked
+            if (!checked) settings.dictionaryLastQuery = ""
         }
     }
 
@@ -346,6 +369,16 @@ class MainActivity : AppCompatActivity() {
     // --- actions -------------------------------------------------------------------------------
 
     private fun onStartClicked() {
+        // While the reader is paused the capture session is still valid: the button's job is to
+        // resume it, not to ask the system for the screen a second time (R33c).
+        if (FloatingOcrService.isRunning && FloatingOcrService.isPaused) {
+            val intent = Intent(this, FloatingOcrService::class.java)
+                .setAction(FloatingOcrService.ACTION_RESUME)
+            runCatching { startService(intent) }
+            handler.postDelayed({ refreshRunningState() }, 300L)
+            return
+        }
+
         if (!Settings.canDrawOverlays(this)) {
             toast(getString(R.string.need_overlay_permission))
             requestOverlayPermission()
@@ -400,17 +433,83 @@ class MainActivity : AppCompatActivity() {
         notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    /**
+     * The way back out of a permission (R33d).
+     *
+     * Android only lets an app *ask* for these two; taking them away is the user's decision in the
+     * system screen. The dialog exists so that a tap on a button that has said «Conceder» for months
+     * does not silently send the user to a settings page they did not mean to open.
+     */
+    private fun confirmRemoveOverlay() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.permission_remove_overlay_title)
+            .setMessage(R.string.permission_remove_overlay_message)
+            .setNegativeButton(R.string.permission_cancel, null)
+            .setPositiveButton(R.string.permission_remove_confirm) { _, _ ->
+                // The app-specific page opens with the switch already on, so removing it is one tap.
+                requestOverlayPermission()
+            }
+            .show()
+    }
+
+    private fun confirmRemoveNotifications() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.permission_remove_notifications_title)
+            .setMessage(R.string.permission_remove_notifications_message)
+            .setNegativeButton(R.string.permission_cancel, null)
+            .setPositiveButton(R.string.permission_remove_confirm) { _, _ ->
+                openNotificationSettings()
+            }
+            .show()
+    }
+
+    private fun openNotificationSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        }
+        try {
+            overlayLauncher.launch(intent)
+        } catch (t: Throwable) {
+            toast(getString(R.string.need_notification_permission))
+        }
+    }
+
     // --- state refresh -------------------------------------------------------------------------
 
     private fun refreshPermissions() {
-        paintStatus(overlayStatus, Settings.canDrawOverlays(this))
-        paintStatus(notificationStatus, hasNotificationPermission())
+        val overlay = Settings.canDrawOverlays(this)
+        val notifications = hasNotificationPermission()
+        paintStatus(overlayStatus, overlay)
+        paintStatus(notificationStatus, notifications)
+        // The same button grants and removes; its label says which one a tap will do (R33d).
+        btnOverlayPermission.setText(
+            if (overlay) R.string.permission_remove else R.string.permission_grant,
+        )
+        btnNotificationPermission.setText(
+            if (notifications) R.string.permission_remove else R.string.permission_grant,
+        )
     }
 
     private fun refreshRunningState() {
         val running = FloatingOcrService.isRunning
-        statusText.setText(if (running) R.string.status_running else R.string.status_stopped)
-        btnStart.setText(if (running) R.string.start_button_running else R.string.start_button)
+        val paused = running && FloatingOcrService.isPaused
+        statusText.setText(
+            when {
+                !running -> R.string.status_stopped
+                paused -> R.string.status_paused
+                else -> R.string.status_running
+            },
+        )
+        btnStart.setText(
+            when {
+                !running -> R.string.start_button
+                paused -> R.string.start_button_paused
+                else -> R.string.start_button_running
+            },
+        )
         btnStop.visibility = if (running) View.VISIBLE else View.GONE
     }
 

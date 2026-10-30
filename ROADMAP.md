@@ -3,7 +3,7 @@
 Ordem de execução: **bugs primeiro**, depois o que for mais fácil. Cada item é implementado sozinho,
 marcado aqui e só então o próximo começa.
 
-Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial
+Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 
 ---
 
@@ -1792,7 +1792,7 @@ valem: **bugs primeiro**, um item por vez, cada um com teste de regressão prova
 | R24 | `[x]` | **Fechar a notificação do OCR** deixa a captura num estado que só dá erro | bug (serviço) |
 | R25 | `[x]` | **Pouco furigana vindo do Lens** (página 9, capítulo 13) | não se repetiu |
 | R26 | `[x]` | **Aviso de formato antigo** que o usuário não viu antes de reimportar | melhoria |
-| R27 | `[ ]` | **Traduzir um dicionário inglês para português** com IA: vale a pena? (análise) | estudo |
+| R27 | `[-]` | **Traduzir um dicionário inglês para português** com IA: vale a pena? (análise) | estudo |
 
 ### R20 — O texto que sai do painel  `[x]` (21/10/2026)
 
@@ -1932,11 +1932,14 @@ antes; e uma **nota no painel**, logo acima das definições, com o nome que o u
 culpa o que está atual; `DefinitionPanelTest` — a nota aparece com o nome do dicionário em formato
 antigo e **não** aparece quando todos estão atuais. Non-vacuidade **2/2**.
 
-### R27 — Traduzir um dicionário para português  `[ ]` (21/10/2026)
+### R27 — Traduzir um dicionário para português  `[-]` (21/10/2026)
 
 Pergunta: dá para pegar um dicionário em inglês (JMdict/Jitendex) e traduzir para português com IA, de
 graça, com qualidade que valha a pena? Análise entregue na conversa — o item fica aberto esperando
 decisão, porque não custa uma tarde de código e custa **muito** de máquina.
+
+**Fechado em 27/10/2026 — descartado por decisão do usuário:** o dicionário que ele já tem atende.
+Nenhum trabalho foi feito nem será.
 
 **Fechamento da ronda:** `app:testDebugUnitTest` **220 / 0**, `core:test` **103 / 0 / 2 pulados** (com
 `-Pdicts`). Non-vacuidade **10/10** (`%TEMP%\opencode\r20_nonvacuous.py`).
@@ -2150,6 +2153,778 @@ mas não conferido em aparelho).
 
 **Fechamento da ronda:** `app:testDebugUnitTest` **246 / 0**, `core:test` **116 / 0 / 2 pulados** (com
 `-Pdicts`). Non-vacuidade **5/5**.
+
+## 12. Ajustes pedidos depois da sétima ronda  (22/10/2026)
+
+Quatro itens novos, todos originados do uso do aparelho. São melhorias de usabilidade, não bugs:
+cada um tem teste de regressão.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R32a | `[x]` | Espaço no teclado fecha o dicionário | trivial |
+| R32b | `[x]` | Botão «×» ao lado do campo para limpar a consulta | trivial |
+| R32c | `[x]` | Opção «Manter a última busca aberta no dicionário» nos ajustes | baixa |
+| R32d | `[x]` | Dicionário identifica romaji dentro do possível | média |
+
+### R32a — Espaço fecha o dicionário  `[x]` (26/10/2026)
+
+**Relato:** apertar **espaço** no teclado para trocar de língua fechava o painel — tanto o do
+dicionário como o da tradução. O painel fechava **antes de a lista de línguas aparecer**.
+
+**Primeira tentativa, e por que não bastou:** o painel era `isClickable` com um
+`setOnClickListener { stepBack() }` para que um toque fora do card fechasse a busca, e o Android
+transforma **espaço** num clique em cima de um `ViewGroup` focável. O `dispatchKeyEvent` passou a
+engolir o espaço, mas o painel continuou fechando: o espaço do teclado não vira key event para o
+app — o teclado abre uma **janela própria** (a lista de línguas) e essa janela **rouba o foco** da
+janela do painel. O `onWindowLost` (R9) lia essa perda como «o usuário saiu do app» e fechava tudo.
+
+**Correção (duas frentes):**
+
+1. O painel não é mais clicável. O toque fora do card passou a ser um `setOnTouchListener` no
+   painel, que olha se o dedo caiu fora dos limites do card e chama o mesmo `stepBack()`. Um key
+   event não aciona um touch listener, então **espaço não pode mais fechar o painel** — nem espaço
+   de teclado físico, nem de teclado virtual.
+2. A perda de foco passou a ser **confirmada** antes de fechar: ela só conta como «o usuário saiu»
+   quando o foco não volta. Enquanto o teclado está na tela (`WindowInsets.Type.ime()`), a perda é
+   tratada como uma janela do próprio teclado e o painel espera a lista de línguas fechar; se o
+   usuário realmente sair, o foco não volta, o teclado vai junto e o painel fecha. Um teto de 5 s
+   evita que o painel fique preso sobre outro app.
+
+**Testes:**
+
+- `BackAndOutsideTest.space does not step out of the panel` — painel com o foco, espaço
+  `ACTION_DOWN`/`ACTION_UP`: nada de «repick»/«fechar».
+- `FocusLossTest.a keyboard window taking the focus does not take the panel with it` — perda de foco
+  com teclado na tela: o painel fica; quando o teclado sai (perda de foco real), ele fecha.
+- `DictionarySearchPanelTest.space in the search box does not close it` — espaço no modo busca.
+- Os testes de R9 continuam valendo: a perda de foco sem teclado fecha o painel; ganhar o foco não
+  fecha; a lista de apps do «Perguntar à IA» não o leva junto.
+
+**Non-vacuidade (2/2, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| painel volta a ser `isClickable` com o `setOnClickListener` | `space does not step out of the panel` → `[repick]` |
+| a confirmação ignora o teclado (fecha na primeira perda) | `a keyboard window taking the focus…` |
+
+**O que não está coberto:** a ligação entre `onApplyWindowInsets` e o teclado real não é vista no
+Robolectric (não há janela de IME); o teste injeta `keyboardVisible`. E o teto de 5 s é um
+compromisso: uma lista de línguas aberta por mais tempo que isso fecha o painel.
+
+### R32b — Botão «×» de limpar  `[x]` (22/10/2026)
+
+**Pedido:** um «×» ao lado do campo de texto para limpar toda a consulta de uma vez, em vez de apagar
+caractere por caractere.
+
+**Correção:** o campo de busca agora vem dentro de um `LinearLayout` horizontal com o botão «×» à
+direita. Tocar nele chama `clearSearch()`, que limpa o texto e posiciona o cursor no início; o
+`TextWatcher` dispara a busca vazia, que mostra «digite para consultar» em vez de «nada encontrado».
+
+**Teste:** `DictionarySearchPanelTest.the clear button empties the field and asks for an empty answer`
+— digita «日本», confirma que a busca foi feita, toca no «×» (pelo content description), confirma que
+o campo ficou vazio e que a busca vazia foi pedida.
+
+### R32c — Manter a última busca  `[x]` (22/10/2026)
+
+**Pedido:** uma opção nos ajustes para manter a última busca aberta quando o dicionário é reaberto,
+em vez de começar sempre vazio.
+
+**Correção:** `AppSettings` ganhou `dictionaryKeepLastSearch` (booleano, desligado por padrão) e
+`dictionaryLastQuery` (a última consulta digitada). Quando a opção está ligada, `onDictionarySearchRequested`
+pré-preenche o campo com `dictionaryLastQuery` e `searchDictionary` grava cada consulta não vazia de
+volta. Desligar a opção também apaga a query guardada.
+
+**UI:** novo checkbox «Manter a última busca aberta no dicionário» nos ajustes, abaixo de
+«Consultar os dicionários instalados».
+
+**Teste:** `DictionarySearchPanelTest.the last query is pre-filled when passed to the search card` —
+abre o panel com `initialQuery = "日本"` e confirma que o campo começa com «日本» e que a busca é
+disparada imediatamente.
+
+### R32d — Romaji  `[x]` (22/10/2026)
+
+**Pedido:** o dicionário deve identificar romaji dentro do possível.
+
+**Correção:** novo arquivo `core/dict/Romaji.kt` com um conversor Hepburn romaji → hiragana (melhor
+esforço): sílabas básicas, dígrafos (kya, shu...), consoante dupla (kk → っ), vogais longas com acento
+(ō → ou, ā → aa) e ん. `LookupEngine.search()` converte a consulta para hiragana quando ela é romaji,
+tenta correspondência exata como headword e, se não achar, procura verbetes cuja leitura corresponda
+via `suggest(..., includeReadingMatch = true)`. Assim `nihon` encontra 日本 (leitura `にほん`) e
+`toukyou` encontra 東京 (leitura `とうきょう`).
+
+**Teste:** `RomajiTest` (9 casos: vogais, sílabas, dakuten, dígrafos, sokuon, vogais longas, ん, texto
+não-romaji inalterado, consulta mista, detecção de romaji) e `DictionaryCompileTest.search finds
+Japanese words by romaji reading` (nihon → 日本, toukyou → 東京, tōkyō → 東京).
+
+**O que não está coberto:** romaji sem acento de vogal longa é ambíguo (`tokyo` pode ser `ときょお`
+ou `とうきょう`); o conversor trata `o` como `お`, então `tokyo` não encontra 東京. Use `toukyou` ou
+`tōkyō`. A ligação do serviço para as novas configurações não tem teste dedicado — mesma lacuna
+declarada das demais ações do `FloatingOcrService`.
+
+**Fechamento:** `app:testDebugUnitTest` **251 / 0**, `core:test` **130 / 0 / 2 pulados** (com
+`-Pdicts`).
+
+---
+
+## 13. Ronda 33 — pedidos de 26/10/2026
+
+Cinco pedidos novos, vindos do uso do aparelho (Poco X5 5G). Dois são bugs de tela; os outros três
+são melhorias. A ordem de trabalho foi a pedida: bugs primeiro, depois do mais fácil ao mais difícil.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R33a | `[x]` | Texto de «OCR flutuante ativo» cortado embaixo no botão | trivial |
+| R33b | `[x]` | Popup padrão de seleção nos campos de texto (dicionário e tradução) | média |
+| R33c | `[x]` | Pausar e retomar o OCR pela notificação, além de «Parar» | baixa |
+| R33d | `[x]` | Remover as permissões já concedidas, com confirmação | baixa |
+| R33e | `[x]` | Dicionários de onomatopeia e de katakana (português/inglês) | média |
+
+### R33a — Texto cortado no botão  `[x]` (26/10/2026)
+
+**Relato:** com o OCR ativo, o botão diz «OCR flutuante ativo — toque para reabrir os ajustes» e a
+última linha aparece cortada embaixo — lia-se «…reabrir os» e o «ajustes» ficava fora.
+
+**Causa:** o `btnStart` do `activity_main.xml` tinha `layout_height="56dp"` fixo. O rótulo normal
+cabe numa linha; o rótulo de «ativo» quebra em duas ou três, e a altura não acompanhava.
+
+**Correção:** `layout_height="wrap_content"` com `minHeight="56dp"`. O botão parado continua com
+56 dp (o mínimo), e o de «ativo» cresce o quanto o texto precisar — em qualquer escala de fonte.
+
+**Teste:** `StartButtonTest.the running label is not clipped` mede o layout do próprio texto contra
+a altura útil do botão (`getLineBottom` da última linha × `height - paddings`). Antes da correção:
+`the «OCR flutuante ativo — toque para reabrir os ajustes» label needs 41 px but the button only has
+36`.
+
+**Non-vacuidade:** voltar o `56dp` faz o teste falhar com a mensagem acima; com o `wrap_content`
+ele passa.
+
+**O que não está coberto:** o teste roda em Robolectric (mdpi, 320 dp); uma fonte do aparelho muito
+maior muda a altura, não a conclusão — o `wrap_content` acompanha qualquer medida.
+
+### R33b — Menu de seleção no painel  `[x]` (26/10/2026)
+
+**Relato:** selecionar um trecho no campo do dicionário ou no texto da tradução não abria o popup
+padrão do celular (Copiar, Recortar, Selecionar tudo).
+
+**Causa:** o popup de seleção do Android pertence à janela de uma *activity*. O painel é uma janela
+`TYPE_APPLICATION_OVERLAY` do serviço; nela o `ActionMode` flutuante normalmente não aparece — e em
+muitos aparelhos nem as alças de seleção. Não é um bug de configuração do `EditText`: é uma limitação
+da janela.
+
+**Correção:** o painel desenha o próprio menu, dentro da própria janela, em
+`overlay/SelectionToolbar.kt`:
+
+- long press seleciona a palavra sob o dedo (`wordRange`: letras, dígitos, 「ー」 e 「々») e abre a
+  barra com **Copiar · Recortar · Colar · Selecionar tudo**;
+- a barra fica acima da linha selecionada, abaixo quando não há espaço, e nunca sai do painel;
+- um véu transparente fecha a barra no toque seguinte; BACK fecha a barra **antes** de sair do
+  painel; qualquer reconstrução do card (resultado novo, busca, erro) tira a barra da tela;
+- «Recortar» e «Colar» só aparecem em campo editável; «Colar» só quando há algo na área de
+  transferência; «Copiar»/«Selecionar tudo» ficam desabilitados quando não há o que copiar.
+
+Está ligado ao texto reconhecido (editável), à tradução, às definições do dicionário e ao corpo da
+ficha de kanji.
+
+**Testes:** `TextSelectionTest`, 7 casos — long press seleciona e abre; Copiar põe a palavra na área
+de transferência e fecha; Recortar tira do campo de busca; Colar escreve por cima da seleção;
+Selecionar tudo mantém o menu; a barra fica dentro do painel; BACK fecha só a barra.
+
+**Non-vacuidade:** trocar o `setOnLongClickListener` por `{ false }` derruba os 7.
+
+**O que não está coberto:** as alças de arrastar do sistema continuam fora do painel — o menu é o do
+painel, com as quatro ações que o popup padrão oferece. Num `TextView` não editável a seleção é feita
+pelo long press, não por alças.
+
+### R33c — Pausar e retomar pela notificação  `[x]` (26/10/2026)
+
+**Pedido:** uma ação que pause o OCR sem encerrar, além do «Parar» que já existia.
+
+**Correção:**
+
+- `FloatingOcrService` ganhou `ACTION_PAUSE` e `ACTION_RESUME`; a notificação passou a ter dois
+  botões — **Pausar/Retomar** e **Parar**. Pausado, o título vira «Yabai OCR pausado» e o texto
+  explica que «Retomar» traz a bolha de volta.
+- Pausar **não** encerra o serviço nem a sessão de captura: `isPaused` sobe, a análise e a busca em
+  curso são canceladas (`busy = false`), e `OverlayController.setPaused(true)` tira da tela a bolha,
+  o painel, os seletores, o alvo de arrastar e a confirmação de fechar.
+- A bolha guarda a posição: retomar a devolve onde estava, sem pedir a captura de novo.
+- Uma captura que termina depois da pausa não ressuscita a bolha (`restoreAfterCapture` respeita a
+  pausa), e um toque em voo não dispara captura (`requestCapture` sai cedo quando pausado). O painel,
+  o seletor de trechos e o leitor de kanji também recusam abrir enquanto pausados
+  (`ensureResultPanel`, `showTextPicker`, `showKanji`), e `showResultFor` descarta a captura inteira —
+  sem copiar para a área de transferência nem disparar análise.
+- «Parar» continua encerrando de verdade; `onDestroy` limpa `isPaused`.
+- Nos ajustes, o status mostra «Pausado» e o botão principal, «OCR flutuante pausado — toque em
+  «Retomar» na notificação»; tocá-lo manda `ACTION_RESUME`.
+
+**Testes:** `CaptureNotificationTest`, 7 casos (4 novos: a notificação ativa oferece «Pausar»;
+pausar mantém o serviço vivo e troca a notificação para «Retomar»; retomar volta a «Pausar»;
+`onDestroy` limpa a pausa). `PauseTest`, 4 casos (a bolha some e volta ao mesmo lugar; o painel vai
+junto; o fim de uma captura não desfaz a pausa; um resultado que chega depois da pausa não abre o
+painel).
+
+**Non-vacuidade (3/3, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| `setPaused` deixa de esconder a bolha | `pausing hides the bubble…`, `a capture ending after the pause…` |
+| `pause()` deixa de marcar `isPaused` | `pausing keeps the service…`, `destroying the service clears the paused state` |
+| `ensureResultPanel` deixa de olhar a pausa | `a result arriving after the pause…` |
+
+**O que não está coberto:** o `PendingIntent` da notificação não é disparado pelo sistema no teste (a
+ação é chamada direto em `onStartCommand`); a ligação do serviço com o `OverlayController` real não é
+vista no Robolectric — `PauseTest` usa o controlador isolado.
+
+### R33d — Remover permissões  `[x]` (26/10/2026)
+
+**Pedido:** poder tirar as permissões já concedidas, com confirmação.
+
+**Correção:** os dois botões de permissão passaram a ter dois papéis. Sem a permissão dizem
+«Conceder» e pedem como antes; com ela dizem **«Remover»** e abrem um diálogo que explica a
+consequência (a bolha não aparece sobre os outros apps / o aviso de captura some) com **Cancelar** e
+**Remover**. Confirmar abre a tela do sistema já no ponto certo: sobreposição em
+`ACTION_MANAGE_OVERLAY_PERMISSION` com o pacote deste app, notificações em
+`ACTION_APP_NOTIFICATION_SETTINGS`. O Android não deixa um app revogar as próprias permissões — quem
+desliga o interruptor é o usuário, e é isso que o diálogo deixa claro.
+
+**Testes:** `PermissionRemovalTest`, 6 casos — permissão concedida vira «Remover» (sobreposição e
+notificações); o clique pede confirmação antes de abrir a tela do sistema (a mensagem do diálogo é
+conferida, e nada foi aberto antes do «Remover»); confirmar abre a tela certa; cancelar não abre
+nada; sem a permissão o botão continua concedendo.
+
+**Non-vacuidade (2/2):**
+
+| mutação | testes que falham |
+| --- | --- |
+| o rótulo volta a ser sempre «Conceder» | os dois `turns the button into «Remover»` |
+| o clique abre a tela do sistema sem passar pelo diálogo | os dois `asks before opening…` e `cancelling the question…` |
+
+**O que não está coberto:** a revogação em si (só o sistema faz) e a volta da tela do sistema; o
+teste confere o `Intent` que sai e o estado do diálogo. Como o botão lê o estado real ao voltar
+(`refreshPermissions` no resultado), o rótulo se corrige sozinho.
+
+### R33e — Onomatopeia e katakana  `[x]` (27/10/2026)
+
+**Pedido:** verificar se existem dicionários Yomitan de onomatopeia e de palavras em katakana, em
+português e inglês, e adicioná-los se existirem.
+
+**O que a verificação achou:**
+
+| procurado | resultado |
+| --- | --- |
+| katakana / empréstimos (gairaigo) | **já coberto.** JMdict, Jitendex e o Jitendex PT-BR do ggjz listam os gairaigo como entrada (コンビニ, アルバイト, サラリーマン) com a marca de «geralmente escrito em katakana». Não existe dicionário Yomitan dedicado a katakana nos catálogos públicos; a única fonte específica, `gairaigo.jepang.org`, é site, não arquivo Yomitan. Nada a acrescentar. |
+| onomatopeia em inglês | **existe, mas não pode entrar na lista.** O «Onomatoproject» (12,2 MB, JA→EN) só é distribuído dentro de uma pasta do Google Drive: não tem endereço estável por arquivo nem licença declarada. Uma entrada da lista curada que morre no próximo arrastar de pasta deixa o usuário com um botão que falha. Continua importável à mão pelo botão de importar. |
+| onomatopeia em japonês | **existe e entrou.** `surasura` (0,1 MB, 1.421 entradas) é um arquivo único no repositório do MarvNC, com endereço estável (verificado: HTTP 200, 104.920 bytes). Definições em japonês, com exemplos, para as miméticas que o JMdict não tem. |
+
+**Correção:** entrada `surasura-ja` («Onomatopeias (surasura)») na lista curada, como dicionário de
+palavras (não de kanji), e `surasura.zip` incluído na lista de «compila todo dicionário oferecido».
+
+**Testes:**
+
+- `DictionaryCatalogTest.the onomatopoeia dictionary is offered as a word dictionary` — id, tipo,
+  idioma e endereço exato do arquivo.
+- `DictionaryCompileTest.the onomatopoeia dictionary answers words jmdict does not have` — compila
+  (1.421 entradas), ぴくりぴくり sai como texto («…ふるえ動くさま。», sem marcação crua), a palavra
+  **não** está no JMdict, e a frase «猫がぴくりぴくりと動いた。」 segmenta com ela.
+- `DictionaryCompileTest.compiles every dictionary offered in the catalogue` — agora inclui o
+  `surasura.zip`.
+
+**Non-vacuidade:** trocar o id `surasura-ja` faz o teste do catálogo falhar; a compilação e a busca
+já falhariam se o arquivo não fosse um Yomitan válido.
+
+**O que não está coberto:** o download de verdade (a URL foi verificada à mão, não no teste) e a
+licença do surasura, que não é declarada pelo autor — está dito na atribuição da entrada. O
+Onomatoproject continua fora da lista; quem quiser importa o zip pelo botão de importar.
+
+---
+
+## 14. Ronda 34 — pedidos de 27/10/2026
+
+Dois ajustes no cartão de kanji, os dois vindos da mesma captura: tocar no 技 de **剣技 けんぎ** mostrava
+o significado de 技 («skill; art; craft…») e nunca o de 剣技, e a última linha, «Nesta tela:», não serve
+para nada. São melhorias de apresentação, não bugs de consulta.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R34a | `[x]` | **A ficha do kanji não mostra o significado do composto** | baixa |
+| R34b | `[x]` | **Tirar «Nesta tela:» da ficha** | trivial |
+
+### R34a — O significado do composto  `[x]` (27/10/2026)
+
+**Relato:** na ficha do 技, com a palavra **剣技 けんぎ** no cabeçalho, o texto do dicionário era
+«skill; art; craft; ability; feat; performance; vocation; arts» — o significado de **技 sozinho**. O que
+o composto significa (esgrima, arte da espada) não aparecia em lugar nenhum.
+
+**Causa:** a ficha faz duas perguntas a dois dicionários diferentes. A leitura e a palavra vêm do
+dicionário de palavras (`wordAt` guardava só o `surface` e a `reading` do acerto); o texto de baixo vem
+do dicionário de **kanji**, que só tem caracteres isolados. A definição do acerto de 剣技 chegava junto
+com o `TokenMatch` e era **descartada** antes de virar cartão.
+
+**Correção:** `KanjiCardText.wordMeaning` devolve a definição do **mesmo** acerto mais estreito que dá
+a leitura (a mesma regra de `wordAt`, não uma segunda escolha), e `KanjiCard.wordMeaning` é desenhado
+logo abaixo da linha da palavra, **antes** das leituras 音/訓 — junto do composto a que pertence, para
+não ser lido como mais um sentido do kanji isolado. A linha só aparece quando a ficha nomeia um
+composto (`word != character`): para um kanji sozinho o verbete do KANJIDIC já diz o mesmo, e repetir
+seria ruído.
+
+O texto sai como o dicionário o renderiza, com os sentidos numerados e a remissão, quando há
+(`1. sword skills; swordsmanship → see: 剣術 …`, conferido compilando o JMdict de verdade).
+
+**Testes:**
+
+- `KanjiCardTextTest.the meaning is the one of the word that reads the character` — a definição é a do
+  acerto mais estreito (技 dentro de 剣技 responde 技; o 剣 da mesma palavra responde 剣技), e vem
+  aparada.
+- `KanjiCardTextTest.a character no word covers has no word meaning` — toque fora de qualquer palavra
+  não inventa significado.
+- `KanjiOverlayTest.the card shows the meaning of the compound beside the compound` — o texto do
+  composto aparece **entre** a palavra e o 音: do kanji.
+- `KanjiOverlayTest.the card shows the reading, the dictionary readings and the meanings` — o caso
+  completo (palavra, significado da palavra, significado do kanji).
+
+**Non-vacuidade (2/2, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| `wordMeaning` devolve sempre `""` | `the meaning is the one of the word that reads the character` |
+| o cartão deixa de desenhar a linha | `…the meanings`, `…the meaning of the compound beside the compound` |
+
+**O que não está coberto:** a ligação do serviço com a ficha (`kanjiCard`) continua sem teste, a mesma
+lacuna declarada de `FloatingOcrService`; o que o cartão recebe é testado nas peças que ele usa. O
+significado vem do dicionário de **palavras** escolhido no painel, então com um dicionário só em
+japonês a linha sai em japonês — é a mesma língua do resto do painel, de propósito.
+
+### R34b — «Nesta tela:» fora da ficha  `[x]` (27/10/2026)
+
+**Pedido:** a última linha da ficha («Nesta tela: 剣技 けんぎ») não é usada; tirar.
+
+**Correção:** saíram a linha, o campo `compounds` de `KanjiCard`, a função `KanjiCardText.compounds`, a
+string `kanji_compounds` e a consulta da página inteira que só existia para montá-la
+(`pendingKanjiText`/`engine.lookup(page)`). O efeito colateral é bom: tocar num kanji deixou de fazer
+uma passada extra pelo dicionário sobre toda a tela, então a ficha chega mais rápida.
+
+**Teste:** o caso `the card shows the reading, the dictionary readings and the compounds` foi
+substituído pelo dos significados (R34a), e as asserções de «Nesta tela» saíram. **Não há teste de
+regressão para uma remoção**: um teste que confere a ausência de um texto que já não existe passa por
+construção, e seria vazio.
+
+---
+
+## 15. Ronda 35 — pedidos de 28/10/2026
+
+Seis pedidos, um deles bug: as ações da barra de seleção não funcionam nos dois campos onde o usuário
+mais seleciona texto (a busca do dicionário e o texto da tradução). Os outros cinco são melhorias, e
+dois deles são antes de tudo **verificações de possibilidade** (ReadEra e busca pela tradução) — a
+resposta honesta pode ser «não dá» ou «dá com um custo que não vale a pena», e nesse caso o item fecha
+com a justificativa em vez de código.
+
+Ordem de trabalho: **bug primeiro**, depois do mais fácil ao mais difícil, como nas rondas anteriores.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R35a | `[x]` | **Copiar/colar/selecionar tudo não funcionam** na busca do dicionário e na tradução | bug |
+| R35b | `[x]` | O «×» da busca vira **colar** quando o campo está vazio | trivial |
+| R35c | `[x]` | **Bolha com posição livre**, não presa às bordas | baixa |
+| R35d | `[x]` | Opção para **ignorar o texto entre parênteses** na consulta (双(そう)眸(ぼう) → 双眸) | média |
+| R35e | `[x]` | **Integração com o ReadEra**: abrir a palavra direto no dicionário do app | estudo + média |
+| R35f | `[-]` | **Pesquisar pela tradução** no dicionário — medido: não vale a pena | estudo + alta |
+
+### R35a — Copiar, colar e selecionar tudo não funcionam  `[x]` (28/10/2026)
+
+**Relato:** no **campo de busca do dicionário** e no **texto da tradução**, as opções da barra
+(Copiar, Recortar, Colar, Selecionar tudo) não fazem nada.
+
+**Causa — e não era coisa do aparelho:** o cartão do painel tem `elevation = 12dp`; a barra de seleção
+tinha `10dp`. No Android, a ordem de desenho **e a ordem de entrega do toque** seguem o Z: a barra
+ficava **debaixo do cartão**. Nenhum toque chegava aos botões — eles nem apareciam, cobertos pelo
+cartão — e o toque ia para o texto do cartão atrás deles. Os testes do R33b não viam isso porque
+chamavam `performClick()` direto no botão, sem passar pela entrega de toque da janela. Um teste com
+toque de verdade (abaixo) reproduz a falha na hora.
+
+**Correção:** a barra passou a `elevation = 20dp`, acima do cartão, com o motivo escrito ao lado do
+valor para ninguém baixar de novo.
+
+**Endurecimento junto (segunda suspeita):** as ações deixaram de depender da seleção **viva** da view.
+Ao abrir, a barra guarda o texto e o intervalo escolhidos (`rememberSelection`) e, se o IME ou a janela
+reescreverem a seleção entre o toque longo e o toque no botão, usa o intervalo lembrado — desde que o
+texto seja ainda o mesmo. «Colar» cai para o cursor vivo, depois para o intervalo lembrado, e por fim
+acrescenta ao texto. «Selecionar tudo» atualiza a lembrança, para que um «Copiar» seguinte não volte à
+palavra antiga.
+
+**Testes (`TextSelectionTest`, 4 novos):**
+
+- `enquanto o menu está aberto, o toque vai para o botão e não para o véu` — liga o painel a uma
+  janela de activity de verdade (o clique é um runnable postado, que só roda com looper) e entrega
+  `ACTION_DOWN`/`ACTION_UP` **nas coordenadas do botão Copiar**: o texto tem de ir para a área de
+  transferência e a barra sair. Falha com a barra a 10dp.
+- `Copiar copia o que foi selecionado mesmo se a seleção se perder`, `Recortar tira a palavra lembrada…`
+  e `Colar escreve sobre a palavra lembrada…` — depois do toque longo a seleção é apagada
+  (`Selection.removeSelection`, como o IME faria) e a ação ainda tem de valer sobre a palavra escolhida.
+
+**Non-vacuidade (2/2, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| a barra volta a `elevation = 10dp` | `enquanto o menu está aberto, o toque vai para o botão…` |
+| a ação só olha a seleção viva (sem o intervalo lembrado) | os três «mesmo se a seleção se perder» |
+
+**O que não está coberto:** o comportamento do GBoard no aparelho em si. A causa do relato está
+fechada e provada; o intervalo lembrado cobre a seleção reescrita pelo IME, que é a outra suspeita
+registrada, mas essa não foi reproduzida — se o usuário ainda vir falha, o próximo passo é o log do
+intervalo no toque longo e no toque do botão.
+
+### R35b — O «×» da busca vira «Colar»  `[x]` (28/10/2026)
+
+**Pedido:** quando o campo do dicionário está vazio, o botão ao lado deixa de ser «×» e passa a colar o
+que está na área de transferência (o mesmo texto que um Ctrl+C copiou).
+
+**Correção:** o botão passou a ter dois estados, decididos pelo texto do campo:
+
+- **com texto:** «✕» limpa a busca, como antes;
+- **sem texto:** «Colar» põe a área de transferência no campo e deixa o `TextWatcher` agendar a
+  consulta — o mesmo caminho da digitação, sem um segundo jeito de pedir ao dicionário. Sem nada para
+  colar, um aviso curto («Não há texto copiado para colar.») em vez de silêncio.
+
+O `contentDescription` acompanha cada estado («Limpar a consulta» / «Colar o texto copiado na
+consulta»), e a troca acontece no `afterTextChanged`, então vale também para o primeiro caractere
+digitado e para o campo que abre pré-preenchido. Texto colado é aparado e tem as quebras de linha
+transformadas em um espaço: o campo é de uma linha, e um trecho copiado de um livro vem quebrado.
+
+**Um bug achado no caminho:** `configureSearchEditor()`/`configureResultEditor()` trocam o `inputType`
+do editor compartilhado, e o Android **re-aplica o texto** ao fazer isso — o que chega ao
+`TextWatcher` como uma edição. Resultado: abrir a busca agendava uma consulta vazia (e a busca
+pré-preenchida era pedida **duas vezes**, uma delas pela pausa). As duas configurações passaram a
+rodar dentro de `asPanelEdit`, o mesmo sinal que o painel já usa quando escreve sozinho, e `showSearch`
+descarta uma análise agendada pelo cartão anterior.
+
+**Testes (`DictionarySearchPanelTest`, 3 novos + 1 asserção nova):**
+
+- `the button beside an empty box pastes the clipboard and searches` — com «  剣技\n» na área de
+  transferência, o clique escreve `剣技`, o botão volta a ser «✕» e a pausa pede a consulta;
+- `the button turns back into Colar when the field is emptied` — rótulo e descrição mudam nos dois
+  sentidos (vazio → «Colar», com texto → «✕»);
+- `an empty clipboard says so instead of emptying the box` — aviso na tela, campo intacto e nenhuma
+  consulta;
+- `the last query is pre-filled when passed to the search card` ganhou a conferência de que a pausa
+  **não repete** a consulta já pedida ao abrir.
+
+**Non-vacuidade (2/2, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| o botão nunca vira «Colar» (`empty = false`) | os três testes do R35b |
+| `configureSearchEditor` deixa de rodar como edição do painel | `an empty clipboard…` e `the last query is pre-filled…` (a consulta sai duas vezes) |
+
+**O que não está coberto:** a área de transferência de verdade do aparelho (o Robolectric simula) e o
+toque com o IME aberto, que é o mesmo terreno do R35a.
+
+### R35c — Bolha livre  `[x]` (28/10/2026)
+
+**Pedido:** a bolha não fica no meio da tela — só nas bordas. Poder arrastá-la para onde quiser.
+
+**Causa:** `putBubbleOnEdge()` chamava `snapToEdge()` no fim de **todo** arrasto — e também nas duas
+respostas «não» da pergunta de encerrar. O `snapToEdge` joga o X para a margem esquerda ou direita (o Y
+já era livre). Era de propósito — bolha flutuante no meio de um quadrinho atrapalha a leitura —, mas o
+usuário quer poder escolher.
+
+**Correção:**
+
+- **«Prender a bolha nas bordas»** nos ajustes (`AppSettings.bubbleOnEdge`, chave `bubble_on_edge`),
+  **desligada** de fábrica: o padrão é a posição livre.
+- `OverlayController` recebe `pinnedToEdge: () -> Boolean` — uma lambda, não um valor: a tela de ajustes
+  pode mudar a escolha com o serviço rodando, e é o **próximo** arrasto que tem de obedecer. O construtor
+  padrão lê `AppSettings`.
+- `settleBubble(x, y)` decide o repouso: **presa** → `snapToEdge` (o comportamento de antes); **livre** →
+  `clampBubble`, que só impede a bolha de sair da tela (4 dp de folga, para a borda continuar alcançável).
+- `restingX`/`restingY` guardam o último repouso. `endDrag(bubbleX, bubbleY, landX, landY)` separa **onde
+  a bolha foi desenhada** — é isso que julga o ✕, porque o que se vê chegando é o que acontece — de
+  **onde o dedo soltou**, que é onde ela fica no modo livre. Antes, uma bolha puxada para o ✕ e respondida
+  com «não» era deixada em cima dele.
+- `restBubble()` devolve a bolha ao último repouso no arrasto cancelado (`ACTION_CANCEL`) e nas duas
+  respostas «não»; antes ela ia sempre para a borda, mesmo em modo livre.
+- `hideBubble()` esquece o repouso: a próxima bolha nasce no canto padrão, não onde a anterior morreu.
+
+**Testes (`BubblePlacementTest`, 7 novos):**
+
+- `em modo livre a bolha fica onde o dedo soltou` — arrasto até o meio da tela, pelo `OnTouchListener` de
+  verdade (`ACTION_DOWN`/`MOVE`/`UP`), e a janela fica exatamente ali;
+- `prender nas bordas continua grudando na lateral` — a opção não removeu o comportamento antigo: mesmo
+  arrasto, X na margem direita e Y preservado;
+- `cancelar o arrasto devolve a bolha ao lugar de antes` — depois de um repouso no meio, um `ACTION_CANCEL`
+  em outro ponto não move nada;
+- `pausar e retomar no modo livre nao move a bolha` — `setPaused(true)`/`false` mantém o repouso;
+- `a escolha comeca livre e e guardada nos ajustes` — padrão desligado e persistência;
+- `o controlador obedece a escolha guardada` — com a opção gravada, o construtor padrão (o que o serviço
+  usa) encaixa na lateral;
+- `a opcao dos ajustes grava a escolha` — a caixa de `MainActivity` mostra o padrão e grava o toque.
+
+**Non-vacuidade (3/3, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| `settleBubble` volta a chamar `snapToEdge` sempre | `em modo livre a bolha fica onde o dedo soltou` |
+| `settleBubble` chama `clampBubble` nos dois modos | `prender nas bordas continua grudando na lateral` e `o controlador obedece a escolha guardada` |
+| `restBubble` encaixa incondicionalmente (`if (true \|\| restingX == Int.MIN_VALUE)`) | `cancelar o arrasto devolve a bolha ao lugar de antes` |
+
+**O que não está coberto:** só Robolectric. Densidade, barras do sistema e o recorte real da tela do Poco
+X5 não foram vistos; o teste usa 320×640 mdpi, onde `dp` e pixel coincidem. O arrasto a partir do repouso
+livre é o caso testado; arrastar a bolha para **fora** da tela e soltar não tem teste próprio — quem
+segura é o `clampBubble`, que já existia.
+
+### R35d — Ignorar o que está entre parênteses  `[x]` (28/10/2026)
+
+**Pedido:** uma opção para o dicionário consultar **sem as leituras impressas entre parênteses**:
+`双(そう)眸(ぼう)` deve ser procurado como `双眸`.
+
+**Nuance que decide o desenho:** não dá para apagar tudo que está entre parênteses — `(笑)` e `(2024)`
+fazem parte do texto. A regra é remover só o grupo cujo conteúdo é **somente kana**, com o par completo,
+aceitando `（）` e `()` e a forma intercalada, um grupo por kanji. `（）` vazio, `（ねこ1）`, `(cat)` e
+parêntese sem par ficam onde estão: um parêntese só é leitura quando os caracteres dentro dele dizem
+isso — o mesmo critério que `Furigana` usa para a leitura já impressa na página. A consulta muda; o texto
+exibido e o texto copiado **não**.
+
+**Correção:**
+
+- `DictionaryQuery.stripReadings(text)` (core): uma passada pelos code points, sem regex e sem
+  normalizar nada além de remover os grupos de leitura.
+- `AppSettings.stripSearchReadings` (chave `strip_search_readings`), desligado por padrão, e
+  `AppSettings.dictionaryQuery(query)` — **uma** função decide a política, para a busca não obedecer pela
+  metade.
+- `FloatingOcrService.runSearch` passa `settings.dictionaryQuery(query.trim())` ao motor e continua
+  exibindo `query`: a caixa mostra o que foi digitado, e o que o dicionário recebeu é o texto limpo.
+- Interruptor **«Ignorar as leituras entre parênteses na busca»** com uma linha de explicação em
+  **Gerenciar dicionários**, ao lado dos dicionários porque é a eles que a consulta é feita.
+
+**Onde vale — e onde não:** só na **busca digitada/colada**, que é «a consulta» do pedido. A análise de
+um texto reconhecido continua entregando a frase ao motor **como ela está**: as posições dos matches são
+o que o toque no kanji e a escrita do furigana usam sobre o texto original, e limpar a frase antes
+moveria todos os intervalos. Quem lê rubi impresso no mangá continua com o caminho de sempre (o painel
+mostra a leitura como texto, e o `Furigana` já trata a leitura separada); para consultar a palavra
+isolada, copiar/colar é o caminho que esta opção atende.
+
+**Testes (core, `DictionaryQueryTest`, 9):** leitura em `（）` e em `()` sai, inclusive uma por kanji
+(`職員（しょくいん）さんに聞（き）いた` → `職員さんに聞いた`); `（職員）`, `(cat)`, `（ねこ1）` e `（ねこ ま）`
+ficam; `（）` e `()` vazios ficam; parêntese sem o par (aberto, fechado, ou de estilos trocados) fica e
+não come o resto da frase; katakana e `ー` contam como leitura (`コーヒー（こーひー）`); uma consulta que
+é só a leitura vira vazia; texto sem parênteses passa intacto.
+
+**Testes (app, `DictionaryStripReadingsTest`, 4):** desligada, a consulta é exatamente a digitada;
+ligada, perde as leituras nos dois estilos de parêntese; parêntese que não é leitura continua na
+consulta; a caixa de **Gerenciar dicionários** mostra o padrão e grava o toque.
+
+**Non-vacuidade (4/4, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| `dictionaryQuery` ignora a política e devolve a consulta crua | `on, the query loses its readings in both bracket styles` |
+| o ramo do parêntese ASCII some (`(` deixa de abrir grupo) | `a kana reading in ascii brackets is dropped too` e `katakana and the prolonged sound mark count as a reading` |
+| a guarda de grupo vazio some (`kana > 0` deixa de ser exigida) | `an empty bracket stays` |
+| o `setOnCheckedChangeListener` da caixa some | `the choice on the dictionaries screen is saved` |
+
+**O que não está coberto:** o caminho completo «texto colado → dicionário de verdade responde» não tem
+teste: o `runSearch` que liga a política ao motor está no serviço, cuja fiação já é uma lacuna conhecida
+(as duas pontas — `dictionaryQuery` e `stripReadings` — são testadas). O comportamento da caixa com o
+teclado aberto é o mesmo terreno do R35a, não reproduzido em Robolectric.
+
+### R35e — Integração com o ReadEra  `[x]` (28/10/2026)
+
+**Pedido:** o ReadEra tem a opção de abrir a palavra selecionada num dicionário/tradutor instalado;
+querer que o Yabai OCR apareça nessa lista e abra a palavra já consultada.
+
+**O que os prints responderam:** a lista «Aplicativos disponíveis» do ReadEra mostra Google Play
+Services, Google Tradutor, Inter, **Japanese Dictionary Takoboto**, Leitor QR, Ligar ao Windows,
+LinkedIn, Mensagens, Mercado Pago e Messenger — e a lista «Aplicativo de dicionário» oferece ainda o
+Chrome com a URL `https://www.google.com/search?q=define:{text}` e o Google Tradutor com o texto
+`波及`/Hakyū, que abriu com «efeito cascata». Ou seja: o ReadEra **manda texto para apps** e monta a
+lista pelo que eles declaram aceitar. Não há API proprietária nem lista fechada; faltava o app declarar
+a porta certa.
+
+**O que ficou construído:** `LookupActivity`, uma tela leve que **não depende do serviço flutuante**
+(nem da permissão de captura). Ela responde às duas portas padrão:
+
+| porta | filtro no manifesto | de onde vem o texto |
+| --- | --- | --- |
+| `ACTION_PROCESS_TEXT` | `text/plain` | `EXTRA_PROCESS_TEXT` — o «Processar texto» do menu de seleção |
+| `ACTION_SEND` | `text/plain` | `EXTRA_TEXT` — a folha de compartilhamento |
+
+Em vez de uma segunda tela de resultado, a activity põe o **próprio painel** em modo busca
+(`ResultOverlay.showSearch`): mesma caixa, mesmos cartões de palavra, mesma quebra de kanji, mesmo
+seletor de dicionários. A consulta é a `runSearch` do serviço, copiada para a activity sem o caminho de
+captura — `LookupEngine.search`/`kanjiBreakdown`/`suggest`, o filtro `dictionaryFilter`, e o R35d
+aplicado por `settings.dictionaryQuery`. Como o painel agenda a busca a partir do campo (a pausa da
+digitação), o texto do intent entra pelo mesmo caminho de uma tecla: não há um segundo jeito de pedir
+ao dicionário. `onNewIntent` reabre a mesma tela com a nova palavra, e a tela é `singleTop`,
+`excludeFromRecents`, para uma segunda seleção não empilhar activities.
+
+**Testes (`LookupIntentTest`, 6):**
+
+- `ACTION_PROCESS_TEXT opens the search with the word` e `ACTION_SEND opens the search with the shared word`
+  — o intent vira o texto do campo de busca;
+- `the word is trimmed and a foreign action carries nothing` — espaços e quebra de linha saem, e uma
+  ação estranha (ou intent nulo) não inventa consulta;
+- `both text doors reach the lookup screen` — pergunta ao `PackageManager`, como o ReadEra faz, quais
+  activities respondem a cada ação com `text/plain`: `LookupActivity` tem de estar nas duas listas;
+- `an intent without text still opens a usable search box` — sem texto a tela abre como busca vazia,
+  não como activity em branco;
+- `the screen keeps its content off the system bars` — a tela mira o Android 16 e desenha de borda a
+  borda; as barras viram padding do host (63dp em cima e 48dp embaixo no teste), senão o cabeçalho
+  nasce debaixo do relógio.
+
+**Non-vacuidade (3/3, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| tira o filtro `PROCESS_TEXT` do manifesto | `both text doors reach the lookup screen` |
+| `incomingText` devolve sempre `""` | os dois «opens the search with…» e o do `trim` |
+| o listener de insets deixa de aplicar o padding | `the screen keeps its content off the system bars` |
+
+**O que falta no aparelho:** confirmar que «Yabai OCR» passa a aparecer na lista do ReadEra e que tocar
+nele abre a palavra. O teste prova que o Android resolve o intent para a tela; o ReadEra pode filtrar a
+lista por rótulo ou por algum outro sinal, e só o Poco X5 responde a isso. Se ele não aparecer, o
+próximo passo é registrar o intent que o ReadEra manda (um filtro de teste que anota ação, tipo e
+extras), não construir outra tela às cegas.
+
+### R35f — Pesquisar pela tradução  `[-]` (28/10/2026 — medido, não vale a pena)
+
+**Pedido:** no dicionário, poder procurar pela **tradução** — digitar «espada» e achar 剣 / 刀 — com um
+botão que escolha entre procurar «o original em japonês» e «a tradução».
+
+**O que o código de hoje permite:** nada disso de graça. O dicionário compilado é indexado por
+**headword e leitura** (`CompactDictionary.keysStartingWith`); as definições ficam em blobs lidos um a
+um, e não há índice invertido. Procurar «espada» nas definições hoje significaria ler as ~200 mil
+entradas de um JMdict/Jitendex **a cada consulta** — segundos de CPU e bateria, e a cada tecla.
+
+**Medição (feita e depois removida):** um teste temporário compilou o **Jitendex PT-BR** e percorreu
+todas as entradas uma vez, contando o que um índice invertido teria de guardar. Números do PC de
+desenvolvimento, com o arquivo `ggjz-jitendex-ptbr.zip` (39,5 MB):
+
+| medida | valor |
+| --- | --- |
+| compilação | 9,2 s |
+| varredura das definições | 3,3 s |
+| entradas | 428.496 |
+| caracteres de definição | 32,65 milhões |
+| palavras (tokens) | 4,71 milhões |
+| palavras distintas | 351.861 |
+| `terms.dat` atual | 55 MB |
+| índice invertido, piso | **≈51 MB** (4 bytes por ocorrência + chaves + sobrecarga do mapa) |
+| índice sem stopwords e palavras de 1–2 letras | **≈40 MB** |
+
+O piso é generoso: conta 4 bytes por ocorrência e uma chave de 40 bytes, sem dicionário de sinônimos,
+sem stemming e sem posição no verbete — o índice real seria maior. E é **por dicionário**: quem tem
+Jitendex PT + JMdict + KANJIDIC pagaria isso três vezes. No celular, a varredura inicial seria bem mais
+lenta que os 3,3 s do PC e o índice ficaria na RAM (ou seria lido do disco a cada consulta), no mesmo
+aparelho que já mantém o índice de chaves dos dicionários ativos.
+
+**Decisão: fechar sem código.** O custo medido — quase dobrar o espaço ocupado pelos dicionários, pagando
+uma varredura longa na primeira vez, por dicionário — não se justifica para uma busca que o usuário faz
+ocasionalmente e que hoje tem alternativa: ele já pode procurar em japonês (inclusive **romaji**, que o
+R31 converte) e ler a definição. Dois caminhos foram descartados junto com o índice:
+
+| caminho | por que não |
+| --- | --- |
+| índice no import | mudaria o formato: **todos** os dicionários teriam de ser reimportados, e o arquivo cresceria os mesmos ~40–50 MB por dicionário; o aviso de formato antigo existe, mas a cura seria pior que a doença |
+| traduzir a consulta | ML Kit traduz «espada» → `剣` e consulta: devolve **uma** palavra, não os verbetes que contêm o sentido — não é busca por significado, é busca por uma tradução escolhida por um modelo |
+
+**O que fica registrado para o futuro:** se o item voltar, o caminho é o **índice no import**, com
+aumento de `FORMAT_VERSION` e o aviso de reimportação já existente, e com o tamanho medido **antes** de
+prometer a função. O teste de medição não fica no repositório: era um instrumento, não uma garantia, e
+um teste que só imprime números passaria por construção. Não há teste de regressão para esta rodada
+porque **nada foi entregue** — o que fecha o item são os números acima.
+
+---
+
+## 16. Ronda 36 — os dois bugs de 28/10/2026
+
+Os dois vieram do mesmo lugar — o menu de seleção do R33b — e foram relatados juntos com os prints do
+ReadEra. O primeiro é corrupção de dado (o texto sumia sem ir para lugar nenhum); o segundo é uma
+função que o Android dá de graça em qualquer campo e que no painel não existia.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R36a | `[x]` | **«Recortar» apaga o texto e não o põe na área de transferência** | bug |
+| R36b | `[x]` | **Arrastar para estender a seleção**, com alças nas pontas | média |
+
+### R36a — «Recortar» não copiava  `[x]` (28/10/2026)
+
+**Relato:** «Recortar só está retirando o texto, o texto recortado não está ficando no ctrl + v».
+
+**Causa:** `cutSelection()` fazia metade do trabalho — `editable.delete(...)` — e não a outra metade.
+Recortar é copiar **e** apagar; sem o `setPrimaryClip`, a palavra saía do campo e a área de
+transferência continuava com o que havia antes. O «Colar» seguinte, então, colava outra coisa, o que
+fazia parecer que o recorte tinha funcionado pela metade.
+
+**Correção:** a linha que faltava, antes do `delete`, com `CLIP_LABEL` igual ao do «Copiar» — os dois
+caminhos deixam o mesmo rótulo na área de transferência:
+
+```kotlin
+clipboard?.setPrimaryClip(ClipData.newPlainText(CLIP_LABEL, text))
+editable.delete(range.first, range.last + 1)
+```
+
+**Teste (`TextSelectionTest`):** `Recortar toma a palavra do campo e a deixa na área de transferência` —
+a área de transferência começa com «antigo», o campo com «gato preto», toque longo em «preto» e
+«Recortar»: o campo tem de ficar «gato » **e** a área de transferência tem de ficar «preto». As duas
+pontas, porque só uma delas já passava.
+
+**Non-vacuidade:** tirada a linha do `setPrimaryClip`, o teste falha; reposta, passa.
+
+### R36b — Arrastar para estender a seleção  `[x]` (28/10/2026)
+
+**Relato:** «selecionar uma palavra e arrastar para o lado não vai mudando a seleção conforme vai
+arrastando e também não tem uma opção para arrastar para o lado como funciona no celular normalmente».
+
+**Causa:** as alças do Android pertencem à janela da activity. O painel é uma janela
+`TYPE_APPLICATION_OVERLAY` do serviço; ali o sistema não desenha as alças nem entrega o arrasto, e o
+toque longo deixava a seleção presa na palavra que ele achou. O R33b tinha resolvido o menu; faltava o
+gesto.
+
+**Correção:** duas alças desenhadas pelo próprio painel — `startHandle`/`endHandle`, marcadas por
+`START_HANDLE_TAG`/`END_HANDLE_TAG`. Decisões que valem registro:
+
+| decisão | por quê |
+| --- | --- |
+| área de toque de 32dp, círculo de 16dp | o círculo visível é pequeno de propósito; quem recebe o dedo é a view maior em volta |
+| `ACTION_DOWN` só esconde a barra; a borda anda no `ACTION_MOVE` | mover no `DOWN` colapsava a seleção quando as alças eram desenhadas para um layout que já tinha mudado; o dedo que só encosta não deve perder a palavra |
+| a barra fica **transparente** durante o arrasto e volta no `UP` | ela ficava exatamente sobre o texto que o usuário estava tentando pegar. `alpha = 0` e não `GONE`: `GONE` esconderia a própria alça e, com a barra focada fora da hierarquia, a janela pode perder o foco e o IME reescrever a seleção |
+| `applyEdge` mantém a outra ponta | estender para a direita não pode mover o começo, e vice-versa |
+| a seleção lembrada é atualizada a cada movimento | se o IME reescrever a seleção, «Copiar» usa a frase que o usuário construiu, não a palavra original |
+| `getLineForVertical` + `getOffsetForHorizontal` | `Layout.getOffsetForPosition` é oculto no SDK; o par escolhe a mesma linha que o toque longo escolhe |
+| alças adicionadas por último + `bringToFront()` | ficam acima do véu e da barra, que têm `elevation` |
+| `hide()` remove as alças | o menu sair não pode deixar dois círculos flutuando sobre o painel |
+
+`showFor` e `selectEverything` chamam `showHandles`, então a alça existe tanto para a palavra do toque
+longo quanto para «Selecionar tudo».
+
+**Testes (`TextSelectionTest`, 5 novos; a classe fica com 17):**
+
+- `arrastar a alça do fim estende a seleção até o resto da frase` — toque longo em «gato» de «gato
+  preto», arrasto da alça do fim até o último caractere: a seleção tem de virar «gato preto» e o menu
+  continuar aberto;
+- `arrastar a alça do início pega o que vinha antes da palavra` — o mesmo pelo outro lado, de «preto»
+  até o começo;
+- `as alças vão embora com o menu` — «Copiar» fecha a barra e não pode deixar alça para trás;
+- `a barra sai da frente enquanto a alça anda e volta ao soltar` — no meio do arrasto a barra está em
+  `alpha = 0` e a **alça continua visível**; no `UP` a barra volta a `alpha = 1`;
+- `o menu volta visível depois de fechar no meio do arrasto` — o VOLTAR fecha o menu com a barra
+  transparente; o próximo toque longo tem de abrir uma barra visível.
+
+O arrasto é entregue pelo `OnTouchListener` que o aparelho usa (`DOWN`/`MOVE`/`UP` nas coordenadas do
+painel), não por um método interno: o teste percorre o mesmo caminho do dedo.
+
+**Non-vacuidade (4/4, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| `showFor` deixa de chamar `showHandles(view)` | os dois de arrasto e o das alças indo embora |
+| o `ACTION_MOVE` da alça deixa de chamar `applyEdge` | os dois de arrasto |
+| o `ACTION_DOWN` deixa de pôr a barra em `alpha = 0` | `a barra sai da frente enquanto a alça anda…` |
+| `hide()` deixa de devolver `alpha = 1` | `o menu volta visível depois de fechar no meio do arrasto` |
+
+**O que não está coberto:** o dedo no Poco X5 e o GBoard. As métricas de texto do Robolectric são
+degeneradas (~1 px por caractere), então as coordenadas do teste são aproximadas de propósito — o que
+ele prova é que o movimento vira seleção, não o pixel exato da alça. O tamanho de 32dp e a posição nos
+fins de linha são escolhas de desenho a confirmar no aparelho.
 
 ---
 

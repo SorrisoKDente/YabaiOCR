@@ -97,6 +97,41 @@ class DictionaryActivity : AppCompatActivity() {
             },
         )
 
+        // R35d: the lookup may ignore the kana readings a copied word brings along. It is here,
+        // beside the dictionaries, because it changes what they are asked — not how the panel looks.
+        column.addView(
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                addView(
+                    CheckBox(this@DictionaryActivity).apply {
+                        text = getString(R.string.dictionary_strip_readings)
+                        setTextColor(getColor(R.color.text_primary))
+                        isChecked = settings.stripSearchReadings
+                        tag = STRIP_READINGS_TAG
+                        setOnCheckedChangeListener { _, checked ->
+                            settings.stripSearchReadings = checked
+                        }
+                    },
+                )
+                addView(
+                    textLabel(
+                        getString(R.string.dictionary_strip_readings_hint),
+                        11f,
+                        getColor(R.color.text_secondary),
+                    ).apply {
+                        setPadding(dp(2), dp(2), dp(2), 0)
+                        setLineSpacing(dp(2).toFloat(), 1f)
+                    },
+                )
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(10) },
+        )
+
         column.addView(sectionHeader(getString(R.string.dictionary_installed_section)))
         column.addView(
             textLabel(getString(R.string.dictionary_priority_hint), 11f, getColor(R.color.text_secondary)).apply {
@@ -564,6 +599,9 @@ class DictionaryActivity : AppCompatActivity() {
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
 
     companion object {
+        /** The checkbox that turns the query cleanup on and off (R35d), for the screen's tests. */
+        const val STRIP_READINGS_TAG = "yabai.dictionaryStripReadings"
+
         fun intent(context: Context): Intent = Intent(context, DictionaryActivity::class.java)
     }
 }
