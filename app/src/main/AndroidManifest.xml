@@ -57,7 +57,16 @@
         <!--
           The word another app hands over (R35e). ReadEra's «Aplicativo de dicionário» list is made of
           the apps that accept text, so both doors of the platform are answered: «Processar texto» and
-          the share sheet. The screen is a dictionary search, with no capture and no overlay.
+          the share sheet. This is only a doorway: with the overlay permission it starts
+          LookupOverlayService and finishes, so the panel floats over the reader (R37); without it,
+          the same screen opens as a dictionary search of its own.
+
+          The affinity is a task of its own on purpose (R38). ReadEra opens the intent with
+          FLAG_ACTIVITY_NEW_TASK, and with the app's affinity Android put this activity in the task
+          the app already had — the one with MainActivity — and brought that whole task to the front.
+          Finishing the doorway then showed the Yabai screen behind the panel instead of the reader.
+          Alone in a task, the doorway takes the reader's place for one frame and the empty task is
+          removed when it finishes, so the reader is what comes back.
         -->
         <activity
             android:name=".LookupActivity"
@@ -65,7 +74,9 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/app_name"
-            android:launchMode="singleTop">
+            android:launchMode="singleTop"
+            android:taskAffinity=".lookup"
+            android:theme="@style/Theme.YabaiOcr.Doorway">
             <intent-filter>
                 <action android:name="android.intent.action.PROCESS_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -77,6 +88,16 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <!-- The panel another app asked for: one overlay window, gone with the panel (R37). -->
+        <service
+            android:name=".service.LookupOverlayService"
+            android:exported="false" />
+
+        <service
+            android:name=".service.FloatingOcrService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <service
             android:name=".service.FloatingOcrService"

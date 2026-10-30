@@ -15,4 +15,17 @@
         <item name="android:paddingStart">14dp</item>
         <item name="android:paddingEnd">14dp</item>
     </style>
+
+    <!--
+      The doorway another app opens with a word (R37). It has no page of its own: with the overlay
+      permission it starts the floating panel and finishes, so a transparent window means no dark
+      flash between ReadEra and the panel. Without the permission the screen paints its own
+      background in code and this stays invisible behind it.
+    -->
+    <style name="Theme.YabaiOcr.Doorway" parent="Theme.YabaiOcr">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
 </resources>

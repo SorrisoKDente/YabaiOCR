@@ -2784,6 +2784,9 @@ lista por rótulo ou por algum outro sinal, e só o Poco X5 responde a isso. Se 
 próximo passo é registrar o intent que o ReadEra manda (um filtro de teste que anota ação, tipo e
 extras), não construir outra tela às cegas.
 
+**Confirmado no aparelho (29/10/2026):** «Yabai OCR» aparece na lista e abre a palavra; a tela cheia
+foi a única coisa que o usuário pediu para trocar — o painel por cima do leitor está no **R37b**.
+
 ### R35f — Pesquisar pela tradução  `[-]` (28/10/2026 — medido, não vale a pena)
 
 **Pedido:** no dicionário, poder procurar pela **tradução** — digitar «espada» e achar 剣 / 刀 — com um
@@ -2925,6 +2928,170 @@ painel), não por um método interno: o teste percorre o mesmo caminho do dedo.
 degeneradas (~1 px por caractere), então as coordenadas do teste são aproximadas de propósito — o que
 ele prova é que o movimento vira seleção, não o pixel exato da alça. O tamanho de 32dp e a posição nos
 fins de linha são escolhas de desenho a confirmar no aparelho.
+
+---
+
+## 17. Ronda 37 — o que o aparelho mostrou em 29/10/2026
+
+Dois pedidos, um de cada assunto que a R35/R36 abriu: o menu de seleção do painel ainda não se
+comporta como o do sistema, e a integração com o ReadEra funciona mas abre uma página em vez de
+aparecer por cima.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R37a | `[x]` | **Tocar fora da seleção não fecha o menu nem desmarca** — precisa do ✕/VOLTAR | bug |
+| R37b | `[x]` | **ReadEra abre o painel flutuante**, como o dicionário da bolha, em vez de uma tela | média |
+
+### R37a — Tocar fora não desmarcava  `[x]` (29/10/2026)
+
+**Relato:** «ao selecionar alguma parte do texto, clicar fora não deseleciona e nem some as opções de
+copiar, colar, etc. é necessário apertar o botão de fechar ou de voltar. O correto é ter o funcionamento
+igual o do padrão do celular».
+
+**Causa — duas, empilhadas.** O menu já tinha um véu transparente (`addScrim`) cujo toque fechava a
+barra, mas ele estava com `elevation = 0` e o cartão do painel com `12dp`. Como no R35a, o Android
+ordena **desenho e entrega do toque** por Z: o véu ficava debaixo do cartão. O toque que o usuário dá
+«fora» cai quase sempre **no cartão** (noutro trecho de texto, na margem do cartão, no cabeçalho), e
+ali quem recebia era o texto — o véu nunca via o dedo. E mesmo quando o véu fechava a barra, ele
+chamava `hide()`, que só tira a barra e as alças: o realce da palavra continuava, então o painel
+parecia não ter desmarcado nada.
+
+**Correção:**
+
+- o véu passou a `elevation = 19dp` — acima do cartão (12), abaixo da barra (20) e das alças (22).
+  Qualquer toque que não seja na barra ou numa alça chega a ele;
+- o toque do véu chama `dismissSelection()`, que **desmarca** e depois fecha: num rótulo selecionável,
+  `Selection.removeSelection` tira o realce; num campo editável, o cursor colapsa no fim do intervalo
+  (o equivalente a tocar fora com o teclado aberto).
+
+**Testes (`TextSelectionTest`, 2 novos; a classe fica com 19):**
+
+- `tocar fora da barra fecha o menu e tira a seleção` — toque longo em «gato» e um toque de verdade em
+  `y = 12`, a margem do cartão, longe da barra e das alças: o menu, as alças e o realce têm de sumir;
+- `tocar fora fecha o menu na busca e deixa o cursor` — o mesmo no campo editável, conferindo que o
+  cursor ficou colapsado.
+
+O toque é entregue ao painel ligado a uma janela de activity de verdade (o clique é um runnable
+postado), **não** um `performClick()` no véu: é justamente a ordem de entrega por Z que o teste
+precisa exercitar.
+
+**Non-vacuidade (2/2, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| o véu volta a `elevation = 0` | os dois testes de toque fora |
+| `dismissSelection` só chama `hide()` | os dois: o menu fecha, mas a seleção fica |
+
+### R37b — O ReadEra abre o painel por cima  `[x]` (29/10/2026)
+
+**Relato:** «a integração funcionou, mas o aplicativo está abrindo em uma página separada ao invés de
+manter na mesma página como acontece com o google tradutor. O correto é aparecer de uma forma como no
+próprio dicionário do Yabai OCR… onde ele se mantém na mesma página, mas só aparece em cima».
+
+**Causa:** a primeira versão do R35e era uma activity de tela cheia, escolhida por não depender da
+permissão de sobreposição nem do serviço da bolha. Funcionava, mas trocava a página do leitor pela
+nossa — o oposto do que o Google Tradutor faz.
+
+**Correção — o painel da bolha, com um dono próprio:**
+
+- `LookupActivity` virou uma **porta**: com a permissão de sobreposição, ela entrega a palavra ao
+  `LookupOverlayService` e chama `finish()`. Sem a permissão, continua abrindo a tela de busca como
+  antes — a integração não deixa de existir por falta de uma permissão;
+- `LookupOverlayService` é um serviço **mínimo**, sem captura, sem bolha e sem notificação: ele cria
+  **uma** janela `TYPE_APPLICATION_OVERLAY` com o mesmo `ResultOverlay` do dicionário da bolha
+  (`OverlayController.showDictionarySearch`). Cartões de palavra, kanji, seletor de dicionários, menu
+  de seleção, toque fora do cartão, VOLTAR e o fechamento por perda de foco vêm todos de graça;
+- o painel fecha (✕, VOLTAR ou toque fora) → `onResultDismissed` → `stopSelf()`. Sem painel não há
+  serviço; se a janela não puder ser criada, o serviço também se encerra;
+- o tema da porta é **transparente** (`Theme.YabaiOcr.Doorway`), para não haver um piscar escuro entre
+  o ReadEra e o painel. No caminho sem permissão a tela pinta o próprio fundo no código;
+- a consulta saiu para `dict/DictionarySearch.kt` (`searchWords`), usada pelos três caminhos — busca
+  da bolha, porta sem permissão e painel do ReadEra. Antes eram duas cópias da mesma consulta, e a
+  terceira ia nascer agora.
+
+**Testes:**
+
+- `LookupIntentTest` (7) — o novo `with the overlay permission the word goes to the floating panel`
+  confere que a porta **termina** e que o serviço foi iniciado com a palavra no extra; os 6 anteriores
+  continuam cobrindo o caminho sem permissão, os dois filtros do manifesto e os insets;
+- `LookupOverlayTest` (2) — `a palavra abre o painel flutuante com a consulta` confere o campo do
+  painel e que a janela cobre a tela (senão o toque fora do cartão se perde, como no R9);
+  `fechar o painel encerra o servico` manda VOLTAR e confere que o serviço parou e a janela saiu.
+
+**Non-vacuidade (3/3, mutações aplicadas e desfeitas):**
+
+| mutação | testes que falham |
+| --- | --- |
+| a porta ignora a permissão e sempre abre a tela | `with the overlay permission the word goes to the floating panel` |
+| o serviço abre o painel com `initialQuery = ""` | `a palavra abre o painel flutuante com a consulta` |
+| `onResultDismissed` não chama `stopSelf()` | `fechar o painel encerra o servico` |
+
+**O que não está coberto:** o aparelho. O teste prova que há uma janela de sobreposição com a consulta
+e que ela fecha o serviço; não prova como o ReadEra reage a perder o foco da janela (ele pode fechar o
+próprio menu de seleção, o que é desejável), nem o tempo de vida de um serviço iniciado em segundo
+plano. O serviço não é `foreground`: ele vive o tempo do painel, e se o Android o matar o painel some
+junto — para uma consulta de segundos é o comportamento certo; se virar sessão longa, a solução é o
+mesmo serviço em foreground com notificação, não outro tipo de janela.
+
+**Corrigido na R38:** no aparelho, o painel aparecia sobre a tela do próprio Yabai — a porta estava
+entrando na tarefa do app. Ver §18.
+
+---
+
+## 18. Ronda 38 — o painel do ReadEra abria sobre o app errado (29/10/2026)
+
+O R37a foi confirmado no aparelho («o bug da seleção foi corrigido»). O R37b abriu o painel flutuante,
+mas o app saía do ReadEra e o painel aparecia **sobre a tela do próprio Yabai OCR**.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R38 | `[x]` | **O ReadEra abria a porta dentro da tarefa do app** — painel sobre o Yabai, leitor atrás | bug |
+
+### R38 — A porta entrava na tarefa do app  `[x]` (29/10/2026)
+
+**Relato:** «está abrindo corretamente como o dicionário, mas ao invés de abrir no próprio ReadEra, ele
+está saindo e indo para o aplicativo do Yabai OCR e abrindo o dicionário acima do aplicativo do Yabai
+OCR. O correto seria abrir o dicionário acima do ReadEra».
+
+**Causa:** a porta (`LookupActivity`) não declarava afinidade de tarefa, então herdava a do app — o
+`applicationId`. O ReadEra abre o intent com `FLAG_ACTIVITY_NEW_TASK`; com essa afinidade, o Android não
+criou tarefa nenhuma: encontrou a tarefa que o app **já tinha** (a do `MainActivity`) e a trouxe inteira
+para a frente, com a porta em cima. Quando a porta terminou, quem estava embaixo era o `MainActivity` —
+e uma janela `TYPE_APPLICATION_OVERLAY` aparece sobre o que estiver na frente, que era o app. O painel
+estava certo; o leitor é que tinha ficado atrás.
+
+**Correção:**
+
+- `android:taskAffinity=".lookup"` na porta: com uma afinidade só dela, `NEW_TASK` cria **uma tarefa
+  própria**. Ao terminar, a tarefa fica vazia e é removida, e o sistema retoma a tarefa anterior — o
+  ReadEra. (Sem `NEW_TASK`, o Android já colocava a porta na tarefa do ReadEra, e terminar voltava para
+  ele; por isso o caminho só quebrava com o `NEW_TASK` que o leitor manda.)
+- o `LookupOverlayService` passou a desenhar o **primeiro** painel depois de
+  `DOORWAY_DELAY_MS = 200 ms`, quando a porta já saiu de cena. Uma janela criada no meio da troca pega
+  o foco da porta e o perde quando o leitor volta — e perda de foco que não volta é o sinal de «o
+  usuário saiu» que fecha o painel (R9). Com a espera, o painel nasce sobre o leitor, do mesmo jeito
+  que o dicionário da bolha nasce sobre o app que está na tela. Uma segunda palavra, com o painel já
+  aberto, é respondida na hora.
+
+**Testes:**
+
+- `LookupIntentTest` (8) — `a porta nao divide a tarefa com a tela do app` compara a afinidade da porta
+  com a do `MainActivity`: iguais, a porta volta a entrar na tarefa do app;
+- `LookupOverlayTest` (3) — `o painel espera a porta sair de cena` avança meio atraso e confere que
+  ainda não há janela, avança o resto e confere que há exatamente uma.
+
+**Non-vacuidade (2/2, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| tira `android:taskAffinity` da porta | `a porta nao divide a tarefa com a tela do app` (as duas viram `dev.yabai.ocr.debug`) |
+| desenha o painel na hora, sem o `postDelayed` | `o painel espera a porta sair de cena` |
+
+**O que não está coberto:** o aparelho, de novo — e agora com dois desfechos possíveis de diagnóstico
+fácil. Se o leitor **voltar** e o painel desaparecer sozinho, o problema é a perda de foco da troca de
+tarefa e a correção é uma carência curta no `ResultOverlay` (não fechar por perda de foco nos primeiros
+~500 ms de vida da janela). Se o leitor **não voltar**, o próximo passo é registrar as flags que o
+ReadEra manda no `ACTION_PROCESS_TEXT` — não adivinhar outra tela.
 
 ---
 

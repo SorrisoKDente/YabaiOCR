@@ -1,5 +1,6 @@
 package dev.yabai.ocr
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Insets
@@ -8,7 +9,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.EditText
+import dev.yabai.ocr.service.LookupOverlayService
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -18,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSettings
 
 /**
  * The dictionary opened by another app (R35e).
@@ -126,7 +130,50 @@ class LookupIntentTest {
         assertEquals("the navigation bar was not padded away", 48, host.paddingBottom)
     }
 
+    @Test
+    fun `with the overlay permission the word goes to the floating panel`() {
+        ShadowSettings.setCanDrawOverlays(true)
+        val intent = Intent(context, LookupActivity::class.java)
+            .setAction(Intent.ACTION_PROCESS_TEXT)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_PROCESS_TEXT, "波及" as CharSequence)
+
+        val activity = Robolectric.buildActivity(LookupActivity::class.java, intent).setup().get()
+
+        assertTrue("the doorway stayed on screen", activity.isFinishing)
+        val started = shadowOf(RuntimeEnvironment.getApplication()).peekNextStartedService()
+        assertNotNull("no service was started", started)
+        assertEquals(
+            "the word did not go to the panel",
+            "波及",
+            started!!.getStringExtra(LookupOverlayService.EXTRA_TEXT),
+        )
+    }
+
+    /**
+     * The doorway must not share a task with the app's main screen (R38).
+     *
+     * ReadEra opens the intent with `FLAG_ACTIVITY_NEW_TASK`; with the package's affinity Android
+     * put the doorway in the task the app already had — the one holding `MainActivity` — and brought
+     * that whole task forward. When the doorway finished, the screen behind the panel was the Yabai
+     * screen, not the reader. Alone in a task, the doorway is removed with it and the reader returns.
+     */
+    @Test
+    fun `a porta nao divide a tarefa com a tela do app`() {
+        val doorway = activityInfo(LookupActivity::class.java)
+        val main = activityInfo(MainActivity::class.java)
+
+        assertNotEquals(
+            "the doorway sits in the app's task, so the reader is replaced by the Yabai screen",
+            main.taskAffinity,
+            doorway.taskAffinity,
+        )
+    }
+
     // --- helpers --------------------------------------------------------------------------------
+
+    private fun activityInfo(name: Class<*>): android.content.pm.ActivityInfo =
+        context.packageManager.getActivityInfo(ComponentName(context, name), 0)
 
     private fun open(intent: Intent): LookupActivity {
         val activity = Robolectric.buildActivity(LookupActivity::class.java, intent).setup().get()

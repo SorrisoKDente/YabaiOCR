@@ -415,8 +415,14 @@ internal class SelectionToolbar(
     private fun addScrim() {
         val layer = View(context).apply {
             isClickable = true
+            tag = SCRIM_TAG
             setBackgroundColor(Color.TRANSPARENT)
-            setOnClickListener { hide() }
+            // Above the card, below the bar (20) and the grips (22). The card has 12 dp, and Android
+            // orders touch dispatch by Z: at 0 dp the scrim was under the card, so a tap on the text
+            // went to the text and the menu stayed open (R37). The tap that closes a selection is the
+            // same one the system uses — anywhere but the selection itself.
+            elevation = context.dp(19).toFloat()
+            setOnClickListener { dismissSelection() }
         }
         scrim = layer
         // Added before the bar, so the bar stays above it.
@@ -427,6 +433,25 @@ internal class SelectionToolbar(
                 FrameLayout.LayoutParams.MATCH_PARENT,
             ),
         )
+    }
+
+    /**
+     * A tap outside the bar: the menu and the highlight go away, as they do in any field (R37).
+     *
+     * [hide] alone would leave the word marked — the next tap would still be «on» it, and the panel
+     * would look stuck. In an editable the caret collapses to the end of the range; in a selectable
+     * label the selection is removed, which is what takes the highlight away.
+     */
+    private fun dismissSelection() {
+        target?.let { view ->
+            val text = view.text
+            if (view is EditText) {
+                view.setSelection(view.selectionEnd.coerceIn(0, text.length))
+            } else if (text is Spannable) {
+                Selection.removeSelection(text)
+            }
+        }
+        hide()
     }
 
     /** Centres the bar over the selected line, above it when the line is low enough. */
@@ -487,6 +512,7 @@ internal class SelectionToolbar(
         const val SELECT_ALL_TAG = "yabai.selection.selectAll"
         const val START_HANDLE_TAG = "yabai.selection.handleStart"
         const val END_HANDLE_TAG = "yabai.selection.handleEnd"
+        const val SCRIM_TAG = "yabai.selection.scrim"
 
         /** The grip's touch area, and the circle drawn inside it, in dp (R36). */
         private const val HANDLE_SIZE = 32

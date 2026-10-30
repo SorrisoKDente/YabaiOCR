@@ -2,20 +2,22 @@ package dev.yabai.ocr
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.yabai.ocr.dict.DictionaryRepository
+import dev.yabai.ocr.dict.searchWords
 import dev.yabai.ocr.overlay.ResultOverlay
-import kotlinx.coroutines.Dispatchers
+import dev.yabai.ocr.service.LookupOverlayService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * The dictionary, opened with a word chosen in another app (R35e).
@@ -44,6 +46,16 @@ class LookupActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // With the overlay permission the panel floats over the reader, exactly as the bubble's
+        // dictionary does (R37). The activity only carries the word: it starts the service and gets
+        // out of the way, so ReadEra is not replaced by a page of ours. It lives in a task of its
+        // own (manifest, R38): finishing it removes that task and the reader is what comes back;
+        // had it shared the app's task, the app's main screen would be behind the panel instead.
+        if (Settings.canDrawOverlays(this)) {
+            deliver(incomingText(intent))
+            finish()
+            return
+        }
         overlay = ResultOverlay(this).apply {
             callbacks = object : ResultOverlay.Callbacks {
                 override fun onCopyOriginal(text: String) = Unit
@@ -70,6 +82,9 @@ class LookupActivity : AppCompatActivity() {
             ),
         )
         setContentView(host)
+        // The doorway theme is transparent so the panel can replace it without a flash; this path is
+        // a screen of its own (no overlay permission) and needs its own paper.
+        window.setBackgroundDrawable(ColorDrawable(getColor(R.color.panel_bg)))
         openSearch(intent)
         // A activity não é uma janela flutuante: ela ocupa a tela, e num app que mira o Android 16
         // isso é desenhar de borda a borda. As barras viram padding, para o cabeçalho da busca não
@@ -103,12 +118,26 @@ class LookupActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (!::overlay.isInitialized) {
+            // The screen was only a doorway: a second word opens the panel again, not a page.
+            deliver(incomingText(intent))
+            finish()
+            return
+        }
         openSearch(intent)
     }
 
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
+    }
+
+    /** Hands [text] to the floating panel; the activity is finished by the caller. */
+    private fun deliver(text: String) {
+        startService(
+            Intent(this, LookupOverlayService::class.java)
+                .putExtra(LookupOverlayService.EXTRA_TEXT, text),
+        )
     }
 
     /**
@@ -139,40 +168,11 @@ class LookupActivity : AppCompatActivity() {
         searching = query
         searchJob?.cancel()
         searchJob = scope.launch {
-            val state = withContext(Dispatchers.Default) {
-                val repository = DictionaryRepository.get(this@LookupActivity)
-                val engine = repository.lookupEngine()
-                val titles = repository.enabledTitles()
-                val stale = repository.installed()
-                    .filter { it.enabled && it.info.outdated }
-                    .map { it.displayName }
-                val filter = repository.resolveFilter(settings.dictionaryFilter)
-                val only = filter?.let { setOf(it) }.orEmpty()
-                val text = settings.dictionaryQuery(query.trim())
-                if (engine == null || text.isEmpty()) {
-                    ResultOverlay.WordsState.Done(
-                        matches = emptyList(),
-                        kanji = emptyList(),
-                        dictionaryCount = titles.size,
-                        titles = titles,
-                        selected = filter,
-                        stale = stale,
-                        query = query,
-                    )
-                } else {
-                    ResultOverlay.WordsState.Done(
-                        matches = engine.search(text, only = only),
-                        kanji = engine.kanjiBreakdown(text, only = only),
-                        dictionaryCount = titles.size,
-                        titles = titles,
-                        selected = filter,
-                        stale = stale,
-                        query = query,
-                        suggestions = engine.suggest(text, only = only),
-                    )
-                }
-            }
+            val state = searchWords(this@LookupActivity, query)
             if (searching == query) overlay.setWords(state)
+            if (settings.dictionaryKeepLastSearch && query.isNotBlank()) {
+                settings.dictionaryLastQuery = query
+            }
         }
     }
 

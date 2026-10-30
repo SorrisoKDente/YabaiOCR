@@ -239,6 +239,49 @@ class TextSelectionTest {
     }
 
     @Test
+    fun `tocar fora da barra fecha o menu e tira a seleção`() {
+        val panel = translationPanel("gato preto")
+        // A real window: a tap becomes a click only through a posted runnable, which needs a looper.
+        Robolectric.buildActivity(Activity::class.java).setup().get().setContentView(panel)
+        layout(panel)
+        val text = label(panel, "gato preto")
+        longPress(text, 0)
+        layout(panel)
+        assertEquals("gato", selected(text))
+
+        // y = 12 is the card's own top margin: nowhere near the bar or the grips.
+        tapAt(panel, 160f, 12f)
+
+        assertNull("the menu stayed up after a tap outside it", toolbar(panel))
+        assertNull("the grips stayed behind", gripOrNull(panel, SelectionToolbar.END_HANDLE_TAG))
+        assertTrue(
+            "the word stayed selected",
+            text.selectionStart == text.selectionEnd,
+        )
+    }
+
+    @Test
+    fun `tocar fora fecha o menu na busca e deixa o cursor`() {
+        val panel = searchPanel()
+        val editor = editor(panel)
+        editor.setText("gato preto")
+        Robolectric.buildActivity(Activity::class.java).setup().get().setContentView(panel)
+        layout(panel)
+        longPress(editor, 0)
+        layout(panel)
+        assertEquals("the long press selected the wrong word", "gato", selected(editor))
+
+        tapAt(panel, 160f, 12f)
+
+        assertNull("the menu stayed up after a tap outside it", toolbar(panel))
+        assertEquals(
+            "the field kept a selected word",
+            editor.selectionStart,
+            editor.selectionEnd,
+        )
+    }
+
+    @Test
     fun `Copiar copia o que foi selecionado mesmo se a seleção se perder`() {
         val panel = translationPanel("gato preto")
         val text = label(panel, "gato preto")

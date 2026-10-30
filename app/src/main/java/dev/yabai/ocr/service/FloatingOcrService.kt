@@ -37,6 +37,7 @@ import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.KanjiDefault
+import dev.yabai.ocr.dict.searchWords
 import dev.yabai.ocr.ocr.OcrDispatcher
 import dev.yabai.ocr.ocr.OcrOutcome
 import dev.yabai.ocr.overlay.KanjiCard
@@ -1004,48 +1005,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      * no «Consultando…» between keystrokes. The whole word is tried first (see [LookupEngine.search]),
      * and the suggestions are the query's neighbours in the same dictionaries the answer came from.
      */
-    private suspend fun runSearch(query: String): ResultOverlay.WordsState = try {
-        val repository = DictionaryRepository.get(this)
-        withContext(Dispatchers.Default) {
-            val engine = repository.lookupEngine()
-            val titles = repository.enabledTitles()
-            val stale = repository.installed()
-                .filter { it.enabled && it.info.outdated }
-                .map { it.displayName }
-            // Same rule as a capture: a filter nobody answers to is a leftover, not a choice.
-            val filter = repository.resolveFilter(settings.dictionaryFilter)
-            if (filter == null && settings.dictionaryFilter.isNotBlank()) {
-                settings.dictionaryFilter = ""
-            }
-            val only = filter?.let { setOf(it) }.orEmpty()
-            val text = settings.dictionaryQuery(query.trim())
-            if (engine == null || text.isEmpty()) {
-                ResultOverlay.WordsState.Done(
-                    matches = emptyList(),
-                    kanji = emptyList(),
-                    dictionaryCount = titles.size,
-                    titles = titles,
-                    selected = filter,
-                    stale = stale,
-                    query = query,
-                )
-            } else {
-                ResultOverlay.WordsState.Done(
-                    matches = engine.search(text, only = only),
-                    kanji = engine.kanjiBreakdown(text, only = only),
-                    dictionaryCount = titles.size,
-                    titles = titles,
-                    selected = filter,
-                    stale = stale,
-                    query = query,
-                    suggestions = engine.suggest(text, only = only),
-                )
-            }
-        }
-    } catch (t: Throwable) {
-        Log.e(TAG, "dictionary search failed", t)
-        ResultOverlay.WordsState.Failed(t.message ?: getString(R.string.dictionary_failed))
-    }
+    private suspend fun runSearch(query: String): ResultOverlay.WordsState =
+        searchWords(this, query)
 
     private suspend fun runTranslation(text: String, target: String): ResultOverlay.TranslationState = try {
         val instance = translator ?: OfflineTranslator(this).also { translator = it }

@@ -98,10 +98,11 @@ Detalhes úteis:
   dicionário): toque longo numa palavra seleciona ela e abre uma barrinha com **Copiar · Recortar ·
   Colar · Selecionar tudo**, dentro do próprio painel. O popup do sistema não aparece em janela
   flutuante — ele pertence à janela de um app comum —, então o painel desenha o seu: a barra fica acima
-  da linha selecionada (abaixo, quando não há espaço), um toque fora dela a fecha e o **VOLTAR** fecha
-  só ela antes de sair do painel. As ações valem sobre a palavra marcada mesmo que o teclado mexa na
-  seleção entre o toque longo e o toque no botão. **Recortar** copia e apaga, como num campo normal: a
-  palavra vai para a área de transferência antes de sair da tela.
+  da linha selecionada (abaixo, quando não há espaço), um toque fora dela **desmarca e fecha** — o mesmo
+  gesto do sistema, sem precisar do botão de fechar — e o **VOLTAR** fecha só ela antes de sair do
+  painel. As ações valem sobre a palavra marcada mesmo que o teclado mexa na seleção entre o toque
+  longo e o toque no botão. **Recortar** copia e apaga, como num campo normal: a palavra vai para a área
+  de transferência antes de sair da tela.
 - **Estender a seleção** funciona como num campo comum: depois do toque longo aparecem duas **alças**
   redondas nas pontas da seleção, e arrastar uma delas estica a marcação letra a letra enquanto o dedo
   anda. A barra se esconde durante o arrasto, para não cobrir justamente o texto que você está pegando,
@@ -191,12 +192,13 @@ mesmos dicionários ativos e obedecem ao mesmo seletor do cabeçalho («Todos» 
 - Nos ajustes, ligue **«Manter a última busca aberta no dicionário»** para que o campo comece sempre
   com a última coisa que você pesquisou — útil quando consulta várias palavras seguidas.
 - **Outros apps podem mandar a palavra:** selecione um texto no leitor (ReadEra, por exemplo) e escolha
-  **Yabai OCR** em «Aplicativos disponíveis» / «Compartilhar». A mesma tela de busca abre já com a
-  palavra no campo, sem bolha, sem captura e sem precisar da permissão de sobreposição. O app responde
-  às duas portas padrão do Android — **«Processar texto»** (`ACTION_PROCESS_TEXT`) e o
-  **compartilhamento de texto simples** (`ACTION_SEND`, `text/plain`) —, que é como os leitores montam a
-  lista de dicionários/tradutores instalados. O filtro de dicionários e a limpeza de parênteses valem
-  do mesmo jeito.
+  **Yabai OCR** em «Aplicativos disponíveis» / «Compartilhar». O **painel do dicionário aparece por
+  cima do leitor**, como o da bolha, com a palavra já no campo — a página que você estava lendo fica
+  atrás, sem captura e sem a bolha ligada. O app responde às duas portas padrão do Android —
+  **«Processar texto»** (`ACTION_PROCESS_TEXT`) e o **compartilhamento de texto simples**
+  (`ACTION_SEND`, `text/plain`) —, que é como os leitores montam a lista de dicionários/tradutores
+  instalados. Sem a permissão de sobreposição, a mesma busca abre como uma tela do app. O filtro de
+  dicionários e a limpeza de parênteses valem do mesmo jeito.
 
 ### Furigana (a leitura ao lado do kanji)
 
@@ -634,6 +636,7 @@ app/    o app Android
   dict/DictionaryCatalog.kt    o que o app oferece para baixar
   dict/KanjiDefault.kt         qual dicionário instalado responde ao cartão de kanji
   dict/DictionaryRepository.kt instalação no disco + um LookupEngine em cache
+  dict/DictionarySearch.kt  a resposta de uma consulta digitada (bolha, porta do ReadEra, tela de busca)
   dict/DictionaryDownloader.kt download com progresso (e o descritor do Wikcionário)
   translate/OfflineTranslator.kt  ML Kit tradutor offline
   overlay/…                 bolha, menu, seletor de área, caixas para escolher o trecho e painel de
@@ -643,6 +646,7 @@ app/    o app Android
   overlay/KanjiOverlay.kt   «Ler kanji»: a página congelada, o toque num kanji e o cartão de leituras
                             (a grade das células vem de core/layout/KanjiGrid.kt)
   service/FloatingOcrService.kt     o serviço que costura tudo
+  service/LookupOverlayService.kt   a palavra vinda de outro app, num painel de sobreposição (ReadEra)
 
   app/src/test/…            testes de layout das telas, com Robolectric (sem aparelho)
 ```
