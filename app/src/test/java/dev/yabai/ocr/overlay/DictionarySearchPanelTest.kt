@@ -14,6 +14,7 @@ import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,21 +58,90 @@ class DictionarySearchPanelTest {
             texts.contains(context.getString(R.string.dictionary_search_title)),
         )
         assertFalse(
-            "a search has nothing to copy: $texts",
-            texts.contains(context.getString(R.string.result_copy_original)),
+            "a dictionary answers with definitions, so it has no translation to copy: $texts",
+            texts.contains(context.getString(R.string.result_copy_translation)),
         )
         assertFalse(
-            "a search is not a question to the AI: $texts",
-            texts.contains(context.getString(R.string.result_ask_ai)),
-        )
-        assertFalse(
-            "a search has no translation: $texts",
+            "a search has no translation section: $texts",
             texts.contains(context.getString(R.string.result_translation_label)),
         )
         assertNull(
-            "a search has no grid of capture actions",
-            findActionGrid(panel),
+            "an empty box has nothing to copy and nothing to ask about",
+            shownActionGrid(panel),
         )
+    }
+
+    /**
+     * The two ways of taking the query out of the panel (R39): the word itself, and the question
+     * about it. They are the pair the result card offers, with the query where the sentence was —
+     * no «Copiar tradução», which the card never shows.
+     */
+    @Test
+    fun `a typed query offers Copiar original and Perguntar à IA`() {
+        val panel = searchPanel(canAskAi = true)
+        editor(panel).setText("波及")
+        layout(panel)
+
+        assertNotNull("the query's actions did not appear", shownActionGrid(panel))
+        button(panel, R.string.result_copy_original)
+        button(panel, R.string.result_ask_ai)
+        val texts = labels(panel).map { it.text.toString() }
+        assertFalse(
+            "the search card offered a translation to copy: $texts",
+            texts.contains(context.getString(R.string.result_copy_translation)),
+        )
+    }
+
+    @Test
+    fun `Copiar original copies the word in the box`() {
+        val recorder = Recorder()
+        val panel = searchPanel(recorder)
+        editor(panel).setText(" 波及 ")
+        layout(panel)
+
+        button(panel, R.string.result_copy_original).performClick()
+
+        assertEquals("the word in the box did not reach the clipboard", listOf("波及"), recorder.copied)
+    }
+
+    @Test
+    fun `Perguntar a IA asks about the word in the box`() {
+        val recorder = Recorder()
+        // The query arrives already written, the way the service hands it over: the field is not
+        // «typed in» by the user, so this is the path that must not depend on `userEdited`.
+        val panel = searchPanel(recorder, canAskAi = true, initialQuery = "波及")
+        layout(panel)
+
+        button(panel, R.string.result_ask_ai).performClick()
+
+        assertEquals("the question was not about the word in the box", listOf("波及"), recorder.asked)
+    }
+
+    /** With the setting off the word can still leave the panel, but not as a question. */
+    @Test
+    fun `the setting hides the question and keeps the copy`() {
+        val panel = searchPanel(canAskAi = false)
+        editor(panel).setText("波及")
+        layout(panel)
+
+        button(panel, R.string.result_copy_original)
+        assertNull(
+            "the question showed up with the setting off",
+            labels(panel).firstOrNull { it.text.toString() == context.getString(R.string.result_ask_ai) },
+        )
+    }
+
+    @Test
+    fun `the actions go away when the box is emptied`() {
+        val panel = searchPanel(canAskAi = true)
+        editor(panel).setText("波及")
+        layout(panel)
+        assertNotNull(shownActionGrid(panel))
+
+        editor(panel).setText("")
+        layout(panel)
+
+        assertNull("the dead buttons stayed on screen", shownActionGrid(panel))
     }
 
     @Test
@@ -307,9 +377,11 @@ class DictionarySearchPanelTest {
     private fun searchPanel(
         recorder: Recorder = Recorder(),
         selected: String? = null,
+        canAskAi: Boolean = false,
+        initialQuery: String = "",
     ): ResultOverlay = ResultOverlay(context).apply {
         callbacks = recorder
-        showSearch(TITLES, selected, TITLES.size)
+        showSearch(TITLES, selected, TITLES.size, initialQuery = initialQuery, canAskAi = canAskAi)
         layout(this)
     }
 
@@ -372,6 +444,17 @@ class DictionarySearchPanelTest {
         return null
     }
 
+    /** The action row as the user sees it: a hidden one is not an offer. */
+    private fun shownActionGrid(root: ViewGroup): ActionGrid? =
+        findActionGrid(root)?.takeIf { it.visibility == View.VISIBLE }
+
+    private fun button(root: ViewGroup, label: Int): TextView =
+        labels(root).firstOrNull { it.text.toString() == context.getString(label) }
+            ?: error(
+                "no «${context.getString(label)}» button: " +
+                    labels(root).map { it.text.toString() },
+            )
+
     private fun match(): TokenMatch = TokenMatch(
         surface = "日本",
         start = 0,
@@ -391,15 +474,23 @@ class DictionarySearchPanelTest {
     private class Recorder : ResultOverlay.Callbacks {
         val searches = ArrayList<String>()
         val dictionaries = ArrayList<String?>()
+        val copied = ArrayList<String>()
+        val asked = ArrayList<String>()
         var dismissed = 0
 
-        override fun onCopyOriginal(text: String) = Unit
+        override fun onCopyOriginal(text: String) {
+            copied.add(text)
+        }
+
         override fun onCopyTranslation(text: String) = Unit
         override fun onAnalyse(text: String) = Unit
         override fun onRepick() = Unit
         override fun onRetryOffline() = Unit
         override fun onImageToggle() = Unit
-        override fun onAskAi(text: String) = Unit
+
+        override fun onAskAi(text: String) {
+            asked.add(text)
+        }
 
         override fun onDictionaryPicked(title: String?) {
             dictionaries.add(title)

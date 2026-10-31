@@ -1,15 +1,19 @@
 package dev.yabai.ocr
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.searchWords
 import dev.yabai.ocr.overlay.ResultOverlay
@@ -58,13 +62,13 @@ class LookupActivity : AppCompatActivity() {
         }
         overlay = ResultOverlay(this).apply {
             callbacks = object : ResultOverlay.Callbacks {
-                override fun onCopyOriginal(text: String) = Unit
+                override fun onCopyOriginal(text: String) = copyToClipboard(text)
                 override fun onCopyTranslation(text: String) = Unit
                 override fun onAnalyse(text: String) = Unit
                 override fun onRepick() = Unit
                 override fun onRetryOffline() = Unit
                 override fun onImageToggle() = Unit
-                override fun onAskAi(text: String) = Unit
+                override fun onAskAi(text: String) = askAi(text)
                 override fun onDismiss() = finish()
                 override fun onSearchChanged(text: String) = lookup(text)
                 override fun onDictionaryPicked(title: String?) {
@@ -160,6 +164,7 @@ class LookupActivity : AppCompatActivity() {
             dictionaryCount = titles.size,
             stale = stale,
             initialQuery = incomingText(intent),
+            canAskAi = settings.showAiButton,
         )
     }
 
@@ -176,10 +181,50 @@ class LookupActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Hands the word to an AI app (R39).
+     *
+     * This screen is the path without the overlay permission, so there is no floating panel to draw
+     * the list of apps in. With an app fixed in the settings it opens directly, as it does behind the
+     * bubble; without one the system chooser does the choosing — the degraded route, in the screen
+     * that is itself the degraded one.
+     */
+    private fun askAi(text: String) {
+        val payload = AskAi.request(settings.aiPrompt, text)
+        if (payload.isBlank()) return
+        copyToClipboard(text)
+        val opened = when (val plan = AskAi.plan(settings.aiPackage, AskAi.targets(this))) {
+            is AskAi.Plan.Direct -> start(AskAi.sendIntent(payload, plan.packageName))
+            is AskAi.Plan.Choose -> start(
+                Intent.createChooser(
+                    AskAi.sendIntent(payload, null),
+                    getString(R.string.result_ask_ai_choose),
+                ),
+            )
+            AskAi.Plan.Nothing -> false
+        }
+        if (!opened) {
+            Toast.makeText(this, R.string.result_ai_no_app, Toast.LENGTH_SHORT).show()
+            return
+        }
+        // The screen was only the way to the question: closing it leaves the AI app in front.
+        finish()
+    }
+
+    private fun start(intent: Intent): Boolean = runCatching { startActivity(intent) }.isSuccess
+
+    private fun copyToClipboard(text: String) {
+        val clipboard = getSystemService(ClipboardManager::class.java) ?: return
+        runCatching { clipboard.setPrimaryClip(ClipData.newPlainText(CLIP_LABEL, text)) }
+    }
+
     companion object {
 
         /** The screen host, so a test can find the view that keeps the card off the bars. */
         const val HOST_TAG = "yabai.lookup.host"
+
+        /** The label the clipboard entry carries, the same one the floating panel uses. */
+        private const val CLIP_LABEL = "yabai_ocr"
 
         /**
          * The text another app sent, from either accepted intent.

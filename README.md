@@ -184,8 +184,12 @@ mesmos dicionários ativos e obedecem ao mesmo seletor do cabeçalho («Todos» 
   grupos que são **somente kana** (`職員（しょくいん）` → `職員`, `双(そう)眸(ぼう)` → `双眸`), nos dois tipos
   de parêntese. O campo continua mostrando o texto inteiro, e `(笑)`, `(2024)` e um parêntese sem par
   **não** são tocados. Vem desligada: sem a opção, a consulta é exatamente a digitada.
-- **VOLTAR** ou um toque fora do cartão fecham a busca — não há captura atrás dela. Copiar, perguntar
-  à IA, imagem e trechos não aparecem: a busca não reconheceu texto nenhum.
+- **VOLTAR** ou um toque fora do cartão fecham a busca — não há captura atrás dela. Imagem e trechos
+  não aparecem: a busca não reconheceu texto nenhum. A consulta em si, porém, pode sair do painel:
+  com algo no campo aparecem **Copiar original** e **Perguntar à IA**, os mesmos botões da captura,
+  com a palavra do campo no lugar da frase reconhecida. Com o campo vazio os dois somem — não há o que
+  copiar nem sobre o que perguntar —, e não existe «Copiar tradução» aqui: o dicionário responde com
+  definições, não com uma tradução.
 - A **barra de espaço** do teclado nunca fecha o dicionário: ela muda de língua ou insere espaço no
   campo.
 - A escolha de dicionário vale para a busca e fica guardada, como no painel de uma captura.
@@ -198,7 +202,9 @@ mesmos dicionários ativos e obedecem ao mesmo seletor do cabeçalho («Todos» 
   **«Processar texto»** (`ACTION_PROCESS_TEXT`) e o **compartilhamento de texto simples**
   (`ACTION_SEND`, `text/plain`) —, que é como os leitores montam a lista de dicionários/tradutores
   instalados. Sem a permissão de sobreposição, a mesma busca abre como uma tela do app. O filtro de
-  dicionários e a limpeza de parênteses valem do mesmo jeito.
+  dicionários e a limpeza de parênteses valem do mesmo jeito, e o painel sobre o leitor traz as mesmas
+  **Copiar original** e **Perguntar à IA** do painel da bolha — a palavra vai para a área de
+  transferência e, se você já escolheu uma app de IA, ela abre com a pergunta escrita.
 
 ### Furigana (a leitura ao lado do kanji)
 

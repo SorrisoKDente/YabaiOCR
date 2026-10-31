@@ -10,6 +10,8 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import dev.yabai.ocr.AppSettings
+import dev.yabai.ocr.R
+import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.searchWords
 import dev.yabai.ocr.overlay.OverlayController
@@ -60,8 +62,7 @@ class LookupOverlayService : Service() {
                 }
 
                 override fun onCopyRequested(text: String, closeAfter: Boolean) {
-                    val clipboard = getSystemService(ClipboardManager::class.java)
-                    clipboard?.setPrimaryClip(ClipData.newPlainText(CLIP_LABEL, text))
+                    copyToClipboard(text)
                 }
 
                 override fun onResultDismissed() = stopSelf()
@@ -81,8 +82,8 @@ class LookupOverlayService : Service() {
                 override fun onKanjiRequested() = Unit
                 override fun onKanjiTapped(piece: Int, index: Int) = Unit
                 override fun onImageToggleRequested() = Unit
-                override fun onAskAiRequested(text: String) = Unit
-                override fun onAskAiToRequested(packageName: String, text: String) = Unit
+                override fun onAskAiRequested(text: String) = askAi(text)
+                override fun onAskAiToRequested(packageName: String, text: String) = openAi(packageName, text)
             }
         }
     }
@@ -153,6 +154,7 @@ class LookupOverlayService : Service() {
             dictionaryCount = titles.size,
             stale = stale,
             initialQuery = query,
+            canAskAi = settings.showAiButton,
         )
         // No window, no reason to stay: a service with no panel would be a process the user cannot
         // see or close.
@@ -170,6 +172,57 @@ class LookupOverlayService : Service() {
                 settings.dictionaryLastQuery = text
             }
         }
+    }
+
+    /**
+     * Hands the word to an AI app the user already has (R39).
+     *
+     * The same route as the bubble's panel: the word goes to the clipboard first, and then the app
+     * opens with the prompt in front of it. With no app chosen, the list is drawn over the panel by
+     * this app — the system chooser is the route that opened nothing on the phone this was tested on.
+     */
+    private fun askAi(text: String) {
+        copyToClipboard(text)
+        when (val plan = AskAi.plan(settings.aiPackage, AskAi.targets(this))) {
+            is AskAi.Plan.Direct -> openAi(plan.packageName, text)
+
+            is AskAi.Plan.Choose -> {
+                // A remembered name that is not installed has just lost its app: the list takes its
+                // place, and keeping the name would only cost the same fallback on the next tap.
+                if (settings.aiPackage.isNotBlank()) settings.aiPackage = ""
+                overlays.showAskAiApps(plan.apps, text)
+            }
+
+            AskAi.Plan.Nothing -> overlays.showResultNote(getString(R.string.result_ai_no_app))
+        }
+    }
+
+    /**
+     * Opens [packageName] with the question and takes the panel down, so it does not sit over the app
+     * that is about to answer. Only when an app actually opened: after a failure the panel is the only
+     * thing that can still say so and still holds the list.
+     */
+    private fun openAi(packageName: String, text: String) {
+        val payload = AskAi.request(settings.aiPrompt, text)
+        if (payload.isBlank()) return
+        copyToClipboard(text)
+
+        val opened = AskAi.attempt(
+            candidates = listOf(AskAi.directIntent(payload, packageName)),
+            start = { runCatching { startActivity(it) }.isSuccess },
+            onOpened = { overlays.hideResult() },
+        )
+        if (opened) return
+
+        settings.aiPackage = ""
+        val apps = AskAi.targets(this)
+        if (apps.isEmpty()) overlays.showResultNote(getString(R.string.result_ai_no_app))
+        else overlays.showAskAiApps(apps, text)
+    }
+
+    private fun copyToClipboard(text: String) {
+        val clipboard = getSystemService(ClipboardManager::class.java) ?: return
+        runCatching { clipboard.setPrimaryClip(ClipData.newPlainText(CLIP_LABEL, text)) }
     }
 
     companion object {

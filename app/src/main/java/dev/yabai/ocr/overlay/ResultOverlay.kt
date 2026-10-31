@@ -199,6 +199,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         callbacks?.onCopyTranslation(text)
     }
 
+    /**
+     * «Perguntar à IA», shared by both cards: the question is about whatever the panel is showing —
+     * the recognised sentence after a capture, the query in the dictionary (R39).
+     */
+    private val btAskAi = context.actionButton(context.getString(R.string.result_ask_ai)) {
+        callbacks?.onAskAi(textToSend())
+    }
+
     private var translationText: String? = null
 
     /**
@@ -237,6 +245,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     /** The single button beside the search box: «✕» with text, «Colar» when empty (R35b). */
     private var searchAction: TextView? = null
+
+    /**
+     * The row of actions under the search card — «Copiar original» and «Perguntar à IA» (R39).
+     *
+     * It is hidden while the box is empty: a search with no word has nothing to copy and nothing to
+     * ask about, and two dead buttons would read as a panel that forgot what it was doing.
+     */
+    private var searchActions: View? = null
 
     private var showLines: Boolean = false
     private var segmentLines: List<String> = emptyList()
@@ -511,6 +527,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         dictionaryCount: Int,
         stale: List<String> = emptyList(),
         initialQuery: String = "",
+        canAskAi: Boolean = false,
     ) {
         card.removeAllViews()
         selectionToolbar.hide()
@@ -600,7 +617,24 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 stale = stale,
             ),
         )
+
+        // The two ways of taking the query out of the panel (R39), the same pair the result card
+        // offers with the query in place of the recognised text. There is no «Copiar tradução»: a
+        // dictionary answers with definitions, not with a translation, and a button with that name
+        // would promise something the card never shows.
+        val actions = ActionGrid(context).apply { setPadding(0, dp(10), 0, 0) }
+        for (view in listOf(btCopyOriginal, btAskAi)) {
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
+        btCopyOriginal.visibility = View.VISIBLE
+        btAskAi.visibility = View.VISIBLE
+        actions.add(btCopyOriginal)
+        if (canAskAi) actions.add(btAskAi)
+        card.addView(actions)
+        searchActions = actions
+
         applyFold()
+        updateSearchActions()
         originalEditor.requestFocus()
         originalEditor.setSelection(originalEditor.text.length)
         // Se a escolha de guardar a última busca estiver ligada e houver uma, consulta logo: o
@@ -664,6 +698,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             if (empty) R.string.dictionary_search_paste_description
             else R.string.dictionary_search_clear,
         )
+        updateSearchActions()
+    }
+
+    /** Shows the query's actions only while there is a query (R39). */
+    private fun updateSearchActions() {
+        val row = searchActions ?: return
+        val hasQuery = searching && !minimised && !originalEditor.text.isNullOrBlank()
+        row.visibility = if (hasQuery) View.VISIBLE else View.GONE
     }
 
     /**
@@ -829,7 +871,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // These views outlive the card they were put in — they are fields, not fresh views — and a
         // previous card may still hold them. Adding a view that already has a parent is an error, not
         // a move, so a second capture on the same panel would fail without this.
-        for (view in listOf(translationSection, wordsSection, btCopyOriginal, btCopyTranslation)) {
+        for (view in listOf(translationSection, wordsSection, btCopyOriginal, btCopyTranslation, btAskAi)) {
             (view.parent as? ViewGroup)?.removeView(view)
         }
         translationSection.removeAllViews()
@@ -857,16 +899,17 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // panel is for, and the tools that change the capture come after them. See [ActionGrid].
         val actions = ActionGrid(context).apply { setPadding(0, dp(10), 0, 0) }
         btCopyTranslation.visibility = View.GONE
+        // A search card may have left them hidden: on a result there is always something to copy and
+        // something to ask about.
+        btCopyOriginal.visibility = View.VISIBLE
+        searchActions = null
         actions.add(btCopyOriginal)
         actions.add(btCopyTranslation)
         if (canAskAi) {
             // Right after the copies: it is the answer to the whole sentence, where the two «Copiar»
             // buttons are the answer to a piece of it.
-            actions.add(
-                context.actionButton(context.getString(R.string.result_ask_ai)) {
-                    callbacks?.onAskAi(textToSend())
-                },
-            )
+            btAskAi.visibility = View.VISIBLE
+            actions.add(btAskAi)
         }
         actions.add(
             context.actionButton(context.getString(R.string.result_close)) { callbacks?.onDismiss() },
@@ -923,6 +966,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         selectionToolbar.hide()
         // An error card has no search box and no capture behind it.
         searching = false
+        searchActions = null
         configureResultEditor()
         // Nothing was recognised, so there is nothing to go back to.
         canGoBack = false
@@ -962,9 +1006,13 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      *
      * A text the user has typed is theirs: once they correct a kanji, the editor is the only copy
      * that has the correction, and sending the clean original would silently undo their work.
+     *
+     * In the search box the field *is* the text (R39): there are no readings to strip, and the word
+     * in it is what the user typed or what another app handed over — there is no clean copy behind it.
      */
     private fun textToSend(): String =
-        if (userEdited) originalEditor.text.toString() else cleanText
+        if (searching) originalEditor.text.toString().trim()
+        else if (userEdited) originalEditor.text.toString() else cleanText
 
     /** Writes [text] into the editor as the panel's own change, not as the user's edit. */
     private fun showText(text: String) {
@@ -1583,6 +1631,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             val child = card.getChildAt(index)
             child.visibility = if (minimised && child !== header) View.GONE else View.VISIBLE
         }
+        // Unfolding must not bring back a row of actions the box has nothing for (R39).
+        updateSearchActions()
     }
 
     /**

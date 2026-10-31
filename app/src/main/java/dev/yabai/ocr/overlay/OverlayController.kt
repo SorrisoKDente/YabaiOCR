@@ -1003,10 +1003,11 @@ class OverlayController(
         dictionaryCount: Int,
         stale: List<String> = emptyList(),
         initialQuery: String = "",
+        canAskAi: Boolean = false,
     ) {
         if (!canDrawOverlays()) return
         val panel = ensureResultPanel() ?: return
-        panel.showSearch(titles, selected, dictionaryCount, stale, initialQuery)
+        panel.showSearch(titles, selected, dictionaryCount, stale, initialQuery, canAskAi)
         panel.post { panel.showKeyboard() }
     }
 

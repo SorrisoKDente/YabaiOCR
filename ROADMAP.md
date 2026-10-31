@@ -3095,6 +3095,83 @@ ReadEra manda no `ACTION_PROCESS_TEXT` — não adivinhar outra tela.
 
 ---
 
+## 19. Ronda 39 — copiar e perguntar no painel do dicionário (31/10/2026)
+
+Pedido: «Adicionar no dicionário/painel do readera as opções que já existem no painel de tradução de
+perguntar para ia, copiar original e copiar tradução.» Ainda na mesma conversa, o «Copiar tradução» foi
+descartado («pode ignorar a opção de copiar tradução e deixar apenas o de copiar original e perguntar a
+ia») — e com razão: o cartão de busca não mostra tradução nenhuma, e o botão prometeria o que não existe.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R39 | `[x]` | **O cartão de busca não levava a consulta embora** — sem «Copiar original» nem «Perguntar à IA» | pedido |
+
+### R39 — As ações do cartão de captura no cartão de busca  `[x]` (31/10/2026)
+
+**Causa:** duas coisas, e a segunda só apareceria no caminho do ReadEra.
+
+1. `showSearch` não montava grade de ações nenhuma: o cartão de busca terminava no seletor de
+   dicionários. O «Perguntar à IA» existia como botão anônimo criado dentro de `showResult`, então não
+   havia o que reaproveitar.
+2. `textToSend()` escolhia entre o texto limpo e o campo pelo `userEdited`. No cartão de busca
+   `cleanText` é `""` e `userEdited` continua `false` — a consulta foi escrita pelo painel, não pelo
+   usuário —, então «Copiar original» copiaria nada e a pergunta sairia vazia. Digitar no campo
+   inverte o `userEdited` e esconde o defeito: o teste que digitasse passaria enquanto o ReadEra, que
+   entrega a palavra já escrita, falharia.
+
+**Correção:**
+
+- `btAskAi` virou campo, ao lado dos dois «Copiar», e serve aos dois cartões.
+- `showSearch(..., canAskAi)` monta uma `ActionGrid` com **Copiar original** e, quando o ajuste está
+  ligado, **Perguntar à IA**. A linha fica escondida com o campo vazio ou o painel dobrado
+  (`updateSearchActions()`, chamado pelo `TextWatcher` e pelo `applyFold()`): dois botões mortos leem
+  como um painel que se esqueceu do que estava fazendo.
+- `textToSend()` ganhou o ramo da busca: é o campo, com `trim()`. Não há leituras para tirar nem cópia
+  limpa atrás dele.
+- A ligação até os botões: `OverlayController.showDictionarySearch(canAskAi)` →
+  `FloatingOcrService.onDictionarySearchRequested` e `LookupOverlayService.showPanelNow` passam
+  `settings.showAiButton`; o serviço do ReadEra implementa `onAskAiRequested = askAi(text)` e
+  `onAskAiToRequested = openAi(packageName, text)`, com o mesmo `copyToClipboard`/`AskAi.plan` do
+  painel da bolha. A tela de busca sem permissão de sobreposição (`LookupActivity`) copia e, sem app
+  de IA fixo, abre o seletor do sistema — a rota degradada da tela que já é a degradada.
+- Sem «Copiar tradução»: o dicionário responde com definições, e o cartão não tem texto traduzido.
+
+**Testes:**
+
+- `DictionarySearchPanelTest` (18 no total):
+  - `the card is a search box, not the capture result` — reescrito: com o campo vazio não há grade de
+    ações visível nem «Copiar tradução»;
+  - `a typed query offers Copiar original and Perguntar à IA`;
+  - `Copiar original copies the word in the box` — digita ` 波及 ` e recebe `波及` (o `trim()`);
+  - `Perguntar a IA asks about the word in the box` — a consulta chega **pela porta da frente**
+    (`initialQuery`), com `userEdited` falso: é o caminho do ReadEra;
+  - `the setting hides the question and keeps the copy`;
+  - `the actions go away when the box is emptied`.
+- `LookupOverlayTest` (4) — `o painel do readera copia a palavra e pergunta a ia`: sobe o serviço com
+  `showAiButton = true`, toca nos dois botões, confere a área de transferência e, sem app de IA
+  instalado no Robolectric, a nota `result_ai_no_app` no painel.
+
+**Non-vacuidade (4/4, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| `textToSend()` volta ao corpo anterior (sem o ramo da busca) | `Copiar original copies the word in the box`, `Perguntar a IA asks about the word in the box`, `o painel do readera copia a palavra e pergunta a ia` |
+| `updateSearchActions()` sempre `VISIBLE` | `the card is a search box, not the capture result`, `the actions go away when the box is emptied` |
+| `onAskAiRequested = Unit` no `LookupOverlayService` | `o painel do readera copia a palavra e pergunta a ia` |
+| `showSearch` ignora `canAskAi` e sempre acrescenta o botão | `the setting hides the question and keeps the copy` |
+
+**O que não está coberto:**
+
+- o aparelho: nenhuma das duas ações foi tocada no Poco X5 com um leitor de verdade;
+- o caminho da bolha (`FloatingOcrService.onDictionarySearchRequested`) só é coberto até a chamada de
+  `showDictionarySearch` — quem o exercita no Robolectric é o serviço gêmeo do ReadEra;
+- a tela sem permissão de sobreposição (`LookupActivity.askAi` com `Intent.createChooser`) não tem
+  teste: o Robolectric não tem apps de IA para resolver o chooser;
+- a lista de apps desenhada sobre o painel do ReadEra (`showAskAiApps` a partir do
+  `LookupOverlayService`) não é exercitada — o teste só chega à nota de «nenhum app».
+
+---
+
 ## Notas de ordem
 
 

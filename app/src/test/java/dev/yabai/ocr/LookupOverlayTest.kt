@@ -1,5 +1,6 @@
 package dev.yabai.ocr
 
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Looper
@@ -8,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.TextView
 import dev.yabai.ocr.overlay.ResultOverlay
 import dev.yabai.ocr.service.LookupOverlayService
 import java.time.Duration
@@ -104,6 +106,39 @@ class LookupOverlayTest {
         service.onDestroy()
     }
 
+    /**
+     * The panel over the reader offers the same two ways out as the capture card (R39).
+     *
+     * The panel tests prove the buttons are drawn and hand the word to their callback; this is the
+     * one that proves the callbacks land somewhere: the service behind the panel is what copies and
+     * what asks, and without the wiring the buttons would be two dead labels.
+     */
+    @Test
+    fun `o painel do readera copia a palavra e pergunta a ia`() {
+        AppSettings(context).showAiButton = true
+        val service = start("波及")
+        val panel = windows().filterIsInstance<ResultOverlay>().single()
+
+        button(panel, R.string.result_copy_original).performClick()
+
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        assertEquals(
+            "the word did not reach the clipboard",
+            "波及",
+            clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString(),
+        )
+
+        // Robolectric has no AI app installed, so the question ends in the panel's own note instead
+        // of in another app: what this holds is that the tap reached the service at all.
+        button(panel, R.string.result_ask_ai).performClick()
+        assertTrue(
+            "the tap on «Perguntar à IA» did not reach the service: ${texts(panel)}",
+            texts(panel).contains(context.getString(R.string.result_ai_no_app)),
+        )
+
+        service.onDestroy()
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private fun start(text: String, settle: Boolean = true): LookupOverlayService {
@@ -129,6 +164,28 @@ class LookupOverlayTest {
         walk(panel)
         assertTrue("the panel has no search field", found.isNotEmpty())
         return found.first()
+    }
+
+    private fun button(panel: ViewGroup, label: Int): TextView {
+        val wanted = context.getString(label)
+        return allViews(panel).filterIsInstance<TextView>().firstOrNull { it.text.toString() == wanted }
+            ?: error("no «$wanted» button: ${texts(panel)}")
+    }
+
+    private fun texts(panel: ViewGroup): List<String> =
+        allViews(panel).filterIsInstance<TextView>().map { it.text.toString() }
+
+    private fun allViews(root: ViewGroup): List<View> {
+        val found = ArrayList<View>()
+        fun walk(group: ViewGroup) {
+            for (index in 0 until group.childCount) {
+                val child = group.getChildAt(index)
+                found.add(child)
+                if (child is ViewGroup) walk(child)
+            }
+        }
+        walk(root)
+        return found
     }
 
     /** Everything on screen, the way the window manager sees it. */

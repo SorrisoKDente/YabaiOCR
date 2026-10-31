@@ -473,6 +473,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             dictionaryCount = titles.size,
             stale = stale,
             initialQuery = initialQuery,
+            canAskAi = settings.showAiButton,
         )
     }
 
