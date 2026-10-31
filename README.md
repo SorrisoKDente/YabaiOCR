@@ -381,6 +381,19 @@ edição do texto dispara: você recolhe o dicionário uma vez e ele continua re
 nova abre tudo aberto** — um painel que nasce recolhido esconderia justamente a resposta que você
 pediu.
 
+### Sair do app fecha o painel
+
+Apertar **Início** ou o **botão de apps recentes** (o quadrado, ou o gesto equivalente) fecha o
+painel: o de tradução, o dicionário aberto pela bolha e o que o ReadEra abre com a palavra
+selecionada. O painel não é uma tela do app — é uma janela flutuante —, e sem isso ela ficava por
+cima do launcher.
+
+O aviso vem do sistema quando esses botões são apertados, e o Yabai OCR o lê por **duas vias**: o
+broadcast `ACTION_CLOSE_SYSTEM_DIALOGS` e a chamada `closeSystemDialogs` que **cada janela** recebe.
+As duas juntas cobrem o botão, o gesto e as ROMs que mexem no launcher. O menu de energia
+(`globalactions`) e os outros avisos do sistema **não** fecham nada — só `homekey` e `recentapps`.
+Tirar o foco da janela (quando outro app vem para a frente) continua fechando o painel como antes.
+
 ### Dicionários
 
 Nenhum dicionário vem dentro do APK (o menor útil tem 100 KB e o maior 37 MB, e cada um tem sua

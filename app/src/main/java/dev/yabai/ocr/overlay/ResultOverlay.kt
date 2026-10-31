@@ -400,6 +400,31 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     var onWindowLost: (() -> Unit)? = null
 
     /**
+     * The reason the system last closed its dialogs for, as told by the framework (R40).
+     *
+     * The broadcast is not the only way HOME and recents are announced: when they are pressed the
+     * window manager calls `IWindow.closeSystemDialogs(reason)` on **every** window of every app,
+     * and `ViewRootImpl` passes the reason to the window's root view — this view. Declaring the
+     * method with the framework's signature is enough to be called, because the call is virtual;
+     * it is `@hide` in the SDK (see `View.onCloseSystemDialogs`), which is why there is no
+     * `override` here. A window that is drawing has a surface, and the system only skips the call
+     * for windows without one.
+     */
+    var onSystemDialog: ((String?) -> Unit)? = null
+
+    /**
+     * Called by the framework through the window's root view when the system closes its dialogs.
+     *
+     * This one reaches the panel even if broadcast delivery is throttled or filtered, and it carries
+     * the reason the broadcast carries: `homekey`, `recentapps`, `globalactions`. What to do with it
+     * is the controller's call, because the panel must go together with everything drawn over it.
+     */
+    @Suppress("unused")
+    fun onCloseSystemDialogs(reason: String?) {
+        onSystemDialog?.invoke(reason)
+    }
+
+    /**
      * Whether the keyboard is on screen, as told by the last window insets.
      *
      * The keyboard opens windows of its own — the language list, the emoji panel, the clipboard —

@@ -139,6 +139,57 @@ class LookupOverlayTest {
         service.onDestroy()
     }
 
+    /**
+     * HOME takes the panel down (R40).
+     *
+     * The panel's window is above the launcher, so it keeps the focus and R9's focus-loss route never
+     * fires here. What reaches the service is the system's
+     * [android.content.Intent.ACTION_CLOSE_SYSTEM_DIALOGS]; the service has to close the panel and stop,
+     * or the word card would be left floating over the launcher.
+     */
+    @Test
+    fun `o home fecha o painel do readera`() {
+        val service = start("波及")
+        assertFalse(
+            "the panel was not on screen to begin with",
+            windows().filterIsInstance<ResultOverlay>().isEmpty(),
+        )
+
+        context.sendBroadcast(
+            Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS).putExtra("reason", "homekey"),
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertTrue(
+            "the panel was left floating over the launcher",
+            windows().filterIsInstance<ResultOverlay>().isEmpty(),
+        )
+        assertTrue("the service stayed alive with no panel", shadowOf(service).isStoppedBySelf)
+    }
+
+    /**
+     * The same dismissal through the other route (R40): the window manager calls
+     * `closeSystemDialogs(reason)` on every window, and the panel's root view gets it. That route
+     * does not depend on a broadcast being delivered, so the ReadEra panel has to answer it too.
+     */
+    @Test
+    fun `o sistema fecha o painel do readera pela janela`() {
+        val service = start("波及")
+        val panel = windows().filterIsInstance<ResultOverlay>().singleOrNull()
+            ?: error("the panel was not on screen to begin with")
+
+        View::class.java
+            .getMethod("onCloseSystemDialogs", String::class.java)
+            .invoke(panel, "recentapps")
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertTrue(
+            "the panel was left floating over the recents screen",
+            windows().filterIsInstance<ResultOverlay>().isEmpty(),
+        )
+        assertTrue("the service stayed alive with no panel", shadowOf(service).isStoppedBySelf)
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private fun start(text: String, settle: Boolean = true): LookupOverlayService {

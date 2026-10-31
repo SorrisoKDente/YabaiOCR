@@ -1,7 +1,10 @@
 package dev.yabai.ocr.overlay
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -22,6 +25,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.R
 import dev.yabai.ocr.ai.AskAi
@@ -147,6 +151,17 @@ class OverlayController(
     private var confirmView: View? = null
     private var regionView: RegionOverlay? = null
     private var resultView: ResultOverlay? = null
+
+    /**
+     * The panel's ear for HOME and the recents screen (R40).
+     *
+     * The window focus is not enough here: a `TYPE_APPLICATION_OVERLAY` window sits above the launcher
+     * and the recents screen, so it can keep the focus — and [ResultOverlay.onWindowLost] never fires —
+     * while the panel floats over a screen the user has already left. What the system does announce is
+     * [Intent.ACTION_CLOSE_SYSTEM_DIALOGS], with the reason «homekey»/«recentapps» (the swipe-to-home
+     * gesture reports «recentapps»). It is registered only while a panel is on screen.
+     */
+    private var systemDialogReceiver: BroadcastReceiver? = null
 
     /** The list of apps a question can go to, when it is on screen; see [showAskAiApps]. */
     private var appPicker: AppPickerOverlay? = null
@@ -883,6 +898,7 @@ class OverlayController(
                 // focus on purpose: dismissing it has to come back to the panel, not to nothing.
                 if (appPicker == null) dismissResult()
             }
+            onSystemDialog = { reason -> dismissForSystemDialog(reason) }
             callbacks = object : ResultOverlay.Callbacks {
                 override fun onCopyOriginal(text: String) {
                     this@OverlayController.callbacks?.onCopyRequested(text, closeAfter = false)
@@ -934,7 +950,7 @@ class OverlayController(
         // out of the panel when there is nothing behind it (see `ResultOverlay.stepBack`). It used to
         // be as tall as the card alone, which let touches through to the app underneath but left the
         // gesture with nowhere to happen.
-        addWindow(
+        val added = addWindow(
             panel,
             baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true).apply {
                 gravity = Gravity.TOP
@@ -945,6 +961,10 @@ class OverlayController(
                 softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
             },
         )
+        // Only a panel that reached the screen needs the listening: if the window could not be
+        // added there is nothing for HOME to take down, and a receiver left behind would outlive
+        // the panel it belongs to.
+        if (added) listenForSystemDialogs()
         return panel
     }
 
@@ -1085,13 +1105,60 @@ class OverlayController(
         callbacks?.onResultDismissed()
     }
 
+    /**
+     * Starts listening for the system closing the screen the panel is over (R40).
+     *
+     * Registered with `RECEIVER_EXPORTED` because the sender is the system: the action is protected,
+     * so no other app can forge it without a signature permission. One registration per panel; the
+     * receiver goes in [hideResult], so nothing of the panel outlives it.
+     */
+    private fun listenForSystemDialogs() {
+        if (systemDialogReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action != Intent.ACTION_CLOSE_SYSTEM_DIALOGS) return
+                dismissForSystemDialog(intent.getStringExtra(SYSTEM_DIALOG_REASON_KEY))
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS),
+            ContextCompat.RECEIVER_EXPORTED,
+        )
+        systemDialogReceiver = receiver
+    }
+
+    private fun stopListeningForSystemDialogs() {
+        val receiver = systemDialogReceiver ?: return
+        systemDialogReceiver = null
+        runCatching { context.unregisterReceiver(receiver) }
+    }
+
+    /**
+     * Takes the panel down when HOME or recents takes the screen: the panel belongs to the page that
+     * was left, and the list of apps — a window of this app drawn over it — would otherwise be left
+     * with nothing behind it.
+     *
+     * Both routes end here (the broadcast and the window's `onCloseSystemDialogs`), and the reason is
+     * checked in one place: the power menu and the other system dialogs carry reasons of their own,
+     * and closing on those would take the panel away while the user is still reading.
+     */
+    private fun dismissForSystemDialog(reason: String?) {
+        if (reason != SYSTEM_DIALOG_REASON_HOME && reason != SYSTEM_DIALOG_REASON_RECENTS) return
+        if (resultView == null) return
+        dismissResult()
+    }
+
     fun hideResult() {
+        stopListeningForSystemDialogs()
         // The list of apps belongs to the question the panel is showing: it cannot outlive it.
         hideAppPicker()
         val view = resultView ?: return
         // Disarmed before the window goes: taking a window down also takes its focus, and the panel
         // must not read that as the user walking away and ask to be dismissed a second time.
         view.onWindowLost = null
+        view.onSystemDialog = null
         resultView = null
         removeWindow(view)
     }
@@ -1216,5 +1283,14 @@ class OverlayController(
         private const val TAG = "OverlayController"
         private const val MATCH_PARENT = WindowManager.LayoutParams.MATCH_PARENT
         private const val WRAP_CONTENT = WindowManager.LayoutParams.WRAP_CONTENT
+
+        /** The extra [Intent.ACTION_CLOSE_SYSTEM_DIALOGS] carries the reason in (R40). */
+        private const val SYSTEM_DIALOG_REASON_KEY = "reason"
+
+        /** HOME was pressed: the navigation button, or whatever gesture the ROM maps to it. */
+        private const val SYSTEM_DIALOG_REASON_HOME = "homekey"
+
+        /** The recents screen was opened; on gesture navigation, also the swipe-to-home gesture. */
+        private const val SYSTEM_DIALOG_REASON_RECENTS = "recentapps"
     }
 }

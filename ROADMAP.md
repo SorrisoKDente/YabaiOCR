@@ -3172,9 +3172,105 @@ ia») — e com razão: o cartão de busca não mostra tradução nenhuma, e o b
 
 ---
 
+## 20. Ronda 40 — Início e recentes fecham os painéis (31/10/2026)
+
+Pedido: «Botão Início/Home e Botão de Aplicativos Recentes/Multitarefa precisam fechar a aba de
+tradução/dicionário/dicionário do readera. Já tinha solicitado antes, acredito que não foi aplicado
+por supostamente não dá certo, mas tem certeza que realmente não é possível? Você pesquisou?»
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R40 | `[x]` | **HOME e recentes fecham o painel** — os três painéis, sem permissão nova | bug |
+
+### R40 — O que o R9 assumiu e o aparelho desmentiu  `[x]` (31/10/2026)
+
+**Por que o R9 não fechava no aparelho.** O R9 fechava pela perda de foco da janela
+(`ResultOverlay.onWindowLost`, de `onWindowFocusChanged`). A suposição era que o launcher e a tela de
+recentes tomam o foco de qualquer janela. Não tomam de uma `TYPE_APPLICATION_OVERLAY`: ela é desenhada
+**acima** do launcher e da tela de recentes e pode continuar sendo a janela com foco de entrada. Sem
+perda, o `onWindowLost` nunca dispara — e o painel fica flutuando sobre o launcher. A conclusão
+anterior («o foco resolve») estava errada; não era impossível, era a rota errada.
+
+**Pesquisa (AOSP `android16-release`).** O sistema anuncia a saída por **duas** vias, e nenhuma pede
+permissão:
+
+1. **A todas as janelas, pelo binder.** Quando HOME ou recentes é apertado,
+   `RootWindowContainer.closeSystemDialogs(reason)` percorre todas as janelas
+   (`forAllWindows(mCloseSystemDialogsConsumer)`) e chama `w.mClient.closeSystemDialogs(reason)` em
+   cada uma que tem superfície. Do outro lado, `ViewRootImpl.W.closeSystemDialogs` →
+   `dispatchCloseSystemDialogs` → `mView.onCloseSystemDialogs(reason)` na **view raiz** da janela.
+   `View.onCloseSystemDialogs(String)` é `public` mas `@hide`/`@UnsupportedAppUsage`; declarar o
+   mesmo método na subclasse, sem `override`, é o suficiente — a chamada do framework é virtual. É a
+   rota que não depende de broadcast nenhum.
+2. **O broadcast `ACTION_CLOSE_SYSTEM_DIALOGS`**, com `reason` = `homekey` ou `recentapps` (o gesto
+   de swipe para home reporta `recentapps`, como no Launcher3). O broadcast está deprecado para
+   **enviar** a partir do alvo 31, mas o sistema continua **enviando** — é o que o STK do AOSP usa,
+   registrado com `RECEIVER_EXPORTED`.
+
+O menu de energia manda `globalactions` e outras telas do sistema mandam outros motivos; fechar neles
+tiraria o painel enquanto o usuário ainda está lendo. O filtro é o mesmo para as duas vias.
+
+**Correção.**
+
+- `OverlayController`: receptor dinâmico de `ACTION_CLOSE_SYSTEM_DIALOGS`, registrado com
+  `ContextCompat.RECEIVER_EXPORTED` **só enquanto um painel existe** (`ensureResultPanel`), desligado
+  em `hideResult` — e o campo zerado, senão o painel seguinte não volta a escutar.
+- `ResultOverlay`: `onCloseSystemDialogs(reason)` chama um `onSystemDialog` que o controlador liga ao
+  mesmo `dismissForSystemDialog(reason)` do broadcast. O `hideResult` desarma as duas rotas antes de
+  tirar a janela, para a queda de foco da remoção não pedir uma segunda dispensa.
+- As duas rotas convergem num ponto só, que confere o motivo e chama `dismissResult()` uma vez. O
+  segundo aviso — seja outra rota ou o `onWindowLost` do R9 — encontra `resultView == null` e não faz
+  nada.
+- Vale para os **três** painéis: o de tradução e o cartão de busca são o mesmo `ResultOverlay` criado
+  por `ensureResultPanel`, e o painel do ReadEra usa o mesmo controlador pelo `LookupOverlayService`.
+  A lista de apps do «Perguntar à IA» vai junto (`hideResult` já chamava `hideAppPicker`).
+- O R9 continua no lugar: quando o foco **é** perdido de verdade (outro app vem para a frente), ele
+  fecha. Só não é mais a rota do HOME.
+
+**Testes.**
+
+- `SystemDialogTest` (10): HOME pelo broadcast, recentes, o cartão de busca, o menu de energia como
+  controle negativo, a lista de apps indo junto, uma dispensa só (broadcast + janela + perda de foco),
+  o painel seguinte voltando a escutar o broadcast, HOME pela janela, o menu de energia pela janela e o
+  painel seguinte voltando a ouvir a janela.
+- `LookupOverlayTest` (6): `o home fecha o painel do readera` (broadcast) e
+  `o sistema fecha o painel do readera pela janela`; os dois conferem que o serviço para
+  (`isStoppedBySelf`), não só que a janela sumiu.
+- Suíte do app depois da ronda: **329 testes / 45 classes, 0 falhas**. Núcleo: **140 testes, 0 falhas,
+  2 pulados**.
+
+**Non-vacuidade (6/6, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| o receptor de broadcast não faz nada | `o home fecha o painel e avisa o servico`, `o botao de apps recentes fecha o painel`, `o painel da busca fecha do mesmo jeito`, `a lista de apps vai junto`, `um painel aberto depois volta a escutar`, `o home fecha o painel do readera` |
+| fecha com qualquer motivo | `um motivo que nao e sair nao fecha o painel`, `pela janela o menu de energia tambem nao fecha` |
+| aceita só `homekey` | `o botao de apps recentes fecha o painel` |
+| o campo do receptor não é zerado ao parar | `um painel aberto depois volta a escutar` |
+| `ResultOverlay.onCloseSystemDialogs` não faz nada | `o sistema fecha o painel pela janela`, `um painel aberto depois volta a ouvir a janela`, `o sistema fecha o painel do readera pela janela` |
+
+**O que não está coberto:**
+
+- o aparelho: as duas rotas foram exercitadas no Robolectric, não no Poco X5 5G. É o teste que falta,
+  com os botões e, se for o caso, com os gestos;
+- que o sistema **entregue** o broadcast ou a chamada de janela — isso é do framework; os testes
+  acionam as duas entradas como o framework aciona;
+- o gesto de swipe para home: o motivo `recentapps` vem do código do Launcher3, não de uma observação
+  no aparelho;
+- ROMs que trocam o launcher (MIUI/HyperOS, no aparelho do usuário) podem acrescentar caminhos
+  próprios; as duas rotas são as do AOSP, e é por isso que as duas ficaram;
+- o overlay de **kanji** (R17) é outra janela e não é um dos três painéis: com ele aberto e nenhum
+  painel, o R40 não registra nada. Fica para uma ronda própria se o aparelho mostrar que incomoda;
+- `onCloseSystemDialogs` é API escondida: é **declarada**, não refletida, e pode deixar de ser chamada
+  num Android futuro. O broadcast continua como a outra rota, e o R9 como a terceira.
+
+---
+
+
+
+
+
 ## Notas de ordem
-
-
 
 - B1 antes de tudo: é regressão visual e esconde um botão.
 - B2 é trivial, mas a decisão é do usuário; entra logo depois.
