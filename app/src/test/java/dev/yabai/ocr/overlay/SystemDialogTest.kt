@@ -2,6 +2,7 @@ package dev.yabai.ocr.overlay
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Rect
 import android.os.Looper
 import android.view.View
 import android.view.WindowManager
@@ -168,6 +169,104 @@ class SystemDialogTest {
         assertEquals(2, callbacks.calls.count { it == "result dismissed" })
     }
 
+    /**
+     * The kanji reader is another full-screen window, and it has to go with HOME too (R41). It has
+     * no service callback of its own: closing it must not pretend a result panel was dismissed.
+     */
+    @Test
+    fun `o home fecha o leitor de kanji`() {
+        val callbacks = RecordingCallbacks()
+        val controller = controller(callbacks)
+        showKanji(controller)
+        assertTrue("the kanji reader did not open", kanjiOnScreen() != null)
+
+        systemDialog("homekey")
+
+        assertTrue("the kanji reader was left floating over the launcher", kanjiOnScreen() == null)
+        assertTrue("a kanji reader was counted as a dismissed result", callbacks.calls.isEmpty())
+    }
+
+    @Test
+    fun `o botao de recentes fecha o leitor de kanji`() {
+        val callbacks = RecordingCallbacks()
+        val controller = controller(callbacks)
+        showKanji(controller)
+
+        systemDialog("recentapps")
+
+        assertTrue("the kanji reader was left over the recents screen", kanjiOnScreen() == null)
+    }
+
+    @Test
+    fun `o sistema fecha o leitor de kanji pela janela`() {
+        val callbacks = RecordingCallbacks()
+        val controller = controller(callbacks)
+        showKanji(controller)
+        val kanji = kanjiOnScreen() ?: error("the kanji reader did not open")
+
+        windowDialog(kanji, "homekey")
+
+        assertTrue("the kanji reader ignored the window callback", kanjiOnScreen() == null)
+        assertTrue("a kanji reader was counted as a dismissed result", callbacks.calls.isEmpty())
+    }
+
+    /** The power menu is not the user walking away from the page either. */
+    @Test
+    fun `o menu de energia nao fecha o leitor de kanji`() {
+        val callbacks = RecordingCallbacks()
+        val controller = controller(callbacks)
+        showKanji(controller)
+
+        systemDialog("globalactions")
+
+        assertTrue("the kanji reader went away with the power menu", kanjiOnScreen() != null)
+    }
+
+    /**
+     * The result panel and the kanji reader share one registration. Closing the reader must not leave
+     * the panel deaf to HOME — the regression that a plain unregister would cause (R41).
+     */
+    @Test
+    fun `fechar o leitor de kanji nao deixa o painel surdo`() {
+        val callbacks = RecordingCallbacks()
+        val controller = openPanel(callbacks)
+        showKanji(controller)
+        controller.hideKanji()
+
+        systemDialog("homekey")
+
+        assertFalse("the panel ignored HOME after the kanji reader closed", controller.isResultVisible())
+        assertEquals(listOf("result dismissed"), callbacks.calls)
+    }
+
+    /** HOME with both windows up takes both, and the service is told once. */
+    @Test
+    fun `o home fecha o painel e o leitor de kanji juntos`() {
+        val callbacks = RecordingCallbacks()
+        val controller = openPanel(callbacks)
+        showKanji(controller)
+
+        systemDialog("homekey")
+
+        assertTrue("the panel stayed", !controller.isResultVisible())
+        assertTrue("the kanji reader stayed", kanjiOnScreen() == null)
+        assertEquals(listOf("result dismissed"), callbacks.calls)
+    }
+
+    /** After the reader goes, the next one has to be heard again. */
+    @Test
+    fun `um leitor de kanji aberto depois volta a escutar`() {
+        val callbacks = RecordingCallbacks()
+        val controller = controller(callbacks)
+        showKanji(controller)
+        systemDialog("homekey")
+
+        showKanji(controller)
+        systemDialog("recentapps")
+
+        assertTrue("the second kanji reader ignored the system", kanjiOnScreen() == null)
+    }
+
     /** After a panel goes, the next one still hears the window callback, not just the broadcast. */
     @Test
     fun `um painel aberto depois volta a ouvir a janela`() {
@@ -206,6 +305,15 @@ class SystemDialogTest {
     }
 
     /**
+     * The reader the bubble opens for «Ler kanji»: a capture with one strip is enough, because the
+     * tests only care about the window going away, not about which character was tapped.
+     */
+    private fun showKanji(controller: OverlayController) {
+        val pieces = listOf(KanjiPiece("職員", Rect(0, 0, 200, 80), vertical = false))
+        assertTrue("the kanji reader did not open", controller.showKanji(pieces, null))
+    }
+
+    /**
      * What the system sends when HOME or recents is pressed — see
      * [Intent.ACTION_CLOSE_SYSTEM_DIALOGS].
      */
@@ -230,6 +338,8 @@ class SystemDialogTest {
     }
 
     private fun panelOnScreen(): ResultOverlay? = windows().filterIsInstance<ResultOverlay>().firstOrNull()
+
+    private fun kanjiOnScreen(): KanjiOverlay? = windows().filterIsInstance<KanjiOverlay>().firstOrNull()
 
     private fun windows(): List<View> {
         val manager = context.getSystemService(WindowManager::class.java)

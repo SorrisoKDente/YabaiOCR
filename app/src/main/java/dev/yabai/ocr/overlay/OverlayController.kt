@@ -866,10 +866,12 @@ class OverlayController(
         val overlay = KanjiOverlay(context).apply {
             onKanjiTapped = { piece, index -> callbacks?.onKanjiTapped(piece, index) }
             onDismiss = { hideKanji() }
+            onSystemDialog = { reason -> dismissForSystemDialog(reason) }
         }
         if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
         overlay.show(pieces, page)
         kanjiView = overlay
+        listenForSystemDialogs()
         return true
     }
 
@@ -879,8 +881,12 @@ class OverlayController(
 
     fun hideKanji() {
         val view = kanjiView ?: return
+        // Disarmed before the window goes, like the result panel: the teardown must not be read as
+        // HOME by a late callback.
+        view.onSystemDialog = null
         removeWindow(view)
         kanjiView = null
+        stopListeningForSystemDialogsIfIdle()
     }
 
     // --- result panel --------------------------------------------------------------------------
@@ -1106,11 +1112,12 @@ class OverlayController(
     }
 
     /**
-     * Starts listening for the system closing the screen the panel is over (R40).
+     * Starts listening for the system closing the screen a panel is over (R40/R41).
      *
      * Registered with `RECEIVER_EXPORTED` because the sender is the system: the action is protected,
-     * so no other app can forge it without a signature permission. One registration per panel; the
-     * receiver goes in [hideResult], so nothing of the panel outlives it.
+     * so no other app can forge it without a signature permission. One registration at a time, kept
+     * while **any** panel is on screen and dropped when the last one goes, so nothing of a panel
+     * outlives it.
      */
     private fun listenForSystemDialogs() {
         if (systemDialogReceiver != null) return
@@ -1129,6 +1136,17 @@ class OverlayController(
         systemDialogReceiver = receiver
     }
 
+    /**
+     * Stops listening when the **last** panel goes.
+     *
+     * The kanji reader and the result panel share the registration: closing one must not leave the
+     * other deaf to HOME (R41). This is the check that keeps that true.
+     */
+    private fun stopListeningForSystemDialogsIfIdle() {
+        if (resultView != null || kanjiView != null) return
+        stopListeningForSystemDialogs()
+    }
+
     private fun stopListeningForSystemDialogs() {
         val receiver = systemDialogReceiver ?: return
         systemDialogReceiver = null
@@ -1136,31 +1154,37 @@ class OverlayController(
     }
 
     /**
-     * Takes the panel down when HOME or recents takes the screen: the panel belongs to the page that
-     * was left, and the list of apps — a window of this app drawn over it — would otherwise be left
+     * Takes the panels down when HOME or recents takes the screen: they belong to the page that was
+     * left, and the list of apps — a window of this app drawn over them — would otherwise be left
      * with nothing behind it.
      *
      * Both routes end here (the broadcast and the window's `onCloseSystemDialogs`), and the reason is
      * checked in one place: the power menu and the other system dialogs carry reasons of their own,
-     * and closing on those would take the panel away while the user is still reading.
+     * and closing on those would take a panel away while the user is still reading.
      */
     private fun dismissForSystemDialog(reason: String?) {
         if (reason != SYSTEM_DIALOG_REASON_HOME && reason != SYSTEM_DIALOG_REASON_RECENTS) return
-        if (resultView == null) return
-        dismissResult()
+        if (resultView == null && kanjiView == null) return
+        // The result panel first: its service callback is what turns the bubble off or stops the
+        // ReadEra service. The kanji reader has no such callback, but it is a panel over the page
+        // that is gone all the same.
+        if (resultView != null) dismissResult()
+        hideKanji()
     }
 
     fun hideResult() {
-        stopListeningForSystemDialogs()
         // The list of apps belongs to the question the panel is showing: it cannot outlive it.
         hideAppPicker()
-        val view = resultView ?: return
-        // Disarmed before the window goes: taking a window down also takes its focus, and the panel
-        // must not read that as the user walking away and ask to be dismissed a second time.
-        view.onWindowLost = null
-        view.onSystemDialog = null
-        resultView = null
-        removeWindow(view)
+        val view = resultView
+        if (view != null) {
+            // Disarmed before the window goes: taking a window down also takes its focus, and the
+            // panel must not read that as the user walking away and ask to be dismissed a second time.
+            view.onWindowLost = null
+            view.onSystemDialog = null
+            resultView = null
+            removeWindow(view)
+        }
+        stopListeningForSystemDialogsIfIdle()
     }
 
     fun isResultVisible(): Boolean = resultView != null

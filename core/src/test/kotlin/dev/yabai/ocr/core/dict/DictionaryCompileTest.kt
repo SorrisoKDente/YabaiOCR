@@ -321,6 +321,45 @@ class DictionaryCompileTest {
                 japan.definition.contains("Japão"),
             )
 
+            // R42: the real build puts the tags and the senses directly inside the sense group, and
+            // the old renderer numbered the part of speech as if it were a meaning.
+            val keiken = pt.termEntries("経験").firstOrNull()
+            assertNotNull("経験 must be in the dictionary", keiken)
+            println("経験 -> tags=${keiken!!.tags} | ${keiken.definition.take(200)}")
+            assertTrue(
+                "the part of speech must be a tag, not a sense: ${keiken.tags}",
+                keiken.tags.contains("substantivo") && keiken.tags.contains("transitivo"),
+            )
+            assertTrue(
+                "the first sense is the meaning: ${keiken.definition.take(120)}",
+                keiken.definition.startsWith("1. experiência"),
+            )
+            assertFalse(
+                "part of speech leaked into the definition: ${keiken.definition.take(120)}",
+                keiken.definition.contains("substantivo"),
+            )
+
+            // R42: the cross-reference is a link the panel cannot follow, so it is removed whole.
+            val giseigo = pt.termEntries("擬声語").firstOrNull()
+            assertNotNull("擬声語 must be in the dictionary", giseigo)
+            println("擬声語 -> tags=${giseigo!!.tags} | ${giseigo.definition.take(240)}")
+            assertTrue(
+                "the field tag must be a tag: ${giseigo.tags}",
+                giseigo.tags.contains("linguística"),
+            )
+            assertTrue(
+                "the first sense is the meaning: ${giseigo.definition.take(120)}",
+                giseigo.definition.startsWith("1. onomatopeia"),
+            )
+            assertFalse(
+                "the xref label is not a meaning: ${giseigo.definition}",
+                giseigo.definition.contains("Ver também"),
+            )
+            assertFalse(
+                "the linked gloss is not a meaning: ${giseigo.definition}",
+                giseigo.definition.contains("palavra onomatopaica"),
+            )
+
             val engine = LookupEngine(listOf(pt))
             val matches = engine.lookup("私は日本語を勉強します。")
             println("PT-BR segmentation: ${matches.map { "${it.surface}=${it.entry.term}" }}")

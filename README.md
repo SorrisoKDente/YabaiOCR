@@ -384,9 +384,9 @@ pediu.
 ### Sair do app fecha o painel
 
 Apertar **Início** ou o **botão de apps recentes** (o quadrado, ou o gesto equivalente) fecha o
-painel: o de tradução, o dicionário aberto pela bolha e o que o ReadEra abre com a palavra
-selecionada. O painel não é uma tela do app — é uma janela flutuante —, e sem isso ela ficava por
-cima do launcher.
+painel: o de tradução, o dicionário aberto pela bolha, o que o ReadEra abre com a palavra
+selecionada e o leitor de kanji (as tiras do «Ler kanji»). O painel não é uma tela do app — é uma
+janela flutuante —, e sem isso ela ficava por cima do launcher.
 
 O aviso vem do sistema quando esses botões são apertados, e o Yabai OCR o lê por **duas vias**: o
 broadcast `ACTION_CLOSE_SYSTEM_DIALOGS` e a chamada `closeSystemDialogs` que **cada janela** recebe.
@@ -464,6 +464,16 @@ mesmo sentido juntas, separadas por `;`. Notas (`ℹ`) e exemplos (`例`, com a 
 abaixo do sentido a que pertencem, em letra menor, cinza e recuada. A classe gramatical
 (`1-dan・transitive`) fica na linha de apoio, sob a palavra, junto do nome do dicionário. É o mesmo
 texto que o Jitendex e o JMdict trazem — só separado em vez de grudado.
+
+**Classes e campos saem da tradução; «Ver também» não aparece.** O Jitendex em português marca cada
+sentido com etiquetas próprias — «substantivo», «suru», «transitivo», «linguística» — e uma versão
+antiga do app as lia como se fossem a definição: 経験 virava `1. substantivo` / `suru` / `transitivo` /
+`experiência`, tudo no mesmo corpo de letra. Agora essas etiquetas vão para a **linha de apoio** (sob a
+palavra, junto do nome do dicionário, em letra menor e cinza), e a definição começa direto no
+significado: `1. experiência`. O bloco «Ver também» — um link para outro verbete, que o painel não tem
+como abrir — é removido inteiro, com o rótulo, a palavra ligada e a glosa dela. As duas mudanças
+alteram o texto gravado na importação, então um Jitendex importado antes desta versão continua com o
+texto velho (a lista avisa): **baixe ou importe de novo** para ver as etiquetas separadas.
 
 ### Tradução offline
 

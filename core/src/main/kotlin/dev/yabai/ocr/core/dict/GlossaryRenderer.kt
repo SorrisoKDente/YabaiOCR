@@ -52,13 +52,18 @@ object GlossaryRenderer {
         "extra-label",
         "sense-note-label",
         "attribution-footnote",
+        // Cross-references ("Ver também") are links to another dictionary entry. The panel has no
+        // way to follow them, so the label, the linked headword and its gloss are only noise (R42).
+        "xref",
+        "xref-content",
+        "xref-glossary",
+        "reference-label",
     )
 
     /** Blocks that are worth keeping but should not be numbered as a sense. */
     private val MARKERS = mapOf(
         "infoGlossary" to NOTE_MARK,
         "references" to "→ ",
-        "xref" to "→ ",
         "antonyms" to "≠ ",
         "related" to "≈ ",
         "tags" to "",
@@ -263,6 +268,14 @@ object GlossaryRenderer {
         if (obj.stringOrNull("tag") !in LIST_TAGS && dataContent(obj) != "sense-group") return null
 
         if (dataContent(obj) == "sense-group") {
+            // Newer Jitendex does not wrap the group in a list: the tags and the senses are its
+            // direct children (`div[data-content=sense]`). Returning null there made the whole
+            // group render as plain text, with the part of speech numbered as if it were a meaning
+            // and the `Ver também` link written out (R42).
+            val direct = children(obj).mapNotNull { it as? JsonObject }
+                .filter { dataContent(it) == "sense" }
+            if (direct.isNotEmpty()) return direct
+
             val list = children(obj).mapNotNull { it as? JsonObject }
                 .firstOrNull { it.stringOrNull("tag") in LIST_TAGS }
                 ?: return null

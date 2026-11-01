@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import android.widget.ListView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import dev.yabai.ocr.core.dict.DictionaryCompiler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -53,8 +54,8 @@ class DictionaryScreenTest {
 
     @Test
     fun `the list says where each dictionary came from and warns about the old format`() {
-        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = 1, terms = 120_000)
-        install("kanjidic-pt", title = "KANJIDIC", source = "KANJIDIC (português)", compiledWith = 2, terms = 0)
+        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = DictionaryCompiler.FORMAT_VERSION - 1, terms = 120_000)
+        install("kanjidic-pt", title = "KANJIDIC", source = "KANJIDIC (português)", compiledWith = DictionaryCompiler.FORMAT_VERSION, terms = 0)
 
         val activity = Robolectric.buildActivity(DictionaryActivity::class.java).setup().get()
         val texts = labels(activity.window.decorView as ViewGroup).map { it.text.toString() }
@@ -82,12 +83,12 @@ class DictionaryScreenTest {
 
     @Test
     fun `the kanji card's dictionary can be chosen among those with kanji data`() {
-        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = 3, terms = 120_000)
+        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = DictionaryCompiler.FORMAT_VERSION, terms = 120_000)
         install(
             "kanjidic-en",
             title = "KANJIDIC",
             source = "KANJIDIC (inglês)",
-            compiledWith = 3,
+            compiledWith = DictionaryCompiler.FORMAT_VERSION,
             terms = 0,
             kanji = 13_000,
         )
@@ -95,7 +96,7 @@ class DictionaryScreenTest {
             "kanjidic-pt",
             title = "KANJIDIC",
             source = "KANJIDIC (português)",
-            compiledWith = 3,
+            compiledWith = DictionaryCompiler.FORMAT_VERSION,
             terms = 0,
             kanji = 2_000,
         )
@@ -128,7 +129,7 @@ class DictionaryScreenTest {
 
     @Test
     fun `without a kanji dictionary the card's choice is not offered`() {
-        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = 3, terms = 120_000)
+        install("jmdict-en", title = "JMdict", source = "JMdict (inglês)", compiledWith = DictionaryCompiler.FORMAT_VERSION, terms = 120_000)
 
         val activity = Robolectric.buildActivity(DictionaryActivity::class.java).setup().get()
         val texts = labels(activity.window.decorView as ViewGroup).map { it.text.toString() }

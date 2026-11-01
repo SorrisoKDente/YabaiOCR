@@ -69,6 +69,21 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
     var onKanjiTapped: ((piece: Int, index: Int) -> Unit)? = null
     var onDismiss: (() -> Unit)? = null
 
+    /**
+     * HOME and recents take the page away from under the reader (R41).
+     *
+     * Same hidden hook as [ResultOverlay.onSystemDialog]: the window manager calls
+     * `closeSystemDialogs(reason)` on every window and the view root passes it to this view, which is
+     * why the method is declared here without `override`. The controller decides what the reason
+     * means, because this window is not the only one that has to go.
+     */
+    var onSystemDialog: ((String?) -> Unit)? = null
+
+    @Suppress("unused")
+    fun onCloseSystemDialogs(reason: String?) {
+        onSystemDialog?.invoke(reason)
+    }
+
     private val pageView = KanjiCanvasView(context)
 
     /** The page tap that asked for the card on screen; the card marks the page when it arrives (R29). */

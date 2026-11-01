@@ -186,4 +186,94 @@ class GlossaryRendererTest {
         assertEquals(2, rendered.blocks.count { it.numbered })
         assertTrue(rendered.blocks.all { !it.text.contains("sense 3") })
     }
+
+    /**
+     * The structure the Portuguese Jitendex actually ships (2026-09-29): the sense group has the
+     * tags and the senses as **direct** children, with no `ol` between them. The renderer only knew
+     * the older `sense-groups > li > ol` shape, so the whole group fell back to plain text and the
+     * phone showed `1. substantivo` / `suru` / `transitivo` as if they were meanings (R42).
+     */
+    private val directSenseGroup = """
+        [
+          {"type":"structured-content","content":[
+            {"tag":"div","data":{"content":"sense-group"},"content":[
+              {"tag":"span","title":"substantivo (comum)","data":{"class":"tag","code":"n","content":"part-of-speech-info"},"content":"substantivo"},
+              {"tag":"span","title":"substantivo ou particípio que recebe suru","data":{"class":"tag","code":"vs","content":"part-of-speech-info"},"content":"suru"},
+              {"tag":"span","title":"verbo transitivo","data":{"class":"tag","code":"vt","content":"part-of-speech-info"},"content":"transitivo"},
+              {"tag":"div","data":{"content":"sense"},"content":[
+                {"tag":"ul","data":{"content":"glossary"},"content":{"tag":"li","content":"experiência"}},
+                {"tag":"div","data":{"content":"extra-info"},"content":
+                  {"tag":"div","content":
+                    {"tag":"div","data":{"class":"extra-box","content":"example-sentence"},"content":[
+                      {"tag":"div","data":{"content":"example-sentence-a"},"content":
+                        {"tag":"span","lang":"ja","content":"この仕事では経験がものを言う。"}},
+                      {"tag":"div","data":{"content":"example-sentence-b"},"content":
+                        {"tag":"span","lang":"pt-BR","content":"A experiência conta neste trabalho."}}
+                    ]}
+                  }
+                }
+              ]}
+            ]},
+            {"tag":"div","data":{"content":"attribution"},"content":[
+              {"tag":"a","href":"https://www.edrdg.org","content":"JMdict"}, " | Tatoeba"
+            ]}
+          ]}
+        ]
+    """.trimIndent()
+
+    @Test
+    fun `a sense group without a list still numbers the meaning and not the tags`() {
+        val rendered = render(directSenseGroup)
+
+        assertEquals(
+            """
+            1. experiência
+            例 この仕事では経験がものを言う。
+            → A experiência conta neste trabalho.
+            """.trimIndent(),
+            GlossaryRenderer.renderDefinition(rendered.blocks),
+        )
+        assertEquals("substantivo・suru・transitivo", rendered.tags)
+    }
+
+    /**
+     * Jitendex's `Ver também` is a link to another entry. The panel cannot follow links, so the
+     * label, the linked headword and its gloss are removed whole instead of being read as part of
+     * the definition (R42).
+     */
+    @Test
+    fun `a cross-reference is not written into the definition`() {
+        val text = """
+            [
+              {"type":"structured-content","content":[
+                {"tag":"div","data":{"content":"sense-group"},"content":[
+                  {"tag":"span","title":"linguística","data":{"class":"tag","code":"ling","content":"field-info"},"content":"linguística"},
+                  {"tag":"div","data":{"content":"sense"},"content":[
+                    {"tag":"ul","data":{"content":"glossary"},"content":{"tag":"li","content":"onomatopeia"}},
+                    {"tag":"div","data":{"content":"extra-info"},"content":[
+                      {"tag":"div","content":
+                        {"tag":"div","data":{"class":"extra-box","content":"xref"},"content":[
+                          {"tag":"div","data":{"content":"xref-content"},"content":[
+                            {"tag":"span","lang":"pt-BR","data":{"content":"reference-label"},"content":"Ver também"},
+                            {"tag":"a","href":"?query=...","content":"擬音語"}
+                          ]},
+                          {"tag":"div","data":{"content":"xref-glossary"},"content":"palavra onomatopaica"}
+                        ]}
+                      }
+                    ]}
+                  ]}
+                ]}
+              ]}
+            ]
+        """.trimIndent()
+
+        val rendered = render(text)
+        val definition = GlossaryRenderer.renderDefinition(rendered.blocks)
+
+        assertEquals("1. onomatopeia", definition)
+        assertEquals("linguística", rendered.tags)
+        assertFalse("the link label is not a meaning", definition.contains("Ver também"))
+        assertFalse("the linked word is not a meaning", definition.contains("擬音語"))
+        assertFalse("the linked gloss is not a meaning", definition.contains("palavra onomatopaica"))
+    }
 }

@@ -503,11 +503,11 @@ class DictionaryCompiler(
 
     companion object {
         /**
-         * Bumped when the on-disk layout changes — or when the text baked into it changes, as in R19:
-         * the definitions are rendered once, at import time, so an old copy cannot show the new
-         * rendering until it is imported again. [DictionaryInfo.outdated] is what tells the user.
+         * Bumped when the on-disk layout changes — or when the text baked into it changes, as in R19
+         * and R42: the definitions are rendered once, at import time, so an old copy cannot show the
+         * new rendering until it is imported again. [DictionaryInfo.outdated] is what tells the user.
          */
-        const val FORMAT_VERSION = 2
+        const val FORMAT_VERSION = 3
 
         private const val MAX_DEFINITION_CHARS = 6000
 

@@ -3181,6 +3181,7 @@ por supostamente não dá certo, mas tem certeza que realmente não é possível
 | # | Estado | Item | Dificuldade |
 | --- | --- | --- | --- |
 | R40 | `[x]` | **HOME e recentes fecham o painel** — os três painéis, sem permissão nova | bug |
+| R41 | `[x]` | **HOME e recentes fecham também o leitor de kanji** | bug |
 
 ### R40 — O que o R9 assumiu e o aparelho desmentiu  `[x]` (31/10/2026)
 
@@ -3214,7 +3215,7 @@ tiraria o painel enquanto o usuário ainda está lendo. O filtro é o mesmo para
 
 - `OverlayController`: receptor dinâmico de `ACTION_CLOSE_SYSTEM_DIALOGS`, registrado com
   `ContextCompat.RECEIVER_EXPORTED` **só enquanto um painel existe** (`ensureResultPanel`), desligado
-  em `hideResult` — e o campo zerado, senão o painel seguinte não volta a escutar.
+  quando o último painel sai — e o campo zerado, senão o painel seguinte não volta a escutar.
 - `ResultOverlay`: `onCloseSystemDialogs(reason)` chama um `onSystemDialog` que o controlador liga ao
   mesmo `dismissForSystemDialog(reason)` do broadcast. O `hideResult` desarma as duas rotas antes de
   tirar a janela, para a queda de foco da remoção não pedir uma segunda dispensa.
@@ -3229,14 +3230,14 @@ tiraria o painel enquanto o usuário ainda está lendo. O filtro é o mesmo para
 
 **Testes.**
 
-- `SystemDialogTest` (10): HOME pelo broadcast, recentes, o cartão de busca, o menu de energia como
-  controle negativo, a lista de apps indo junto, uma dispensa só (broadcast + janela + perda de foco),
-  o painel seguinte voltando a escutar o broadcast, HOME pela janela, o menu de energia pela janela e o
-  painel seguinte voltando a ouvir a janela.
+- `SystemDialogTest` (10 na ronda): HOME pelo broadcast, recentes, o cartão de busca, o menu de energia
+  como controle negativo, a lista de apps indo junto, uma dispensa só (broadcast + janela + perda de
+  foco), o painel seguinte voltando a escutar o broadcast, HOME pela janela, o menu de energia pela
+  janela e o painel seguinte voltando a ouvir a janela.
 - `LookupOverlayTest` (6): `o home fecha o painel do readera` (broadcast) e
   `o sistema fecha o painel do readera pela janela`; os dois conferem que o serviço para
   (`isStoppedBySelf`), não só que a janela sumiu.
-- Suíte do app depois da ronda: **329 testes / 45 classes, 0 falhas**. Núcleo: **140 testes, 0 falhas,
+- Suíte do app depois do R40: **329 testes / 45 classes, 0 falhas**. Núcleo: **140 testes, 0 falhas,
   2 pulados**.
 
 **Non-vacuidade (6/6, mutações aplicadas e desfeitas):**
@@ -3259,10 +3260,124 @@ tiraria o painel enquanto o usuário ainda está lendo. O filtro é o mesmo para
   no aparelho;
 - ROMs que trocam o launcher (MIUI/HyperOS, no aparelho do usuário) podem acrescentar caminhos
   próprios; as duas rotas são as do AOSP, e é por isso que as duas ficaram;
-- o overlay de **kanji** (R17) é outra janela e não é um dos três painéis: com ele aberto e nenhum
-  painel, o R40 não registra nada. Fica para uma ronda própria se o aparelho mostrar que incomoda;
 - `onCloseSystemDialogs` é API escondida: é **declarada**, não refletida, e pode deixar de ser chamada
   num Android futuro. O broadcast continua como a outra rota, e o R9 como a terceira.
+
+### R41 — O leitor de kanji também  `[x]` (01/11/2026)
+
+Pedido: «o painel de kanji de fato não está fechando. Aplique para ele também». O R40 deixou essa
+janela de fora de propósito: ela é aberta por «Ler kanji», não é um dos três painéis, e com ela aberta
+o `resultView` é nulo — então nem o receptor era registrado. Faltavam duas coisas: registrar o ouvinte
+quando só ela existe, e dar a ela a mesma rota de janela do `ResultOverlay`.
+
+**Correção.**
+
+- `KanjiOverlay` ganhou o mesmo `onSystemDialog`/`onCloseSystemDialogs(reason)` do `ResultOverlay`
+  (API escondida, **declarada**, sem `override` — a chamada do framework é virtual).
+- `showKanji` liga o callback ao `dismissForSystemDialog` e registra o receptor; `hideKanji` desarma o
+  callback e só desliga o receptor se **nenhum** painel sobrou
+  (`stopListeningForSystemDialogsIfIdle`). Sem essa condição, fechar o leitor deixaria o painel de
+  tradução surdo ao HOME — é o teste `fechar o leitor de kanji nao deixa o painel surdo`.
+- `hideResult` passou a usar a mesma condição de ociosidade, no lugar do desligamento direto: o
+  receptor é um só para as duas janelas.
+- `dismissForSystemDialog` fecha os dois quando os dois estão abertos e só chama o callback do serviço
+  quando havia um painel de resultado — o leitor de kanji não tem callback de serviço, e um leitor
+  fechado não pode ser contado como um resultado dispensado.
+
+**Testes.** `SystemDialogTest`, 7 novos (17 no total): HOME e recentes pelo broadcast, HOME pela
+janela, o menu de energia como controle negativo, os dois abertos fechando juntos com uma dispensa só,
+fechar o leitor sem deixar o painel surdo, e um leitor novo voltando a escutar. Suíte do app depois do
+R41: **336 testes / 45 classes, 0 falhas**.
+
+**Non-vacuidade (4/4, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| `dismissForSystemDialog` ignora o leitor de kanji (só fecha o resultado) | `o home fecha o leitor de kanji`, `o botao de recentes fecha o leitor de kanji`, `o sistema fecha o leitor de kanji pela janela`, `o home fecha o painel e o leitor de kanji juntos`, `um leitor de kanji aberto depois volta a escutar` |
+| `hideKanji` desliga o receptor direto, sem checar a ociosidade | `fechar o leitor de kanji nao deixa o painel surdo` |
+| `KanjiOverlay.onCloseSystemDialogs` não faz nada | `o sistema fecha o leitor de kanji pela janela` |
+| `showKanji` não registra o receptor | `o home fecha o leitor de kanji`, `o botao de recentes fecha o leitor de kanji`, `um leitor de kanji aberto depois volta a escutar` |
+
+**O que não está coberto:**
+
+- o aparelho: o leitor de kanji foi exercitado no Robolectric, não no Poco X5 5G;
+- o gesto de swipe para home e as ROMs que trocam o launcher continuam valendo como no R40 — as duas
+  rotas são as do AOSP;
+- o leitor de kanji não avisa o `FloatingOcrService` ao fechar (não há callback de dispensa): um
+  `showKanjiCard` que chegue atrasado vira no-op, porque `kanjiView` já é nulo;
+- o `onCloseSystemDialogs` escondido continua sendo o mesmo risco de API do R40; o broadcast é a outra
+  rota.
+
+---
+
+## 21. Ronda 42 — Jitendex: etiquetas separadas e «Ver também» fora (01/11/2026)
+
+Pedido: «Em dicionários como o Jitendex PT-BR, algumas palavras têm opção de "ver mais" ou "ver mais" e
+acho que provavelmente um link para uma página, mas no aplicativo isso fica estranho e não faz sentido
+ter, já que não tem esse link, então isso deve ser retirado. Outro detalhe também é que pelo menos no
+Jitendex PT-BR (não sei se aplica também a outros dicionários), tem coisas que se misturam com a
+tradução e fica difícil identificar o que é tradução e o que não é. […] pode aparecer opções como
+substantivo, suru, transitivo, experiência, tudo com o mesmo tamanho, fonte, etc. só estão separados em
+linhas diferentes, então fica difícil saber o que realmente faz parte da tradução ou não nesse caso.»
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R42 | `[x]` | **Etiquetas de classe/campo fora da definição e «Ver também» removido** | bug |
+
+### R42 — O que o renderer lia como definição  `[x]` (01/11/2026)
+
+**Causa.** O Jitendex mudou o formato do `structured-content`: o grupo de sentidos deixou de ser
+`sense-groups > li > ol` e passou a ter as etiquetas e os sentidos como **filhos diretos** de
+`div[data-content=sense-group]`, cada sentido em `div[data-content=sense]`. O `GlossaryRenderer` só
+conhecia a forma antiga: não achava a lista, devolvia `null` e o grupo inteiro caía no caminho de texto
+puro. Aí a classe gramatical era numerada como se fosse o sentido (`1. substantivo`, `suru`,
+`transitivo`) e o bloco de referência cruzada era escrito no meio da definição. O texto é gravado na
+importação, então o defeito ficou congelado nos dicionários já instalados.
+
+**Correção.**
+
+- `GlossaryRenderer.senseItems` aceita as duas formas: primeiro os `div[sense]` filhos diretos;
+  se não houver, a lista `ul`/`ol` antiga. As etiquetas do grupo continuam indo para
+  `Rendered.tags` — que o painel já desenha na linha de apoio, menor e cinza, junto do nome do
+  dicionário.
+- `xref`, `xref-content`, `xref-glossary` e `reference-label` entraram em `SKIPPED_DATA`; `xref` saiu
+  de `MARKERS`. O bloco inteiro — rótulo «Ver também», palavra ligada e glosa — desaparece, porque o
+  painel não tem como seguir link nenhum.
+- `DictionaryCompiler.FORMAT_VERSION` foi de **2 para 3**: o texto é renderizado no momento da
+  importação, então uma cópia antiga não pode mostrar o render novo. `DictionaryInfo.outdated` passa a
+  marcar as cópias antigas e o usuário precisa **baixar ou importar de novo** o dicionário.
+
+**Testes.**
+
+- `GlossaryRendererTest` (11, dois novos): `a sense group without a list still numbers the meaning and
+  not the tags` usa a estrutura real do PT-BR e exige `1. experiência` com
+  `tags = substantivo・suru・transitivo`; `a cross-reference is not written into the definition` exige
+  `1. onomatopeia`, `tags = linguística` e nenhum «Ver também»/「擬音語」/glosa ligada no texto.
+- `DictionaryCompileTest` (24): o teste do ggjz passou a conferir o **dicionário real** — 経験 com
+  `substantivo` e `transitivo` nas etiquetas e `1. experiência` na definição, e 擬声語 com
+  `linguística` nas etiquetas, `1. onomatopeia` na definição e sem «Ver também».
+- `DictionaryScreenTest` deixou de fixar `compiledWith` em números soltos e usa
+  `DictionaryCompiler.FORMAT_VERSION` (e `- 1` para a cópia antiga), senão cada aumento de formato
+  quebrava o teste de aviso.
+- Suítes depois do R42: **app 336 testes / 45 classes, 0 falhas**; **núcleo 142 testes, 0 falhas,
+  2 pulados**.
+
+**Non-vacuidade (2/2, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| `senseItems` volta a exigir a lista `ul`/`ol` (sem os `div[sense]` diretos) | `a sense group without a list still numbers the meaning and not the tags`, `a cross-reference is not written into the definition` |
+| as quatro entradas de `xref` saem de `SKIPPED_DATA` | `a cross-reference is not written into the definition` |
+
+**O que não está coberto:**
+
+- o aparelho: o render foi conferido no núcleo com o `.zip` real do ggjz, não no Poco X5 5G;
+- um dicionário já instalado: o R42 não reescreve o texto antigo — o aviso de formato é o máximo que o
+  app pode fazer sem o `.zip` de origem;
+- links que não sejam `xref` (por exemplo `href` solto dentro de um exemplo): continuam saindo como
+  texto, porque o painel só remove o que sabe ser furniture do Jitendex;
+- etiquetas que o Yomitan não marca como `tag`/`part-of-speech-info`/`field-info` continuam no corpo
+  da definição — o renderer não adivinha quais spans são classe gramatical.
 
 ---
 
