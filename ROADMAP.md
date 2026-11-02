@@ -3576,3 +3576,27 @@ gradle :app:assembleRelease
 
 Todo bug corrigido ganha um teste de regressão aqui antes de ser marcado `[x]`; para os itens de UI a
 rede de segurança é o `app:testDebugUnitTest`, que mede as telas de verdade sem precisar de aparelho.
+
+---
+
+## 5. Versão Desktop (`:desktop`)
+
+Ordem de execução para a versão Desktop: **um item por vez**.
+
+Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| D1 | `[x]` | **Estruturação da tela de Ajustes/Configurações Desktop** | concluído |
+| D2 | `[x]` | **Adaptar Painel de Resultados de OCR e Dicionários Completos** | concluído |
+| D3 | `[x]` | **Navegação da Janela Principal**: Dicionário integrado na mesma janela com botão «Voltar ao Menu Anterior» | fácil |
+| D4 | `[x]` | **Fix de Seleção de Área (Overlay de Captura)**: Cobrir 100% da tela inteira sem mini print deslocado | fácil |
+| D5 | `[x]` | **Atalho Global Interativo**: Botão "Capturar Atalho" (Key Grabber) e botão "Restaurar Padrão" | médio |
+| D6 | `[x]` | **Perguntar a uma IA Customizada**: Seleção de provedor/navegador e URL customizada com `{text}` (ChatGPT, Gemini, DeepSeek, Claude) | fácil |
+| D7 | `[x]` | **Seleção da Pasta de Dicionários**: Permitir ao usuário escolher onde manter os dicionários | fácil |
+| D8 | `[x]` | **Janela Compacta de Dicionário Rápido**: Dicionário compacto com persistência de tamanho (W, H) e posição (X, Y) | médio |
+| D9 | `[x]` | **Fix do Movimento da Janela do Dicionário ao Digitar**: Corrigir reposicionamento involuntário ao digitar | fácil |
+| D10 | `[x]` | **Design do Menu da Bandeja (System Tray)**: Estilização do menu da bandeja no padrão de design do app | médio |
+| D11 | `[x]` | **Ícones Unificados Desktop**: Ícones da bandeja, barra de tarefas e janelas alinhados com o mobile | fácil |
+| D12 | `[ ]` | **OCR em Tempo Real por Hover (Estilo Yomitan)**: Seleção por varredura/mouse na tela inteira | avançado |
+

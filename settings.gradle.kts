@@ -18,3 +18,4 @@ rootProject.name = "yabai_ocr"
 
 include(":core")
 include(":app")
+include(":desktop")
