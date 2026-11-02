@@ -85,6 +85,23 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
     }
 
     private val pageView = KanjiCanvasView(context)
+    private val selectionToolbar by lazy { SelectionToolbar(this, context) }
+
+    private fun selectableLabel(text: CharSequence, size: Float, color: Int, bold: Boolean = false): android.widget.EditText =
+        android.widget.EditText(context).apply {
+            setText(text)
+            setTextColor(color)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            background = null
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isCursorVisible = false
+            isLongClickable = false
+            setTextIsSelectable(true)
+            showSoftInputOnFocus = false
+            installSelection(this, selectionToolbar)
+        }
 
     /** The page tap that asked for the card on screen; the card marks the page when it arrives (R29). */
     private var pressed: Pair<Int, Int>? = null
@@ -147,6 +164,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
 
     /** A new capture: the previous card and the previous highlight belong to a page that is gone. */
     fun show(pieces: List<KanjiPiece>, page: Bitmap?) {
+        selectionToolbar.hide()
         pressed = null
         pageView.setPieces(pieces)
         pageView.setPage(page)
@@ -168,13 +186,13 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
             gravity = Gravity.CENTER_VERTICAL
         }
         header.addView(
-            textLabel(data.character, 30f, context.getColor(R.color.text_primary), bold = true),
+            selectableLabel(data.character, 30f, context.getColor(R.color.text_primary), bold = true),
         )
         // A reading beside the single character is that character's reading. The reading of a word is
         // written beside the word, on its own line: 同 next to どうじに read as if 同 were どうじに.
         if (data.word.isNullOrBlank() && !data.reading.isNullOrBlank()) {
             header.addView(
-                textLabel(data.reading, 20f, context.getColor(R.color.accent), bold = true).apply {
+                selectableLabel(data.reading, 20f, context.getColor(R.color.accent), bold = true).apply {
                     val gap = dp(10)
                     setPadding(gap, 0, 0, 0)
                 },
@@ -193,12 +211,12 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
             }
-            line.addView(textLabel(data.word, 17f, context.getColor(R.color.accent), bold = true))
+            line.addView(selectableLabel(data.word, 17f, context.getColor(R.color.accent), bold = true))
             if (!data.reading.isNullOrBlank()) {
                 // Weight of 1 with no width: the reading takes what is left and is ellipsised if the
                 // word is long, instead of being clipped off the edge of the card.
                 line.addView(
-                    textLabel(data.reading, 13f, context.getColor(R.color.text_secondary)).apply {
+                    selectableLabel(data.reading, 13f, context.getColor(R.color.text_secondary)).apply {
                         val gap = dp(8)
                         setPadding(gap, 0, 0, 0)
                         maxLines = 1
@@ -219,7 +237,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         // «技 is skill; art; craft» for 剣技, which is the meaning of a third of the word.
         if (!data.word.isNullOrBlank() && data.wordMeaning.isNotBlank()) {
             card.addView(
-                textLabel(data.wordMeaning, 12.5f, context.getColor(R.color.text_primary)).apply {
+                selectableLabel(data.wordMeaning, 12.5f, context.getColor(R.color.text_primary)).apply {
                     maxLines = 6
                     ellipsize = android.text.TextUtils.TruncateAt.END
                 },
@@ -231,7 +249,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         }
         if (data.parts.isNotEmpty()) {
             card.addView(
-                textLabel(
+                selectableLabel(
                     context.getString(
                         R.string.kanji_parts,
                         data.parts.joinToString(" ・ ") { "${it.kanji} ${it.reading}" },
@@ -257,7 +275,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         }
         if (!data.source.isNullOrBlank()) {
             card.addView(
-                textLabel(
+                selectableLabel(
                     context.getString(R.string.dictionary_source, data.source),
                     11.5f,
                     context.getColor(R.color.text_secondary),
@@ -270,19 +288,19 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         }
         if (data.meaning.isNotBlank()) {
             card.addView(
-                textLabel(data.meaning, 12.5f, context.getColor(R.color.text_primary)).apply {
+                selectableLabel(data.meaning, 12.5f, context.getColor(R.color.text_primary)).apply {
                     maxLines = 8
                     ellipsize = android.text.TextUtils.TruncateAt.END
                 },
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { topMargin = dp(8) },
+                ).apply { topMargin = dp(6) },
             )
         }
         if (!data.note.isNullOrBlank()) {
             card.addView(
-                textLabel(data.note, 12f, context.getColor(R.color.warn)),
+                selectableLabel(data.note, 12f, context.getColor(R.color.warn)),
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -299,7 +317,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         if (data.onYomi.isNotBlank()) parts += context.getString(R.string.kanji_on, data.onYomi)
         if (data.kunYomi.isNotBlank()) parts += context.getString(R.string.kanji_kun, data.kunYomi)
         if (parts.isEmpty()) return null
-        return textLabel(parts.joinToString("　"), 13f, context.getColor(R.color.text_primary))
+        return selectableLabel(parts.joinToString("　"), 13f, context.getColor(R.color.text_primary))
     }
 
     /** BACK leaves the overlay; a tap on the page does not, because missing a kanji is common. */

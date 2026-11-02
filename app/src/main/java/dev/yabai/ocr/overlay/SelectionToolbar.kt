@@ -13,12 +13,14 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import dev.yabai.ocr.R
 import dev.yabai.ocr.util.dp
+import kotlin.math.abs
 
 /**
  * The text menu of the panel: Copiar, Recortar, Colar and Selecionar tudo (R33b).
@@ -209,7 +211,7 @@ internal class SelectionToolbar(
     }
 
     /** Drops and rebuilds the two grips, so they follow a new selection (R36). */
-    private fun showHandles(view: TextView) {
+    internal fun showHandles(view: TextView) {
         removeHandles()
         if (selectionBounds(view) == null) return
         val size = context.dp(HANDLE_SIZE)
@@ -228,7 +230,7 @@ internal class SelectionToolbar(
         end.bringToFront()
     }
 
-    private fun removeHandles() {
+    internal fun removeHandles() {
         startHandle?.let { panel.removeView(it) }
         endHandle?.let { panel.removeView(it) }
         startHandle = null
@@ -260,20 +262,31 @@ internal class SelectionToolbar(
                     Gravity.CENTER,
                 ),
             )
+            val panelLoc = IntArray(2)
+            var anchorOffset = 0
             setOnTouchListener { _, event ->
                 when (event.actionMasked) {
-                    // Touching a grip does not move the selection by itself: the edge follows the
-                    // finger only once it travels. Doing it on DOWN would collapse the selection
-                    // whenever the grips were drawn for a layout that has since moved.
                     MotionEvent.ACTION_DOWN -> {
-                        // The bar steps aside by becoming transparent, not by going GONE: a GONE
-                        // view here would also hide the grip being dragged, and hiding the focused
-                        // bar can drop the window's focus and make the IME rewrite the selection.
+                        view.requestFocus()
+                        panel.getLocationOnScreen(panelLoc)
+                        val bounds = selectionBounds(view)
+                        anchorOffset = if (isStart) {
+                            bounds?.last?.plus(1) ?: view.selectionEnd
+                        } else {
+                            bounds?.first ?: view.selectionStart
+                        }
                         this@SelectionToolbar.alpha = 0f
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        applyEdge(view, offsetAt(view, x + event.x, y + event.y), isStart)
+                        view.requestFocus()
+                        val panelX = event.rawX - panelLoc[0]
+                        val panelY = event.rawY - panelLoc[1]
+                        val currentOffset = offsetAt(view, panelX, panelY)
+                        val min = minOf(anchorOffset, currentOffset)
+                        val max = maxOf(anchorOffset, currentOffset)
+                        select(view, min, max)
+                        rememberSelection(view)
                         placeHandles(view)
                         true
                     }
@@ -288,19 +301,7 @@ internal class SelectionToolbar(
             }
         }
 
-    /** Moves one end of the selection to [offset], keeping the other end where it is. */
-    private fun applyEdge(view: TextView, offset: Int, isStart: Boolean) {
-        val bounds = selectionBounds(view) ?: return
-        if (isStart) {
-            val end = bounds.last + 1
-            select(view, offset.coerceIn(0, end), end)
-        } else {
-            select(view, bounds.first, offset.coerceIn(bounds.first, view.text.length))
-        }
-        // The remembered range is what the actions use if the IME rewrites the selection; it has to
-        // be the range the user just built with the grip, not the word the long press found.
-        rememberSelection(view)
-    }
+
 
     private fun placeHandles(view: TextView) {
         val start = startHandle ?: return
@@ -363,12 +364,16 @@ internal class SelectionToolbar(
         return if (start == end) null else start until end
     }
 
-    private fun select(view: TextView, start: Int, end: Int) {
-        val text = view.text
-        if (text is Spannable) {
-            Selection.setSelection(text, start, end)
-        } else if (view is EditText) {
-            view.setSelection(start, end)
+    internal fun select(view: TextView, start: Int, end: Int) {
+        val safeStart = start.coerceIn(0, view.text.length)
+        val safeEnd = end.coerceIn(safeStart, view.text.length)
+        if (view is EditText) {
+            view.setSelection(safeStart, safeEnd)
+        } else {
+            val text = view.text
+            if (text is Spannable) {
+                Selection.setSelection(text, safeStart, safeEnd)
+            }
         }
     }
 
@@ -455,7 +460,7 @@ internal class SelectionToolbar(
     }
 
     /** Centres the bar over the selected line, above it when the line is low enough. */
-    private fun position(view: TextView) {
+    internal fun position(view: TextView) {
         val anchor = anchorOf(view)
         measure(
             MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
@@ -553,20 +558,84 @@ internal class SelectionToolbar(
  * bar, instead of asking Android for a toolbar the overlay window cannot show (R33b).
  */
 internal fun installSelection(view: TextView, toolbar: SelectionToolbar) {
-    if (view !is EditText) view.setTextIsSelectable(true)
+    if (view !is EditText) {
+        view.setTextIsSelectable(true)
+    } else {
+        view.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (view.selectionStart == view.selectionEnd) {
+                    toolbar.removeHandles()
+                }
+            }
+        })
+    }
 
-    // The long click listener gets the view, not the touch, so the finger is remembered here. The
-    // listener returns false: the view must keep handling the gesture — the keyboard, the cursor.
-    var touchX = 0f
-    var touchY = 0f
+    var downX = 0f
+    var downY = 0f
+    var startOffset = -1
+    var isDragging = false
+    val touchSlop = ViewConfiguration.get(view.context).scaledTouchSlop
+
     view.setOnTouchListener { _, event ->
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            touchX = event.x
-            touchY = event.y
+        val layout = view.layout
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                isDragging = false
+                startOffset = -1
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (layout != null && (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop)) {
+                    if (!isDragging) {
+                        isDragging = true
+                        val line = layout.getLineForVertical(
+                            (downY - view.totalPaddingTop + view.scrollY).toInt()
+                                .coerceIn(0, (layout.height - 1).coerceAtLeast(0))
+                        )
+                        startOffset = layout.getOffsetForHorizontal(
+                            line,
+                            (downX - view.totalPaddingLeft + view.scrollX)
+                                .coerceIn(0f, layout.getLineWidth(line))
+                        ).coerceIn(0, view.text.length)
+                    }
+                    if (isDragging) {
+                        val line = layout.getLineForVertical(
+                            (event.y - view.totalPaddingTop + view.scrollY).toInt()
+                                .coerceIn(0, (layout.height - 1).coerceAtLeast(0))
+                        )
+                        val currentOffset = layout.getOffsetForHorizontal(
+                            line,
+                            (event.x - view.totalPaddingLeft + view.scrollX)
+                                .coerceIn(0f, layout.getLineWidth(line))
+                        ).coerceIn(0, view.text.length)
+                        val min = minOf(startOffset, currentOffset)
+                        val max = maxOf(startOffset, currentOffset)
+                        if (min != max) {
+                            toolbar.select(view, min, max)
+                            if (!toolbar.shown) {
+                                toolbar.showFor(view, event.x, event.y)
+                            } else {
+                                toolbar.position(view)
+                                toolbar.showHandles(view)
+                            }
+                        }
+                    }
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (isDragging && view.selectionEnd > view.selectionStart) {
+                    if (!toolbar.shown) {
+                        toolbar.showFor(view, event.x, event.y)
+                    }
+                }
+            }
         }
         false
     }
     view.setOnLongClickListener {
-        toolbar.showFor(view, touchX, touchY)
+        toolbar.showFor(view, downX, downY)
     }
 }

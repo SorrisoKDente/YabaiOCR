@@ -190,6 +190,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     /** The panel's own Copiar/Recortar/Colar menu — see [SelectionToolbar] (R33b). */
     private val selectionToolbar by lazy { SelectionToolbar(this, context) }
 
+    private fun selectableLabel(
+        content: CharSequence,
+        sizeSp: Float,
+        color: Int,
+        bold: Boolean = false,
+    ): TextView = textLabel(content, sizeSp, color, bold).apply {
+        installSelection(this, selectionToolbar)
+    }
+
     private val btCopyOriginal = context.actionButton(context.getString(R.string.result_copy_original)) {
         callbacks?.onCopyOriginal(textToSend())
     }
@@ -908,7 +917,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                     orientation = LinearLayout.VERTICAL
                     if (showLines && segmentLines.isNotEmpty()) {
                         addView(
-                            textLabel(segmentLines.joinToString("\n"), 12f, context.getColor(R.color.text_secondary))
+                            selectableLabel(segmentLines.joinToString("\n"), 12f, context.getColor(R.color.text_secondary))
                                 .apply { setPadding(dp(2), dp(6), dp(2), 0) },
                         )
                     }
@@ -1344,7 +1353,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 append("  【").append(match.entry.reading).append("】")
             }
         }
-        column.addView(textLabel(head, 16f, context.getColor(R.color.text_primary), bold = true))
+        column.addView(selectableLabel(head, 16f, context.getColor(R.color.text_primary), bold = true))
 
         val details = buildList {
             if (match.reasons.isNotEmpty()) add(match.reasons.joinToString(" + ") { reasonLabel(it) })
@@ -1354,7 +1363,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             add(match.dictionaryTitle)
         }.joinToString(" · ")
         column.addView(
-            textLabel(details, 11f, context.getColor(R.color.text_secondary))
+            selectableLabel(details, 11f, context.getColor(R.color.text_secondary))
                 .apply { setPadding(0, dp(1), 0, dp(3)) },
         )
 
@@ -1407,7 +1416,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     private fun kanjiView(kanji: KanjiEntry): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(0, dp(6), 0, dp(2))
-        addView(textLabel(kanji.character, 26f, context.getColor(R.color.accent), bold = true))
+        addView(selectableLabel(kanji.character, 26f, context.getColor(R.color.accent), bold = true))
         addView(
             textLabel(kanji.body, 14f, context.getColor(R.color.text_primary)).apply {
                 installSelection(this, selectionToolbar)
@@ -1430,7 +1439,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             gravity = Gravity.CENTER_VERTICAL
             if (minimised) {
                 addView(
-                    textLabel(stripText(), 13f, context.getColor(R.color.text_primary)).apply {
+                    selectableLabel(stripText(), 13f, context.getColor(R.color.text_primary)).apply {
                         maxLines = 1
                         ellipsize = TextUtils.TruncateAt.END
                     },
