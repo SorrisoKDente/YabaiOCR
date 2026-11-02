@@ -261,4 +261,8 @@
         <item quantity="one">%1$d dicionário atualizado.</item>
         <item quantity="other">%1$d dicionários atualizados.</item>
     </plurals>
+
+    <string name="section_shortcuts">Atalhos rápidos</string>
+    <string name="shortcut_qs_title">Botão nas Notificações (Quick Settings)</string>
+    <string name="shortcut_qs_desc">Adicione o botão do Yabai OCR na barra de acesso rápido do seu celular para iniciar o OCR de qualquer lugar.</string>
 </resources>
