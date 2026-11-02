@@ -76,6 +76,7 @@ class DictionaryActivity : AppCompatActivity() {
     private lateinit var installedContainer: LinearLayout
     private lateinit var availableContainer: LinearLayout
     private lateinit var updatesContainer: LinearLayout
+    private lateinit var creditsContainer: LinearLayout
 
     /** The choice of which dictionary answers the kanji card (R30); empty without kanji data. */
     private lateinit var kanjiContainer: LinearLayout
@@ -126,12 +127,31 @@ class DictionaryActivity : AppCompatActivity() {
             setPadding(dp(20), dp(24), dp(20), dp(36))
         }
 
+        // Toolbar with back button and title
         column.addView(
-            textLabel(getString(R.string.dictionary_title), 26f, getColor(R.color.text_primary), bold = true),
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, dp(8))
+                addView(
+                    android.widget.ImageButton(this@DictionaryActivity).apply {
+                        setImageResource(R.drawable.ic_arrow_back)
+                        setBackgroundResource(android.R.color.transparent)
+                        setColorFilter(getColor(R.color.text_primary))
+                        setOnClickListener { finish() }
+                    },
+                    LinearLayout.LayoutParams(dp(40), dp(40)),
+                )
+                addView(
+                    textLabel(getString(R.string.dictionary_title), 22f, getColor(R.color.text_primary), bold = true).apply {
+                        setPadding(dp(12), 0, 0, 0)
+                    },
+                )
+            },
         )
         column.addView(
             textLabel(getString(R.string.dictionary_subtitle), 13f, getColor(R.color.text_secondary)).apply {
-                setPadding(0, dp(6), 0, dp(4))
+                setPadding(0, dp(2), 0, dp(4))
                 setLineSpacing(dp(3).toFloat(), 1f)
             },
         )
@@ -215,6 +235,24 @@ class DictionaryActivity : AppCompatActivity() {
         availableContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         column.addView(availableContainer)
 
+        column.addView(sectionHeader("Créditos e Licenças"))
+        creditsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            visibility = View.GONE
+        }
+        val creditsToggle = textLabel(getString(R.string.dictionary_legal_credits_toggle), 12f, getColor(R.color.accent), bold = true).apply {
+            setPadding(0, dp(4), 0, dp(8))
+            setOnClickListener {
+                val open = creditsContainer.visibility == View.VISIBLE
+                creditsContainer.visibility = if (open) View.GONE else View.VISIBLE
+                text = getString(if (open) R.string.dictionary_legal_credits_toggle else R.string.dictionary_legal_credits_toggle_open)
+            }
+        }
+        column.addView(creditsToggle)
+        column.addView(creditsContainer)
+
         return ScrollView(this).apply {
             setBackgroundColor(getColor(R.color.panel_bg))
             addView(column)
@@ -236,6 +274,29 @@ class DictionaryActivity : AppCompatActivity() {
         renderInstalled(items)
         renderKanjiDefault(items)
         renderAvailable()
+        renderCredits(items)
+    }
+
+    private fun renderCredits(items: List<InstalledDictionary>) {
+        creditsContainer.removeAllViews()
+        if (items.isEmpty()) {
+            creditsContainer.addView(
+                textLabel(getString(R.string.dictionary_installed_empty), 12f, getColor(R.color.text_secondary)),
+            )
+            return
+        }
+        for (item in items) {
+            val title = item.info.title.ifBlank { item.displayName }
+            val source = item.sourceName
+            val attribution = item.info.attribution ?: "Licença Yomitan / Domínio público / EDRDG"
+            val text = "• $title\n  Origem: $source\n  Atribuição: $attribution"
+            creditsContainer.addView(
+                textLabel(text, 11f, getColor(R.color.text_secondary)).apply {
+                    setPadding(0, dp(4), 0, dp(8))
+                    setLineSpacing(dp(2).toFloat(), 1f)
+                },
+            )
+        }
     }
 
     /**
@@ -579,14 +640,8 @@ class DictionaryActivity : AppCompatActivity() {
         if (item.info.revision.isNotBlank()) {
             parts.add(getString(R.string.dictionary_release, item.info.revision))
         }
-        val attribution = item.info.attribution?.takeIf { it.isNotBlank() }
-        val lines = ArrayList<String>(3)
+        val lines = ArrayList<String>(2)
         lines.add(parts.joinToString(" · "))
-        // Which one this is, when the title alone cannot say it (R22).
-        if (item.displayName != item.info.title) {
-            lines.add(getString(R.string.dictionary_source, item.sourceName))
-        }
-        if (attribution != null) lines.add(getString(R.string.dictionary_attribution, attribution))
         if (item.info.outdated) lines.add(getString(R.string.dictionary_outdated))
         return lines.joinToString("\n")
     }

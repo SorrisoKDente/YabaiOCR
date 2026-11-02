@@ -54,6 +54,12 @@
             android:label="@string/dictionary_title"
             android:parentActivityName=".MainActivity" />
 
+        <activity
+            android:name=".HelpActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
         <!--
           The word another app hands over (R35e). ReadEra's «Aplicativo de dicionário» list is made of
           the apps that accept text, so both doors of the platform are answered: «Processar texto» and
