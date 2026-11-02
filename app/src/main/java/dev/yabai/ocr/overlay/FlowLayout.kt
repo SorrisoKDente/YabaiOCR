@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
+import dev.yabai.ocr.util.dp
 
 /**
  * A row of views that wraps onto the next line instead of squeezing its children.
@@ -25,6 +26,7 @@ class FlowLayout @JvmOverloads constructor(
     var alignEnd: Boolean = true
 
     private val lines = ArrayList<MutableList<View>>()
+    private val verticalGap = context.dp(4)
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val widthSize = MeasureSpec.getSize(widthMeasureSpec)
@@ -42,23 +44,25 @@ class FlowLayout @JvmOverloads constructor(
             if (child.visibility == GONE) continue
             measureChildWithMargins(child, widthMeasureSpec, 0, heightMeasureSpec, 0)
 
-            val childWidth = outerWidth(child)
+            val isFirst = line.isEmpty()
+            val childWidth = outerWidth(child, isFirst)
             val childHeight = outerHeight(child)
 
             // Wrap when this child would not fit after the ones already on the line. A child wider
             // than the container goes on a line of its own and is left to be measured as it wants.
-            if (line.isNotEmpty() && lineWidth + childWidth > available) {
+            if (!isFirst && lineWidth + childWidth > available) {
                 lines.add(line)
                 widest = maxOf(widest, lineWidth)
-                totalHeight += lineHeight
+                totalHeight += lineHeight + verticalGap
                 line = ArrayList()
-                lineWidth = 0
-                lineHeight = 0
+                line.add(child)
+                lineWidth = outerWidth(child, true)
+                lineHeight = outerHeight(child)
+            } else {
+                line.add(child)
+                lineWidth += childWidth
+                lineHeight = maxOf(lineHeight, childHeight)
             }
-
-            line.add(child)
-            lineWidth += childWidth
-            lineHeight = maxOf(lineHeight, childHeight)
         }
 
         if (line.isNotEmpty()) {
@@ -78,32 +82,34 @@ class FlowLayout @JvmOverloads constructor(
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         var y = paddingTop
-        for (line in lines) {
+        for ((index, line) in lines.withIndex()) {
             var lineHeight = 0
             var lineWidth = 0
-            for (child in line) {
+            for ((childIndex, child) in line.withIndex()) {
                 lineHeight = maxOf(lineHeight, outerHeight(child))
-                lineWidth += outerWidth(child)
+                lineWidth += outerWidth(child, childIndex == 0)
             }
 
             var x = if (alignEnd) (r - l - paddingRight - lineWidth) else paddingLeft
-            for (child in line) {
+            for ((childIndex, child) in line.withIndex()) {
                 val params = child.layoutParams as MarginLayoutParams
+                val effectiveLeftMargin = if (childIndex == 0) 0 else params.leftMargin
                 child.layout(
-                    x + params.leftMargin,
+                    x + effectiveLeftMargin,
                     y + params.topMargin,
-                    x + params.leftMargin + child.measuredWidth,
+                    x + effectiveLeftMargin + child.measuredWidth,
                     y + params.topMargin + child.measuredHeight,
                 )
-                x += outerWidth(child)
+                x += outerWidth(child, childIndex == 0)
             }
-            y += lineHeight
+            y += lineHeight + if (index < lines.size - 1) verticalGap else 0
         }
     }
 
-    private fun outerWidth(child: View): Int {
+    private fun outerWidth(child: View, isFirstInLine: Boolean): Int {
         val params = child.layoutParams as MarginLayoutParams
-        return child.measuredWidth + params.leftMargin + params.rightMargin
+        val left = if (isFirstInLine) 0 else params.leftMargin
+        return child.measuredWidth + left + params.rightMargin
     }
 
     private fun outerHeight(child: View): Int {

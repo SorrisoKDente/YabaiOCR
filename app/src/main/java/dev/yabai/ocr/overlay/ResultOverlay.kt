@@ -1285,8 +1285,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     /** All of them first, then each dictionary by name, the one in use marked. */
     private fun dictionaryChooser(state: WordsState.Done): View {
         val row = FlowLayout(context).apply {
-            alignEnd = true
-            setPadding(0, dp(2), 0, dp(6))
+            alignEnd = false
+            setPadding(0, dp(4), 0, dp(8))
             // The panel is built in code and this row comes and goes, so the tag is the only handle
             // a layout test has on it.
             tag = DICTIONARY_CHOOSER_TAG
@@ -1298,8 +1298,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             wrapWithMargin(start = 0),
         )
         for (title in state.titles) {
+            val displayName = cleanTitle(title)
             row.addView(
-                dictionaryChip(title, state.selected == title) {
+                dictionaryChip(displayName, state.selected == title) {
                     pickDictionary(state, title)
                 },
                 wrapWithMargin(),
@@ -1307,6 +1308,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         }
         return row
     }
+
+    private fun cleanTitle(title: String): String =
+        title.replace(Regex("\\s*\\[[^]]*\\]"), "").trim()
 
     /**
      * The answer to «which dictionary» has just been given, so the chooser folds away — and the
@@ -1324,7 +1328,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             label,
             background = if (chosen) context.getColor(R.color.accent_dark) else ACTION_BUTTON_BACKGROUND,
             onClick = onClick,
-        )
+        ).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            maxWidth = dp(240)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
 
     /**
      * A suggestion was tapped: put it in the box and let the watcher ask for the answer.
@@ -1700,7 +1709,11 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         MarginLayoutParams(
             LayoutParams.WRAP_CONTENT,
             LayoutParams.WRAP_CONTENT,
-        ).apply { marginStart = start }
+        ).apply {
+            marginStart = start
+            topMargin = dp(3)
+            bottomMargin = dp(3)
+        }
 
     /**
      * How tall the scrolling middle section may get: whatever the screen has left once the parts of
