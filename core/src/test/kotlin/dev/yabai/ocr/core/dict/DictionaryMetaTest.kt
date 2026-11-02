@@ -45,4 +45,23 @@ class DictionaryMetaTest {
     fun `a dictionary with no version stamp counts as old`() {
         assertTrue(read("""{"title":"JMdict"}""").outdated)
     }
+
+    @Test
+    fun `optional fields written as null do not make the metadata unreadable`() {
+        // writeMeta writes every missing optional field as a JSON null. Reading one of those with
+        // asString throws, and the repository takes a failed meta as «no dictionary», which made a
+        // freshly installed archive disappear from the list after a restart (found while testing
+        // in-place updates, R43).
+        val info = read(
+            """
+            {"title":"JMdict","revision":"2026-01-01","author":null,"url":null,
+             "description":null,"attribution":null,"termCount":3,"kanjiCount":0}
+            """.trimIndent(),
+        )
+
+        assertEquals("JMdict", info.title)
+        assertEquals("2026-01-01", info.revision)
+        assertEquals(null, info.author)
+        assertEquals(3, info.termCount)
+    }
 }

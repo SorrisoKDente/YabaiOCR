@@ -449,8 +449,35 @@ poderia morrer de uma atualização para outra.
 
 A definição é convertida **na importação**. Um dicionário importado antes de uma mudança no formato
 continua com o texto antigo e a lista de dicionários avisa («Compilado com uma versão antiga do
-app…»): importe de novo para ver o texto novo. O app não guarda o `.zip` de origem, então não há como
-reconverter sozinho.
+app…»). Se ele veio da **lista do app**, use **Atualizar** na seção «Atualizações»; se veio de um
+**arquivo**, importe de novo — o app não guarda o `.zip` de origem de uma importação manual, então não
+há como reconvertê-la sozinho.
+
+**Atualizar sem reinstalar.** A seção **«Atualizações»**, no topo de *Gerenciar dicionários*, tem
+**Verificar atualizações**: o app pergunta a cada editor qual é a versão publicada e marca as linhas
+que têm algo novo. Não é um download — são um descritor de ~1 KB (Jitendex PT-BR e Wikcionários) ou um
+`HEAD` (JMdict, Jitendex, JMnedict, KANJIDIC, surasura) por dicionário. A linha marcada ganha
+**Atualizar**, e **Atualizar tudo** faz o mesmo para todas, uma de cada vez, mostrando o **percentual**
+de cada download e a conversão. Como não existe patch — as definições são gravadas no arquivo na
+importação —, atualizar baixa o `.zip` novo, converte e troca a cópia **no mesmo lugar**: o id, a
+posição na lista e o estado ativo/desativado continuam, e a versão nova já responde na consulta
+seguinte. Não é preciso desinstalar nem reimportar, e ao terminar a tela continua utilizável (o
+próximo **Verificar** pode ser disparado na hora).
+
+As revisões são comparadas **como números, não como texto**: o descritor do ggjz/Wikcionário pode
+ficar para trás do arquivo que ele aponta (o `kty-ja-pt` anuncia `2025.08.12` enquanto o `.zip` já é
+`2026.03.05`), e uma revisão mais antiga ou igual à instalada conta como **em dia** — o app nunca
+oferece voltar de versão. Quando o editor muda o rótulo sem números (`2026-03-05` → `2026.03.05`), a
+comparação entende que é a mesma versão.
+
+Em **«Verificar atualizações automaticamente»** escolha **Desligado** (padrão), **Todos os dias**,
+**Toda semana** ou **Todo mês**. A verificação periódica usa o WorkManager: sobrevive a reinícios, só
+roda com internet e **apenas notifica** — nunca baixa 39 MB por conta própria. No Android 13+ ela pede
+a permissão de notificação; sem ela a verificação continua e o resultado aparece só na tela. O sistema
+pode atrasar a execução para economizar bateria, então «toda semana» é uma referência, não um relógio.
+Dicionários vindos de **Importar arquivo** não têm editor para consultar: a linha deles diz isso e não
+oferece botão. Uma cópia baixada antes desta versão não tem assinatura guardada; a primeira verificação
+responde «não foi possível comparar» e oferece **Atualizar** uma vez, que passa a registrar a versão.
 
 O aviso aparece em **dois lugares**, porque um só não bastava: num **aviso no topo da lista de
 dicionários**, com o nome de cada dicionário antigo, e numa **nota no painel** logo que uma consulta

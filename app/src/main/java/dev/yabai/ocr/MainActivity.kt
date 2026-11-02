@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.dict.DictionaryRepository
+import dev.yabai.ocr.dict.DictionaryUpdateScheduler
 import dev.yabai.ocr.overlay.PickerReadingMode
 import dev.yabai.ocr.service.FloatingOcrService
 import java.util.Date
@@ -108,6 +109,10 @@ class MainActivity : AppCompatActivity() {
 
         settings = AppSettings(this)
         usage = UsageTracker(this)
+
+        // WorkManager persists the periodic check, but a force-stop clears it; opening the app is
+        // the moment to put it back without resetting the period (R43).
+        DictionaryUpdateScheduler.ensure(this, settings.dictionaryUpdateInterval)
 
         statusText = findViewById(R.id.statusText)
         overlayStatus = findViewById(R.id.overlayStatus)

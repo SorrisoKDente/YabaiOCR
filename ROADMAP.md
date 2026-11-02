@@ -3381,6 +3381,154 @@ importação, então o defeito ficou congelado nos dicionários já instalados.
 
 ---
 
+## 22. Ronda 43 — dicionários que se atualizam sem reinstalar (02/11/2026)
+
+**O pedido.** Dicionário muda com o tempo; o usuário quer (a) verificar se há versão nova, (b)
+atualizar, (c) escolher de quanto em quanto tempo verificar, e pergunta se isso é possível **sem
+reinstalar**.
+
+**A resposta.** É possível como *atualização*, não como *patch*. As definições são renderizadas e
+gravadas nos arquivos na importação (`DictionaryCompiler`), então não existe diff para aplicar: o app
+baixa o `.zip` novo, compila e troca a cópia **sobre o mesmo id**. O que faz parecer reinstalação é a
+identidade — id, posição na lista e estado ativo/desativado — e isso tudo é preservado. O que **não**
+dá para atualizar é um dicionário vindo de **Importar arquivo**: não há editor para consultar.
+
+**Como a versão é descoberta.** Dois casos, porque os editores publicam de dois jeitos:
+
+- **Com descritor** (`indexUrl`: Jitendex PT-BR do ggjz e os três Wikcionários): o app lê ~1 KB de JSON
+  e compara o campo `revision` com o que foi gravado no `meta.json` na importação. A comparação é
+  **numérica, componente a componente** (`2026.03.05` > `2025.08.12`; `2026-03-05` == `2026.03.05`),
+  porque o descritor é publicado à mão e pode ficar para trás do arquivo que ele aponta. Rótulo sem
+  número nenhum cai na igualdade de texto: igual é «em dia», diferente é oferecido.
+- **Download direto** (`url`: JMdict, Jitendex, JMnedict, KANJIDIC, surasura): o app faz `HEAD` na URL
+  «latest release» e compara `ETag`, depois `Last-Modified`, depois `Content-Length` com a assinatura
+  HTTP guardada na instalação. `ETag` é o sinal mais forte; tamanho **diferente** prova versão
+  diferente, tamanho **igual não prova nada** — nesse caso a resposta é «não deu para comparar», nunca
+  «está em dia».
+
+**A tela.** Uma seção **«Atualizações»** no topo de *Gerenciar dicionários*, com o resultado da última
+verificação, **Verificar atualizações**, **Atualizar tudo** (só quando há algo) e o seletor de
+periodicidade. Cada linha marcada ganha **Atualizar** ao lado das setas e de «Apagar». Verificar não
+baixa nada: são um descritor ou um `HEAD` por dicionário. A conclusão fica em `UpdateStateStore`
+(SharedPreferences), então continua visível depois que o processo morre; atualizar ou apagar um
+dicionário esquece a conclusão dele, para não sobrar selo velho nem «Atualizar tudo» que reinstalaria
+um dicionário removido.
+
+**A periodicidade.** `UpdateInterval` = `OFF` (padrão), `DAILY`, `WEEKLY`, `MONTHLY`. É
+`enqueueUniquePeriodicWork` com `NetworkType.CONNECTED`, política `KEEP` no início do app e
+`CANCEL_AND_REENQUEUE` quando o usuário muda a escolha; `OFF` cancela. O worker **só verifica e
+notifica** — baixar 39 MB sozinho em dados móveis não é uma decisão que o app deva tomar. Uma
+notificação por conjunto de versões (a chave é `id:versão`), cancelada quando tudo está em dia; sem a
+permissão de notificação a verificação continua e o resultado fica na tela.
+
+**Dois bugs encontrados no caminho, e corrigidos:**
+
+- `CompactDictionary.readMeta` chamava `asString`/`asInt` em campos opcionais gravados como `null`
+  (`author`, `url`, `description`, `attribution`). O `JsonNull` lança, o repositório trata `meta.json`
+  ilegível como «não é dicionário», e um `.zip` sem autor **desaparecia da lista depois de
+  reiniciar**. Agora campo nulo vira ausente; o teste novo fixa isso.
+- `DictionaryRepository.install` trocava os arquivos **antes** de soltar o `LookupEngine` antigo. Em
+  qualquer sistema isso arrisca uma consulta lendo arquivo já removido; no Windows os arquivos
+  abertos nem deixam o `rename` acontecer. `releaseLocked()` passou para antes do swap, e a cópia de
+  emergência apaga o destino antes de `copyRecursively`.
+
+**Os cinco bugs do aparelho (02/11/2026).** O primeiro APK do R43 foi para o Poco X5 5G e voltou com
+cinco queixas; as três primeiras têm a mesma raiz.
+
+1. **«Atualizar tudo» não mostrava progresso e nada era atualizado.** O downloader chama `onProgress`
+   dentro de `withContext(Dispatchers.IO)` e o compilador chama o seu de uma worker thread. Os dois
+   escreviam num `TextView`; no aparelho isso lança `CalledFromWrongThreadException`, a exceção aborta
+   o download no primeiro relatório, o `catch` por dicionário conta como falha e o toast final diz
+   «0 atualizados; N falharam». Daí também o «os dados não mudaram». O Robolectric não impõe afinidade
+   de thread, por isso os 38 testes passaram. Agora existe `onUi {}`: se já está na main thread executa
+   na hora, senão `runOnUiThread`, sempre ignorando a tela já destruída, e **todo** relatório de
+   download/conversão passa por ele.
+2. **«Verificar» e «Atualizar tudo» congelavam depois de uma atualização.** `refresh()` era chamado
+   dentro do `try`, antes do `finally` zerar `busy`; o cartão era reconstruído com
+   `isEnabled = busy == null` e nascia desabilitado. O `finally` seguinte mexia no botão **antigo**, já
+   fora da tela. `startDownload`, `startUpdateAll` e `importZip` agora zeram `busy` **antes** de
+   `refresh()`, e o `refresh()` mora no `finally` (com guarda `isFinishing`/`isDestroyed`) para também
+   consertar cancelamento e falha.
+3. **A «atualização» oferecida era mais antiga.** O descritor do `kty-ja-pt` anuncia `2025.08.12`, mas
+   o `.zip` que ele aponta é compilado com `2026.03.05`; a comparação de texto chamava isso de
+   atualização. `compareRevisions` compara os números em ordem, e remoto **menor ou igual** ao
+   instalado é `CURRENT` — o app nunca oferece downgrade. Os três Wikcionários caem no mesmo caso.
+4. **Verificar de novo continuava acusando os mesmos dicionários.** Consequência do item 3 para os
+   dicionários com descritor, e do item 1 para os de download direto: como o download abortava antes
+   do swap, a assinatura nova nunca era gravada. Com o `onUi` e a comparação numérica, a próxima
+   verificação responde `CURRENT`; há teste de ponta a ponta para os dois tipos.
+5. **A lista de instalados desaparecia depois do «Atualizar tudo».** Não reproduziu no Robolectric:
+   o teste de update-all mantém as duas linhas. A causa provável é a mesma combinação acima (refresh
+   com `busy` setado e o aborto no meio do swap) somada a uma varredura vazia memorizada. Duas
+   defesas ficaram: `refresh()` só depois de `busy` limpo, e `installed()` **nunca guarda uma resposta
+   vazia** — uma varredura que viu a pasta num instante ruim é refeita na próxima, em vez de esconder
+   todos os dicionários até o processo morrer.
+
+**Arquivos.** `dict/DictionaryUpdates.kt` (assinatura, checker, store, notifier, worker, scheduler),
+`dict/DictionaryDownloader.kt` (`RemoteSource`, `download` devolve assinatura, `head`, `readText`),
+`dict/DictionaryRepository.kt` (`install(..., source)`, `annotateSource`, `sourceId`/`sourceSignature`),
+`AppSettings.kt` (`UpdateInterval` + `dictionaryUpdateInterval`), `DictionaryActivity.kt` (cartão,
+selos, botões, diálogo, permissão), `MainActivity.kt` (`ensure`), strings e `libs.versions.toml`
+(`androidx.work 2.10.1`).
+
+**Testes (50 novos; app 386/51, núcleo 143 + 2 pulados, 0 falhas):**
+
+- `DictionaryUpdateCheckerTest` (18): revisão igual/diferente/ausente, **remoto mais antigo = em dia**,
+  **remoto mais novo = atualização**, separadores diferentes com os mesmos números, rótulos sem
+  número (igual/diferente), ordenação numérica de `compareRevisions`, ETag, data, tamanho, instalação
+  antiga sem assinatura, dicionário importado (`MANUAL`), falha de rede (`FAILED`), `checkAll` com um
+  resultado por id, e a precedência de `RemoteSignature.sameAs` (incluindo «tamanho igual = não sei»).
+- `DictionaryRepositoryUpdateTest` (6): reinstalar sobre o id mantém ordem e estado desativado e grava
+  a origem; a definição nova já responde; importação manual não grava `sourceId`; **uma verificação
+  logo depois da atualização responde `CURRENT`**; **um arquivo compilado com revisão mais nova não é
+  oferecido com o rótulo velho do descritor**; **uma varredura vazia não fica memorizada**.
+- `UpdateStateStoreTest` (5): ida e volta, nunca verificado, JSON corrompido, `forget`, chave de
+  notificação.
+- `DictionaryUpdateSchedulerTest` (5): 7/30 dias, troca substitui em vez de empilhar, `ensure` não
+  reseta, `OFF` cancela, `OFF` no início não cria.
+- `DictionaryUpdateNotifierTest` (4): notifica e nomeia, não repete o mesmo conjunto, cancela e
+  esquece a chave quando tudo está em dia, sem permissão não posta nem queima a chave.
+- `DictionaryUpdatesScreenTest` (12): selo e botão a partir do resultado guardado, verificação com
+  checker injetado, «tudo em dia» sem botão, importado explica, `Atualizar` baixa/instala/limpa o selo
+  e a definição nova responde, periodicidade `WEEKLY` guardada e agendada, origem sobrevive na linha,
+  resultado de dicionário removido não oferece «Atualizar tudo»; **uma atualização manual não deixa
+  «Verificar»/«Atualizar tudo» desabilitados**; **«Atualizar tudo» mantém as linhas e reabilita o
+  cartão**; **o cartão mostra o percentual durante o download**; **um bloco enviado de uma thread de
+  fundo roda na main thread**.
+- `DictionaryMetaTest` (núcleo, +1): `meta.json` com campos opcionais nulos continua legível.
+
+**Non-vacuidade (11/11, mutações aplicadas e desfeitas):**
+
+| mutação | teste que falha |
+| --- | --- |
+| `checkRevision` volta a comparar texto (ou sempre diz «current») | 3 do `DictionaryUpdateCheckerTest` (revisão diferente/antiga, mesma versão com outro separador) e `an index dictionary updated with a newer archive…` |
+| `annotateSource` não é chamado | `installing over the same id keeps the priority and the enable flag`, `a check right after an update says the dictionary is current` |
+| `busy` é zerado **depois** de `refresh()` no download de uma linha | `updating one dictionary does not leave the update card frozen` |
+| `busy` é zerado **depois** de `refresh()` no «Atualizar tudo» | `updating all keeps every dictionary on the list and re-enables the card` |
+| `onUi` executa o bloco direto na thread que chamou | `progress reported from a background thread is marshalled to the main thread` |
+| o relatório de progresso do download não chama `onPhase` | `the update card shows the download percentage while it runs` |
+| `installed()` volta a memorizar uma lista vazia | `an empty answer is not cached as the list` |
+| a periodicidade usa 1 dia fixo | 4 de scheduler/UI (7 e 30 dias, `ensure`, diálogo) |
+| o notifier não grava a chave | `the same versions are announced only once` |
+| `readMeta` volta a chamar `asString` em `JsonNull` | `optional fields written as null do not make the metadata unreadable` |
+| `releaseLocked()` volta para depois do swap | `the new definitions are live right after the install` |
+
+**O que não está coberto / limites:**
+
+- o aparelho: o fluxo foi exercido no Robolectric com `.zip` gerado, não no Poco X5 5G; o bug da
+  janela de download só aparece lá (afinidade de thread) e o da lista sumida não reproduziu no teste;
+- servidores que não mandam `ETag` nem `Last-Modified` e mantêm o mesmo tamanho ficam
+  permanentemente «não deu para comparar»; o botão «Atualizar» continua disponível;
+- a granularidade do ggjz/Wikcionário é a `revision` publicada; se o editor esquecer de incrementá-la,
+  a verificação não vê a mudança — e, com a comparação numérica, um rótulo esquecido para trás conta
+  como «em dia» em vez de downgrade (que é o comportamento desejado);
+- o worker não é pontual: o Android pode atrasar por bateria/rede, e «toda semana» é referência;
+- não há push do editor, download delta, nem verificação de dicionário importado de arquivo;
+- a atualização é tudo-ou-nada por dicionário: uma falha de rede no meio deixa a cópia antiga intacta
+  (o staging é apagado), que é o comportamento desejado, mas não há retomada de download.
+
+---
+
 
 
 

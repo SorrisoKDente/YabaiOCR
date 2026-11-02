@@ -309,17 +309,26 @@ class CompactDictionary private constructor(
 
         fun readMeta(metaFile: File): DictionaryInfo {
             val obj = JsonParser.parseString(metaFile.readText(StandardCharsets.UTF_8)).asJsonObject
+            // Optional fields are written as JSON nulls when the dictionary does not carry them.
+            // Calling asString/asInt on a JsonNull throws, and the repository reads a failed meta as
+            // «no dictionary» — so an archive without an author would vanish after a restart.
+            fun string(key: String): String? =
+                obj.get(key)?.takeIf { !it.isJsonNull }?.asString
+
+            fun number(key: String): Int =
+                obj.get(key)?.takeIf { !it.isJsonNull }?.asInt ?: 0
+
             return DictionaryInfo(
-                title = obj.get("title")?.asString.orEmpty(),
-                revision = obj.get("revision")?.asString.orEmpty(),
-                format = obj.get("format")?.asInt ?: 0,
-                author = obj.get("author")?.asString,
-                url = obj.get("url")?.asString,
-                description = obj.get("description")?.asString,
-                attribution = obj.get("attribution")?.asString,
-                termCount = obj.get("termCount")?.asInt ?: 0,
-                kanjiCount = obj.get("kanjiCount")?.asInt ?: 0,
-                compiledWith = obj.get("compiledWith")?.asInt ?: 0,
+                title = string("title").orEmpty(),
+                revision = string("revision").orEmpty(),
+                format = number("format"),
+                author = string("author"),
+                url = string("url"),
+                description = string("description"),
+                attribution = string("attribution"),
+                termCount = number("termCount"),
+                kanjiCount = number("kanjiCount"),
+                compiledWith = number("compiledWith"),
             )
         }
 

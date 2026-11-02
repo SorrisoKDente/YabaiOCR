@@ -101,8 +101,12 @@ dependencies {
 
     implementation(libs.okhttp)
 
+    // Periodic dictionary-update checks that survive reboots and follow the network constraint.
+    implementation(libs.androidx.work.runtime.ktx)
+
     // Runs the overlay views on the JVM: the panels are built in code, so the only way to check a
     // layout without a device is to measure it here.
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.work.testing)
 }

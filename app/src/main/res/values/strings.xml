@@ -216,7 +216,49 @@
     <string name="dictionary_attribution">Fonte: %1$s</string>
     <string name="dictionary_release">Revisão %1$s</string>
     <string name="dictionary_source">Origem: %1$s</string>
-    <string name="dictionary_stale_banner">Compilados por uma versão antiga do app, estes dicionários ainda mostram as definições no formato antigo: %1$s. Apague e importe de novo para atualizá-los.</string>
-    <string name="result_stale_dictionary">Dicionário em formato antigo: %1$s. Em «Dicionários», apague e importe de novo para atualizar as definições.</string>
-    <string name="dictionary_outdated">Compilado com uma versão antiga do app: importe este dicionário de novo para ver as definições organizadas.</string>
+    <string name="dictionary_stale_banner">Compilados por uma versão antiga do app, estes dicionários ainda mostram as definições no formato antigo: %1$s. Use «Atualizar» no dicionário baixado pela lista, ou importe de novo o que veio de um arquivo.</string>
+    <string name="result_stale_dictionary">Dicionário em formato antigo: %1$s. Em «Dicionários», use «Atualizar» (ou importe de novo) para atualizar as definições.</string>
+    <string name="dictionary_outdated">Compilado com uma versão antiga do app: use «Atualizar» (ou importe de novo) para ver as definições organizadas.</string>
+
+    <string name="dictionary_updates_section">Atualizações</string>
+    <string name="dictionary_updates_hint">A verificação só pergunta aos servidores qual é a versão publicada. O download e a conversão acontecem quando você toca em «Atualizar», e o dicionário é substituído no mesmo lugar — a posição na lista e o estado ativo continuam. Dicionários importados de um arquivo não têm de onde ser atualizados.</string>
+    <string name="dictionary_updates_check">Verificar atualizações</string>
+    <string name="dictionary_updates_checking">Verificando…</string>
+    <string name="dictionary_updates_never">Nenhuma verificação feita ainda.</string>
+    <string name="dictionary_updates_last_check">Última verificação: %1$s · %2$s</string>
+    <string name="dictionary_updates_all_current">tudo em dia</string>
+    <string name="dictionary_updates_failed_count">%1$d sem resposta</string>
+    <string name="dictionary_updates_nothing">Nenhum dicionário baixado pela lista para verificar.</string>
+    <string name="dictionary_updates_auto">Verificar atualizações automaticamente</string>
+    <string name="dictionary_updates_auto_title">Verificar atualizações</string>
+    <string name="dictionary_updates_off">Desligado</string>
+    <string name="dictionary_updates_daily">Todos os dias</string>
+    <string name="dictionary_updates_weekly">Toda semana</string>
+    <string name="dictionary_updates_monthly">Todo mês</string>
+    <string name="dictionary_updates_no_permission">Sem permissão de notificação, o resultado da verificação aparece só nesta tela.</string>
+    <string name="dictionary_update_available">Atualização disponível</string>
+    <string name="dictionary_update_available_version">Atualização disponível: %1$s</string>
+    <string name="dictionary_update">Atualizar</string>
+    <string name="dictionary_update_all">Atualizar tudo</string>
+    <string name="dictionary_update_all_partial">%1$d atualizado(s); %2$d falhou(aram).</string>
+    <string name="dictionary_update_unknown">A versão instalada não pôde ser comparada. Toque em «Atualizar» uma vez para ativar as próximas verificações.</string>
+    <string name="dictionary_update_failed">Não foi possível verificar: %1$s</string>
+    <string name="dictionary_update_manual">Importado de um arquivo: sem origem para verificar.</string>
+    <string name="dictionary_updating_named">Atualizando %1$s (%2$d de %3$d)…</string>
+    <string name="dictionary_updating_progress">Atualizando %1$s (%2$d de %3$d)… %4$s</string>
+    <string name="dictionary_updates_channel">Atualizações de dicionário</string>
+    <string name="dictionary_updates_channel_description">Avisa quando um dicionário instalado tem uma versão nova.</string>
+
+    <plurals name="dictionary_updates_available_count">
+        <item quantity="one">%1$d atualização disponível</item>
+        <item quantity="other">%1$d atualizações disponíveis</item>
+    </plurals>
+    <plurals name="dictionary_updates_notification_title">
+        <item quantity="one">%1$d atualização de dicionário disponível</item>
+        <item quantity="other">%1$d atualizações de dicionário disponíveis</item>
+    </plurals>
+    <plurals name="dictionary_update_all_done">
+        <item quantity="one">%1$d dicionário atualizado.</item>
+        <item quantity="other">%1$d dicionários atualizados.</item>
+    </plurals>
 </resources>

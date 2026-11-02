@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
  * a storage URL written inside them, so those entries are resolved in two requests. Everything else
  * is a plain download from a "latest release" link.
  */
-class DictionaryDownloader {
+class DictionaryDownloader : RemoteSource {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -29,11 +29,11 @@ class DictionaryDownloader {
         .build()
 
     /** Resolves and downloads [entry] into [target]. [onProgress] gets (bytesRead, totalOrZero). */
-    suspend fun download(
+    override suspend fun download(
         entry: DictionaryCatalog.Entry,
         target: File,
-        onProgress: (Long, Long) -> Unit = { _, _ -> },
-    ): File = withContext(Dispatchers.IO) {
+        onProgress: (Long, Long) -> Unit,
+    ): DownloadedDictionary = withContext(Dispatchers.IO) {
         val url = entry.url ?: entry.indexUrl?.let { resolveDownloadUrl(it) }
             ?: throw IOException("O catálogo não informou de onde baixar «${entry.name}».")
 
@@ -45,7 +45,7 @@ class DictionaryDownloader {
         currentCoroutineContext().job.invokeOnCompletion { cause ->
             if (cause != null) runCatching { call.cancel() }
         }
-        call.execute().use { response ->
+        val signature = call.execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("O servidor respondeu ${response.code} ao baixar ${entry.name}.")
             }
@@ -56,9 +56,56 @@ class DictionaryDownloader {
                     copyWithProgress(input, output, total, onProgress)
                 }
             }
+            RemoteSignature(
+                etag = response.header("ETag"),
+                lastModified = response.header("Last-Modified"),
+                length = if (total > 0) total else target.length(),
+            )
         }
         if (target.length() == 0L) throw IOException("O arquivo baixado veio vazio.")
-        target
+        DownloadedDictionary(target, signature)
+    }
+
+    /**
+     * The headers of a «latest release» URL, without the archive (R43).
+     *
+     * The redirect chain is followed, so the ETag and Last-Modified are the asset's, not GitHub's
+     * 302. A server that answers HEAD with an error is reported as such instead of being guessed
+     * at: a check that cannot answer says so.
+     */
+    override suspend fun head(url: String): RemoteSignature = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(url).head().header("User-Agent", USER_AGENT).build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("O servidor respondeu ${response.code} ao verificar a versão.")
+            }
+            RemoteSignature(
+                etag = response.header("ETag"),
+                lastModified = response.header("Last-Modified"),
+                length = response.header("Content-Length")?.toLongOrNull() ?: 0L,
+            )
+        }
+    }
+
+    /** The small descriptor that carries a Wiktionary/ggjz download URL and its revision. */
+    override suspend fun readText(url: String): String = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("Não foi possível consultar o catálogo (HTTP ${response.code}).")
+            }
+            val body = response.body ?: throw IOException("Resposta vazia do servidor.")
+            // These descriptors are about a kilobyte; a limit keeps a wrong URL from filling the
+            // heap with an archive.
+            if (body.contentLength() > MAX_DESCRIPTOR_BYTES) {
+                throw IOException("O catálogo respondeu com um arquivo grande demais para um descritor.")
+            }
+            val text = body.string()
+            if (text.length > MAX_DESCRIPTOR_BYTES) {
+                throw IOException("O catálogo respondeu com um arquivo grande demais para um descritor.")
+            }
+            text
+        }
     }
 
     /** Reads `downloadUrl` out of a Wiktionary-to-Yomitan descriptor. */
@@ -107,5 +154,6 @@ class DictionaryDownloader {
 
     companion object {
         private const val USER_AGENT = "YabaiOCR/1.0 (Android)"
+        private const val MAX_DESCRIPTOR_BYTES = 256 * 1024
     }
 }

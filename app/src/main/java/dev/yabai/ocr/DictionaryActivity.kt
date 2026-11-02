@@ -1,9 +1,13 @@
 package dev.yabai.ocr
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.provider.OpenableColumns
 import android.view.Gravity
 import android.view.View
@@ -15,16 +19,26 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import dev.yabai.ocr.core.dict.DictionaryCompiler
 import dev.yabai.ocr.dict.DictionaryCatalog
 import dev.yabai.ocr.dict.DictionaryDownloader
 import dev.yabai.ocr.dict.DictionaryRepository
+import dev.yabai.ocr.dict.DictionarySource
+import dev.yabai.ocr.dict.DictionaryUpdateChecker
+import dev.yabai.ocr.dict.DictionaryUpdateScheduler
 import dev.yabai.ocr.dict.InstalledDictionary
 import dev.yabai.ocr.dict.KanjiDefault
+import dev.yabai.ocr.dict.RemoteSource
+import dev.yabai.ocr.dict.StoredUpdates
+import dev.yabai.ocr.dict.UpdateResult
+import dev.yabai.ocr.dict.UpdateState
+import dev.yabai.ocr.dict.UpdateStateStore
 import dev.yabai.ocr.overlay.actionButton
 import dev.yabai.ocr.overlay.roundedBackground
 import dev.yabai.ocr.overlay.textLabel
 import dev.yabai.ocr.util.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +47,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -47,10 +63,19 @@ class DictionaryActivity : AppCompatActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val repository by lazy { DictionaryRepository.get(this) }
     private val settings by lazy { AppSettings(this) }
-    private val downloader = DictionaryDownloader()
+
+    /**
+     * The network side of downloads and checks. A test swaps it for a fake; the screen itself only
+     * ever sees the interface (R43).
+     */
+    internal var remote: RemoteSource = DictionaryDownloader()
+
+    /** A test may inject a checker; the default compares against [remote]. */
+    internal var updateChecker: DictionaryUpdateChecker? = null
 
     private lateinit var installedContainer: LinearLayout
     private lateinit var availableContainer: LinearLayout
+    private lateinit var updatesContainer: LinearLayout
 
     /** The choice of which dictionary answers the kanji card (R30); empty without kanji data. */
     private lateinit var kanjiContainer: LinearLayout
@@ -64,6 +89,17 @@ class DictionaryActivity : AppCompatActivity() {
     /** The download the «Cancelar» button of the running row can stop (R21). */
     private var downloadJob: Job? = null
 
+    /** A check is running: a second one would only repeat the requests (R43). */
+    private var checking = false
+
+    /** The last check, loaded from the store so it survives the process (R43). */
+    private var storedUpdates = StoredUpdates(0, emptyMap())
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) toast(getString(R.string.dictionary_updates_no_permission))
+        }
+
     private val pickZip = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importZip(uri)
     }
@@ -71,6 +107,9 @@ class DictionaryActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(buildContent())
+        // WorkManager keeps the schedule across restarts; this only creates it if it went missing
+        // (first run after the update, or after the app data was restored).
+        DictionaryUpdateScheduler.ensure(this, settings.dictionaryUpdateInterval)
         refresh()
     }
 
@@ -132,6 +171,10 @@ class DictionaryActivity : AppCompatActivity() {
             ).apply { topMargin = dp(10) },
         )
 
+        column.addView(sectionHeader(getString(R.string.dictionary_updates_section)))
+        updatesContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(updatesContainer)
+
         column.addView(sectionHeader(getString(R.string.dictionary_installed_section)))
         column.addView(
             textLabel(getString(R.string.dictionary_priority_hint), 11f, getColor(R.color.text_secondary)).apply {
@@ -187,10 +230,122 @@ class DictionaryActivity : AppCompatActivity() {
 
     private fun refresh() {
         val items = repository.installed()
+        storedUpdates = UpdateStateStore(this).load()
         renderStale(items)
+        renderUpdates(items)
         renderInstalled(items)
         renderKanjiDefault(items)
         renderAvailable()
+    }
+
+    /**
+     * The update card: the last check, the two buttons and the automatic-check choice (R43).
+     *
+     * It sits above the installed list because that is what it talks about: the row of each
+     * dictionary then carries its own «Atualizar», so the card does not have to enumerate them.
+     */
+    private fun renderUpdates(items: List<InstalledDictionary>) {
+        updatesContainer.removeAllViews()
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+        }
+
+        val status = textLabel(updateStatusText(items), 12f, getColor(R.color.text_secondary)).apply {
+            setLineSpacing(dp(2).toFloat(), 1f)
+        }
+        card.addView(status)
+
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        val check = actionButton(
+            getString(
+                if (checking) R.string.dictionary_updates_checking
+                else R.string.dictionary_updates_check,
+            ),
+        ) { }
+        check.isEnabled = !checking && busy == null
+        check.setOnClickListener { startCheck(status, check) }
+        buttons.addView(check)
+
+        val updated = availableEntries()
+        if (updated.isNotEmpty()) {
+            val all = actionButton(getString(R.string.dictionary_update_all)) { }
+            all.isEnabled = busy == null && !checking
+            all.setOnClickListener { startUpdateAll(updated, status, all) }
+            buttons.addView(
+                all,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { marginStart = dp(8) },
+            )
+        }
+        card.addView(buttons)
+
+        val automatic = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        automatic.addView(
+            textLabel(getString(R.string.dictionary_updates_auto), 12f, getColor(R.color.text_secondary)),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+        )
+        automatic.addView(
+            actionButton(intervalLabel(settings.dictionaryUpdateInterval)) { chooseInterval() },
+        )
+        card.addView(automatic)
+
+        card.addView(
+            textLabel(getString(R.string.dictionary_updates_hint), 11f, getColor(R.color.text_secondary)).apply {
+                setPadding(0, dp(8), 0, 0)
+                setLineSpacing(dp(2).toFloat(), 1f)
+            },
+        )
+
+        updatesContainer.addView(
+            card,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+    }
+
+    private fun updateStatusText(items: List<InstalledDictionary>): String {
+        if (storedUpdates.checkedAt == 0L) {
+            return getString(R.string.dictionary_updates_never)
+        }
+        val known = items.map { it.id }.toSet()
+        val results = storedUpdates.results.values.filter { it.id in known }
+        if (results.isEmpty()) return getString(R.string.dictionary_updates_nothing)
+        val available = results.count { it.hasUpdate }
+        val failed = results.count { it.state == UpdateState.FAILED }
+        val summary = when {
+            available > 0 -> resources.getQuantityString(
+                R.plurals.dictionary_updates_available_count,
+                available,
+                available,
+            )
+            failed > 0 -> getString(R.string.dictionary_updates_failed_count, failed)
+            else -> getString(R.string.dictionary_updates_all_current)
+        }
+        val whenText = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+            .format(Date(storedUpdates.checkedAt))
+        return getString(R.string.dictionary_updates_last_check, whenText, summary)
+    }
+
+    private fun availableEntries(): List<DictionaryCatalog.Entry> {
+        val installed = repository.installed().map { it.id }.toSet()
+        return storedUpdates.results.values
+            .filter { it.hasUpdate && it.id in installed }
+            .mapNotNull { DictionaryCatalog.find(it.id) }
     }
 
     /**
@@ -275,41 +430,72 @@ class DictionaryActivity : AppCompatActivity() {
             },
         )
 
-        card.addView(
-            LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.END
-                setPadding(0, dp(6), 0, 0)
-                addView(actionButton("↑", onClick = {
-                    repository.move(item.id, -1)
-                    refresh()
-                }).apply {
-                    if (index == 0) isEnabled = false
-                    contentDescription = getString(R.string.dictionary_up)
-                })
-                addView(
-                    actionButton("↓", onClick = {
-                        repository.move(item.id, 1)
-                        refresh()
-                    }).apply {
-                        if (index == total - 1) isEnabled = false
-                        contentDescription = getString(R.string.dictionary_down)
-                        layoutParams = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                        ).apply { marginStart = dp(6) }
-                    },
-                )
-                addView(
-                    actionButton(getString(R.string.dictionary_delete), onClick = { confirmDelete(item) }).apply {
-                        layoutParams = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                        ).apply { marginStart = dp(10) }
-                    },
-                )
+        val result = storedUpdates.results[item.id]
+        updateLine(result)?.let { (text, color) ->
+            card.addView(
+                textLabel(text, 12f, color).apply {
+                    setPadding(0, dp(4), 0, 0)
+                    setLineSpacing(dp(2).toFloat(), 1f)
+                },
+            )
+        }
+
+        // The update's own progress lives here, next to the dictionary it belongs to: the same
+        // download UI as the «Disponíveis» rows, without leaving the row that found the update.
+        val status = textLabel("", 12f, getColor(R.color.accent)).apply {
+            visibility = View.GONE
+            setPadding(0, dp(4), 0, 0)
+        }
+        card.addView(status)
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            setPadding(0, dp(6), 0, 0)
+        }
+        val entry = DictionaryCatalog.find(item.sourceId.ifBlank { item.id })
+        if (entry != null && result?.canRefresh == true) {
+            val update = actionButton(getString(R.string.dictionary_update)) { }
+            update.setOnClickListener {
+                startDownload(entry, status, update)
+            }
+            actions.addView(update)
+        }
+        actions.addView(
+            actionButton("↑", onClick = {
+                repository.move(item.id, -1)
+                refresh()
+            }).apply {
+                if (index == 0) isEnabled = false
+                contentDescription = getString(R.string.dictionary_up)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { if (entry != null && result?.canRefresh == true) marginStart = dp(8) }
             },
         )
+        actions.addView(
+            actionButton("↓", onClick = {
+                repository.move(item.id, 1)
+                refresh()
+            }).apply {
+                if (index == total - 1) isEnabled = false
+                contentDescription = getString(R.string.dictionary_down)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { marginStart = dp(6) }
+            },
+        )
+        actions.addView(
+            actionButton(getString(R.string.dictionary_delete), onClick = { confirmDelete(item) }).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { marginStart = dp(10) }
+            },
+        )
+        card.addView(actions)
 
         return card.apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -405,6 +591,68 @@ class DictionaryActivity : AppCompatActivity() {
         return lines.joinToString("\n")
     }
 
+    /** The one line an installed row adds after a check, or null when there is nothing to say. */
+    private fun updateLine(result: UpdateResult?): Pair<String, Int>? {
+        if (result == null) return null
+        return when (result.state) {
+            UpdateState.AVAILABLE -> Pair(
+                if (result.remoteLabel.isBlank()) {
+                    getString(R.string.dictionary_update_available)
+                } else {
+                    getString(R.string.dictionary_update_available_version, result.remoteLabel)
+                },
+                getColor(R.color.accent),
+            )
+            UpdateState.UNKNOWN -> Pair(
+                getString(R.string.dictionary_update_unknown),
+                getColor(R.color.text_secondary),
+            )
+            UpdateState.FAILED -> Pair(
+                getString(R.string.dictionary_update_failed, result.message),
+                getColor(R.color.text_secondary),
+            )
+            UpdateState.MANUAL -> if (storedUpdates.checkedAt > 0) {
+                Pair(getString(R.string.dictionary_update_manual), getColor(R.color.text_secondary))
+            } else {
+                null
+            }
+            UpdateState.CURRENT -> null
+        }
+    }
+
+    private fun intervalLabel(interval: UpdateInterval): String = when (interval) {
+        UpdateInterval.OFF -> getString(R.string.dictionary_updates_off)
+        UpdateInterval.DAILY -> getString(R.string.dictionary_updates_daily)
+        UpdateInterval.WEEKLY -> getString(R.string.dictionary_updates_weekly)
+        UpdateInterval.MONTHLY -> getString(R.string.dictionary_updates_monthly)
+    }
+
+    private fun chooseInterval() {
+        val values = UpdateInterval.entries.toTypedArray()
+        val labels = values.map { intervalLabel(it) }.toTypedArray()
+        var checked = values.indexOf(settings.dictionaryUpdateInterval)
+        if (checked < 0) checked = 0
+        AlertDialog.Builder(this)
+            .setTitle(R.string.dictionary_updates_auto_title)
+            .setSingleChoiceItems(labels, checked) { dialog, which ->
+                val interval = values[which]
+                settings.dictionaryUpdateInterval = interval
+                DictionaryUpdateScheduler.set(this, interval)
+                if (interval != UpdateInterval.OFF) requestNotificationPermission()
+                dialog.dismiss()
+                refresh()
+            }
+            .setNegativeButton(R.string.dictionary_cancel, null)
+            .show()
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     private fun renderAvailable() {
         availableContainer.removeAllViews()
         for (entry in DictionaryCatalog.entries) {
@@ -479,12 +727,103 @@ class DictionaryActivity : AppCompatActivity() {
             .setNegativeButton(R.string.dictionary_cancel, null)
             .setPositiveButton(R.string.dictionary_delete) { _, _ ->
                 repository.delete(item.id)
+                // A conclusion about a dictionary that no longer exists must not keep offering to
+                // reinstall it under «Atualizar tudo» (R43).
+                UpdateStateStore(this).forget(item.id)
                 refresh()
             }
             .show()
     }
 
-    private fun startDownload(entry: DictionaryCatalog.Entry, status: TextView, button: TextView) {
+    /**
+     * Checks every installed dictionary that has a publisher, and records the answer (R43).
+     *
+     * Nothing is downloaded here: a check is one 1 KB descriptor or one HEAD per dictionary, so the
+     * button can be pressed without thinking about data. The download and the compile happen when
+     * the user taps «Atualizar», in the row the check just marked.
+     */
+    private fun startCheck(status: TextView, button: TextView) {
+        if (checking || busy != null) return
+        val items = repository.installed()
+        if (items.none { DictionaryCatalog.find(it.sourceId.ifBlank { it.id }) != null }) {
+            toast(getString(R.string.dictionary_updates_nothing))
+            return
+        }
+
+        checking = true
+        button.isEnabled = false
+        button.text = getString(R.string.dictionary_updates_checking)
+        status.text = getString(R.string.dictionary_updates_checking)
+        val checker = updateChecker ?: DictionaryUpdateChecker(remote)
+        scope.launch {
+            try {
+                val results = checker.checkAll(items)
+                UpdateStateStore(this@DictionaryActivity).save(results, System.currentTimeMillis())
+                checking = false
+                refresh()
+            } catch (t: CancellationException) {
+                checking = false
+            } catch (t: Throwable) {
+                checking = false
+                button.isEnabled = true
+                button.text = getString(R.string.dictionary_updates_check)
+                status.text = getString(
+                    R.string.dictionary_update_failed,
+                    t.message ?: t.javaClass.simpleName,
+                )
+            }
+        }
+    }
+
+    /** Downloads and compiles the new version of a dictionary, replacing it in place. */
+    private suspend fun fetchAndInstall(
+        entry: DictionaryCatalog.Entry,
+        onPhase: (String) -> Unit,
+    ): InstalledDictionary {
+        val archive = File(cacheDir, "dict-${entry.id}.zip")
+        try {
+            val downloaded = remote.download(entry, archive) { read, total ->
+                // This callback runs on Dispatchers.IO (inside the downloader's withContext). The
+                // status it writes is a TextView, so it has to hop to the main thread first (R43).
+                onUi {
+                    onPhase(
+                        if (total > 0) {
+                            getString(
+                                R.string.dictionary_downloading,
+                                "${(read * 100 / total)}%  (${formatBytes(read)})",
+                            )
+                        } else {
+                            getString(R.string.dictionary_downloading, formatBytes(read))
+                        },
+                    )
+                }            }
+            onUi { onPhase(getString(R.string.dictionary_installing, "…")) }
+            val source = DictionarySource(
+                catalogId = entry.id,
+                // Informational only; the check uses the catalog, not this stored URL.
+                url = entry.url ?: entry.indexUrl.orEmpty(),
+                signature = downloaded.signature,
+            )
+            return repository.install(archive, entry.id, entry.name, source) { phase ->
+                // The compiler reports from its own worker thread, for the same reason.
+                onUi { onPhase(getString(R.string.dictionary_installing, phase)) }
+            }
+        } finally {
+            archive.delete()
+        }
+    }
+
+    private fun startDownload(
+        entry: DictionaryCatalog.Entry,
+        status: TextView,
+        button: TextView,
+    ) {
+        if (checking) {
+            // Installing while a check is in flight would let the check record a conclusion about
+            // the copy that was just replaced (R43).
+            toast(getString(R.string.dictionary_updates_checking))
+            return
+        }
         if (busy != null) {
             toast(getString(R.string.dictionary_download_failed, "outro download em andamento"))
             return
@@ -498,38 +837,84 @@ class DictionaryActivity : AppCompatActivity() {
         button.setOnClickListener { downloadJob?.cancel() }
 
         downloadJob = scope.launch {
-            val archive = File(cacheDir, "dict-${entry.id}.zip")
             try {
-                downloader.download(entry, archive) { read, total ->
-                    if (total > 0) {
-                        status.text = getString(
-                            R.string.dictionary_downloading,
-                            "${(read * 100 / total)}%  (${formatBytes(read)})",
-                        )
-                    } else {
-                        status.text = getString(R.string.dictionary_downloading, formatBytes(read))
-                    }
-                }
-
-                status.text = getString(R.string.dictionary_installing, "…")
-                val installed = repository.install(archive, entry.id, entry.name) { phase ->
-                    status.text = getString(R.string.dictionary_installing, phase)
-                }
+                val installed = fetchAndInstall(entry) { detail -> status.text = detail }
+                // The update was installed: whatever the last check said about this id is no longer
+                // true, and a stale badge under a fresh dictionary would be worse than no badge.
+                UpdateStateStore(this@DictionaryActivity).forget(entry.id)
                 toast(getString(R.string.dictionary_installed_done, installed.info.title))
-                refresh()
-            } catch (t: kotlinx.coroutines.CancellationException) {
-                status.visibility = View.GONE
+            } catch (t: CancellationException) {
                 toast(getString(R.string.dictionary_download_cancelled))
             } catch (t: Throwable) {
-                status.visibility = View.GONE
                 showFailure(R.string.dictionary_download_failed, t)
             } finally {
-                archive.delete()
                 busy = null
                 downloadJob = null
-                // The row may still be on screen (a cancel or a failure does not refresh the list).
-                button.text = getString(R.string.dictionary_download)
-                button.setOnClickListener { startDownload(entry, status, button) }
+                // Rebuild the screen only after `busy` is clear. renderUpdates() decides whether the
+                // new buttons are enabled from `busy`, so refreshing inside the try left «Verificar»
+                // and «Atualizar tudo» dead until the screen was reopened (R43, device report).
+                if (!isFinishing && !isDestroyed) refresh()
+            }
+        }
+    }
+
+    /** Updates every dictionary the last check marked, one after another, with one Cancel. */
+    private fun startUpdateAll(
+        entries: List<DictionaryCatalog.Entry>,
+        status: TextView,
+        button: TextView,
+    ) {
+        if (busy != null || checking) {
+            toast(getString(R.string.dictionary_download_failed, "outro download em andamento"))
+            return
+        }
+        busy = "update-all"
+        status.visibility = View.VISIBLE
+        button.text = getString(R.string.dictionary_cancel)
+        button.setOnClickListener { downloadJob?.cancel() }
+
+        downloadJob = scope.launch {
+            var done = 0
+            var failed = 0
+            try {
+                for ((index, entry) in entries.withIndex()) {
+                    status.text = getString(
+                        R.string.dictionary_updating_named,
+                        entry.name,
+                        index + 1,
+                        entries.size,
+                    )
+                    try {
+                        fetchAndInstall(entry) { detail ->
+                            status.text = getString(
+                                R.string.dictionary_updating_progress,
+                                entry.name,
+                                index + 1,
+                                entries.size,
+                                detail,
+                            )
+                        }
+                        UpdateStateStore(this@DictionaryActivity).forget(entry.id)
+                        done++
+                    } catch (t: CancellationException) {
+                        throw t
+                    } catch (t: Throwable) {
+                        failed++
+                        showFailure(R.string.dictionary_download_failed, t)
+                    }
+                }
+                if (failed == 0) {
+                    toast(resources.getQuantityString(R.plurals.dictionary_update_all_done, done, done))
+                } else {
+                    toast(getString(R.string.dictionary_update_all_partial, done, failed))
+                }
+            } catch (t: CancellationException) {
+                toast(getString(R.string.dictionary_download_cancelled))
+            } finally {
+                busy = null
+                downloadJob = null
+                // After `busy` is clear, so the rebuilt card does not come out disabled (R43).
+                if (!isFinishing && !isDestroyed) refresh()
             }
         }
     }
@@ -559,12 +944,16 @@ class DictionaryActivity : AppCompatActivity() {
                     displayName = name,
                 )
                 toast(getString(R.string.dictionary_installed_done, installed.info.title))
-                refresh()
+            } catch (t: CancellationException) {
+                throw t
             } catch (t: Throwable) {
                 showFailure(R.string.dictionary_import_failed, t)
             } finally {
                 archive.delete()
                 busy = null
+                // Same order as the downloads: a refresh while «busy» is set rebuilds the update
+                // card with its buttons disabled (R43).
+                if (!isFinishing && !isDestroyed) refresh()
             }
         }
     }
@@ -597,6 +986,25 @@ class DictionaryActivity : AppCompatActivity() {
     }
 
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+    /**
+     * Runs [block] on the main thread, unless this screen is already gone.
+     *
+     * Download and compile progress is reported from `Dispatchers.IO` — the downloader calls back
+     * inside its `withContext(IO)`, the compiler from its own worker. On a device, touching the
+     * status `TextView` from there throws `CalledFromWrongThreadException`, which aborted the work at
+     * the first progress report: no percentage showed, no dictionary was replaced, and every entry
+     * in «Atualizar tudo» counted as a failure (R43, device report). Robolectric does not enforce
+     * the thread affinity, so the tests passed while the phone could not update anything.
+     */
+    internal fun onUi(block: () -> Unit) {
+        if (isFinishing || isDestroyed) return
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            runOnUiThread { if (!isFinishing && !isDestroyed) block() }
+        }
+    }
 
     companion object {
         /** The checkbox that turns the query cleanup on and off (R35d), for the screen's tests. */

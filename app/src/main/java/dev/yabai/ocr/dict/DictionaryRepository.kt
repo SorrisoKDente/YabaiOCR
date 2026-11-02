@@ -12,6 +12,7 @@ import dev.yabai.ocr.core.dict.LookupEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 /** A dictionary sitting on disk, with the user's enable/priority state applied. */
@@ -22,6 +23,13 @@ data class InstalledDictionary(
     val sourceName: String,
     val enabled: Boolean,
     val sizeBytes: Long,
+    /**
+     * Catalog id this copy came from, or "" for a dictionary imported from a file (R43). Downloads
+     * use the catalog id as the installed id, so an old install is still recognisable.
+     */
+    val sourceId: String = "",
+    /** HTTP identity of the archive at install time, or null when it was never recorded (R43). */
+    val sourceSignature: RemoteSignature? = null,
 ) {
     /**
      * The dictionary as the user has to see it when several can be confused (R22).
@@ -64,7 +72,11 @@ class DictionaryRepository private constructor(private val appContext: Context) 
     }
 
     fun installed(): List<InstalledDictionary> = synchronized(lock) {
-        installedCache ?: discover().also { installedCache = it }
+        // Only a non-empty answer is cached. A scan that saw the dictionary folder in a transient
+        // state would otherwise hide every dictionary until the process was restarted — leaving the
+        // tab and coming back did not help because the empty answer was still in the cache (R43).
+        installedCache?.let { return it }
+        discover().also { if (it.isNotEmpty()) installedCache = it }
     }
 
     fun enabledCount(): Int = installed().count { it.enabled }
@@ -123,6 +135,7 @@ class DictionaryRepository private constructor(private val appContext: Context) 
         zip: File,
         id: String,
         displayName: String,
+        source: DictionarySource? = null,
         onProgress: (String) -> Unit = {},
     ): InstalledDictionary = withContext(Dispatchers.IO) {
         val target = File(root, id)
@@ -131,7 +144,7 @@ class DictionaryRepository private constructor(private val appContext: Context) 
         staging.mkdirs()
 
         val info = try {
-            DictionaryCompiler(zip, staging, displayName).compile(
+            val compiled = DictionaryCompiler(zip, staging, displayName).compile(
                 progress = { phase, done, _ ->
                     when (phase) {
                         DictionaryCompiler.Phase.READING ->
@@ -142,14 +155,24 @@ class DictionaryRepository private constructor(private val appContext: Context) 
                     }
                 },
             )
+            // The update check needs to know what the archive looked like when it was installed
+            // (R43). It goes into the same meta.json the rest of the dictionary is read from.
+            if (source != null) annotateSource(File(staging, "meta.json"), source)
+            compiled
         } catch (t: Throwable) {
             staging.deleteRecursively()
             throw t
         }
 
-        synchronized(lock) {
+        val enabled = synchronized(lock) {
+            // The engine may still hold the old copy's index files open. Replacing them under it is
+            // what makes an update dangerous: the reader would be searching a file that no longer
+            // exists, and on platforms that lock open files the swap itself fails. The cache is
+            // rebuilt from the new copy on the next lookup.
+            releaseLocked()
             target.deleteRecursively()
             if (!staging.renameTo(target)) {
+                target.deleteRecursively()
                 staging.copyRecursively(target, overwrite = true)
                 staging.deleteRecursively()
             }
@@ -157,11 +180,20 @@ class DictionaryRepository private constructor(private val appContext: Context) 
             if (order.none { it.first == id }) order.add(id to true)
             persistOrder(order)
             installedCache = null
-            releaseLocked()
+            order.first { it.first == id }.second
         }
 
         val size = target.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        InstalledDictionary(id, target, info, displayName, enabled = true, sizeBytes = size)
+        InstalledDictionary(
+            id = id,
+            directory = target,
+            info = info,
+            sourceName = displayName,
+            enabled = enabled,
+            sizeBytes = size,
+            sourceId = source?.catalogId.orEmpty(),
+            sourceSignature = source?.signature,
+        )
     }
 
     /**
@@ -230,12 +262,49 @@ class DictionaryRepository private constructor(private val appContext: Context) 
             return null
         }
         val size = directory.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        val sourceName = try {
-            JsonParser.parseString(meta.readText()).asJsonObject.get("sourceName")?.asString
+        val metaObject = try {
+            JsonParser.parseString(meta.readText()).asJsonObject
         } catch (t: Throwable) {
             null
-        } ?: info.title
-        return InstalledDictionary(id, directory, info, sourceName, enabled, size)
+        }
+        fun string(name: String): String? =
+            metaObject?.get(name)?.takeIf { !it.isJsonNull }?.asString
+
+        val sourceName = string("sourceName") ?: info.title
+        val etag = string("sourceEtag")
+        val lastModified = string("sourceLastModified")
+        val length = metaObject?.get("sourceLength")?.takeIf { !it.isJsonNull }?.asLong ?: 0L
+        val signature = if (etag != null || lastModified != null || length > 0) {
+            RemoteSignature(etag, lastModified, length)
+        } else {
+            null
+        }
+        return InstalledDictionary(
+            id = id,
+            directory = directory,
+            info = info,
+            sourceName = sourceName,
+            enabled = enabled,
+            sizeBytes = size,
+            sourceId = string("sourceId").orEmpty(),
+            sourceSignature = signature,
+        )
+    }
+
+    /** Adds the download's identity to the compiled `meta.json`, before it becomes live. */
+    private fun annotateSource(meta: File, source: DictionarySource) {
+        if (!meta.isFile) return
+        val obj = try {
+            JsonParser.parseString(meta.readText()).asJsonObject
+        } catch (t: Throwable) {
+            return
+        }
+        obj.addProperty("sourceId", source.catalogId)
+        obj.addProperty("sourceUrl", source.url)
+        source.signature.etag?.let { obj.addProperty("sourceEtag", it) }
+        source.signature.lastModified?.let { obj.addProperty("sourceLastModified", it) }
+        if (source.signature.length > 0) obj.addProperty("sourceLength", source.signature.length)
+        meta.writeText(obj.toString(), StandardCharsets.UTF_8)
     }
 
     private fun storedOrder(): List<Pair<String, Boolean>> {

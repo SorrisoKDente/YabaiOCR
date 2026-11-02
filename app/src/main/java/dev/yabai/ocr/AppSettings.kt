@@ -8,6 +8,20 @@ import dev.yabai.ocr.overlay.PickerReadingMode
 
 enum class EngineChoice { AUTO, LENS, MLKIT }
 
+/**
+ * How often the app asks the publishers whether an installed dictionary changed (R43).
+ *
+ * Off by default: it is a background network request, and it should be the user's choice to make
+ * the phone do it. The values are whole days because that is the unit the publishers work in —
+ * Jitendex cuts a release every few weeks, JMdict every day.
+ */
+enum class UpdateInterval(val days: Long) {
+    OFF(0),
+    DAILY(1),
+    WEEKLY(7),
+    MONTHLY(30),
+}
+
 /** Everything the floating service and the main screen share. */
 class AppSettings(context: Context) {
 
@@ -211,6 +225,21 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit { putBoolean(KEY_SHOW_AI_BUTTON, value) }
 
     /**
+     * How often to check the publishers for new dictionary versions (R43).
+     *
+     * The check itself is a few HEAD requests or 1 KB descriptors; the download only happens when
+     * the user taps «Atualizar», so a metered connection is never surprised by 39 MB.
+     */
+    var dictionaryUpdateInterval: UpdateInterval
+        get() = when (prefs.getString(KEY_DICTIONARY_UPDATE_INTERVAL, null)) {
+            UpdateInterval.DAILY.name -> UpdateInterval.DAILY
+            UpdateInterval.WEEKLY.name -> UpdateInterval.WEEKLY
+            UpdateInterval.MONTHLY.name -> UpdateInterval.MONTHLY
+            else -> UpdateInterval.OFF
+        }
+        set(value) = prefs.edit { putString(KEY_DICTIONARY_UPDATE_INTERVAL, value.name) }
+
+    /**
      * The question the AI app is asked, in front of the recognised text. An empty prompt sends the
      * text alone — for whoever would rather write the question once they are there.
      */
@@ -276,5 +305,6 @@ class AppSettings(context: Context) {
         private const val KEY_SHOW_AI_BUTTON = "show_ai_button"
         private const val KEY_AI_PROMPT = "ai_prompt"
         private const val KEY_AI_PACKAGE = "ai_package"
+        private const val KEY_DICTIONARY_UPDATE_INTERVAL = "dictionary_update_interval"
     }
 }
