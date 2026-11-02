@@ -4,8 +4,6 @@
     <color name="accent_dark">#FF2B4FC4</color>
     <color name="bubble_bg">#E61B1D24</color>
     <color name="panel_bg">#FF16181F</color>
-    <color name="panel_bg_light">#FFF7F8FA</color>
-    <color name="scrim">#99000000</color>
     <color name="text_primary">#FFFFFFFF</color>
     <color name="text_secondary">#FFAAB0BD</color>
     <color name="divider">#22FFFFFF</color>

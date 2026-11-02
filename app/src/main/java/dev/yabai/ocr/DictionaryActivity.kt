@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import dev.yabai.ocr.core.dict.DictionaryCompiler
 import dev.yabai.ocr.dict.DictionaryCatalog
 import dev.yabai.ocr.dict.DictionaryDownloader
@@ -245,8 +246,8 @@ class DictionaryActivity : AppCompatActivity() {
         val creditsToggle = textLabel(getString(R.string.dictionary_legal_credits_toggle), 12f, getColor(R.color.accent), bold = true).apply {
             setPadding(0, dp(4), 0, dp(8))
             setOnClickListener {
-                val open = creditsContainer.visibility == View.VISIBLE
-                creditsContainer.visibility = if (open) View.GONE else View.VISIBLE
+                val open = creditsContainer.isVisible
+                creditsContainer.isVisible = !open
                 text = getString(if (open) R.string.dictionary_legal_credits_toggle else R.string.dictionary_legal_credits_toggle_open)
             }
         }

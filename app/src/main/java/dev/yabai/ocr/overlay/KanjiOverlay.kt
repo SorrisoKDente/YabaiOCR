@@ -17,6 +17,7 @@ import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.isVisible
 import dev.yabai.ocr.R
 import dev.yabai.ocr.core.layout.KanjiGrid
 import dev.yabai.ocr.core.lens.PixelBox
@@ -338,7 +339,7 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
 
     /** Where the card is, or null while it is hidden — the tests read it to know it appeared. */
     internal fun cardText(): String? =
-        if (card.visibility == VISIBLE) {
+        if (card.isVisible) {
             val parts = ArrayList<String>()
             fun walk(group: android.view.ViewGroup) {
                 for (index in 0 until group.childCount) {
