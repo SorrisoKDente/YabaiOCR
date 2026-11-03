@@ -723,6 +723,62 @@ Notas de implementação que valem saber antes de mexer:
 
 ---
 
+## Versão Desktop (Windows)
+
+O módulo `:desktop` lê japonês na tela do PC — navegador, leitor de mangá, PDF, jogo — sem tirar print
+nem abrir outra janela. Rode com:
+
+```powershell
+gradlew :desktop:run
+```
+
+### Hover em tempo real (estilo Yomitan/Rikaichan)
+
+1. Abra **Ajustes → Modo Hover → Ativar** (ou aperte o atalho, padrão **`Ctrl + Shift + H`**; o mesmo
+   atalho desliga).
+2. Deixe o ponteiro **parado por um instante sobre a palavra japonesa**. Não precisa clicar nem
+   apertar tecla: depois de ~0,4 s o cartão aparece ao lado do cursor com leitura, classe da palavra,
+   definição e o dicionário que respondeu.
+3. Para ler a definição com calma, leve o ponteiro até o cartão — ele não fecha. Sair da palavra e do
+   cartão fecha em ~0,2 s.
+4. O menu da bandeja mostra `Modo Hover [Ativo]`; o tooltip do ícone repete o último resultado, o que
+   ajuda a ver o que o OCR leu quando o verbete não vem.
+
+O recorte tem 640×360 px em volta do cursor (mais contexto da linha, onde está a conjugação) e é
+limitado à área dos monitores, então funciona com o ponteiro junto das bordas e em mais de uma tela.
+A palavra é escolhida pela caixa de cada linha devolvida pelo Google Lens — em texto horizontal e
+vertical —, e não pela frase inteira.
+
+Se nada aparecer, o **status** (cartão dos Ajustes e tooltip da bandeja) diz o motivo: «Nenhum
+dicionário instalado», «Nenhum texto reconhecido perto do cursor» ou «Texto lido, mas sem verbete:
+…». Os dicionários ficam na pasta escolhida em **Ajustes → Pasta de Dicionários** (a chave antiga
+`custom_dict_directory` continua sendo lida) e são abertos uma vez só, sob demanda.
+
+### Atalhos globais
+
+| Atalho | Ação |
+| --- | --- |
+| `Ctrl + Shift + O` (padrão) | Capturar a tela e escolher a área para OCR |
+| `Ctrl + Shift + D` (padrão) | Abrir a busca rápida de dicionário |
+| `Ctrl + Shift + H` (padrão) | Ligar/desligar o modo hover |
+
+Todos podem ser trocados em **Ajustes → Atalhos Globais**, inclusive com o app já aberto; o botão
+«Capturar» grava a combinação e o gancho global passa a usá-la na hora.
+
+### Testes do desktop
+
+```powershell
+gradlew :desktop:test
+```
+
+Cobrem o que pode ser quebrado sem tela: casamento dos atalhos (incluindo o fato de os códigos
+`VC_*` do JNativeHook não serem os do AWT), debounce do hover, carência antes de fechar o cartão,
+recorte/HiDPI/multimonitor, escolha da palavra sob o ponteiro e a leitura da pasta de dicionários
+(inclusive a chave antiga). A verificação ponta a ponta — Lens de verdade, mouse parado, cartão na
+tela — é feita rodando o app.
+
+---
+
 ## Compilando
 
 Requisitos: JDK 17+, Android SDK com `platforms;android-36` e `build-tools;36.0.0`.

@@ -14,8 +14,9 @@ enum class DesktopUpdateInterval(val days: Long) {
 }
 enum class DesktopAiProvider { CHATGPT, GEMINI, DEEPSEEK, CLAUDE, CUSTOM }
 
-class DesktopSettings {
-    private val file = File(System.getProperty("user.home"), ".yabai_ocr/settings.properties")
+class DesktopSettings(
+    private val file: File = File(System.getProperty("user.home"), ".yabai_ocr/settings.properties")
+) {
     private val props = Properties().apply {
         if (file.exists()) {
             runCatching { file.inputStream().use { load(it) } }
@@ -37,6 +38,10 @@ class DesktopSettings {
     var quickDictHotkey: String
         get() = props.getProperty("quick_dict_hotkey", "Ctrl + Shift + D")
         set(value) { props.setProperty("quick_dict_hotkey", value); save() }
+
+    var hoverHotkey: String
+        get() = props.getProperty("hover_hotkey", "Ctrl + Shift + H")
+        set(value) { props.setProperty("hover_hotkey", value); save() }
 
     // 2. Motor de Reconhecimento
     var engine: DesktopEngineChoice
@@ -84,7 +89,7 @@ class DesktopSettings {
         }
         set(value) { props.setProperty("picker_reading", value.name); save() }
 
-    // 4. Dicionários e Pasta de Dados
+    // 4. Dicionários e Localização
     var dictionaryLookup: Boolean
         get() = props.getProperty("dictionary_lookup", "true").toBoolean()
         set(value) { props.setProperty("dictionary_lookup", value.toString()); save() }
@@ -94,72 +99,59 @@ class DesktopSettings {
         set(value) { props.setProperty("dictionary_filter", value); save() }
 
     var dictionaryKeepLastSearch: Boolean
-        get() = props.getProperty("dictionary_keep_last_search", "false").toBoolean()
+        get() = props.getProperty("dictionary_keep_last_search", "true").toBoolean()
         set(value) { props.setProperty("dictionary_keep_last_search", value.toString()); save() }
 
     var stripSearchReadings: Boolean
-        get() = props.getProperty("strip_search_readings", "false").toBoolean()
+        get() = props.getProperty("strip_search_readings", "true").toBoolean()
         set(value) { props.setProperty("strip_search_readings", value.toString()); save() }
 
     var dictionaryUpdateInterval: DesktopUpdateInterval
-        get() = when (props.getProperty("dictionary_update_interval", "OFF")) {
+        get() = when (props.getProperty("dictionary_update_interval", "WEEKLY")) {
+            "OFF" -> DesktopUpdateInterval.OFF
             "DAILY" -> DesktopUpdateInterval.DAILY
-            "WEEKLY" -> DesktopUpdateInterval.WEEKLY
             "MONTHLY" -> DesktopUpdateInterval.MONTHLY
-            else -> DesktopUpdateInterval.OFF
+            else -> DesktopUpdateInterval.WEEKLY
         }
         set(value) { props.setProperty("dictionary_update_interval", value.name); save() }
 
     var customDictDirectoryPath: String
-        get() = props.getProperty("custom_dict_directory", defaultDictDirectory().absolutePath)
-        set(value) { props.setProperty("custom_dict_directory", value); save() }
-
-    fun dictDirectory(): File {
-        val path = props.getProperty("custom_dict_directory", null)
-        val dir = if (!path.isNullOrBlank()) File(path) else defaultDictDirectory()
-        if (!dir.exists()) runCatching { dir.mkdirs() }
-        return dir
-    }
+        // Versões anteriores gravaram a chave longa; sem esta leitura, quem já tinha escolhido a
+        // pasta voltava silenciosamente para `~/.yabai_ocr/dicts` e todo lookup dizia «nenhum
+        // dicionário» mesmo com os arquivos no lugar.
+        get() = props.getProperty("custom_dict_dir")
+            ?: props.getProperty("custom_dict_directory")
+            ?: defaultDictDirectory().absolutePath
+        set(value) {
+            props.setProperty("custom_dict_dir", value)
+            props.remove("custom_dict_directory")
+            save()
+        }
 
     fun defaultDictDirectory(): File {
-        val dir = File(System.getProperty("user.home"), ".yabai_ocr/dicts")
-        if (!dir.exists()) runCatching { dir.mkdirs() }
-        return dir
+        return File(System.getProperty("user.home"), ".yabai_ocr/dicts")
     }
 
-    // Persistência de Posição e Tamanho da Janela de Busca Rápida
-    var quickDictWidth: Int
-        get() = props.getProperty("quick_dict_width", "380").toIntOrNull() ?: 380
-        set(value) { props.setProperty("quick_dict_width", value.toString()); save() }
-
-    var quickDictHeight: Int
-        get() = props.getProperty("quick_dict_height", "480").toIntOrNull() ?: 480
-        set(value) { props.setProperty("quick_dict_height", value.toString()); save() }
-
-    var quickDictX: Int?
-        get() = props.getProperty("quick_dict_x", null)?.toIntOrNull()
-        set(value) { if (value != null) props.setProperty("quick_dict_x", value.toString()) else props.remove("quick_dict_x"); save() }
-
-    var quickDictY: Int?
-        get() = props.getProperty("quick_dict_y", null)?.toIntOrNull()
-        set(value) { if (value != null) props.setProperty("quick_dict_y", value.toString()) else props.remove("quick_dict_y"); save() }
+    fun dictDirectory(): File {
+        return File(customDictDirectoryPath)
+    }
 
     // 5. Tradução
     var translateSentence: Boolean
-        get() = props.getProperty("translate_sentence", "true").toBoolean()
+        get() = props.getProperty("translate_sentence", "false").toBoolean()
         set(value) { props.setProperty("translate_sentence", value.toString()); save() }
 
     var translateTarget: String
         get() = props.getProperty("translate_target", "pt")
         set(value) { props.setProperty("translate_target", value); save() }
 
-    // 6. Perguntar a uma IA
+    // 6. IA
     var showAiButton: Boolean
         get() = props.getProperty("show_ai_button", "true").toBoolean()
         set(value) { props.setProperty("show_ai_button", value.toString()); save() }
 
     var aiPrompt: String
-        get() = props.getProperty("ai_prompt", DEFAULT_AI_PROMPT)
+        get() = props.getProperty("ai_prompt", "Analise a frase em japonês abaixo, explique a gramática, o sentido dos kanjis e traduza para o português:")
         set(value) { props.setProperty("ai_prompt", value); save() }
 
     var aiProvider: DesktopAiProvider
@@ -173,23 +165,38 @@ class DesktopSettings {
         set(value) { props.setProperty("ai_provider", value.name); save() }
 
     var aiCustomUrl: String
-        get() = props.getProperty("ai_custom_url", "https://chatgpt.com/?q={text}")
+        get() = props.getProperty("ai_custom_url", "")
         set(value) { props.setProperty("ai_custom_url", value); save() }
 
-    fun buildAiUrl(japaneseText: String): String {
-        val query = if (aiPrompt.isNotBlank()) "$aiPrompt $japaneseText" else japaneseText
-        val encoded = runCatching { URLEncoder.encode(query, "UTF-8") }.getOrDefault(query)
-        val pattern = when (aiProvider) {
-            DesktopAiProvider.CHATGPT -> "https://chatgpt.com/?q={text}"
-            DesktopAiProvider.GEMINI -> "https://gemini.google.com/app?text={text}"
-            DesktopAiProvider.DEEPSEEK -> "https://chat.deepseek.com/?q={text}"
-            DesktopAiProvider.CLAUDE -> "https://claude.ai/new?q={text}"
-            DesktopAiProvider.CUSTOM -> if (aiCustomUrl.contains("{text}")) aiCustomUrl else "https://chatgpt.com/?q={text}"
-        }
-        return pattern.replace("{text}", encoded)
-    }
+    // Quick Dict window size & position persistence
+    var quickDictWidth: Int
+        get() = props.getProperty("quick_dict_w", "480").toIntOrNull() ?: 480
+        set(value) { props.setProperty("quick_dict_w", value.toString()); save() }
 
-    companion object {
-        const val DEFAULT_AI_PROMPT = "Traduza para português e explique a gramática, vocabulário e nuances desta frase em japonês:"
+    var quickDictHeight: Int
+        get() = props.getProperty("quick_dict_h", "600").toIntOrNull() ?: 600
+        set(value) { props.setProperty("quick_dict_h", value.toString()); save() }
+
+    var quickDictX: Int?
+        get() = props.getProperty("quick_dict_x")?.toIntOrNull()
+        set(value) { if (value != null) props.setProperty("quick_dict_x", value.toString()) else props.remove("quick_dict_x"); save() }
+
+    var quickDictY: Int?
+        get() = props.getProperty("quick_dict_y")?.toIntOrNull()
+        set(value) { if (value != null) props.setProperty("quick_dict_y", value.toString()) else props.remove("quick_dict_y"); save() }
+
+    fun buildAiUrl(text: String): String {
+        val encoded = URLEncoder.encode(aiPrompt + "\n\n" + text, "UTF-8")
+        return when (aiProvider) {
+            DesktopAiProvider.CHATGPT -> "https://chatgpt.com/?q=$encoded"
+            DesktopAiProvider.GEMINI -> "https://gemini.google.com/app?text=$encoded"
+            DesktopAiProvider.DEEPSEEK -> "https://chat.deepseek.com/?q=$encoded"
+            DesktopAiProvider.CLAUDE -> "https://claude.ai/new?q=$encoded"
+            DesktopAiProvider.CUSTOM -> {
+                val custom = aiCustomUrl.ifBlank { "https://chatgpt.com/?q={text}" }
+                val encodedText = URLEncoder.encode(text, "UTF-8")
+                custom.replace("{text}", encodedText)
+            }
+        }
     }
 }

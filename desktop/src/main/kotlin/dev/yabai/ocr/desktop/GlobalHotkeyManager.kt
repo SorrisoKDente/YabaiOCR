@@ -6,21 +6,46 @@ import com.github.kwhat.jnativehook.keyboard.NativeKeyListener
 import java.util.logging.Level
 import java.util.logging.Logger
 
+/**
+ * Global shortcuts through JNativeHook.
+ *
+ * The old matcher rebuilt the shortcut on every key press, accepted only `" + "` as a separator and
+ * silently did nothing when the native hook failed to start. Here the strings are parsed once,
+ * matching lives in [HotkeyMatcher] (tested), and a failure to install the hook is reported instead
+ * of looking like a dead shortcut.
+ */
 class GlobalHotkeyManager(
     private val onOcrTriggered: () -> Unit,
-    private val onQuickDictTriggered: () -> Unit
+    private val onQuickDictTriggered: () -> Unit,
+    private val onHoverTriggered: () -> Unit,
 ) : NativeKeyListener {
 
-    private var ocrHotkey: String = "Ctrl + Shift + O"
-    private var quickDictHotkey: String = "Ctrl + Shift + D"
+    @Volatile
+    private var ocrSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + O")
 
-    fun updateHotkeys(ocr: String, quickDict: String) {
-        ocrHotkey = ocr
-        quickDictHotkey = quickDict
+    @Volatile
+    private var quickDictSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + D")
+
+    @Volatile
+    private var hoverSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + H")
+
+    @Volatile
+    private var started = false
+
+    /** Replaces the shortcuts immediately; the listener reads these specs on the next key press. */
+    fun updateHotkeys(ocr: String, quickDict: String, hover: String = "Ctrl + Shift + H") {
+        ocrSpec = HotkeyMatcher.parse(ocr)
+        quickDictSpec = HotkeyMatcher.parse(quickDict)
+        hoverSpec = HotkeyMatcher.parse(hover)
+        if (ocrSpec == null) println("[Hotkey] atalho de OCR inválido: \"$ocr\"")
+        if (quickDictSpec == null) println("[Hotkey] atalho de busca inválido: \"$quickDict\"")
+        if (hoverSpec == null) println("[Hotkey] atalho de hover inválido: \"$hover\"")
     }
 
-    fun start() {
-        try {
+    /** Returns true when the native hook was installed. */
+    fun start(): Boolean {
+        if (started) return true
+        return try {
             val logger = Logger.getLogger(GlobalScreen::class.java.packageName)
             logger.level = Level.OFF
             logger.useParentHandlers = false
@@ -29,60 +54,41 @@ class GlobalHotkeyManager(
                 GlobalScreen.registerNativeHook()
             }
             GlobalScreen.addNativeKeyListener(this)
+            started = true
+            println("[Hotkey] gancho global de teclado ativo.")
+            true
         } catch (e: Exception) {
+            println("[Hotkey] não foi possível instalar o gancho global: ${e.message}")
             e.printStackTrace()
+            false
         }
     }
 
     fun stop() {
-        try {
+        if (!started) return
+        started = false
+        runCatching {
             GlobalScreen.removeNativeKeyListener(this)
             if (GlobalScreen.isNativeHookRegistered()) {
                 GlobalScreen.unregisterNativeHook()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        }.onFailure { it.printStackTrace() }
     }
 
     override fun nativeKeyPressed(e: NativeKeyEvent) {
-        if (matchesHotkey(e, ocrHotkey)) {
-            onOcrTriggered()
-        } else if (matchesHotkey(e, quickDictHotkey)) {
-            onQuickDictTriggered()
-        }
-    }
+        val stroke = KeyStroke(
+            keyCode = e.keyCode,
+            keyText = NativeKeyEvent.getKeyText(e.keyCode),
+            ctrl = (e.modifiers and NativeKeyEvent.CTRL_MASK) != 0,
+            alt = (e.modifiers and NativeKeyEvent.ALT_MASK) != 0,
+            shift = (e.modifiers and NativeKeyEvent.SHIFT_MASK) != 0,
+            meta = (e.modifiers and NativeKeyEvent.META_MASK) != 0,
+        )
 
-    private fun matchesHotkey(e: NativeKeyEvent, targetHotkey: String): Boolean {
-        val parts = targetHotkey.split(" + ").map { it.trim().lowercase() }
-        if (parts.isEmpty()) return false
-
-        val mainKeyPart = parts.last()
-        val requiresCtrl = parts.contains("ctrl")
-        val requiresAlt = parts.contains("alt")
-        val requiresShift = parts.contains("shift")
-        val requiresMeta = parts.contains("meta")
-
-        val ctrlPressed = (e.modifiers and NativeKeyEvent.CTRL_MASK) != 0
-        val altPressed = (e.modifiers and NativeKeyEvent.ALT_MASK) != 0
-        val shiftPressed = (e.modifiers and NativeKeyEvent.SHIFT_MASK) != 0
-        val metaPressed = (e.modifiers and NativeKeyEvent.META_MASK) != 0
-
-        if (requiresCtrl != ctrlPressed) return false
-        if (requiresAlt != altPressed) return false
-        if (requiresShift != shiftPressed) return false
-        if (requiresMeta != metaPressed) return false
-
-        val pressedKeyText = NativeKeyEvent.getKeyText(e.keyCode).lowercase()
-        return pressedKeyText == mainKeyPart || matchKeyName(e.keyCode, mainKeyPart)
-    }
-
-    private fun matchKeyName(keyCode: Int, target: String): Boolean {
-        return when (target) {
-            "space", "espaço" -> keyCode == NativeKeyEvent.VC_SPACE
-            "enter" -> keyCode == NativeKeyEvent.VC_ENTER
-            "esc", "escape" -> keyCode == NativeKeyEvent.VC_ESCAPE
-            else -> false
+        when {
+            HotkeyMatcher.matches(ocrSpec, stroke) -> onOcrTriggered()
+            HotkeyMatcher.matches(quickDictSpec, stroke) -> onQuickDictTriggered()
+            HotkeyMatcher.matches(hoverSpec, stroke) -> onHoverTriggered()
         }
     }
 }

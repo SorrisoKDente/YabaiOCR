@@ -3601,8 +3601,49 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D12 | `[x]` | **Campos de Texto Selecionáveis**: Texto de OCR e definições selecionáveis para cópia (`SelectionContainer`) sem serem editáveis por padrão | fácil |
 | D13 | `[x]` | **Filtro de Dicionário Ativo**: Seletor para filtrar buscas por dicionário específico ou "Todos" no OCR e na consulta | fácil |
 | D14 | `[x]` | **Sugestões de Busca e Botões Apagar/Colar**: Sugestões automáticas (`LookupEngine.suggest`) e botões rápidos ❌ Apagar / 📋 Colar no campo de busca | médio |
-| D15 | `[ ]` | **Atalho Global para Busca Rápida**: Atalho de teclado independente (ex: `Ctrl + Shift + D`) para abrir o Dicionário Rápido em background | médio |
-| D16 | `[ ]` | **Catálogo Completo e Atribuições Legais**: Adicionar o catálogo completo de dicionários do mobile (Wiktionary, Onomatopeias, etc.) e dados legais de uso | fácil |
+| D15 | `[x]` | **Atalho Global para Busca Rápida**: Atalho de teclado independente (ex: `Ctrl + Shift + D`) para abrir o Dicionário Rápido em background | médio |
+| D16 | `[x]` | **Catálogo Completo e Atribuições Legais**: Adicionar o catálogo completo de dicionários do mobile (Wiktionary, Onomatopeias, etc.) e dados legais de uso | fácil |
 | D17 | `[x]` | **Menu Flutuante da Bandeja Customizado**: Popup do tray estilizado em Compose Desktop com tema escuro (`0xFF12141A`), bordas e hover | médio |
-| D18 | `[ ]` | **OCR em Tempo Real por Hover (Estilo Yomitan)**: Seleção por varredura/mouse na tela inteira | avançado |
+| D18 | `[x]` | **OCR em Tempo Real por Hover (Estilo Yomitan)**: laço contínuo do mouse, debounce, recorte limitado às bordas, palavra pela caixa da linha e cartão ao lado do cursor | avançado |
+| D19 | `[ ]` | **Gerenciamento de Atualizações de Dicionários**: Verificação de atualizações, botão para atualizar todos, atualizar individualmente e exibição da versão instalada | médio |
+| D20 | `[ ]` | **Iniciar na Bandeja ao Ligar o Computador**: Opção nas configurações para iniciar o aplicativo minimizado na bandeja ao ligar o PC (com chave de ativação/desativação) | fácil |
+
+### D18 — Hover em tempo real: o que estava quebrado (03/11/2026) `[x]`
+
+O item já estava marcado como pronto, mas **passar o mouse não fazia nada**: o cartão só aparecia se o
+atalho fosse apertado. Três defeitos independentes se somavam:
+
+1. **Não existia observador do mouse.** O que o atalho chamava (`triggerAtCursor`) fazia uma captura
+   única de 320×120 no instante da tecla e desistia. Sem um laço lendo `MouseInfo`, ficar parado sobre
+   uma palavra nunca podia disparar nada. Agora um laço de 60 ms roda enquanto o modo está ligado, e
+   `HoverGate` só dispara depois que o ponteiro fica **420 ms** dentro de 5 px — sem repetir o mesmo
+   ponto e liberando de novo quando o cartão fecha.
+2. **A pasta escolhida pelo usuário não era lida.** Versões anteriores gravaram a chave
+   `custom_dict_directory`; o código lia só `custom_dict_dir` e caía no padrão `~/.yabai_ocr/dicts`,
+   vazio. Todo lookup respondia «Nenhum dicionário instalado» mesmo com os `.yabai` no lugar. A chave
+   antiga voltou a ser lida e é migrada na primeira gravação.
+3. **O atalho não casava com a tecla.** Os códigos `VC_*` do JNativeHook não são os do AWT
+   (`VC_H` = 35, não 72), e a comparação antiga usava o texto da tecla; `Ctrl + Shift + H` passava
+   batido. `HotkeyMatcher` compara código nativo com uma tabela explícita e exige os modificadores
+   exatos.
+
+A precisão do OCR também mudou: o recorte passou a 640×360 (mais contexto da linha, onde vive a
+conjugação), limitado aos monitores — antes um recorte fixo perto da borda fazia o `Robot` lançar
+exceção, engolida em silêncio; e a palavra é escolhida pela **caixa de cada linha** devolvida pelo
+Lens, dividida entre os caracteres, em vez de adivinhada pela frase inteira. Funciona em texto
+horizontal e vertical, e a caixa do token é convertida de volta para a tela considerando o HiDPI.
+O cartão abre ao lado do cursor, vira para o outro lado nas bordas e fica aberto enquanto o ponteiro
+está na palavra ou sobre ele (220 ms de carência para atravessar o vão), o que permite selecionar e
+copiar a definição.
+
+Controles: o atalho de hover (padrão `Ctrl + Shift + H`) **liga e desliga o modo**; ao ligar, já faz
+uma leitura no ponto atual. Nos Ajustes há o cartão «Modo Hover» com Ativar/Desativar, o status e
+«Testar no cursor atual»; o menu da bandeja mostra `[Ativo]`/`[Inativo]`; e o tooltip da bandeja repete
+o último status, útil quando o cartão não aparece.
+
+Testes de regressão em `desktop/src/test` (42 no total): `HotkeyMatcherTest` (7), `HoverGateTest` (6),
+`HoverDismissGateTest` (6), `HoverGeometryTest` (12), `HoverTextSelectorTest` (8) e
+`DesktopSettingsTest` (3). Cada um foi conferido por mutação: quebrar a regra correspondente faz o
+teste falhar e restaurá-la o faz passar.
+
 

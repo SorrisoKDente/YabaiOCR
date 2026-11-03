@@ -10,6 +10,8 @@ class SystemTrayManager(
     private val onQuickDictRequested: () -> Unit,
     private val onFullDictRequested: () -> Unit,
     private val onSettingsRequested: () -> Unit,
+    private val onHoverRequested: () -> Unit,
+    private val isHoverActive: () -> Boolean,
     private val onExitRequested: () -> Unit,
 ) {
     private var trayIcon: TrayIcon? = null
@@ -59,12 +61,12 @@ class SystemTrayManager(
                 val btn = JButton(text)
                 btn.font = Font("SansSerif", Font.PLAIN, 13)
                 btn.foreground = Color.WHITE
-                btn.background = Color(0x12, 0x14, 0x1A)
+                btn.background = Color(0x1B, 0x1E, 0x28)
                 btn.isFocusPainted = false
                 btn.isBorderPainted = false
                 btn.isContentAreaFilled = true
                 btn.alignmentX = Component.LEFT_ALIGNMENT
-                btn.maximumSize = Dimension(220, 36)
+                btn.maximumSize = Dimension(230, 36)
                 btn.horizontalAlignment = SwingConstants.LEFT
                 btn.margin = Insets(0, 0, 0, 0)
                 btn.border = BorderFactory.createEmptyBorder(8, 12, 8, 12)
@@ -75,7 +77,7 @@ class SystemTrayManager(
                         btn.background = Color(0x2E, 0x33, 0x44)
                     }
                     override fun mouseExited(e: MouseEvent) {
-                        btn.background = Color(0x12, 0x14, 0x1A)
+                        btn.background = Color(0x1B, 0x1E, 0x28)
                     }
                 })
 
@@ -90,13 +92,18 @@ class SystemTrayManager(
             panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton("🔍  Busca Rápida de Dicionário") { onQuickDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
+
+            val hoverStatus = if (isHoverActive()) "🌐  Modo Hover [Ativo]" else "🌐  Modo Hover [Inativo]"
+            panel.add(createTrayButton(hoverStatus) { onHoverRequested() })
+
+            panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton("📚  Gerenciar Dicionários") { onFullDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton("⚙️  Ajustes e Configurações") { onSettingsRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 4)))
 
             val sep = JSeparator()
-            sep.maximumSize = Dimension(220, 1)
+            sep.maximumSize = Dimension(230, 1)
             sep.foreground = Color(0x2E, 0x33, 0x44)
             sep.background = Color(0x12, 0x14, 0x1A)
             panel.add(sep)
@@ -153,9 +160,22 @@ class SystemTrayManager(
         }
     }
 
+    /** Updates the tooltip of the tray icon, which is the only always-visible hover feedback. */
+    fun setStatus(message: String) {
+        val text = message.trim()
+        SwingUtilities.invokeLater {
+            trayIcon?.toolTip = if (text.isEmpty()) {
+                "Yabai OCR Desktop"
+            } else {
+                "Yabai OCR — ${text.take(120)}"
+            }
+        }
+    }
+
     fun remove() {
         trayIcon?.let {
             SystemTray.getSystemTray().remove(it)
         }
+        trayIcon = null
     }
 }

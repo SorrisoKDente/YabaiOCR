@@ -26,16 +26,30 @@ import javax.swing.JFileChooser
 
 @Composable
 fun SettingsContent(
-    onManageDictionariesRequested: (() -> Unit)? = null
+    onManageDictionariesRequested: (() -> Unit)? = null,
+    hoverActive: Boolean = false,
+    hoverStatus: String = "",
+    onHoverToggle: () -> Unit = {},
+    onHoverTest: () -> Unit = {},
+    onHotkeysChanged: (ocr: String, quickDict: String, hover: String) -> Unit = { _, _, _ -> },
 ) {
     val settings = remember { DesktopSettings() }
 
     var globalHotkey by remember { mutableStateOf(settings.globalHotkey) }
     var quickDictHotkey by remember { mutableStateOf(settings.quickDictHotkey) }
+    var hoverHotkey by remember { mutableStateOf(settings.hoverHotkey) }
+
+    fun notifyHotkeysChanged() {
+        onHotkeysChanged(globalHotkey, quickDictHotkey, hoverHotkey)
+    }
+
     var isCapturingHotkey by remember { mutableStateOf(false) }
     var isCapturingQuickDictHotkey by remember { mutableStateOf(false) }
+    var isCapturingHoverHotkey by remember { mutableStateOf(false) }
+
     val hotkeyFocusRequester = remember { FocusRequester() }
     val quickDictFocusRequester = remember { FocusRequester() }
+    val hoverHotkeyFocusRequester = remember { FocusRequester() }
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
@@ -107,6 +121,7 @@ fun SettingsContent(
         // --- 1. Atalhos Globais ---
         item {
             SettingCard(title = "1. Atalhos Globais de Teclado") {
+                // OCR Hotkey
                 Text(
                     text = "Atalho de Captura de Tela (OCR):",
                     style = MaterialTheme.typography.caption,
@@ -152,6 +167,7 @@ fun SettingsContent(
                                         globalHotkey = formatted
                                         settings.globalHotkey = formatted
                                         isCapturingHotkey = false
+                                        notifyHotkeysChanged()
                                         true
                                     } else false
                                 } else false
@@ -192,6 +208,7 @@ fun SettingsContent(
                             globalHotkey = "Ctrl + Shift + O"
                             settings.globalHotkey = "Ctrl + Shift + O"
                             isCapturingHotkey = false
+                            notifyHotkeysChanged()
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                     ) {
@@ -200,6 +217,8 @@ fun SettingsContent(
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
+
+                // Quick Dict Hotkey
                 Text(
                     text = "Atalho de Busca Rápida de Dicionário:",
                     style = MaterialTheme.typography.caption,
@@ -245,6 +264,7 @@ fun SettingsContent(
                                         quickDictHotkey = formatted
                                         settings.quickDictHotkey = formatted
                                         isCapturingQuickDictHotkey = false
+                                        notifyHotkeysChanged()
                                         true
                                     } else false
                                 } else false
@@ -285,11 +305,175 @@ fun SettingsContent(
                             quickDictHotkey = "Ctrl + Shift + D"
                             settings.quickDictHotkey = "Ctrl + Shift + D"
                             isCapturingQuickDictHotkey = false
+                            notifyHotkeysChanged()
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                     ) {
                         Text("Padrão")
                     }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Hover Hotkey
+                Text(
+                    text = "Atalho de Modo Hover (Leitor sob o Cursor):",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFFA0A6B8)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(hoverHotkeyFocusRequester)
+                            .focusable()
+                            .onKeyEvent { keyEvent ->
+                                if (isCapturingHoverHotkey && keyEvent.type == KeyEventType.KeyDown) {
+                                    val key = keyEvent.key
+                                    if (key != Key.CtrlLeft && key != Key.CtrlRight &&
+                                        key != Key.ShiftLeft && key != Key.ShiftRight &&
+                                        key != Key.AltLeft && key != Key.AltRight &&
+                                        key != Key.MetaLeft && key != Key.MetaRight
+                                    ) {
+                                        val parts = mutableListOf<String>()
+                                        if (keyEvent.isCtrlPressed) parts.add("Ctrl")
+                                        if (keyEvent.isAltPressed) parts.add("Alt")
+                                        if (keyEvent.isShiftPressed) parts.add("Shift")
+                                        if (keyEvent.isMetaPressed) parts.add("Meta")
+
+                                        val keyName = when (key) {
+                                            Key.Spacebar -> "Space"
+                                            Key.Enter -> "Enter"
+                                            Key.Escape -> "Esc"
+                                            Key.Tab -> "Tab"
+                                            Key.Backspace -> "Backspace"
+                                            else -> java.awt.event.KeyEvent.getKeyText(key.nativeKeyCode)
+                                        }
+                                        parts.add(keyName)
+                                        val formatted = parts.joinToString(" + ")
+
+                                        hoverHotkey = formatted
+                                        settings.hoverHotkey = formatted
+                                        isCapturingHoverHotkey = false
+                                        notifyHotkeysChanged()
+                                        true
+                                    } else false
+                                } else false
+                            }
+                            .background(
+                                color = if (isCapturingHoverHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isCapturingHoverHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = if (isCapturingHoverHotkey) "Pressione as teclas..." else "Atalho: $hoverHotkey",
+                            style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (isCapturingHoverHotkey) Color(0xFF81C784) else Color.White
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            isCapturingHoverHotkey = true
+                            hoverHotkeyFocusRequester.requestFocus()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (isCapturingHoverHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(if (isCapturingHoverHotkey) "Aguardando..." else "Capturar")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            hoverHotkey = "Ctrl + Shift + H"
+                            settings.hoverHotkey = "Ctrl + Shift + H"
+                            isCapturingHoverHotkey = false
+                            notifyHotkeysChanged()
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text("Padrão")
+                    }
+                }
+            }
+        }
+
+        // --- 1.1 Modo Hover ---
+        item {
+            SettingCard(title = "Modo Hover — leitura em tempo real (Estilo Yomitan)") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (hoverActive) {
+                            "🟢 Ativo — pare o mouse sobre um texto japonês."
+                        } else {
+                            "⚪ Inativo — ative para traduzir só passando o mouse."
+                        },
+                        style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (hoverActive) Color(0xFF81C784) else Color(0xFFA0A6B8)
+                    )
+
+                    Button(
+                        onClick = onHoverToggle,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (hoverActive) Color(0xFF7A2E2E) else MaterialTheme.colors.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(if (hoverActive) "Desativar" else "Ativar")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "O modo funciona em qualquer aplicativo: navegador, leitor de mangá, PDF ou jogo. " +
+                        "Depois de ativado, basta deixar o ponteiro parado por um instante sobre a palavra; " +
+                        "o cartão com leitura e definição aparece ao lado do cursor. Mover o mouse para fora " +
+                        "fecha o cartão.",
+                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                    color = Color(0xFFA0A6B8)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Atalho para ligar/desligar: $hoverHotkey",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFF81D4FA)
+                )
+
+                if (hoverStatus.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Status: $hoverStatus",
+                        style = MaterialTheme.typography.caption,
+                        color = Color(0xFFE5A93C)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onHoverTest,
+                    enabled = hoverActive,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Text("Testar no cursor atual")
                 }
             }
         }
@@ -516,8 +700,7 @@ fun SettingsContent(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth()
                         .background(Color(0xFF141620), RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
