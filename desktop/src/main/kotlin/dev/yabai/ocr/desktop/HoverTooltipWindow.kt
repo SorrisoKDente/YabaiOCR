@@ -45,7 +45,7 @@ import java.awt.event.ComponentEvent
 
 /**
  * Tooltip window anchored next to the pointer with dictionary definitions.
- * Sized dynamically to wrap content tightly without empty space at the bottom.
+ * Sized dynamically to wrap content tightly without empty space or cutting text at the bottom.
  */
 @Composable
 fun HoverTooltipWindow(
@@ -236,21 +236,22 @@ fun HoverTooltipWindow(
     }
 }
 
-/** Accurately estimates content height so window wraps definitions tightly. */
+/** Accurately estimates content height so window wraps definitions tightly without cutting text off. */
 private fun estimateHeight(matches: List<TokenMatch>): Int {
-    var pixels = 48 // Header bar (28px) + container padding (20px)
+    var pixels = 58 // Header bar (28px) + container padding + safety buffer
     for (match in matches.take(3)) {
-        pixels += 22 // Term & Reading line
-        if (match.surface != match.entry.term) pixels += 16
-        if (match.reasons.isNotEmpty()) pixels += 16
-        if (match.entry.tags.isNotBlank()) pixels += 16
+        pixels += 26 // Term & Reading line
+        if (match.surface != match.entry.term) pixels += 18
+        if (match.reasons.isNotEmpty()) pixels += 18
+        if (match.entry.tags.isNotBlank()) pixels += 18
 
         val lines = match.entry.definition.split('\n').sumOf { line ->
-            (line.length / 45) + 1
+            // Full-width Japanese & formatted translations wrap at ~32 chars in 460dp width
+            if (line.isEmpty()) 1 else (line.length / 32) + 1
         }
-        pixels += lines * 19 + 12
+        pixels += lines * 20 + 16
     }
-    return pixels.coerceIn(110, 480)
+    return pixels.coerceIn(130, 520)
 }
 
 private fun placeWindow(window: java.awt.Window, anchor: Point) {
