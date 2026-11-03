@@ -1,19 +1,25 @@
 package dev.yabai.ocr.desktop
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.*
+import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 
 @Composable
 fun QuickDictWindow(onClose: () -> Unit) {
@@ -42,11 +48,12 @@ fun QuickDictWindow(onClose: () -> Unit) {
 
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
+    var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
 
     // Load dictionaries from configured dictionary directory
+    val dictDir = remember { settings.dictDirectory() }
     val engine = remember {
         try {
-            val dictDir = settings.dictDirectory()
             if (dictDir.exists() && dictDir.isDirectory) {
                 val dicts = dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }?.mapNotNull { file ->
                     runCatching { CompactDictionary.open(file) }.getOrNull()
@@ -58,9 +65,32 @@ fun QuickDictWindow(onClose: () -> Unit) {
         }
     }
 
-    LaunchedEffect(query) {
+    val installedDictTitles = remember(dictDir) {
+        val list = mutableListOf<String>()
+        try {
+            if (dictDir.exists() && dictDir.isDirectory) {
+                dictDir.listFiles()?.forEach { file ->
+                    if (file.extension == "yabai" || file.isDirectory) {
+                        val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
+                        if (dict != null) list.add(dict.info.title)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        list.toList()
+    }
+
+    val suggestions = remember(query, engine, selectedFilter) {
         if (engine != null && query.isNotBlank()) {
-            results = engine.search(query)
+            val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
+            engine.suggest(query, only = onlySet)
+        } else emptyList()
+    }
+
+    LaunchedEffect(query, selectedFilter) {
+        if (engine != null && query.isNotBlank()) {
+            val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
+            results = engine.search(query, only = onlySet)
         } else {
             results = emptyList()
         }
@@ -87,18 +117,115 @@ fun QuickDictWindow(onClose: () -> Unit) {
         ) {
             Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF12141A)) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        label = { Text("Pesquisar palavra, kanji ou leitura...") },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = TextFieldDefaults.outlinedTextFieldColors(
-                            textColor = Color.White,
-                            focusedBorderColor = MaterialTheme.colors.primary,
-                            unfocusedBorderColor = Color(0xFF2E3344)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Busca Rápida", style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold), color = Color.White)
+
+                        var expandedFilter by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(
+                                onClick = { expandedFilter = true },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            ) {
+                                Text(if (selectedFilter.isBlank()) "🌐 Todos" else "📖 $selectedFilter", fontSize = 10.sp)
+                            }
+                            DropdownMenu(
+                                expanded = expandedFilter,
+                                onDismissRequest = { expandedFilter = false }
+                            ) {
+                                DropdownMenuItem(onClick = {
+                                    selectedFilter = ""
+                                    expandedFilter = false
+                                }) {
+                                    Text("🌐 Todos os Dicionários")
+                                }
+                                installedDictTitles.forEach { title ->
+                                    DropdownMenuItem(onClick = {
+                                        selectedFilter = title
+                                        expandedFilter = false
+                                    }) {
+                                        Text("📖 $title")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            label = { Text("Pesquisar palavra, kanji ou leitura...") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                textColor = Color.White,
+                                focusedBorderColor = MaterialTheme.colors.primary,
+                                unfocusedBorderColor = Color(0xFF2E3344)
+                            )
                         )
-                    )
+
+                        if (query.isNotBlank()) {
+                            Button(
+                                onClick = { query = "" },
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = Color(0xFF2E3344),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("❌ Apagar", fontSize = 11.sp)
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    val clip = runCatching {
+                                        Toolkit.getDefaultToolkit().systemClipboard
+                                            .getData(DataFlavor.stringFlavor) as? String
+                                    }.getOrNull()
+                                    if (!clip.isNullOrBlank()) {
+                                        query = clip.trim()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = Color(0xFF2E3344),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("📋 Colar", fontSize = 11.sp)
+                            }
+                        }
+                    }
+
+                    if (suggestions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            suggestions.take(4).forEach { suggestion ->
+                                Surface(
+                                    modifier = Modifier.clickable { query = suggestion },
+                                    color = Color(0xFF232736),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        text = suggestion,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.caption.copy(color = Color(0xFF81D4FA))
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(10.dp))
 

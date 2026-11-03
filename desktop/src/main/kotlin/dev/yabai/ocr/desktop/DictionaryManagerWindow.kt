@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +22,8 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.awt.Desktop
+import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 import java.io.File
 import java.net.URI
 import javax.swing.JFileChooser
@@ -165,6 +168,13 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
         list.toList()
     }
 
+    val suggestions = remember(query, engine, selectedFilter) {
+        if (engine != null && query.isNotBlank()) {
+            val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
+            engine.suggest(query, only = onlySet)
+        } else emptyList()
+    }
+
     LaunchedEffect(query, refreshKey, selectedFilter) {
         if (engine != null && query.isNotBlank()) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
@@ -214,18 +224,76 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Pesquisar palavra, kanji, leitura (hiragana/romaji) ou tradução...") },
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = TextFieldDefaults.outlinedTextFieldColors(
-                textColor = Color.White,
-                focusedBorderColor = MaterialTheme.colors.primary,
-                unfocusedBorderColor = Color(0xFF2E3344)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Pesquisar palavra, kanji, leitura (hiragana/romaji) ou tradução...") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    textColor = Color.White,
+                    focusedBorderColor = MaterialTheme.colors.primary,
+                    unfocusedBorderColor = Color(0xFF2E3344)
+                )
             )
-        )
+
+            if (query.isNotBlank()) {
+                Button(
+                    onClick = { query = "" },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF2E3344),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("❌ Apagar", fontSize = 11.sp)
+                }
+            } else {
+                Button(
+                    onClick = {
+                        val clip = runCatching {
+                            Toolkit.getDefaultToolkit().systemClipboard
+                                .getData(DataFlavor.stringFlavor) as? String
+                        }.getOrNull()
+                        if (!clip.isNullOrBlank()) {
+                            query = clip.trim()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF2E3344),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("📋 Colar", fontSize = 11.sp)
+                }
+            }
+        }
+
+        if (suggestions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                suggestions.take(5).forEach { suggestion ->
+                    Surface(
+                        modifier = Modifier.clickable { query = suggestion },
+                        color = Color(0xFF232736),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = suggestion,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.caption.copy(color = Color(0xFF81D4FA))
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
