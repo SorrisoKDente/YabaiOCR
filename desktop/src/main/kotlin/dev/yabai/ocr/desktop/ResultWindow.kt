@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
+import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.*
 import dev.yabai.ocr.core.lens.*
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,6 @@ import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.net.URI
 import javax.imageio.ImageIO
 
@@ -46,8 +46,11 @@ fun ResultWindow(
     var elapsedMs by remember { mutableStateOf(0L) }
     var matches by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
     var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
+    var showImageToggle by remember { mutableStateOf(settings.showImage) }
 
+    val windowState = rememberWindowState(width = 860.dp, height = 700.dp)
     val imageBitmap = remember { croppedImage.toComposeImageBitmap() }
+    val isVerticalText = croppedImage.height > croppedImage.width
 
     // Load LookupEngine from configured dictionary directory
     val dictDir = remember { settings.dictDirectory() }
@@ -86,7 +89,6 @@ fun ResultWindow(
 
         withContext(Dispatchers.IO) {
             try {
-                // Convert BufferedImage to PNG EncodedImage
                 val baos = ByteArrayOutputStream()
                 ImageIO.write(croppedImage, "png", baos)
                 val bytes = baos.toByteArray()
@@ -132,7 +134,7 @@ fun ResultWindow(
     Window(
         onCloseRequest = onClose,
         title = "Yabai OCR - Resultado do Reconhecimento",
-        state = WindowState(width = 820.dp, height = 680.dp)
+        state = windowState
     ) {
         LaunchedEffect(Unit) {
             window.iconImage = AppIconGenerator.createWindowImage(64)
@@ -175,6 +177,14 @@ fun ResultWindow(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Imagem Toggle
+                            Button(
+                                onClick = { showImageToggle = !showImageToggle },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344))
+                            ) {
+                                Text(if (showImageToggle) "🖼️ Ocultar Imagem" else "🖼️ Mostrar Imagem", fontSize = 12.sp, color = Color.White)
+                            }
+
                             // Copiar
                             Button(
                                 onClick = {
@@ -262,58 +272,122 @@ fun ResultWindow(
                             modifier = Modifier.fillMaxSize(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            // --- Left Column: Editable Recognized Text & Image ---
-                            Column(
-                                modifier = Modifier.weight(1f).fillMaxHeight()
+                            // --- Left Column: Scrollable Editable Text & Image ---
+                            LazyColumn(
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    backgroundColor = Color(0xFF1B1E28),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Text(
-                                            text = "Texto Reconhecido (edite ou selecione para ajustar):",
-                                            style = MaterialTheme.typography.caption,
-                                            color = Color(0xFFA0A6B8)
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        OutlinedTextField(
-                                            value = recognizedText,
-                                            onValueChange = { recognizedText = it },
+                                item {
+                                    if (isVerticalText && showImageToggle) {
+                                        // Vertical text layout: Image on the left of text field
+                                        Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            textStyle = TextStyle(
-                                                fontSize = 20.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = Color.White,
-                                                lineHeight = 28.sp
-                                            ),
-                                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                                textColor = Color.White,
-                                                focusedBorderColor = MaterialTheme.colors.primary,
-                                                unfocusedBorderColor = Color(0xFF2E3344)
-                                            )
-                                        )
-                                    }
-                                }
-
-                                // Image Preview if enabled
-                                if (settings.showImage) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth().weight(1f),
-                                        backgroundColor = Color(0xFF1B1E28),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize().padding(8.dp),
-                                            contentAlignment = Alignment.Center
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.Top
                                         ) {
-                                            Image(
-                                                bitmap = imageBitmap,
-                                                contentDescription = "Recorte Selecionado",
-                                                modifier = Modifier.fillMaxSize()
-                                            )
+                                            Card(
+                                                modifier = Modifier.width(130.dp).height(260.dp),
+                                                backgroundColor = Color(0xFF1B1E28),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize().padding(4.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Image(
+                                                        bitmap = imageBitmap,
+                                                        contentDescription = "Recorte Vertical",
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
+                                            }
+
+                                            Card(
+                                                modifier = Modifier.weight(1f),
+                                                backgroundColor = Color(0xFF1B1E28),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    Text(
+                                                        text = "Texto Reconhecido (edite ou selecione):",
+                                                        style = MaterialTheme.typography.caption,
+                                                        color = Color(0xFFA0A6B8)
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    OutlinedTextField(
+                                                        value = recognizedText,
+                                                        onValueChange = { recognizedText = it },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textStyle = TextStyle(
+                                                            fontSize = 18.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = Color.White,
+                                                            lineHeight = 26.sp
+                                                        ),
+                                                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                                                            textColor = Color.White,
+                                                            focusedBorderColor = MaterialTheme.colors.primary,
+                                                            unfocusedBorderColor = Color(0xFF2E3344)
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // Standard layout (Horizontal text or image toggled off)
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                backgroundColor = Color(0xFF1B1E28),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    Text(
+                                                        text = "Texto Reconhecido (edite ou selecione):",
+                                                        style = MaterialTheme.typography.caption,
+                                                        color = Color(0xFFA0A6B8)
+                                                    )
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    OutlinedTextField(
+                                                        value = recognizedText,
+                                                        onValueChange = { recognizedText = it },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textStyle = TextStyle(
+                                                            fontSize = 20.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = Color.White,
+                                                            lineHeight = 28.sp
+                                                        ),
+                                                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                                                            textColor = Color.White,
+                                                            focusedBorderColor = MaterialTheme.colors.primary,
+                                                            unfocusedBorderColor = Color(0xFF2E3344)
+                                                        )
+                                                    )
+                                                }
+                                            }
+
+                                            if (!isVerticalText && showImageToggle) {
+                                                Card(
+                                                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                                                    backgroundColor = Color(0xFF1B1E28),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.fillMaxSize().padding(4.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Image(
+                                                            bitmap = imageBitmap,
+                                                            contentDescription = "Recorte Horizontal",
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -370,7 +444,7 @@ fun ResultWindow(
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     if (matches.isEmpty()) {
-                                        Text(
+                                    Text(
                                             text = if (engine == null)
                                                 "Nenhum dicionário instalado na pasta (${dictDir.absolutePath}) para consultar verbetes."
                                             else
