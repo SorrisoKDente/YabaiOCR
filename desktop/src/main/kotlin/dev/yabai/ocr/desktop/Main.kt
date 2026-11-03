@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -76,6 +77,7 @@ fun main() = application {
 
     var screenCaptureForSelection by remember { mutableStateOf<BufferedImage?>(null) }
     var temporaryViewImage by remember { mutableStateOf<BufferedImage?>(null) }
+    var captureGeneration by remember { mutableStateOf(0L) }
 
     // Setup Global Hotkey Listener (JNativeHook)
     DisposableEffect(Unit) {
@@ -159,6 +161,7 @@ fun main() = application {
             onRegionSelected = { cropped ->
                 screenCaptureForSelection = null
                 temporaryViewImage = cropped
+                captureGeneration++
             },
             onDismiss = {
                 screenCaptureForSelection = null
@@ -169,25 +172,27 @@ fun main() = application {
     // Result Window (OCR, furigana, token lookup, translation & AI)
     val tempImage = temporaryViewImage
     if (tempImage != null) {
-        ResultWindow(
-            croppedImage = tempImage,
-            onClose = {
-                temporaryViewImage = null
-            },
-            onNewSelectionRequested = {
-                try {
-                    val fullScreen = ScreenCapture.captureScreen()
-                    screenCaptureForSelection = fullScreen
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            },
-            onOpenFullDictRequested = { query ->
-                mainDictInitialQuery = query
-                mainScreen = MainScreen.DICTIONARIES
-                showMainWindow = true
-            },
-        )
+        key(captureGeneration) {
+            ResultWindow(
+                croppedImage = tempImage,
+                onClose = {
+                    temporaryViewImage = null
+                },
+                onNewSelectionRequested = {
+                    try {
+                        val fullScreen = ScreenCapture.captureScreen()
+                        screenCaptureForSelection = fullScreen
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                },
+                onOpenFullDictRequested = { query ->
+                    mainDictInitialQuery = query
+                    mainScreen = MainScreen.DICTIONARIES
+                    showMainWindow = true
+                },
+            )
+        }
     }
 
     // Quick Search Window

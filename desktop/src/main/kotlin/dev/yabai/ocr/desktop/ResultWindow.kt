@@ -155,7 +155,7 @@ fun ResultWindow(
                 color = Color(0xFF12141A)
             ) {
                 Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
-                    // --- Header Bar with Quick Action Buttons ---
+                    // --- Header Bar with Compact Action Buttons ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -176,13 +176,17 @@ fun ResultWindow(
                             }
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             // Imagem Toggle
                             Button(
                                 onClick = { showImageToggle = !showImageToggle },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344))
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text(if (showImageToggle) "🖼️ Ocultar Imagem" else "🖼️ Mostrar Imagem", fontSize = 12.sp, color = Color.White)
+                                Text(if (showImageToggle) "🖼️ Ocultar" else "🖼️ Imagem", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                             }
 
                             // Copiar
@@ -194,9 +198,10 @@ fun ResultWindow(
                                     }
                                 },
                                 enabled = recognizedText.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344))
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("📋 Copiar", fontSize = 12.sp, color = Color.White)
+                                Text("📋 Copiar", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                             }
 
                             // Perguntar à IA
@@ -209,9 +214,10 @@ fun ResultWindow(
                                         }
                                     },
                                     enabled = recognizedText.isNotBlank(),
-                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3D6BF3))
+                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3D6BF3)),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
-                                    Text("🤖 Perguntar à IA", fontSize = 12.sp, color = Color.White)
+                                    Text("🤖 IA", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                                 }
                             }
 
@@ -223,9 +229,10 @@ fun ResultWindow(
                                     }
                                 },
                                 enabled = recognizedText.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344))
+                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("🔍 Dicionário", fontSize = 12.sp, color = Color.White)
+                                Text("🔍 Dicionário", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                             }
 
                             // Nova Seleção
@@ -234,9 +241,10 @@ fun ResultWindow(
                                     onClose()
                                     onNewSelectionRequested()
                                 },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("✂️ Recortar", fontSize = 12.sp)
+                                Text("✂️ Recortar", fontSize = 11.sp, maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -444,7 +452,7 @@ fun ResultWindow(
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     if (matches.isEmpty()) {
-                                    Text(
+                                        Text(
                                             text = if (engine == null)
                                                 "Nenhum dicionário instalado na pasta (${dictDir.absolutePath}) para consultar verbetes."
                                             else
@@ -494,14 +502,14 @@ private fun DictionaryMatchCard(match: TokenMatch) {
                     Text(
                         text = entry.term,
                         style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
+                        color = Color(0xFF5D84FF)
                     )
                     if (entry.reading.isNotBlank() && entry.reading != entry.term) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "【${entry.reading}】",
                             style = MaterialTheme.typography.body2,
-                            color = Color(0xFF5D84FF)
+                            color = Color.White
                         )
                     }
                 }
