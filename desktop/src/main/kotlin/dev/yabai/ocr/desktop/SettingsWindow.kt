@@ -31,25 +31,28 @@ fun SettingsContent(
     hoverStatus: String = "",
     onHoverToggle: () -> Unit = {},
     onHoverTest: () -> Unit = {},
-    onHotkeysChanged: (ocr: String, quickDict: String, hover: String) -> Unit = { _, _, _ -> },
+    onHotkeysChanged: (ocr: String, quickDict: String, hover: String, hoverCycle: String) -> Unit = { _, _, _, _ -> },
 ) {
     val settings = remember { DesktopSettings() }
 
     var globalHotkey by remember { mutableStateOf(settings.globalHotkey) }
     var quickDictHotkey by remember { mutableStateOf(settings.quickDictHotkey) }
     var hoverHotkey by remember { mutableStateOf(settings.hoverHotkey) }
-
-    fun notifyHotkeysChanged() {
-        onHotkeysChanged(globalHotkey, quickDictHotkey, hoverHotkey)
-    }
+    var hoverCycleHotkey by remember { mutableStateOf(settings.hoverCycleHotkey) }
 
     var isCapturingHotkey by remember { mutableStateOf(false) }
     var isCapturingQuickDictHotkey by remember { mutableStateOf(false) }
     var isCapturingHoverHotkey by remember { mutableStateOf(false) }
+    var isCapturingHoverCycleHotkey by remember { mutableStateOf(false) }
 
     val hotkeyFocusRequester = remember { FocusRequester() }
     val quickDictFocusRequester = remember { FocusRequester() }
     val hoverHotkeyFocusRequester = remember { FocusRequester() }
+    val hoverCycleHotkeyFocusRequester = remember { FocusRequester() }
+
+    fun notifyHotkeysChanged() {
+        onHotkeysChanged(globalHotkey, quickDictHotkey, hoverHotkey, hoverCycleHotkey)
+    }
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
@@ -63,6 +66,7 @@ fun SettingsContent(
 
     var dictionaryLookup by remember { mutableStateOf(settings.dictionaryLookup) }
     var dictionaryFilter by remember { mutableStateOf(settings.dictionaryFilter) }
+    var hoverDictionaryFilter by remember { mutableStateOf(settings.hoverDictionaryFilter) }
     var dictionaryKeepLastSearch by remember { mutableStateOf(settings.dictionaryKeepLastSearch) }
     var stripSearchReadings by remember { mutableStateOf(settings.stripSearchReadings) }
     var dictionaryUpdateInterval by remember { mutableStateOf(settings.dictionaryUpdateInterval) }
@@ -317,7 +321,7 @@ fun SettingsContent(
 
                 // Hover Hotkey
                 Text(
-                    text = "Atalho de Modo Hover (Leitor sob o Cursor):",
+                    text = "Atalho de Ligar/Desligar Modo Hover:",
                     style = MaterialTheme.typography.caption,
                     color = Color(0xFFA0A6B8)
                 )
@@ -409,6 +413,103 @@ fun SettingsContent(
                         Text("Padrão")
                     }
                 }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Hover Cycle Hotkey
+                Text(
+                    text = "Atalho para Alternar Dicionário no Hover:",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFFA0A6B8)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(hoverCycleHotkeyFocusRequester)
+                            .focusable()
+                            .onKeyEvent { keyEvent ->
+                                if (isCapturingHoverCycleHotkey && keyEvent.type == KeyEventType.KeyDown) {
+                                    val key = keyEvent.key
+                                    if (key != Key.CtrlLeft && key != Key.CtrlRight &&
+                                        key != Key.ShiftLeft && key != Key.ShiftRight &&
+                                        key != Key.AltLeft && key != Key.AltRight &&
+                                        key != Key.MetaLeft && key != Key.MetaRight
+                                    ) {
+                                        val parts = mutableListOf<String>()
+                                        if (keyEvent.isCtrlPressed) parts.add("Ctrl")
+                                        if (keyEvent.isAltPressed) parts.add("Alt")
+                                        if (keyEvent.isShiftPressed) parts.add("Shift")
+                                        if (keyEvent.isMetaPressed) parts.add("Meta")
+
+                                        val keyName = when (key) {
+                                            Key.Spacebar -> "Space"
+                                            Key.Enter -> "Enter"
+                                            Key.Escape -> "Esc"
+                                            Key.Tab -> "Tab"
+                                            Key.Backspace -> "Backspace"
+                                            else -> java.awt.event.KeyEvent.getKeyText(key.nativeKeyCode)
+                                        }
+                                        parts.add(keyName)
+                                        val formatted = parts.joinToString(" + ")
+
+                                        hoverCycleHotkey = formatted
+                                        settings.hoverCycleHotkey = formatted
+                                        isCapturingHoverCycleHotkey = false
+                                        notifyHotkeysChanged()
+                                        true
+                                    } else false
+                                } else false
+                            }
+                            .background(
+                                color = if (isCapturingHoverCycleHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isCapturingHoverCycleHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = if (isCapturingHoverCycleHotkey) "Pressione as teclas..." else "Atalho: $hoverCycleHotkey",
+                            style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (isCapturingHoverCycleHotkey) Color(0xFF81C784) else Color.White
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            isCapturingHoverCycleHotkey = true
+                            hoverCycleHotkeyFocusRequester.requestFocus()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (isCapturingHoverCycleHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(if (isCapturingHoverCycleHotkey) "Aguardando..." else "Capturar")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            hoverCycleHotkey = "Ctrl + Shift + X"
+                            settings.hoverCycleHotkey = "Ctrl + Shift + X"
+                            isCapturingHoverCycleHotkey = false
+                            notifyHotkeysChanged()
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text("Padrão")
+                    }
+                }
             }
         }
 
@@ -441,6 +542,46 @@ fun SettingsContent(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Dicionário Padrão do Modo Hover:",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFFA0A6B8)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                var expandedHoverDictFilter by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expandedHoverDictFilter = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text(if (hoverDictionaryFilter.isBlank()) "🌐 Todos os Dicionários (Padrão)" else "📖 $hoverDictionaryFilter")
+                    }
+                    DropdownMenu(
+                        expanded = expandedHoverDictFilter,
+                        onDismissRequest = { expandedHoverDictFilter = false }
+                    ) {
+                        DropdownMenuItem(onClick = {
+                            hoverDictionaryFilter = ""
+                            settings.hoverDictionaryFilter = ""
+                            expandedHoverDictFilter = false
+                        }) {
+                            Text("🌐 Todos os Dicionários")
+                        }
+                        installedDictTitles.forEach { title ->
+                            DropdownMenuItem(onClick = {
+                                hoverDictionaryFilter = title
+                                settings.hoverDictionaryFilter = title
+                                expandedHoverDictFilter = false
+                            }) {
+                                Text("📖 $title")
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "O modo funciona em qualquer aplicativo: navegador, leitor de mangá, PDF ou jogo. " +
@@ -453,7 +594,7 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Atalho para ligar/desligar: $hoverHotkey",
+                    text = "Atalho para ligar/desligar: $hoverHotkey • Alternar dicionário: $hoverCycleHotkey",
                     style = MaterialTheme.typography.caption,
                     color = Color(0xFF81D4FA)
                 )

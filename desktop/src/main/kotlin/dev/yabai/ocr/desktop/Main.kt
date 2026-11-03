@@ -35,6 +35,7 @@ fun main() = application {
 
     var hoverMatches by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
     var hoverPoint by remember { mutableStateOf<java.awt.Point?>(null) }
+    var hoverActiveFilter by remember { mutableStateOf(settings.hoverDictionaryFilter) }
     var hoverActive by remember { mutableStateOf(false) }
     var hoverStatus by remember {
         mutableStateOf("Modo Hover desativado — ative para traduzir passando o mouse.")
@@ -42,9 +43,10 @@ fun main() = application {
 
     val hoverOcrManager = remember {
         HoverOcrManager(
-            onResultsReady = { matches, pt ->
+            onResultsReady = { matches, pt, filter ->
                 hoverMatches = matches
                 hoverPoint = pt
+                hoverActiveFilter = filter
             },
             onDismiss = {
                 hoverMatches = emptyList()
@@ -54,6 +56,10 @@ fun main() = application {
                 hoverStatus = message
             },
         )
+    }
+
+    val installedDictTitles = remember {
+        hoverOcrManager.getInstalledDictionaryTitles()
     }
 
     fun applyHover(enabled: Boolean) {
@@ -71,9 +77,44 @@ fun main() = application {
     var screenCaptureForSelection by remember { mutableStateOf<BufferedImage?>(null) }
     var temporaryViewImage by remember { mutableStateOf<BufferedImage?>(null) }
 
-    // Setup System Tray (Steam-like behavior). It is hoisted so the hover status can update its tooltip.
-    val trayManager = remember {
-        SystemTrayManager(
+    // Setup Global Hotkey Listener (JNativeHook)
+    DisposableEffect(Unit) {
+        val hotkeyManager = GlobalHotkeyManager(
+            onOcrTriggered = {
+                try {
+                    val fullScreen = ScreenCapture.captureScreen()
+                    screenCaptureForSelection = fullScreen
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            },
+            onQuickDictTriggered = {
+                showQuickDict = true
+            },
+            onHoverTriggered = {
+                applyHover(!hoverActive)
+            },
+            onHoverCycleTriggered = {
+                val newFilter = hoverOcrManager.cycleDictionaryAndRefresh()
+                hoverActiveFilter = newFilter
+            }
+        )
+        hotkeyManager.updateHotkeys(
+            settings.globalHotkey,
+            settings.quickDictHotkey,
+            settings.hoverHotkey,
+            settings.hoverCycleHotkey
+        )
+        hotkeyManager.start()
+
+        onDispose {
+            hotkeyManager.stop()
+        }
+    }
+
+    // Setup System Tray (Steam-like behavior)
+    DisposableEffect(Unit) {
+        val trayManager = SystemTrayManager(
             onCaptureRequested = {
                 try {
                     val fullScreen = ScreenCapture.captureScreen()
@@ -86,10 +127,10 @@ fun main() = application {
                 showQuickDict = true
             },
             onHoverRequested = {
-                applyHover(!hoverOcrManager.isRunning())
+                applyHover(!hoverActive)
             },
             isHoverActive = {
-                hoverOcrManager.isRunning()
+                hoverActive
             },
             onFullDictRequested = {
                 mainDictInitialQuery = ""
@@ -104,43 +145,10 @@ fun main() = application {
                 exitApplication()
             },
         )
-    }
-
-    DisposableEffect(trayManager) {
         trayManager.setup()
-        onDispose { trayManager.remove() }
-    }
-
-    LaunchedEffect(hoverStatus) {
-        trayManager.setStatus(hoverStatus)
-    }
-
-    // Setup Global Hotkey Listener (JNativeHook)
-    val hotkeyManager = remember {
-        GlobalHotkeyManager(
-            onOcrTriggered = {
-                try {
-                    val fullScreen = ScreenCapture.captureScreen()
-                    screenCaptureForSelection = fullScreen
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            },
-            onQuickDictTriggered = {
-                showQuickDict = true
-            },
-            onHoverTriggered = {
-                applyHover(!hoverOcrManager.isRunning())
-            },
-        )
-    }
-
-    DisposableEffect(hotkeyManager) {
-        hotkeyManager.updateHotkeys(settings.globalHotkey, settings.quickDictHotkey, settings.hoverHotkey)
-        if (!hotkeyManager.start()) {
-            hoverStatus = "Atalhos globais indisponíveis — use o botão «Ativar» nos Ajustes."
+        onDispose {
+            trayManager.remove()
         }
-        onDispose { hotkeyManager.stop() }
     }
 
     // Region Selection Overlay Window
@@ -194,6 +202,12 @@ fun main() = application {
         HoverTooltipWindow(
             matches = hMatches,
             mousePoint = hPoint,
+            activeFilter = hoverActiveFilter,
+            installedDictTitles = installedDictTitles,
+            onSelectDictionary = { chosen ->
+                hoverOcrManager.setFilterAndRefresh(chosen)
+                hoverActiveFilter = chosen
+            },
             onDismiss = {
                 hoverMatches = emptyList()
                 hoverPoint = null
@@ -215,6 +229,7 @@ fun main() = application {
             state = WindowState(width = 820.dp, height = 750.dp),
         ) {
             LaunchedEffect(Unit) {
+                window.isAutoRequestFocus = false
                 window.iconImage = AppIconGenerator.createWindowImage(64)
             }
 
@@ -226,7 +241,7 @@ fun main() = application {
                     onPrimary = Color.White,
                     onBackground = Color.White,
                     onSurface = Color.White,
-                ),
+                )
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -234,20 +249,19 @@ fun main() = application {
                 ) {
                     if (mainScreen == MainScreen.SETTINGS) {
                         SettingsContent(
+                            hoverActive = hoverActive,
+                            hoverStatus = hoverStatus,
+                            onHoverToggle = { applyHover(!hoverActive) },
+                            onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
+                            onHotkeysChanged = { ocr, quickDict, hover, hoverCycle ->
+                                settings.globalHotkey = ocr
+                                settings.quickDictHotkey = quickDict
+                                settings.hoverHotkey = hover
+                                settings.hoverCycleHotkey = hoverCycle
+                            },
                             onManageDictionariesRequested = {
                                 mainDictInitialQuery = ""
                                 mainScreen = MainScreen.DICTIONARIES
-                            },
-                            hoverActive = hoverActive,
-                            hoverStatus = hoverStatus,
-                            onHoverToggle = {
-                                applyHover(!hoverOcrManager.isRunning())
-                            },
-                            onHoverTest = {
-                                hoverOcrManager.triggerAtCursor()
-                            },
-                            onHotkeysChanged = { ocr, quick, hover ->
-                                hotkeyManager.updateHotkeys(ocr, quick, hover)
                             },
                         )
                     } else {

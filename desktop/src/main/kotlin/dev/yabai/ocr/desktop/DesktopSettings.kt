@@ -43,6 +43,10 @@ class DesktopSettings(
         get() = props.getProperty("hover_hotkey", "Ctrl + Shift + H")
         set(value) { props.setProperty("hover_hotkey", value); save() }
 
+    var hoverCycleHotkey: String
+        get() = props.getProperty("hover_cycle_hotkey", "Ctrl + Shift + X")
+        set(value) { props.setProperty("hover_cycle_hotkey", value); save() }
+
     // 2. Motor de Reconhecimento
     var engine: DesktopEngineChoice
         get() = when (props.getProperty("engine", "AUTO")) {
@@ -98,6 +102,10 @@ class DesktopSettings(
         get() = props.getProperty("dictionary_filter", "") ?: ""
         set(value) { props.setProperty("dictionary_filter", value); save() }
 
+    var hoverDictionaryFilter: String
+        get() = props.getProperty("hover_dictionary_filter", "") ?: ""
+        set(value) { props.setProperty("hover_dictionary_filter", value); save() }
+
     var dictionaryKeepLastSearch: Boolean
         get() = props.getProperty("dictionary_keep_last_search", "true").toBoolean()
         set(value) { props.setProperty("dictionary_keep_last_search", value.toString()); save() }
@@ -116,9 +124,6 @@ class DesktopSettings(
         set(value) { props.setProperty("dictionary_update_interval", value.name); save() }
 
     var customDictDirectoryPath: String
-        // Versões anteriores gravaram a chave longa; sem esta leitura, quem já tinha escolhido a
-        // pasta voltava silenciosamente para `~/.yabai_ocr/dicts` e todo lookup dizia «nenhum
-        // dicionário» mesmo com os arquivos no lugar.
         get() = props.getProperty("custom_dict_dir")
             ?: props.getProperty("custom_dict_directory")
             ?: defaultDictDirectory().absolutePath
@@ -143,7 +148,7 @@ class DesktopSettings(
 
     var translateTarget: String
         get() = props.getProperty("translate_target", "pt")
-        set(value) { props.setProperty("translate_target", value); save() }
+        set(value) { props.setProperty("translate_target", value.toString()); save() }
 
     // 6. IA
     var showAiButton: Boolean

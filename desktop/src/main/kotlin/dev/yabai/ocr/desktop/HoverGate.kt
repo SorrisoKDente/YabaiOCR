@@ -7,9 +7,14 @@ import java.awt.Point
  *
  * A raw mouse-motion listener would call Lens on every pixel; this gate only fires after the pointer
  * has rested inside a few pixels for [stableMillis]. It also remembers where it last fired, so a
- * pointer parked on one word does not send a request every frame. Moving farther than
- * [repeatRadiusPx] allows a new request; coming back to the same word after the tooltip was closed
- * does too, because [forgetTrigger] is called on dismissal.
+ * pointer parked on one word does not send a request every frame.
+ *
+ * The memory has to expire on its own. An earlier version cleared it when the tooltip closed, which
+ * looked right but made words whose on-screen box does not perfectly contain the pointer (a link,
+ * whose underline sits below the glyphs; a line with an English prefix, where the box estimate is
+ * off) loop forever: card opens, box says «pointer is not here», card closes, gate fires again.
+ * Now the trigger is only forgotten once the pointer really walks [repeatRadiusPx] away, so the same
+ * spot stays quiet and every other word still opens a card.
  */
 class HoverGate(
     private val stableMillis: Long = 420L,
@@ -23,17 +28,23 @@ class HoverGate(
     /** Feeds the current pointer position; true exactly when a lookup should start. */
     fun observe(point: Point, now: Long): Boolean {
         val previous = lastPoint
+        lastPoint = point
+
+        // Walking to another word must be able to open a new card, and coming back to a word that
+        // was left must work too: the suppression only covers the spot that actually fired. This
+        // runs before the resting check, because the walk away is exactly one big step.
+        val trigger = lastTrigger
+        if (trigger != null && trigger.distance(point) > repeatRadiusPx) {
+            lastTrigger = null
+        }
+
         if (previous == null || previous.distance(point) > stableRadiusPx) {
-            lastPoint = point
             stableSince = now
             return false
         }
 
-        lastPoint = point
         if (now - stableSince < stableMillis) return false
-
-        val trigger = lastTrigger
-        if (trigger != null && trigger.distance(point) <= repeatRadiusPx) return false
+        if (lastTrigger != null) return false
 
         lastTrigger = point
         return true
@@ -44,14 +55,6 @@ class HoverGate(
         lastPoint = point
         lastTrigger = point
         stableSince = 0L
-    }
-
-    /**
-     * Allows this spot to fire again. Called when the tooltip is dismissed: the user is coming back
-     * to the word, not staying on it, and a new lookup is exactly what should happen.
-     */
-    fun forgetTrigger() {
-        lastTrigger = null
     }
 
     fun reset() {

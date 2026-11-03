@@ -89,6 +89,30 @@ class HoverTextSelectorTest {
     }
 
     @Test
+    fun `a line with an English prefix still finds the Japanese word under the pointer`() {
+        // "abc昭和" in a 365 px box: every weight unit is exactly 100 px (a,b,c = 55 each).
+        val text = "abc昭和"
+        val box = PixelBox(0, 0, 365, 40)
+
+        // 200 px is over 昭. Counting all five characters as equal squares would answer 'c'.
+        assertEquals(3, HoverTextSelector.characterIndex(text, box, Point(200, 20)))
+        assertEquals(PixelBox(165, 0, 200, 40), HoverTextSelector.tokenBox(text, box, 3, 5))
+    }
+
+    @Test
+    fun `picks the Japanese word of a mixed line`() {
+        val line = LensSegment("Inflection information: 走った", PixelBox(0, 0, 730, 40))
+        val hit = HoverTextSelector.select(
+            result(line),
+            Point(580, 20), // over 走: the Japanese part is the last fifth of the line
+            lookup = { _, _ -> listOf(match("走った", 24, 27)) },
+        )
+
+        assertNotNull(hit)
+        assertEquals("走った", hit!!.match.surface)
+    }
+
+    @Test
     fun `snaps to the nearest word when the pointer is on punctuation`() {
         val line = LensSegment("日本語を", PixelBox(100, 100, 160, 40))
         val hit = HoverTextSelector.select(

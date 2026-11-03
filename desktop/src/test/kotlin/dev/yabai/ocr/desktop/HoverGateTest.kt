@@ -46,14 +46,25 @@ class HoverGateTest {
     }
 
     @Test
-    fun `forgetting the trigger allows looking at the same word again`() {
+    fun `the spot stays quiet after the card closes`() {
+        gate.markTriggered(Point(100, 100))
+
+        // No dismissal may re-arm this exact spot: the box estimate can be a few pixels off, and
+        // re-arming it is what made 昭和 and 走った blink.
+        assertFalse(gate.observe(Point(100, 100), 500))
+        assertFalse(gate.observe(Point(101, 102), 900))
+        assertFalse(gate.observe(Point(100, 100), 2_000))
+    }
+
+    @Test
+    fun `walking away and coming back allows the same word again`() {
         gate.observe(Point(100, 100), 0)
         assertTrue(gate.observe(Point(100, 100), 100))
         assertFalse(gate.observe(Point(100, 100), 200))
 
-        gate.forgetTrigger()
-
-        assertTrue(gate.observe(Point(100, 100), 250))
+        assertFalse(gate.observe(Point(160, 100), 300)) // walks away: the trigger is forgotten
+        assertFalse(gate.observe(Point(100, 100), 400)) // back: the stability timer restarts
+        assertTrue(gate.observe(Point(100, 100), 500))
     }
 
     @Test

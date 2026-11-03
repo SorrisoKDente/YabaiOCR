@@ -6,11 +6,12 @@ import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.core.lens.EncodedImage
 import dev.yabai.ocr.core.lens.LensClient
 import dev.yabai.ocr.core.lens.LensOptions
+import dev.yabai.ocr.core.lens.LensResult
+import java.awt.GraphicsEnvironment
 import java.awt.MouseInfo
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.Robot
-import java.awt.GraphicsEnvironment
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.imageio.ImageIO
@@ -26,20 +27,9 @@ import kotlinx.coroutines.launch
 
 /**
  * OCR em tempo real sob o ponteiro — o «hover» no estilo Yomitan/Rikaichan.
- *
- * O modo é contínuo: enquanto ativo, um laço observa a posição do mouse e, depois que ele para por
- * alguns décimos de segundo, recorta a tela ao redor do cursor, manda o recorte para o Lens,
- * descobre qual palavra está debaixo do ponteiro e entrega o verbete ao tooltip. A versão anterior
- * só tinha `triggerAtCursor()` chamado pelo atalho — não havia nenhum observador do mouse, então
- * passar o cursor nunca fazia nada — e refazia a captura fixa de 320×120 mesmo com o ponteiro perto
- * da borda, onde o `Robot` lançava exceção.
- *
- * A precisão vem de duas escolhas: o recorte é maior (640×360) e a palavra não é adivinhada a partir
- * da frase inteira — [HoverTextSelector] usa a caixa de cada linha devolvida pelo Lens e a posição
- * do cursor dentro dela para escolher o verbete, inclusive em texto vertical.
  */
 class HoverOcrManager(
-    private val onResultsReady: (List<TokenMatch>, Point) -> Unit,
+    private val onResultsReady: (List<TokenMatch>, Point, String) -> Unit,
     private val onDismiss: () -> Unit,
     private val onStatus: (String) -> Unit = {},
 ) {
@@ -63,6 +53,18 @@ class HoverOcrManager(
     @Volatile
     private var tooltipVisible = false
 
+    @Volatile
+    private var lastScreenPoint: Point? = null
+
+    @Volatile
+    private var lastLocalPoint: Point? = null
+
+    @Volatile
+    private var lastCropRect: Rectangle? = null
+
+    @Volatile
+    private var lastLensResult: LensResult? = null
+
     private val robots = HashMap<Int, Robot>()
     private var lensClient: LensClient? = null
 
@@ -72,7 +74,6 @@ class HoverOcrManager(
 
     fun isRunning(): Boolean = isEnabled
 
-    /** Liga/desliga o modo contínuo. Ao ligar, já tenta uma leitura no ponto atual. */
     fun toggle(): Boolean {
         setEnabled(!isEnabled)
         return isEnabled
@@ -95,16 +96,90 @@ class HoverOcrManager(
         return isEnabled
     }
 
-    /** Bounds of the visible tooltip, in screen pixels. Used to keep the pointer on it. */
     fun setTooltipBounds(bounds: Rectangle?) {
         tooltipBounds = bounds
     }
 
-    /** Executa uma leitura única; o atalho global usa isto ao ativar o modo. */
     fun triggerAtCursor(force: Boolean = false) {
         if (!force && !isEnabled) return
         val point = pointerLocation() ?: return
         lookupAt(point)
+    }
+
+    fun getInstalledDictionaryTitles(): List<String> {
+        val settings = DesktopSettings()
+        val dir = settings.dictDirectory()
+        return if (dir.isDirectory) {
+            dir.listFiles()
+                ?.filter { it.extension == "yabai" || it.isDirectory }
+                ?.mapNotNull { file -> runCatching { CompactDictionary.open(file)?.info?.title }.getOrNull() }
+                .orEmpty()
+        } else emptyList()
+    }
+
+    /** Define um filtro de dicionário específico para o Hover e atualiza instantaneamente. */
+    fun setFilterAndRefresh(newFilter: String) {
+        val settings = DesktopSettings()
+        settings.hoverDictionaryFilter = newFilter
+        refreshWithCurrentFilter(newFilter)
+    }
+
+    /** Alterna para o próximo dicionário instalado e atualiza instantaneamente sem mover a janela. */
+    fun cycleDictionaryAndRefresh(): String {
+        val settings = DesktopSettings()
+        val titles = getInstalledDictionaryTitles()
+        val currentFilter = settings.hoverDictionaryFilter
+        val nextFilter = when {
+            titles.isEmpty() -> ""
+            currentFilter.isBlank() -> titles.first()
+            else -> {
+                val idx = titles.indexOf(currentFilter)
+                if (idx == -1 || idx == titles.lastIndex) "" else titles[idx + 1]
+            }
+        }
+        settings.hoverDictionaryFilter = nextFilter
+        refreshWithCurrentFilter(nextFilter)
+        return nextFilter
+    }
+
+    private fun refreshWithCurrentFilter(filter: String) {
+        val displayFilter = if (filter.isBlank()) "Todos os Dicionários" else filter
+        publishStatus("Dicionário do Hover alterado para: $displayFilter")
+
+        val result = lastLensResult
+        val localPoint = lastLocalPoint
+        val screenPoint = lastScreenPoint
+        val cropRect = lastCropRect
+        val currentSettings = DesktopSettings()
+        val lookup = lookupEngine(currentSettings)
+
+        if (result != null && localPoint != null && screenPoint != null && cropRect != null && lookup != null) {
+            val only = filter.takeIf { it.isNotBlank() }?.let { setOf(it) } ?: emptySet()
+            var hit = HoverTextSelector.select(result, localPoint, lookup, only)
+
+            // Fallback: se o dicionário escolhido não possui a palavra, busca em todos para o usuário não ficar no vácuo
+            if (hit == null && only.isNotEmpty()) {
+                hit = HoverTextSelector.select(result, localPoint, lookup, emptySet())
+            }
+
+            if (hit != null) {
+                val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, cropRect.width, cropRect.height)
+                val lineRect = hit.line.box?.let { HoverGeometry.toScreen(it, cropRect, cropRect.width, cropRect.height) }
+                targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
+                tooltipVisible = true
+                dismissGate.reset()
+                publishStatus("${hit.match.entry.term} — ${hit.match.dictionaryTitle}")
+                val matches = listOf(hit.match)
+                SwingUtilities.invokeLater { onResultsReady(matches, screenPoint, filter) }
+                return
+            }
+        }
+
+        // Se não havia cache ou não encontrou, dispara no cursor atual
+        val pt = screenPoint ?: pointerLocation()
+        if (pt != null) {
+            lookupAt(pt, overrideFilter = filter)
+        }
     }
 
     fun close() {
@@ -137,17 +212,14 @@ class HoverOcrManager(
     private fun tick(point: Point) {
         val now = System.currentTimeMillis()
 
-        // The tooltip itself is under the pointer while the user reads it; moving over the word or
-        // the card must not restart OCR. A short grace period lets the pointer cross the gap
-        // between the word and the card without closing it.
+        if (tooltipVisible && HoverGeometry.contains(tooltipBounds, point)) {
+            dismissGate.reset()
+            return
+        }
+
         if (tooltipVisible) {
-            if (dismissGate.shouldClose(point, targetBox, tooltipBounds, now)) {
+            if (dismissGate.shouldClose(point, targetBox, null, now)) {
                 dismiss()
-                return
-            }
-            if (HoverGeometry.contains(targetBox, point, TARGET_MARGIN) ||
-                HoverGeometry.contains(tooltipBounds, point)
-            ) {
                 return
             }
         } else {
@@ -160,13 +232,13 @@ class HoverOcrManager(
         }
     }
 
-    private fun lookupAt(point: Point) {
+    private fun lookupAt(point: Point, overrideFilter: String? = null) {
         if (!busy.compareAndSet(false, true)) return
         gate.markTriggered(point)
 
         scope.launch {
             try {
-                val screen = HoverGeometry.screenBounds()
+                val screen = HoverGeometry.screenAt(point)
                 val cropRect = HoverGeometry.planCrop(point, screen, CROP_WIDTH, CROP_HEIGHT)
                 val image = robotFor(cropRect).createScreenCapture(cropRect)
                 if (image.width <= 0 || image.height <= 0) {
@@ -196,22 +268,33 @@ class HoverOcrManager(
                 }
 
                 val localPoint = HoverGeometry.localPoint(point, cropRect, image.width, image.height)
-                val filter = currentSettings.dictionaryFilter
+                val filter = overrideFilter ?: currentSettings.hoverDictionaryFilter.ifBlank { currentSettings.dictionaryFilter }
                 val only = filter.takeIf { it.isNotBlank() }?.let { setOf(it) } ?: emptySet()
-                val hit = HoverTextSelector.select(result, localPoint, lookup, only)
+
+                // Salva o cache da última leitura do Lens
+                lastLensResult = result
+                lastLocalPoint = localPoint
+                lastScreenPoint = point
+                lastCropRect = cropRect
+
+                var hit = HoverTextSelector.select(result, localPoint, lookup, only)
+
+                // Fallback: Se o dicionário específico não contém a palavra, busca em todos
+                if (hit == null && only.isNotEmpty()) {
+                    hit = HoverTextSelector.select(result, localPoint, lookup, emptySet())
+                }
+
                 if (hit == null) {
                     val text = result.joinLines().trim()
                     if (text.isBlank()) {
                         publishStatus("Nenhum texto reconhecido perto do cursor.")
                     } else {
-                        publishStatus("Texto lido, mas sem verbete: ${text.take(40)}")
+                        publishStatus("Texto lido, mas sem verbete no dicionário: ${text.take(40)}")
                     }
                     dismiss()
                     return@launch
                 }
 
-                // If the pointer moved while Lens was working, the card would appear next to a word
-                // the user already left. Discard it; the gate starts a fresh request at the new spot.
                 val current = pointerLocation()
                 if (current == null || current.distance(point) > STALE_RADIUS_PX) {
                     return@launch
@@ -221,12 +304,16 @@ class HoverOcrManager(
                     return@launch
                 }
 
-                targetBox = HoverGeometry.toScreen(hit.tokenBox, cropRect, image.width, image.height)
+                val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, image.width, image.height)
+                val lineRect = hit.line.box?.let {
+                    HoverGeometry.toScreen(it, cropRect, image.width, image.height)
+                }
+                targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
                 tooltipVisible = true
                 dismissGate.reset()
                 publishStatus("${hit.match.entry.term} — ${hit.match.dictionaryTitle}")
                 val matches = listOf(hit.match)
-                SwingUtilities.invokeLater { onResultsReady(matches, point) }
+                SwingUtilities.invokeLater { onResultsReady(matches, point, filter) }
             } catch (e: Exception) {
                 fail("Falha no OCR: ${e.message ?: e.javaClass.simpleName}")
             } finally {
@@ -245,11 +332,8 @@ class HoverOcrManager(
         tooltipVisible = false
         targetBox = null
         dismissGate.reset()
+        gate.reset() // Reseta o portão para que novos movimentos do mouse voltem a funcionar imediatamente!
         if (wasVisible) {
-            // The pointer left a card the user was reading; coming back to the same word should
-            // look it up again. A failed lookup must *not* do this, or the still pointer would
-            // retry the same empty spot every 60 ms.
-            gate.forgetTrigger()
             SwingUtilities.invokeLater { onDismiss() }
         }
     }
@@ -262,11 +346,6 @@ class HoverOcrManager(
     private fun pointerLocation(): Point? =
         runCatching { MouseInfo.getPointerInfo()?.location }.getOrNull()
 
-    /**
-     * A `Robot` bound to the monitor the crop belongs to. One `Robot` per screen is cached: the
-     * constructor is cheap but not free, and a `Robot` asked to capture another monitor's pixels
-     * comes back black on Windows.
-     */
     @Synchronized
     private fun robotFor(crop: Rectangle): Robot {
         val devices = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices
@@ -288,11 +367,6 @@ class HoverOcrManager(
         return LensClient().also { lensClient = it }
     }
 
-    /**
-     * Opens the dictionaries once, not on every hover. Opening every archive takes seconds and
-     * leaks file handles if it is repeated; the directory stamp lets an import made while the app
-     * is running be noticed without rebuilding the index on every mouse stop.
-     */
     private fun lookupEngine(settings: DesktopSettings): LookupEngine? {
         val dir = settings.dictDirectory()
         val path = dir.absolutePath
@@ -322,11 +396,8 @@ class HoverOcrManager(
     private companion object {
         const val POLL_MILLIS = 60L
         const val DISMISS_GRACE_MS = 220L
-
-        /** A larger crop gives Lens the rest of the line, which is where conjugation context lives. */
         const val CROP_WIDTH = 640
         const val CROP_HEIGHT = 360
-
         const val TARGET_MARGIN = 6
         const val STALE_RADIUS_PX = 56.0
     }

@@ -78,6 +78,33 @@ class HoverGeometryTest {
     }
 
     @Test
+    fun `uses the monitor under the pointer, not the union of all screens`() {
+        val small = Rectangle(0, 0, 1280, 720)
+        val tall = Rectangle(1280, 0, 1920, 1080)
+        val monitors = listOf(small, tall)
+
+        assertEquals(small, HoverGeometry.monitorAt(monitors, Point(600, 700)))
+        assertEquals(tall, HoverGeometry.monitorAt(monitors, Point(2000, 100)))
+        // A point above both screens goes to the nearest one.
+        assertEquals(small, HoverGeometry.monitorAt(monitors, Point(600, -100)))
+        assertEquals(null, HoverGeometry.monitorAt(emptyList(), Point(0, 0)))
+    }
+
+    @Test
+    fun `tooltip flips up on the smaller monitor even when a taller screen exists`() {
+        val small = Rectangle(0, 0, 1280, 720)
+
+        val point = HoverGeometry.placeTooltip(
+            pointer = Point(600, 690),
+            size = java.awt.Dimension(460, 150),
+            screen = small,
+        )
+
+        // 690 - 150 - 18 = 522. Measuring against a union that reaches 1080 would not flip at all.
+        assertEquals(Point(618, 522), point)
+    }
+
+    @Test
     fun `tooltip sits below right of the pointer`() {
         val point = HoverGeometry.placeTooltip(
             pointer = Point(300, 300),

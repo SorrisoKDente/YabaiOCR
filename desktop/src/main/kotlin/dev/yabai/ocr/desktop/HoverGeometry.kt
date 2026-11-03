@@ -25,6 +25,42 @@ object HoverGeometry {
     /** Space between the pointer and the tooltip, so the card never covers the word read. */
     const val TOOLTIP_GAP = 18
 
+    /**
+     * Bounds of the monitor that contains [point], or the nearest one when none does.
+     *
+     * The card and the crop must be measured against **this** rectangle, not against the union of
+     * every screen: with monitors of different sizes, the union's bottom is lower than the current
+     * monitor's, so a card near the bottom of the smaller screen was considered «still fits» and
+     * was drawn half outside it.
+     */
+    fun monitorAt(monitors: List<Rectangle>, point: Point): Rectangle? {
+        if (monitors.isEmpty()) return null
+        monitors.firstOrNull { it.contains(point) }?.let { return it }
+        return monitors.minByOrNull { squaredDistance(it, point) }
+    }
+
+    /** Bounds of the monitor under [point], in AWT screen coordinates. */
+    fun screenAt(point: Point): Rectangle {
+        val monitors = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices
+            .mapNotNull { runCatching { it.defaultConfiguration.bounds }.getOrNull() }
+        return monitorAt(monitors, point) ?: screenBounds()
+    }
+
+    /** Distance from [point] to the rectangle, 0 when inside; squared, so no square root is needed. */
+    private fun squaredDistance(rect: Rectangle, point: Point): Long {
+        val dx = when {
+            point.x < rect.x -> (rect.x - point.x).toLong()
+            point.x >= rect.x + rect.width -> (point.x - (rect.x + rect.width)).toLong()
+            else -> 0L
+        }
+        val dy = when {
+            point.y < rect.y -> (rect.y - point.y).toLong()
+            point.y >= rect.y + rect.height -> (point.y - (rect.y + rect.height)).toLong()
+            else -> 0L
+        }
+        return dx * dx + dy * dy
+    }
+
     /** Bounding rectangle of every monitor, in AWT screen coordinates. */
     fun screenBounds(): Rectangle {
         val environment = GraphicsEnvironment.getLocalGraphicsEnvironment()

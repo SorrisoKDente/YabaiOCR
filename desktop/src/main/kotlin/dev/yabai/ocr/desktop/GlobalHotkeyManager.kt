@@ -8,16 +8,12 @@ import java.util.logging.Logger
 
 /**
  * Global shortcuts through JNativeHook.
- *
- * The old matcher rebuilt the shortcut on every key press, accepted only `" + "` as a separator and
- * silently did nothing when the native hook failed to start. Here the strings are parsed once,
- * matching lives in [HotkeyMatcher] (tested), and a failure to install the hook is reported instead
- * of looking like a dead shortcut.
  */
 class GlobalHotkeyManager(
     private val onOcrTriggered: () -> Unit,
     private val onQuickDictTriggered: () -> Unit,
     private val onHoverTriggered: () -> Unit,
+    private val onHoverCycleTriggered: () -> Unit = {},
 ) : NativeKeyListener {
 
     @Volatile
@@ -30,16 +26,26 @@ class GlobalHotkeyManager(
     private var hoverSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + H")
 
     @Volatile
+    private var hoverCycleSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + X")
+
+    @Volatile
     private var started = false
 
     /** Replaces the shortcuts immediately; the listener reads these specs on the next key press. */
-    fun updateHotkeys(ocr: String, quickDict: String, hover: String = "Ctrl + Shift + H") {
+    fun updateHotkeys(
+        ocr: String,
+        quickDict: String,
+        hover: String = "Ctrl + Shift + H",
+        hoverCycle: String = "Ctrl + Shift + X"
+    ) {
         ocrSpec = HotkeyMatcher.parse(ocr)
         quickDictSpec = HotkeyMatcher.parse(quickDict)
         hoverSpec = HotkeyMatcher.parse(hover)
+        hoverCycleSpec = HotkeyMatcher.parse(hoverCycle)
         if (ocrSpec == null) println("[Hotkey] atalho de OCR inválido: \"$ocr\"")
         if (quickDictSpec == null) println("[Hotkey] atalho de busca inválido: \"$quickDict\"")
         if (hoverSpec == null) println("[Hotkey] atalho de hover inválido: \"$hover\"")
+        if (hoverCycleSpec == null) println("[Hotkey] atalho de alternar dicionário no hover inválido: \"$hoverCycle\"")
     }
 
     /** Returns true when the native hook was installed. */
@@ -89,6 +95,7 @@ class GlobalHotkeyManager(
             HotkeyMatcher.matches(ocrSpec, stroke) -> onOcrTriggered()
             HotkeyMatcher.matches(quickDictSpec, stroke) -> onQuickDictTriggered()
             HotkeyMatcher.matches(hoverSpec, stroke) -> onHoverTriggered()
+            HotkeyMatcher.matches(hoverCycleSpec, stroke) -> onHoverCycleTriggered()
         }
     }
 }
