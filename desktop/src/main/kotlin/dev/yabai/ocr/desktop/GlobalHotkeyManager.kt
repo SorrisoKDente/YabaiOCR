@@ -7,18 +7,20 @@ import java.util.logging.Level
 import java.util.logging.Logger
 
 class GlobalHotkeyManager(
-    private val onTriggered: () -> Unit
+    private val onOcrTriggered: () -> Unit,
+    private val onQuickDictTriggered: () -> Unit
 ) : NativeKeyListener {
 
-    private var targetHotkey: String = "Ctrl + Shift + O"
+    private var ocrHotkey: String = "Ctrl + Shift + O"
+    private var quickDictHotkey: String = "Ctrl + Shift + D"
 
-    fun updateHotkey(hotkey: String) {
-        targetHotkey = hotkey
+    fun updateHotkeys(ocr: String, quickDict: String) {
+        ocrHotkey = ocr
+        quickDictHotkey = quickDict
     }
 
     fun start() {
         try {
-            // Turn off noisy logging
             val logger = Logger.getLogger(GlobalScreen::class.java.packageName)
             logger.level = Level.OFF
             logger.useParentHandlers = false
@@ -44,9 +46,16 @@ class GlobalHotkeyManager(
     }
 
     override fun nativeKeyPressed(e: NativeKeyEvent) {
-        val currentHotkey = targetHotkey
-        val parts = currentHotkey.split(" + ").map { it.trim().lowercase() }
-        if (parts.isEmpty()) return
+        if (matchesHotkey(e, ocrHotkey)) {
+            onOcrTriggered()
+        } else if (matchesHotkey(e, quickDictHotkey)) {
+            onQuickDictTriggered()
+        }
+    }
+
+    private fun matchesHotkey(e: NativeKeyEvent, targetHotkey: String): Boolean {
+        val parts = targetHotkey.split(" + ").map { it.trim().lowercase() }
+        if (parts.isEmpty()) return false
 
         val mainKeyPart = parts.last()
         val requiresCtrl = parts.contains("ctrl")
@@ -59,15 +68,13 @@ class GlobalHotkeyManager(
         val shiftPressed = (e.modifiers and NativeKeyEvent.SHIFT_MASK) != 0
         val metaPressed = (e.modifiers and NativeKeyEvent.META_MASK) != 0
 
-        if (requiresCtrl != ctrlPressed) return
-        if (requiresAlt != altPressed) return
-        if (requiresShift != shiftPressed) return
-        if (requiresMeta != metaPressed) return
+        if (requiresCtrl != ctrlPressed) return false
+        if (requiresAlt != altPressed) return false
+        if (requiresShift != shiftPressed) return false
+        if (requiresMeta != metaPressed) return false
 
         val pressedKeyText = NativeKeyEvent.getKeyText(e.keyCode).lowercase()
-        if (pressedKeyText == mainKeyPart || matchKeyName(e.keyCode, mainKeyPart)) {
-            onTriggered()
-        }
+        return pressedKeyText == mainKeyPart || matchKeyName(e.keyCode, mainKeyPart)
     }
 
     private fun matchKeyName(keyCode: Int, target: String): Boolean {

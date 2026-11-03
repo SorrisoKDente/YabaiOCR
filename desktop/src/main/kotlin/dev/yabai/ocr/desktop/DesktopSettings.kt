@@ -34,6 +34,10 @@ class DesktopSettings {
         get() = props.getProperty("global_hotkey", "Ctrl + Shift + O")
         set(value) { props.setProperty("global_hotkey", value); save() }
 
+    var quickDictHotkey: String
+        get() = props.getProperty("quick_dict_hotkey", "Ctrl + Shift + D")
+        set(value) { props.setProperty("quick_dict_hotkey", value); save() }
+
     // 2. Motor de Reconhecimento
     var engine: DesktopEngineChoice
         get() = when (props.getProperty("engine", "AUTO")) {
@@ -84,6 +88,10 @@ class DesktopSettings {
     var dictionaryLookup: Boolean
         get() = props.getProperty("dictionary_lookup", "true").toBoolean()
         set(value) { props.setProperty("dictionary_lookup", value.toString()); save() }
+
+    var dictionaryFilter: String
+        get() = props.getProperty("dictionary_filter", "") ?: ""
+        set(value) { props.setProperty("dictionary_filter", value); save() }
 
     var dictionaryKeepLastSearch: Boolean
         get() = props.getProperty("dictionary_keep_last_search", "false").toBoolean()

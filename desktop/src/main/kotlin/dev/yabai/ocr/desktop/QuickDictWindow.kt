@@ -3,6 +3,7 @@ package dev.yabai.ocr.desktop
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -108,50 +109,52 @@ fun QuickDictWindow(onClose: () -> Unit) {
                             style = MaterialTheme.typography.caption
                         )
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(results) { match ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    backgroundColor = Color(0xFF1B1E28),
-                                    elevation = 0.dp
-                                ) {
-                                    Column(modifier = Modifier.padding(10.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "${match.entry.term}  【${match.entry.reading}】",
-                                                style = MaterialTheme.typography.subtitle1.copy(color = Color.White)
-                                            )
-                                            if (match.dictionaryTitle.isNotBlank()) {
+                        SelectionContainer {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(results) { match ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        backgroundColor = Color(0xFF1B1E28),
+                                        elevation = 0.dp
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
                                                 Text(
-                                                    text = match.dictionaryTitle,
+                                                    text = "${match.entry.term}  【${match.entry.reading}】",
+                                                    style = MaterialTheme.typography.subtitle1.copy(color = Color.White)
+                                                )
+                                                if (match.dictionaryTitle.isNotBlank()) {
+                                                    Text(
+                                                        text = match.dictionaryTitle,
+                                                        style = MaterialTheme.typography.caption,
+                                                        color = Color(0xFFA0A6B8)
+                                                    )
+                                                }
+                                            }
+
+                                            if (match.entry.tags.isNotBlank()) {
+                                                Text(
+                                                    text = match.entry.tags,
                                                     style = MaterialTheme.typography.caption,
-                                                    color = Color(0xFFA0A6B8)
+                                                    color = Color(0xFFE5A93C)
                                                 )
                                             }
-                                        }
 
-                                        if (match.entry.tags.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+
                                             Text(
-                                                text = match.entry.tags,
-                                                style = MaterialTheme.typography.caption,
-                                                color = Color(0xFFE5A93C)
+                                                text = match.entry.definition,
+                                                style = MaterialTheme.typography.body2,
+                                                color = Color.White
                                             )
                                         }
-
-                                        Spacer(modifier = Modifier.height(4.dp))
-
-                                        Text(
-                                            text = match.entry.definition,
-                                            style = MaterialTheme.typography.body2,
-                                            color = Color.White
-                                        )
                                     }
                                 }
                             }

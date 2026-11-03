@@ -3598,5 +3598,11 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D9 | `[x]` | **Fix do Movimento da Janela do Dicionário ao Digitar**: Corrigir reposicionamento involuntário ao digitar | fácil |
 | D10 | `[x]` | **Design do Menu da Bandeja (System Tray)**: Estilização do menu da bandeja no padrão de design do app | médio |
 | D11 | `[x]` | **Ícones Unificados Desktop**: Ícones da bandeja, barra de tarefas e janelas alinhados com o mobile | fácil |
-| D12 | `[ ]` | **OCR em Tempo Real por Hover (Estilo Yomitan)**: Seleção por varredura/mouse na tela inteira | avançado |
+| D12 | `[x]` | **Campos de Texto Selecionáveis**: Texto de OCR e definições selecionáveis para cópia (`SelectionContainer`) sem serem editáveis por padrão | fácil |
+| D13 | `[x]` | **Filtro de Dicionário Ativo**: Seletor para filtrar buscas por dicionário específico ou "Todos" no OCR e na consulta | fácil |
+| D14 | `[x]` | **Sugestões de Busca e Botões Apagar/Colar**: Sugestões automáticas (`LookupEngine.suggest`) e botões rápidos ❌ Apagar / 📋 Colar no campo de busca | médio |
+| D15 | `[x]` | **Atalho Global para Busca Rápida**: Atalho de teclado independente (ex: `Ctrl + Shift + D`) para abrir o Dicionário Rápido em background | médio |
+| D16 | `[x]` | **Catálogo Completo e Atribuições Legais**: Adicionar o catálogo completo de dicionários do mobile (Wiktionary, Onomatopeias, etc.) e dados legais de uso | fácil |
+| D17 | `[x]` | **Menu Flutuante da Bandeja Customizado**: Popup do tray estilizado em Compose Desktop com tema escuro (`0xFF12141A`), bordas e hover | médio |
+| D18 | `[ ]` | **OCR em Tempo Real por Hover (Estilo Yomitan)**: Seleção por varredura/mouse na tela inteira | avançado |
 

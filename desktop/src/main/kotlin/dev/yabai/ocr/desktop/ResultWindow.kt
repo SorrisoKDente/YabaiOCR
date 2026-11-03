@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -228,12 +229,12 @@ fun ResultWindow(
                             }
                         }
                     } else {
-                        // --- Split Content: Left (Editable Text & Image) | Right (Dictionary Cards) ---
+                        // --- Split Content: Left (Selectable Text & Image) | Right (Dictionary Cards) ---
                         Row(
                             modifier = Modifier.fillMaxSize(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            // --- Left Column: Editable Recognized Text & Image ---
+                            // --- Left Column: Selectable Recognized Text & Image ---
                             Column(
                                 modifier = Modifier.weight(1f).fillMaxHeight()
                             ) {
@@ -242,36 +243,22 @@ fun ResultWindow(
                                     backgroundColor = Color(0xFF1B1E28),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Column(modifier = Modifier.padding(14.dp)) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
                                         Text(
-                                            text = "Texto Editável (corrija erros do OCR aqui):",
+                                            text = "Texto Reconhecido (selecione para copiar):",
                                             style = MaterialTheme.typography.caption,
                                             color = Color(0xFFA0A6B8)
                                         )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        OutlinedTextField(
-                                            value = recognizedText,
-                                            onValueChange = { newText ->
-                                                recognizedText = newText
-                                                if (newText.isNotBlank() && engine != null) {
-                                                    matches = engine.lookup(newText)
-                                                } else {
-                                                    matches = emptyList()
-                                                }
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textStyle = LocalTextStyle.current.copy(
-                                                fontSize = 20.sp,
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        SelectionContainer {
+                                            Text(
+                                                text = recognizedText,
+                                                fontSize = 22.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = Color.White,
-                                                lineHeight = 30.sp
-                                            ),
-                                            colors = TextFieldDefaults.outlinedTextFieldColors(
-                                                textColor = Color.White,
-                                                focusedBorderColor = MaterialTheme.colors.primary,
-                                                unfocusedBorderColor = Color(0xFF2E3344)
+                                                lineHeight = 32.sp
                                             )
-                                        )
+                                        }
                                     }
                                 }
 
@@ -321,12 +308,14 @@ fun ResultWindow(
                                             color = Color(0xFFA0A6B8)
                                         )
                                     } else {
-                                        LazyColumn(
-                                            modifier = Modifier.fillMaxSize(),
-                                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            items(matches) { match ->
-                                                DictionaryMatchCard(match = match)
+                                        SelectionContainer {
+                                            LazyColumn(
+                                                modifier = Modifier.fillMaxSize(),
+                                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                items(matches) { match ->
+                                                    DictionaryMatchCard(match = match)
+                                                }
                                             }
                                         }
                                     }

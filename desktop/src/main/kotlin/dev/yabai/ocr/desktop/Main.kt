@@ -33,16 +33,19 @@ fun main() = application {
     // Setup Global Hotkey Listener (JNativeHook)
     DisposableEffect(Unit) {
         val hotkeyManager = GlobalHotkeyManager(
-            onTriggered = {
+            onOcrTriggered = {
                 try {
                     val fullScreen = ScreenCapture.captureScreen()
                     screenCaptureForSelection = fullScreen
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
+            },
+            onQuickDictTriggered = {
+                showQuickDict = true
             }
         )
-        hotkeyManager.updateHotkey(settings.globalHotkey)
+        hotkeyManager.updateHotkeys(settings.globalHotkey, settings.quickDictHotkey)
         hotkeyManager.start()
 
         onDispose {
