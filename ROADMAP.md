@@ -3608,10 +3608,11 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D21 | `[x]` | **Limpeza da Tela de Ajustes**: Remover numeração dos cards de configurações ("1. ", "2. ", etc.) e remover a opção legada "Escolher trecho na captura da tela inteira" | trivial |
 | D20 | `[x]` | **Iniciar na Bandeja ao Ligar o Computador**: Opção nas configurações para iniciar o aplicativo minimizado na bandeja ao ligar o PC (com chave de ativação/desativação) | fácil |
 | D22 | `[x]` | **Créditos e Licenças dos Dicionários**: Opção/botão para visualizar créditos, licenças e informações de atribuição legal dos dicionários no desktop | fácil |
-| D19 | `[ ]` | **Gerenciamento e Verificação de Atualizações de Dicionários**: Verificação de atualizações de dicionários, botão para verificar e para atualizar todos ou individualmente | médio |
+| D19 | `[x]` | **Gerenciamento e Verificação de Atualizações de Dicionários**: Verificação de atualizações de dicionários, botão para verificar e para atualizar todos ou individualmente | médio |
 | D23 | `[ ]` | **Prioridade e Ativação/Desativação de Dicionários**: Permitir definir a ordem de prioridade dos dicionários e opção de desabilitar/habilitar sem deletar | médio |
 | D24 | `[ ]` | **Fix de Layout em Textos Longos (Posição da Imagem)**: Corrigir posicionamento da imagem recortada quando a seleção de texto for muito longa para não ficar escondida abaixo da tela | médio |
 | D25 | `[ ]` | **Captura de Tela Inteira e Opções Avançadas**: Adicionar opção de captura de tela inteira com escolha de trecho, rubi sobre o texto e faixa indicativa legível | avançado |
+| D26 | `[x]` | **Fix de Perda de Tela Cheia ao Alternar Telas**: Corrigir bug onde abrir o gerenciador de dicionários ou voltar ao menu anterior redefiniam o estado de maximizado/tamanho da janela principal | fácil |
 
 ### D21 — Limpeza da Tela de Ajustes `[x]` (03/11/2026)
 
@@ -3628,6 +3629,16 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 
 - Adicionada a seção expansível "Créditos e Licenças" na aba de dicionários locais (`DictionaryManagerWindow.kt`), seguindo o padrão da versão mobile.
 - Exibe a origem e as informações detalhadas de atribuição e licença (CC BY-SA, EDRDG, Yomitan, Wikcionário, etc.) para cada dicionário instalado.
+
+### D19 — Gerenciamento e Verificação de Atualizações de Dicionários `[x]` (03/11/2026)
+
+- Adicionado botão global "🔄 Verificar Atualizações" para checar revisões remotas de todos os dicionários instalados.
+- Exibição condicional do botão "🔄 Atualizar" apenas para dicionários que possuem uma versão/revisão mais recente disponível no catálogo.
+- Adicionado botão "🔄 Atualizar Todos os Dicionários Disponíveis" para atualizar em lote todos os dicionários desatualizados de uma só vez, com barra de progresso.
+
+### D26 — Fix de Perda de Tela Cheia ao Alternar Telas `[x]` (03/11/2026)
+
+- Corrigido o bug em `Main.kt` onde a janela principal era recriada ao alternar entre Configurações e Gerenciador de Dicionários (perdulando o estado de maximizado/tela cheia). Agora utiliza `rememberWindowState` para preservar o estado e tamanho da janela durante a navegação.
 
 ### D18 — Hover em tempo real: o que estava quebrado (03/11/2026) `[x]`
 

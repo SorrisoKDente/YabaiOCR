@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
+import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.yabai.ocr.core.dict.TokenMatch
 import java.awt.Point
@@ -206,6 +207,7 @@ fun main(args: Array<String>) = application {
 
     // Main Window (Settings or Integrated Dictionary Manager)
     if (showMainWindow) {
+        val windowState = rememberWindowState(width = 820.dp, height = 750.dp)
         val title = if (mainScreen == MainScreen.SETTINGS) {
             "Yabai OCR - Ajustes e Configurações"
         } else {
@@ -214,7 +216,7 @@ fun main(args: Array<String>) = application {
         Window(
             onCloseRequest = { showMainWindow = false },
             title = title,
-            state = WindowState(width = 820.dp, height = 750.dp),
+            state = windowState,
         ) {
             LaunchedEffect(Unit) {
                 window.isAutoRequestFocus = false

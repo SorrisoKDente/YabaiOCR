@@ -345,6 +345,17 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
         )
     }
 
+    var checkingUpdates by remember { mutableStateOf(false) }
+    var updateAvailableMap by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var remoteRevisionMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var checkMessage by remember { mutableStateOf<String?>(null) }
+
+    var updatingId by remember { mutableStateOf<String?>(null) }
+    var updateProgressText by remember { mutableStateOf("") }
+    var updateProgressFraction by remember { mutableStateOf(0f) }
+    var updateError by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
     fun refreshFiles() {
         if (!dictDir.exists()) dictDir.mkdirs()
         installedFiles = dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }.orEmpty()
@@ -358,11 +369,95 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Dicionários Locais", style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                Text("Dicionários Locais e Atualizações", style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold), color = Color.White)
                 Text("Pasta de dados: ${dictDir.absolutePath}", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        checkingUpdates = true
+                        checkMessage = null
+                        updateError = null
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                val client = OkHttpClient.Builder()
+                                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                                    .build()
+
+                                val available = mutableMapOf<String, Boolean>()
+                                val remotes = mutableMapOf<String, String>()
+
+                                installedFiles.forEach { file ->
+                                    val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
+                                    val installedRev = dict?.info?.revision.orEmpty()
+                                    dict?.close()
+
+                                    val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
+                                        file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
+                                        file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
+                                    }
+
+                                    if (catalogEntry != null) {
+                                        val indexUrl = catalogEntry.indexUrl
+                                        if (indexUrl != null) {
+                                            runCatching {
+                                                val req = Request.Builder().url(indexUrl).build()
+                                                client.newCall(req).execute().use { resp ->
+                                                    val jsonText = resp.body?.string().orEmpty()
+                                                    val obj = com.google.gson.JsonParser.parseString(jsonText).asJsonObject
+                                                    val remoteRev = obj.get("revision")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                                                    if (remoteRev.isNotBlank()) {
+                                                        val order = compareRevisions(installedRev, remoteRev)
+                                                        val hasUpdate = installedRev.isBlank() || (order != null && order < 0)
+                                                        available[file.name] = hasUpdate
+                                                        if (hasUpdate) {
+                                                            remotes[file.name] = remoteRev
+                                                        }
+                                                    } else {
+                                                        available[file.name] = false
+                                                    }
+                                                }
+                                            }
+                                        } else if (catalogEntry.url != null) {
+                                            runCatching {
+                                                val req = Request.Builder().url(catalogEntry.url).head().build()
+                                                client.newCall(req).execute().use { resp ->
+                                                    val remoteEtag = resp.header("ETag")
+                                                    val remoteLastModified = resp.header("Last-Modified")
+                                                    val remoteLength = resp.header("Content-Length")?.toLongOrNull() ?: 0L
+                                                    val localSig = readSignature(file)
+                                                    val hasUpdate = localSig == null || localSig.length != remoteLength ||
+                                                        (remoteEtag != null && localSig.etag != remoteEtag) ||
+                                                        (remoteLastModified != null && localSig.lastModified != remoteLastModified)
+                                                    available[file.name] = hasUpdate
+                                                    if (hasUpdate) {
+                                                        remotes[file.name] = "Disponível"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                updateAvailableMap = available
+                                remoteRevisionMap = remotes
+                                val count = available.values.count { it }
+                                checkMessage = "Verificação concluída. $count ${if (count == 1) "atualização disponível" else "atualizações disponíveis"}."
+                            } catch (e: Exception) {
+                                updateError = e.message ?: "Erro ao verificar atualizações."
+                            } finally {
+                                checkingUpdates = false
+                            }
+                        }
+                    },
+                    enabled = !checkingUpdates,
+                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344), contentColor = Color.White)
+                ) {
+                    Text(if (checkingUpdates) "Verificando..." else "🔄 Verificar Atualizações")
+                }
+
                 Button(
                     onClick = {
                         val chooser = JFileChooser()
@@ -387,7 +482,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                     },
                     colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary)
                 ) {
-                    Text("➕ Importar Arquivo")
+                    Text("➕ Importar")
                 }
 
                 OutlinedButton(
@@ -397,12 +492,80 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                 ) {
-                    Text("📁 Abrir Pasta")
+                    Text("📁 Pasta")
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (checkMessage != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color(0xFF1B382B),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Status da Verificação", style = MaterialTheme.typography.subtitle2, color = Color(0xFF81C784))
+                    Text(checkMessage.orEmpty(), style = MaterialTheme.typography.caption, color = Color.White)
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        if (updateError != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color(0xFF3A1C1C),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Erro na Atualização", style = MaterialTheme.typography.subtitle2, color = Color(0xFFFFB4AB))
+                    Text(updateError.orEmpty(), style = MaterialTheme.typography.caption, color = Color.White)
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        if (updateAvailableMap.values.any { it }) {
+            Button(
+                onClick = {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            val updates = installedFiles.filter { updateAvailableMap[it.name] == true }
+                            updates.forEach { file ->
+                                val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
+                                    file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
+                                    file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
+                                }
+                                if (catalogEntry != null) {
+                                    updatingId = file.name
+                                    downloadAndInstallDictionary(
+                                        entry = catalogEntry,
+                                        dictDir = dictDir,
+                                        onProgress = { text: String, fraction: Float ->
+                                            updateProgressText = text
+                                            updateProgressFraction = fraction
+                                        }
+                                    )
+                                }
+                            }
+                            updateAvailableMap = emptyMap()
+                            refreshFiles()
+                        } catch (e: Exception) {
+                            updateError = e.message ?: "Erro ao atualizar todos os dicionários."
+                        } finally {
+                            updatingId = null
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary, contentColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("🔄 Atualizar Todos os Dicionários Disponíveis")
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -432,34 +595,109 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                 }
             } else {
                 items(installedFiles) { file ->
+                    val dict = remember(file) { runCatching { CompactDictionary.open(file) }.getOrNull() }
+                    val info = dict?.info
+                    val title = info?.title?.ifBlank { file.nameWithoutExtension } ?: file.nameWithoutExtension
+                    val revision = info?.revision.orEmpty()
                     val sizeMb = "%.1f MB".format(file.length().toDouble() / (1024 * 1024))
+                    val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
+                        file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
+                        file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
+                    }
+                    val isUpdating = updatingId == file.name
+                    val hasUpdate = updateAvailableMap[file.name] == true
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         backgroundColor = Color(0xFF1B1E28),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(file.nameWithoutExtension, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text("Arquivo: ${file.name} • Tamanho: $sizeMb", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(title, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    val revStr = if (revision.isNotBlank()) " • Atual: $revision" else ""
+                                    val remoteRev = remoteRevisionMap[file.name]
+                                    val updateText = if (hasUpdate && remoteRev != null) {
+                                        " • ✨ Atual: $revision → Nova: $remoteRev"
+                                    } else if (hasUpdate) {
+                                        " • ✨ Atualização disponível"
+                                    } else ""
+                                    Text(
+                                        "Arquivo: ${file.name} • Tamanho: $sizeMb$revStr$updateText",
+                                        style = MaterialTheme.typography.caption,
+                                        color = if (updateText.isNotBlank()) Color(0xFF81C784) else Color(0xFFA0A6B8)
+                                    )
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (hasUpdate || isUpdating) {
+                                        Button(
+                                            onClick = {
+                                                updatingId = file.name
+                                                updateError = null
+                                                coroutineScope.launch(Dispatchers.IO) {
+                                                    try {
+                                                        if (catalogEntry != null) {
+                                                            downloadAndInstallDictionary(
+                                                                entry = catalogEntry,
+                                                                dictDir = dictDir,
+                                                                onProgress = { text: String, fraction: Float ->
+                                                                    updateProgressText = text
+                                                                    updateProgressFraction = fraction
+                                                                }
+                                                            )
+                                                            val newMap = updateAvailableMap.toMutableMap()
+                                                            newMap[file.name] = false
+                                                            updateAvailableMap = newMap
+                                                            refreshFiles()
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        updateError = e.message ?: "Erro ao atualizar o dicionário."
+                                                    } finally {
+                                                        updatingId = null
+                                                    }
+                                                }
+                                            },
+                                            enabled = !isUpdating,
+                                            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary, contentColor = Color.White)
+                                        ) {
+                                            Text(if (isUpdating) "Atualizando..." else "🔄 Atualizar")
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            file.deleteRecursively()
+                                            refreshFiles()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A1C1C), contentColor = Color(0xFFFFB4AB))
+                                    ) {
+                                        Text("Remover")
+                                    }
+                                }
                             }
 
-                            Button(
-                                onClick = {
-                                    file.deleteRecursively()
-                                    refreshFiles()
-                                },
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A1C1C), contentColor = Color(0xFFFFB4AB))
-                            ) {
-                                Text("Remover")
+                            if (isUpdating) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Column {
+                                    LinearProgressIndicator(
+                                        progress = updateProgressFraction,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = MaterialTheme.colors.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(updateProgressText, style = MaterialTheme.typography.caption, color = Color.White)
+                                }
                             }
                         }
                     }
+                    dict?.close()
                 }
             }
 
@@ -688,6 +926,14 @@ private fun downloadAndInstallDictionary(
     )
     compiler.compile()
 
+    // Save signature for future updates check
+    runCatching {
+        val headReq = Request.Builder().url(url).head().build()
+        client.newCall(headReq).execute().use { resp ->
+            writeSignature(targetYabaiDir, resp.header("ETag"), resp.header("Last-Modified"), tempZip.length())
+        }
+    }
+
     // 4. Cleanup
     tempZip.delete()
     onProgress("Instalação concluída com sucesso!", 1.0f)
@@ -826,4 +1072,56 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
             }
         }
     }
+}
+
+private fun compareRevisions(installed: String, remote: String): Int? {
+    val left = revisionParts(installed) ?: return null
+    val right = revisionParts(remote) ?: return null
+    val size = maxOf(left.size, right.size)
+    for (index in 0 until size) {
+        val a = left.getOrElse(index) { 0L }
+        val b = right.getOrElse(index) { 0L }
+        if (a != b) return a.compareTo(b)
+    }
+    return 0
+}
+
+private fun revisionParts(label: String): List<Long>? {
+    val parts = ArrayList<Long>(4)
+    var index = 0
+    while (index < label.length) {
+        if (!label[index].isDigit()) {
+            index++
+            continue
+        }
+        val start = index
+        while (index < label.length && label[index].isDigit()) index++
+        val value = label.substring(start, index).toLongOrNull() ?: return null
+        parts.add(value)
+    }
+    return parts.ifEmpty { null }
+}
+
+private data class DictSignature(val etag: String?, val lastModified: String?, val length: Long)
+
+private fun readSignature(dir: File): DictSignature? {
+    val file = File(dir, "signature.properties")
+    if (!file.isFile) return null
+    val props = java.util.Properties()
+    runCatching { file.inputStream().use { props.load(it) } }
+    return DictSignature(
+        props.getProperty("etag"),
+        props.getProperty("lastModified"),
+        props.getProperty("length")?.toLongOrNull() ?: 0L
+    )
+}
+
+private fun writeSignature(dir: File, etag: String?, lastModified: String?, length: Long) {
+    val file = File(dir, "signature.properties")
+    val props = java.util.Properties().apply {
+        if (etag != null) setProperty("etag", etag)
+        if (lastModified != null) setProperty("lastModified", lastModified)
+        setProperty("length", length.toString())
+    }
+    runCatching { file.outputStream().use { props.store(it, "Yabai OCR Dictionary Signature") } }
 }
