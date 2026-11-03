@@ -51,30 +51,20 @@ fun QuickDictWindow(onClose: () -> Unit) {
     var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
 
     // Load dictionaries from configured dictionary directory
-    val dictDir = remember { settings.dictDirectory() }
     val engine = remember {
         try {
-            if (dictDir.exists() && dictDir.isDirectory) {
-                val dicts = dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }?.mapNotNull { file ->
-                    runCatching { CompactDictionary.open(file) }.getOrNull()
-                }.orEmpty()
-                LookupEngine(dicts)
-            } else null
+            DesktopDictLoader.loadEngine(settings)
         } catch (e: Exception) {
             null
         }
     }
 
-    val installedDictTitles = remember(dictDir) {
+    val installedDictTitles = remember(settings) {
         val list = mutableListOf<String>()
         try {
-            if (dictDir.exists() && dictDir.isDirectory) {
-                dictDir.listFiles()?.forEach { file ->
-                    if (file.extension == "yabai" || file.isDirectory) {
-                        val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
-                        if (dict != null) list.add(dict.info.title)
-                    }
-                }
+            DesktopDictLoader.loadInstalledFiles(settings).forEach { file ->
+                val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
+                if (dict != null) list.add(dict.info.title)
             }
         } catch (_: Exception) {}
         list.toList()

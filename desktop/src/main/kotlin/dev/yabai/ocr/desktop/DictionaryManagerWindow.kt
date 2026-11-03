@@ -338,11 +338,13 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
 
 @Composable
 private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
-    val dictDir = remember(refreshKey) { DesktopSettings().dictDirectory() }
+    val settings = remember { DesktopSettings() }
+    val dictDir = remember(refreshKey) { settings.dictDirectory() }
     var installedFiles by remember(refreshKey) {
-        mutableStateOf(
-            if (dictDir.exists()) dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }.orEmpty() else emptyList()
-        )
+        mutableStateOf(DesktopDictLoader.loadInstalledFiles(settings))
+    }
+    var disabledSet by remember(refreshKey) {
+        mutableStateOf(settings.getDisabledDictionaries())
     }
 
     var checkingUpdates by remember { mutableStateOf(false) }
@@ -358,7 +360,8 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
 
     fun refreshFiles() {
         if (!dictDir.exists()) dictDir.mkdirs()
-        installedFiles = dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }.orEmpty()
+        installedFiles = DesktopDictLoader.loadInstalledFiles(settings)
+        disabledSet = settings.getDisabledDictionaries()
         onRefresh()
     }
 
@@ -424,6 +427,8 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             runCatching {
                                                 val req = Request.Builder().url(catalogEntry.url).head().build()
                                                 client.newCall(req).execute().use { resp ->
+                                                    val finalUrl = resp.request.url.toString()
+                                                    val remoteVersion = extractVersionFromUrl(finalUrl) ?: formatRemoteLabel(resp.header("Last-Modified"), resp.header("ETag"))
                                                     val remoteEtag = resp.header("ETag")
                                                     val remoteLastModified = resp.header("Last-Modified")
                                                     val remoteLength = resp.header("Content-Length")?.toLongOrNull() ?: 0L
@@ -433,7 +438,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                                         (remoteLastModified != null && localSig.lastModified != remoteLastModified)
                                                     available[file.name] = hasUpdate
                                                     if (hasUpdate) {
-                                                        remotes[file.name] = "Disponível"
+                                                        remotes[file.name] = remoteVersion
                                                     }
                                                 }
                                             }
@@ -623,10 +628,12 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                     Spacer(modifier = Modifier.height(2.dp))
                                     val revStr = if (revision.isNotBlank()) " • Atual: $revision" else ""
                                     val remoteRev = remoteRevisionMap[file.name]
-                                    val updateText = if (hasUpdate && remoteRev != null) {
-                                        " • ✨ Atual: $revision → Nova: $remoteRev"
-                                    } else if (hasUpdate) {
-                                        " • ✨ Atualização disponível"
+                                    val updateText = if (hasUpdate) {
+                                        if (remoteRev != null && remoteRev != "Disponível") {
+                                            " • ✨ Nova: $remoteRev"
+                                        } else {
+                                            " • ✨ Atualização disponível"
+                                        }
                                     } else ""
                                     Text(
                                         "Arquivo: ${file.name} • Tamanho: $sizeMb$revStr$updateText",
@@ -635,7 +642,56 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                     )
                                 }
 
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    val isDisabled = disabledSet.contains(file.name)
+                                    Checkbox(
+                                        checked = !isDisabled,
+                                        onCheckedChange = { isChecked ->
+                                            val newDisabled = disabledSet.toMutableSet()
+                                            if (isChecked) newDisabled.remove(file.name) else newDisabled.add(file.name)
+                                            settings.setDisabledDictionaries(newDisabled)
+                                            refreshFiles()
+                                        },
+                                        colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colors.primary)
+                                    )
+                                    Text(if (isDisabled) "Desativado" else "Ativo", style = MaterialTheme.typography.caption, color = if (isDisabled) Color(0xFFFFB4AB) else Color(0xFF81C784))
+
+                                    Spacer(modifier = Modifier.width(4.dp))
+
+                                    val index = installedFiles.indexOf(file)
+                                    if (index > 0) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val mutable = installedFiles.map { it.name }.toMutableList()
+                                                val item = mutable.removeAt(index)
+                                                mutable.add(index - 1, item)
+                                                settings.setDictionaryOrder(mutable)
+                                                refreshFiles()
+                                            },
+                                            modifier = Modifier.size(32.dp),
+                                            contentPadding = PaddingValues(0.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                        ) {
+                                            Text("▲", fontSize = 10.sp)
+                                        }
+                                    }
+                                    if (index < installedFiles.size - 1) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val mutable = installedFiles.map { it.name }.toMutableList()
+                                                val item = mutable.removeAt(index)
+                                                mutable.add(index + 1, item)
+                                                settings.setDictionaryOrder(mutable)
+                                                refreshFiles()
+                                            },
+                                            modifier = Modifier.size(32.dp),
+                                            contentPadding = PaddingValues(0.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                        ) {
+                                            Text("▼", fontSize = 10.sp)
+                                        }
+                                    }
+
                                     if (hasUpdate || isUpdating) {
                                         Button(
                                             onClick = {
@@ -1124,4 +1180,26 @@ private fun writeSignature(dir: File, etag: String?, lastModified: String?, leng
         setProperty("length", length.toString())
     }
     runCatching { file.outputStream().use { props.store(it, "Yabai OCR Dictionary Signature") } }
+}
+
+private fun formatRemoteLabel(lastModified: String?, etag: String?): String {
+    if (!lastModified.isNullOrBlank()) {
+        runCatching {
+            val parsed = java.time.ZonedDateTime.parse(lastModified, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME)
+            return parsed.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy", java.util.Locale.getDefault()))
+        }
+    }
+    if (!etag.isNullOrBlank()) {
+        return etag.trim('"')
+    }
+    return lastModified ?: "Disponível"
+}
+
+private fun extractVersionFromUrl(urlStr: String): String? {
+    val regex = Regex("/releases/download/([^/]+)/")
+    val match = regex.find(urlStr)
+    if (match != null) {
+        return match.groupValues[1].removePrefix("v").removePrefix("V")
+    }
+    return null
 }

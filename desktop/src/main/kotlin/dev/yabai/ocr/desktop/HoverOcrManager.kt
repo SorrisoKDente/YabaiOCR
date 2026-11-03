@@ -381,15 +381,7 @@ class HoverOcrManager(
         engineDir = path
         engineStamp = stamp
 
-        val dictionaries = if (dir.isDirectory) {
-            dir.listFiles()
-                ?.filter { it.extension == "yabai" || it.isDirectory }
-                ?.mapNotNull { file -> runCatching { CompactDictionary.open(file) }.getOrNull() }
-                .orEmpty()
-        } else {
-            emptyList()
-        }
-        engine = if (dictionaries.isEmpty()) null else LookupEngine(dictionaries)
+        engine = DesktopDictLoader.loadEngine(settings)
         return engine
     }
 

@@ -212,4 +212,24 @@ class DesktopSettings(
             }
         }
     }
+
+    fun getDisabledDictionaries(): Set<String> {
+        val raw = props.getProperty("disabled_dictionaries", "") ?: ""
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+    }
+
+    fun setDisabledDictionaries(disabled: Set<String>) {
+        props.setProperty("disabled_dictionaries", disabled.joinToString(","))
+        save()
+    }
+
+    fun getDictionaryOrder(): List<String> {
+        val raw = props.getProperty("dictionary_order", "") ?: ""
+        return raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun setDictionaryOrder(order: List<String>) {
+        props.setProperty("dictionary_order", order.joinToString(","))
+        save()
+    }
 }
