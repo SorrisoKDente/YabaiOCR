@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -118,11 +119,13 @@ fun ResultWindow(
         }
     }
 
-    // Re-run lookup when dictionary filter changes
-    LaunchedEffect(selectedFilter, engine) {
+    // Re-run lookup when recognized text or dictionary filter changes
+    LaunchedEffect(recognizedText, selectedFilter, engine) {
         if (recognizedText.isNotBlank() && engine != null) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
             matches = engine.lookup(recognizedText, only = onlySet)
+        } else {
+            matches = emptyList()
         }
     }
 
@@ -254,12 +257,12 @@ fun ResultWindow(
                             }
                         }
                     } else {
-                        // --- Split Content: Left (Selectable Text & Image) | Right (Dictionary Cards) ---
+                        // --- Split Content: Left (Editable Text & Image) | Right (Dictionary Cards) ---
                         Row(
                             modifier = Modifier.fillMaxSize(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            // --- Left Column: Selectable Recognized Text & Image ---
+                            // --- Left Column: Editable Recognized Text & Image ---
                             Column(
                                 modifier = Modifier.weight(1f).fillMaxHeight()
                             ) {
@@ -270,20 +273,27 @@ fun ResultWindow(
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Text(
-                                            text = "Texto Reconhecido (selecione para copiar):",
+                                            text = "Texto Reconhecido (edite ou selecione para ajustar):",
                                             style = MaterialTheme.typography.caption,
                                             color = Color(0xFFA0A6B8)
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        SelectionContainer {
-                                            Text(
-                                                text = recognizedText,
-                                                fontSize = 22.sp,
+                                        OutlinedTextField(
+                                            value = recognizedText,
+                                            onValueChange = { recognizedText = it },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textStyle = TextStyle(
+                                                fontSize = 20.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = Color.White,
-                                                lineHeight = 32.sp
+                                                lineHeight = 28.sp
+                                            ),
+                                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                                textColor = Color.White,
+                                                focusedBorderColor = MaterialTheme.colors.primary,
+                                                unfocusedBorderColor = Color(0xFF2E3344)
                                             )
-                                        }
+                                        )
                                     }
                                 }
 
