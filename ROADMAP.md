@@ -3607,7 +3607,7 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D18 | `[x]` | **OCR em Tempo Real por Hover (Estilo Yomitan)**: laço contínuo do mouse, debounce, recorte limitado às bordas, palavra pela caixa da linha e cartão ao lado do cursor | avançado |
 | D21 | `[x]` | **Limpeza da Tela de Ajustes**: Remover numeração dos cards de configurações ("1. ", "2. ", etc.) e remover a opção legada "Escolher trecho na captura da tela inteira" | trivial |
 | D20 | `[x]` | **Iniciar na Bandeja ao Ligar o Computador**: Opção nas configurações para iniciar o aplicativo minimizado na bandeja ao ligar o PC (com chave de ativação/desativação) | fácil |
-| D22 | `[ ]` | **Créditos e Licenças dos Dicionários**: Opção/botão para visualizar créditos, licenças e informações de atribuição legal dos dicionários no desktop | fácil |
+| D22 | `[x]` | **Créditos e Licenças dos Dicionários**: Opção/botão para visualizar créditos, licenças e informações de atribuição legal dos dicionários no desktop | fácil |
 | D19 | `[ ]` | **Gerenciamento e Verificação de Atualizações de Dicionários**: Verificação de atualizações de dicionários, botão para verificar e para atualizar todos ou individualmente | médio |
 | D23 | `[ ]` | **Prioridade e Ativação/Desativação de Dicionários**: Permitir definir a ordem de prioridade dos dicionários e opção de desabilitar/habilitar sem deletar | médio |
 | D24 | `[ ]` | **Fix de Layout em Textos Longos (Posição da Imagem)**: Corrigir posicionamento da imagem recortada quando a seleção de texto for muito longa para não ficar escondida abaixo da tela | médio |
@@ -3623,6 +3623,11 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 - Adicionado `StartupManager` para gerenciar registro de inicialização no Windows (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`).
 - Adicionado argumento `--minimized` no fluxo de inicialização (`Main.kt`) para iniciar oculto na bandeja do sistema quando acionado pelo SO.
 - Adicionado switch em Ajustes (`SettingsWindow.kt` e `DesktopSettings.kt`) para ativar ou desativar a inicialização automática.
+
+### D22 — Créditos e Licenças dos Dicionários `[x]` (03/11/2026)
+
+- Adicionada a seção expansível "Créditos e Licenças" na aba de dicionários locais (`DictionaryManagerWindow.kt`), seguindo o padrão da versão mobile.
+- Exibe a origem e as informações detalhadas de atribuição e licença (CC BY-SA, EDRDG, Yomitan, Wikcionário, etc.) para cada dicionário instalado.
 
 ### D18 — Hover em tempo real: o que estava quebrado (03/11/2026) `[x]`
 

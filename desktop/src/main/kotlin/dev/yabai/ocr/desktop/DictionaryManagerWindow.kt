@@ -404,31 +404,33 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (installedFiles.isEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF1B1E28),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        "Nenhum dicionário instalado no momento.",
-                        style = MaterialTheme.typography.subtitle1,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "Você pode importar arquivos .yabai ou .zip existentes usando o botão acima, ou navegar pela aba 'Catálogo de Downloads' para baixar os dicionários recomendados.",
-                        style = MaterialTheme.typography.body2,
-                        color = Color(0xFFA0A6B8)
-                    )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (installedFiles.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        backgroundColor = Color(0xFF1B1E28),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(
+                                "Nenhum dicionário instalado no momento.",
+                                style = MaterialTheme.typography.subtitle1,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Você pode importar arquivos .yabai ou .zip existentes usando o botão acima, ou navegar pela aba 'Catálogo de Downloads' para baixar os dicionários recomendados.",
+                                style = MaterialTheme.typography.body2,
+                                color = Color(0xFFA0A6B8)
+                            )
+                        }
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+            } else {
                 items(installedFiles) { file ->
                     val sizeMb = "%.1f MB".format(file.length().toDouble() / (1024 * 1024))
                     Card(
@@ -459,6 +461,11 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         }
                     }
                 }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                CreditsAndLicensesSection(installedFiles)
             }
         }
     }
@@ -737,6 +744,86 @@ private fun DictionarySearchCard(match: TokenMatch) {
                 style = MaterialTheme.typography.body2.copy(lineHeight = 18.sp),
                 color = Color.White
             )
+        }
+    }
+}
+
+@Composable
+private fun CreditsAndLicensesSection(installedFiles: List<File>) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = Color(0xFF1B1E28),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (expanded) "▾ Ocultar créditos legais e licenças dos dicionários" else "▸ Ver créditos legais e licenças dos dicionários",
+                    style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
+                    color = Color(0xFF5D84FF)
+                )
+            }
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(12.dp))
+                if (installedFiles.isEmpty()) {
+                    Text(
+                        "Nenhum dicionário instalado para exibir créditos e licenças.",
+                        style = MaterialTheme.typography.body2,
+                        color = Color(0xFFA0A6B8)
+                    )
+                } else {
+                    installedFiles.forEach { file ->
+                        val dict = remember(file) { runCatching { CompactDictionary.open(file) }.getOrNull() }
+                        val info = dict?.info
+                        val title = info?.title?.ifBlank { file.nameWithoutExtension } ?: file.nameWithoutExtension
+                        val author = info?.author
+                        val description = info?.description
+                        val attribution = info?.attribution ?: "Licença Yomitan / Domínio público / EDRDG (CC BY-SA 4.0)"
+                        val revision = info?.revision
+                        val termCount = info?.termCount ?: 0
+                        val kanjiCount = info?.kanjiCount ?: 0
+
+                        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                            Text("• $title", style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                            if (!author.isNullOrBlank()) {
+                                Text("  Autor / Origem: $author", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                            }
+                            if (!description.isNullOrBlank()) {
+                                Text("  Descrição: $description", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                            }
+                            Text("  Atribuição / Licença: $attribution", style = MaterialTheme.typography.caption, color = Color(0xFF81C784))
+                            if (!revision.isNullOrBlank()) {
+                                Text("  Revisão / Versão: $revision", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                            }
+                            if (termCount > 0 || kanjiCount > 0) {
+                                val countStr = buildList {
+                                    if (termCount > 0) add("$termCount termos")
+                                    if (kanjiCount > 0) add("$kanjiCount kanjis")
+                                }.joinToString(" • ")
+                                Text("  Entradas: $countStr", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        dict?.close()
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Termos gerais: Os dados de vocabulário e kanjis derivam de projetos abertos como JMdict, KANJIDIC, Wikcionário e Jitendex sob licença Creative Commons (CC BY-SA).",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFF70778B)
+                )
+            }
         }
     }
 }
