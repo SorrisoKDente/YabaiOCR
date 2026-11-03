@@ -3605,8 +3605,24 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D16 | `[x]` | **Catálogo Completo e Atribuições Legais**: Adicionar o catálogo completo de dicionários do mobile (Wiktionary, Onomatopeias, etc.) e dados legais de uso | fácil |
 | D17 | `[x]` | **Menu Flutuante da Bandeja Customizado**: Popup do tray estilizado em Compose Desktop com tema escuro (`0xFF12141A`), bordas e hover | médio |
 | D18 | `[x]` | **OCR em Tempo Real por Hover (Estilo Yomitan)**: laço contínuo do mouse, debounce, recorte limitado às bordas, palavra pela caixa da linha e cartão ao lado do cursor | avançado |
-| D19 | `[ ]` | **Gerenciamento de Atualizações de Dicionários**: Verificação de atualizações, botão para atualizar todos, atualizar individualmente e exibição da versão instalada | médio |
-| D20 | `[ ]` | **Iniciar na Bandeja ao Ligar o Computador**: Opção nas configurações para iniciar o aplicativo minimizado na bandeja ao ligar o PC (com chave de ativação/desativação) | fácil |
+| D21 | `[x]` | **Limpeza da Tela de Ajustes**: Remover numeração dos cards de configurações ("1. ", "2. ", etc.) e remover a opção legada "Escolher trecho na captura da tela inteira" | trivial |
+| D20 | `[x]` | **Iniciar na Bandeja ao Ligar o Computador**: Opção nas configurações para iniciar o aplicativo minimizado na bandeja ao ligar o PC (com chave de ativação/desativação) | fácil |
+| D22 | `[ ]` | **Créditos e Licenças dos Dicionários**: Opção/botão para visualizar créditos, licenças e informações de atribuição legal dos dicionários no desktop | fácil |
+| D19 | `[ ]` | **Gerenciamento e Verificação de Atualizações de Dicionários**: Verificação de atualizações de dicionários, botão para verificar e para atualizar todos ou individualmente | médio |
+| D23 | `[ ]` | **Prioridade e Ativação/Desativação de Dicionários**: Permitir definir a ordem de prioridade dos dicionários e opção de desabilitar/habilitar sem deletar | médio |
+| D24 | `[ ]` | **Fix de Layout em Textos Longos (Posição da Imagem)**: Corrigir posicionamento da imagem recortada quando a seleção de texto for muito longa para não ficar escondida abaixo da tela | médio |
+| D25 | `[ ]` | **Captura de Tela Inteira e Opções Avançadas**: Adicionar opção de captura de tela inteira com escolha de trecho, rubi sobre o texto e faixa indicativa legível | avançado |
+
+### D21 — Limpeza da Tela de Ajustes `[x]` (03/11/2026)
+
+- Removida a numeração ("1. ", "2. ", "3. ", "4. ", "5. ", "6. ") dos títulos dos cards na tela de Ajustes (`SettingsWindow.kt`).
+- Removida a opção legada "Escolher trecho na captura da tela inteira" da tela de Ajustes.
+
+### D20 — Iniciar na Bandeja ao Ligar o Computador `[x]` (03/11/2026)
+
+- Adicionado `StartupManager` para gerenciar registro de inicialização no Windows (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`).
+- Adicionado argumento `--minimized` no fluxo de inicialização (`Main.kt`) para iniciar oculto na bandeja do sistema quando acionado pelo SO.
+- Adicionado switch em Ajustes (`SettingsWindow.kt` e `DesktopSettings.kt`) para ativar ou desativar a inicialização automática.
 
 ### D18 — Hover em tempo real: o que estava quebrado (03/11/2026) `[x]`
 

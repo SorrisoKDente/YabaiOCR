@@ -32,7 +32,8 @@ class HoverStateHolder(defaultFilter: String = "") {
     var status by mutableStateOf("Modo Hover desativado — ative para traduzir passando o mouse.")
 }
 
-fun main() = application {
+fun main(args: Array<String>) = application {
+    val startMinimized = args.contains("--minimized") || args.contains("--tray")
     // Hidden background window to keep application alive in System Tray when all visible windows are closed
     Window(onCloseRequest = {}, visible = false, title = "Yabai OCR Background") {}
 
@@ -40,7 +41,7 @@ fun main() = application {
 
     var mainScreen by remember { mutableStateOf(MainScreen.SETTINGS) }
     var mainDictInitialQuery by remember { mutableStateOf("") }
-    var showMainWindow by remember { mutableStateOf(true) } // Open main window by default on run
+    var showMainWindow by remember { mutableStateOf(!startMinimized) } // Open main window by default on run
 
     var showQuickDict by remember { mutableStateOf(false) }
 

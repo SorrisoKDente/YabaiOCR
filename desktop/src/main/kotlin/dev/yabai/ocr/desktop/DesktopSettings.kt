@@ -61,6 +61,14 @@ class DesktopSettings(
         get() = props.getProperty("auto_copy", "true").toBoolean()
         set(value) { props.setProperty("auto_copy", value.toString()); save() }
 
+    var startOnBoot: Boolean
+        get() = props.getProperty("start_on_boot", "false").toBoolean()
+        set(value) {
+            props.setProperty("start_on_boot", value.toString())
+            save()
+            StartupManager.setStartOnBoot(value)
+        }
+
     var showSegments: Boolean
         get() = props.getProperty("show_segments", "false").toBoolean()
         set(value) { props.setProperty("show_segments", value.toString()); save() }

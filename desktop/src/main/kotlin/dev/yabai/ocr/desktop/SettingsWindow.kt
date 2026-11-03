@@ -56,8 +56,8 @@ fun SettingsContent(
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
+    var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var showSegments by remember { mutableStateOf(settings.showSegments) }
-    var pickText by remember { mutableStateOf(settings.pickText) }
     var upscaleSmall by remember { mutableStateOf(settings.upscaleSmall) }
     var showImage by remember { mutableStateOf(settings.showImage) }
     var furiganaInParentheses by remember { mutableStateOf(settings.furiganaInParentheses) }
@@ -122,9 +122,9 @@ fun SettingsContent(
             }
         }
 
-        // --- 1. Atalhos Globais ---
+        // --- Atalhos Globais ---
         item {
-            SettingCard(title = "1. Atalhos Globais de Teclado") {
+            SettingCard(title = "Atalhos Globais de Teclado") {
                 // OCR Hotkey
                 Text(
                     text = "Atalho de Captura de Tela (OCR):",
@@ -513,6 +513,21 @@ fun SettingsContent(
             }
         }
 
+        // --- Inicialização do Sistema ---
+        item {
+            SettingCard(title = "Inicialização do Sistema") {
+                SettingCheckboxItem(
+                    checked = startOnBoot,
+                    title = "Iniciar na bandeja ao ligar o computador",
+                    description = "Abre o aplicativo minimizado na bandeja do sistema automaticamente quando o sistema operacional inicia.",
+                    onCheckedChange = {
+                        startOnBoot = it
+                        settings.startOnBoot = it
+                    }
+                )
+            }
+        }
+
         // --- 1.1 Modo Hover ---
         item {
             SettingCard(title = "Modo Hover — leitura em tempo real (Estilo Yomitan)") {
@@ -619,9 +634,9 @@ fun SettingsContent(
             }
         }
 
-        // --- 2. Motor de Reconhecimento ---
+        // --- Motor de Reconhecimento ---
         item {
-            SettingCard(title = "2. Motor de reconhecimento") {
+            SettingCard(title = "Motor de reconhecimento") {
                 Text(
                     text = "Escolha como o texto em japonês será reconhecido da imagem.",
                     style = MaterialTheme.typography.caption,
@@ -661,9 +676,9 @@ fun SettingsContent(
             }
         }
 
-        // --- 3. Comportamento do OCR e Resultado ---
+        // --- Comportamento do OCR e Resultado ---
         item {
-            SettingCard(title = "3. Comportamento do OCR e resultado") {
+            SettingCard(title = "Comportamento do OCR e resultado") {
                 SettingCheckboxItem(
                     checked = autoCopy,
                     title = "Copiar automaticamente ao reconhecer",
@@ -681,16 +696,6 @@ fun SettingsContent(
                     onCheckedChange = {
                         showSegments = it
                         settings.showSegments = it
-                    }
-                )
-
-                SettingCheckboxItem(
-                    checked = pickText,
-                    title = "Escolher trecho na captura da tela inteira",
-                    description = "Após capturar a tela inteira, desenha caixas interativas sobre os parágrafos para você escolher qual deseja analisar.",
-                    onCheckedChange = {
-                        pickText = it
-                        settings.pickText = it
                     }
                 )
 
@@ -774,9 +779,9 @@ fun SettingsContent(
             }
         }
 
-        // --- 4. Dicionários e Localização da Pasta ---
+        // --- Dicionários e Localização da Pasta ---
         item {
-            SettingCard(title = "4. Dicionários de Japonês e Pasta de Dados") {
+            SettingCard(title = "Dicionários de Japonês e Pasta de Dados") {
                 SettingCheckboxItem(
                     checked = dictionaryLookup,
                     title = "Consultar dicionários instalados",
@@ -987,9 +992,9 @@ fun SettingsContent(
             }
         }
 
-        // --- 5. Tradução ---
+        // --- Tradução ---
         item {
-            SettingCard(title = "5. Tradução de Frases") {
+            SettingCard(title = "Tradução de Frases") {
                 SettingCheckboxItem(
                     checked = translateSentence,
                     title = "Traduzir a frase reconhecida",
@@ -1034,9 +1039,9 @@ fun SettingsContent(
             }
         }
 
-        // --- 6. Perguntar a uma IA ---
+        // --- Perguntar a uma IA ---
         item {
-            SettingCard(title = "6. Perguntar a uma IA") {
+            SettingCard(title = "Perguntar a uma IA") {
                 SettingCheckboxItem(
                     checked = showAiButton,
                     title = "Exibir o botão «Perguntar à IA» no painel de resultado",
