@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.darkColors
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,9 +18,18 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import dev.yabai.ocr.core.dict.TokenMatch
+import java.awt.Point
 import java.awt.image.BufferedImage
 
 enum class MainScreen { SETTINGS, DICTIONARIES }
+
+class HoverStateHolder(defaultFilter: String = "") {
+    var matches by mutableStateOf<List<TokenMatch>>(emptyList())
+    var point by mutableStateOf<Point?>(null)
+    var activeFilter by mutableStateOf(defaultFilter)
+    var active by mutableStateOf(false)
+    var status by mutableStateOf("Modo Hover desativado — ative para traduzir passando o mouse.")
+}
 
 fun main() = application {
     // Hidden background window to keep application alive in System Tray when all visible windows are closed
@@ -33,40 +43,30 @@ fun main() = application {
 
     var showQuickDict by remember { mutableStateOf(false) }
 
-    var hoverMatches by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
-    var hoverPoint by remember { mutableStateOf<java.awt.Point?>(null) }
-    var hoverActiveFilter by remember { mutableStateOf(settings.hoverDictionaryFilter) }
-    var hoverActive by remember { mutableStateOf(false) }
-    var hoverStatus by remember {
-        mutableStateOf("Modo Hover desativado — ative para traduzir passando o mouse.")
-    }
+    val hoverState = remember { HoverStateHolder(settings.hoverDictionaryFilter) }
 
     val hoverOcrManager = remember {
         HoverOcrManager(
             onResultsReady = { matches, pt, filter ->
-                hoverMatches = matches
-                hoverPoint = pt
-                hoverActiveFilter = filter
+                hoverState.matches = matches
+                hoverState.point = pt
+                hoverState.activeFilter = filter
             },
             onDismiss = {
-                hoverMatches = emptyList()
-                hoverPoint = null
+                hoverState.matches = emptyList()
+                hoverState.point = null
             },
             onStatus = { message ->
-                hoverStatus = message
+                hoverState.status = message
             },
         )
     }
 
-    val installedDictTitles = remember {
-        hoverOcrManager.getInstalledDictionaryTitles()
-    }
-
     fun applyHover(enabled: Boolean) {
-        hoverActive = hoverOcrManager.setEnabled(enabled)
-        if (!hoverActive) {
-            hoverMatches = emptyList()
-            hoverPoint = null
+        hoverState.active = hoverOcrManager.setEnabled(enabled)
+        if (!hoverState.active) {
+            hoverState.matches = emptyList()
+            hoverState.point = null
         }
     }
 
@@ -92,11 +92,11 @@ fun main() = application {
                 showQuickDict = true
             },
             onHoverTriggered = {
-                applyHover(!hoverActive)
+                applyHover(!hoverState.active)
             },
             onHoverCycleTriggered = {
                 val newFilter = hoverOcrManager.cycleDictionaryAndRefresh()
-                hoverActiveFilter = newFilter
+                hoverState.activeFilter = newFilter
             }
         )
         hotkeyManager.updateHotkeys(
@@ -127,10 +127,10 @@ fun main() = application {
                 showQuickDict = true
             },
             onHoverRequested = {
-                applyHover(!hoverActive)
+                applyHover(!hoverState.active)
             },
             isHoverActive = {
-                hoverActive
+                hoverState.active
             },
             onFullDictRequested = {
                 mainDictInitialQuery = ""
@@ -195,26 +195,8 @@ fun main() = application {
         QuickDictWindow(onClose = { showQuickDict = false })
     }
 
-    // Hover Tooltip Window (Rikaichan / Yomitan style)
-    val hMatches = hoverMatches
-    val hPoint = hoverPoint
-    if (hMatches.isNotEmpty() && hPoint != null) {
-        HoverTooltipWindow(
-            matches = hMatches,
-            mousePoint = hPoint,
-            activeFilter = hoverActiveFilter,
-            installedDictTitles = installedDictTitles,
-            onSelectDictionary = { chosen ->
-                hoverOcrManager.setFilterAndRefresh(chosen)
-                hoverActiveFilter = chosen
-            },
-            onDismiss = {
-                hoverMatches = emptyList()
-                hoverPoint = null
-            },
-            onBoundsChanged = { hoverOcrManager.setTooltipBounds(it) },
-        )
-    }
+    // Hover Tooltip Window (isolated composable)
+    HoverTooltipOverlay(hoverState = hoverState, hoverOcrManager = hoverOcrManager)
 
     // Main Window (Settings or Integrated Dictionary Manager)
     if (showMainWindow) {
@@ -249,9 +231,9 @@ fun main() = application {
                 ) {
                     if (mainScreen == MainScreen.SETTINGS) {
                         SettingsContent(
-                            hoverActive = hoverActive,
-                            hoverStatus = hoverStatus,
-                            onHoverToggle = { applyHover(!hoverActive) },
+                            hoverActive = hoverState.active,
+                            hoverStatus = hoverState.status,
+                            onHoverToggle = { applyHover(!hoverState.active) },
                             onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
                             onHotkeysChanged = { ocr, quickDict, hover, hoverCycle ->
                                 settings.globalHotkey = ocr
@@ -275,5 +257,31 @@ fun main() = application {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HoverTooltipOverlay(
+    hoverState: HoverStateHolder,
+    hoverOcrManager: HoverOcrManager
+) {
+    val hMatches = hoverState.matches
+    val hPoint = hoverState.point
+    if (hMatches.isNotEmpty() && hPoint != null) {
+        HoverTooltipWindow(
+            matches = hMatches,
+            mousePoint = hPoint,
+            activeFilter = hoverState.activeFilter,
+            installedDictTitles = hoverOcrManager.getInstalledDictionaryTitles(),
+            onSelectDictionary = { chosen ->
+                hoverOcrManager.setFilterAndRefresh(chosen)
+                hoverState.activeFilter = chosen
+            },
+            onDismiss = {
+                hoverState.matches = emptyList()
+                hoverState.point = null
+            },
+            onBoundsChanged = { hoverOcrManager.setTooltipBounds(it) },
+        )
     }
 }
