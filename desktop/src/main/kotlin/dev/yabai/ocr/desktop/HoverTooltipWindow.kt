@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,6 +45,7 @@ import java.awt.event.ComponentEvent
 
 /**
  * Tooltip window anchored next to the pointer with dictionary definitions.
+ * Sized dynamically to wrap content tightly without empty space at the bottom.
  */
 @Composable
 fun HoverTooltipWindow(
@@ -56,11 +57,12 @@ fun HoverTooltipWindow(
     onDismiss: () -> Unit,
     onBoundsChanged: (Rectangle?) -> Unit = {},
 ) {
-    // Keep WindowState constant so changing matches never resets window position!
-    val state = remember {
+    val estimatedHeight = remember(matches) { estimateHeight(matches) }
+
+    val state = remember(estimatedHeight) {
         WindowState(
             width = 460.dp,
-            height = 320.dp,
+            height = estimatedHeight.dp,
         )
     }
 
@@ -73,9 +75,10 @@ fun HoverTooltipWindow(
         transparent = true,
         state = state,
     ) {
-        LaunchedEffect(Unit) {
+        LaunchedEffect(estimatedHeight, mousePoint, window) {
             window.isAutoRequestFocus = false
             window.background = java.awt.Color(0, 0, 0, 0)
+            window.setSize(460, estimatedHeight)
             placeWindow(window, mousePoint)
             onBoundsChanged(window.bounds)
         }
@@ -105,12 +108,12 @@ fun HoverTooltipWindow(
             )
         ) {
             Surface(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth().wrapContentHeight(),
                 color = Color(0xFF1B1E28),
                 shape = RoundedCornerShape(10.dp),
                 elevation = 8.dp,
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxWidth().wrapContentHeight()) {
                     // Header Bar showing Active Filter & Dropdown Selector
                     Row(
                         modifier = Modifier
@@ -165,7 +168,7 @@ fun HoverTooltipWindow(
 
                     SelectionContainer {
                         LazyColumn(
-                            modifier = Modifier.fillMaxSize().padding(12.dp),
+                            modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             items(matches) { match ->
@@ -233,11 +236,28 @@ fun HoverTooltipWindow(
     }
 }
 
+/** Accurately estimates content height so window wraps definitions tightly. */
+private fun estimateHeight(matches: List<TokenMatch>): Int {
+    var pixels = 48 // Header bar (28px) + container padding (20px)
+    for (match in matches.take(3)) {
+        pixels += 22 // Term & Reading line
+        if (match.surface != match.entry.term) pixels += 16
+        if (match.reasons.isNotEmpty()) pixels += 16
+        if (match.entry.tags.isNotBlank()) pixels += 16
+
+        val lines = match.entry.definition.split('\n').sumOf { line ->
+            (line.length / 45) + 1
+        }
+        pixels += lines * 19 + 12
+    }
+    return pixels.coerceIn(110, 480)
+}
+
 private fun placeWindow(window: java.awt.Window, anchor: Point) {
     val screen = HoverGeometry.screenAt(anchor)
     val size = window.size
     val width = if (size.width > 0) size.width else 460
-    val height = if (size.height > 0) size.height else 320
+    val height = if (size.height > 0) size.height else 220
     val point = HoverGeometry.placeTooltip(
         pointer = anchor,
         size = java.awt.Dimension(width, height),
