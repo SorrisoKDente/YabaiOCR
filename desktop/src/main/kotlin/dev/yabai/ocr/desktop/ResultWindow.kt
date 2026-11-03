@@ -27,7 +27,6 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URI
-import java.net.URLEncoder
 import javax.imageio.ImageIO
 
 @Composable
@@ -47,10 +46,10 @@ fun ResultWindow(
 
     val imageBitmap = remember { croppedImage.toComposeImageBitmap() }
 
-    // Load LookupEngine from ~/.yabai_ocr/dicts/
+    // Load LookupEngine from configured dictionary directory
+    val dictDir = remember { settings.dictDirectory() }
     val engine = remember {
         try {
-            val dictDir = DesktopSettings().dictDirectory()
             if (dictDir.exists() && dictDir.isDirectory) {
                 val dicts = dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }?.mapNotNull { file ->
                     runCatching { CompactDictionary.open(file) }.getOrNull()
@@ -229,37 +228,50 @@ fun ResultWindow(
                             }
                         }
                     } else {
-                        // --- Split Content: Left (Text & Image) | Right (Dictionary Cards) ---
+                        // --- Split Content: Left (Editable Text & Image) | Right (Dictionary Cards) ---
                         Row(
                             modifier = Modifier.fillMaxSize(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            // --- Left Column: Recognized Text & Image ---
+                            // --- Left Column: Editable Recognized Text & Image ---
                             Column(
                                 modifier = Modifier.weight(1f).fillMaxHeight()
                             ) {
-                                // Text Display Box
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     backgroundColor = Color(0xFF1B1E28),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        if (recognizedText.isBlank()) {
-                                            Text(
-                                                text = "Nenhum texto reconhecido no recorte selecionado.",
-                                                color = Color(0xFFA0A6B8),
-                                                style = MaterialTheme.typography.body1
-                                            )
-                                        } else {
-                                            Text(
-                                                text = recognizedText,
-                                                fontSize = 22.sp,
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = "Texto Editável (corrija erros do OCR aqui):",
+                                            style = MaterialTheme.typography.caption,
+                                            color = Color(0xFFA0A6B8)
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        OutlinedTextField(
+                                            value = recognizedText,
+                                            onValueChange = { newText ->
+                                                recognizedText = newText
+                                                if (newText.isNotBlank() && engine != null) {
+                                                    matches = engine.lookup(newText)
+                                                } else {
+                                                    matches = emptyList()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textStyle = LocalTextStyle.current.copy(
+                                                fontSize = 20.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = Color.White,
-                                                lineHeight = 32.sp
+                                                lineHeight = 30.sp
+                                            ),
+                                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                                textColor = Color.White,
+                                                focusedBorderColor = MaterialTheme.colors.primary,
+                                                unfocusedBorderColor = Color(0xFF2E3344)
                                             )
-                                        }
+                                        )
                                     }
                                 }
 
@@ -302,7 +314,7 @@ fun ResultWindow(
                                     if (matches.isEmpty()) {
                                         Text(
                                             text = if (engine == null)
-                                                "Nenhum dicionário instalado em ~/.yabai_ocr/dicts/ para consultar verbetes."
+                                                "Nenhum dicionário instalado na pasta (${dictDir.absolutePath}) para consultar verbetes."
                                             else
                                                 "Nenhum verbete encontrado para a frase no dicionário.",
                                             style = MaterialTheme.typography.body2,

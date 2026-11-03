@@ -19,6 +19,8 @@ fun main() = application {
     // Hidden background window to keep application alive in System Tray when all visible windows are closed
     Window(onCloseRequest = {}, visible = false, title = "Yabai OCR Background") {}
 
+    val settings = remember { DesktopSettings() }
+
     var mainScreen by remember { mutableStateOf(MainScreen.SETTINGS) }
     var mainDictInitialQuery by remember { mutableStateOf("") }
     var showMainWindow by remember { mutableStateOf(true) } // Open main window by default on run
@@ -27,6 +29,26 @@ fun main() = application {
 
     var screenCaptureForSelection by remember { mutableStateOf<BufferedImage?>(null) }
     var temporaryViewImage by remember { mutableStateOf<BufferedImage?>(null) }
+
+    // Setup Global Hotkey Listener (JNativeHook)
+    DisposableEffect(Unit) {
+        val hotkeyManager = GlobalHotkeyManager(
+            onTriggered = {
+                try {
+                    val fullScreen = ScreenCapture.captureScreen()
+                    screenCaptureForSelection = fullScreen
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        )
+        hotkeyManager.updateHotkey(settings.globalHotkey)
+        hotkeyManager.start()
+
+        onDispose {
+            hotkeyManager.stop()
+        }
+    }
 
     // Setup System Tray (Steam-like behavior)
     DisposableEffect(Unit) {

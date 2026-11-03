@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.core.dict.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.awt.Desktop
 import java.io.File
 import java.net.URI
@@ -27,6 +31,7 @@ fun DictionaryManagerContent(
     onBackRequested: (() -> Unit)? = null
 ) {
     var selectedTab by remember { mutableStateOf(0) } // 0: Search, 1: Installed, 2: Catalog
+    var installedRefreshKey by remember { mutableStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (onBackRequested != null) {
@@ -82,9 +87,9 @@ fun DictionaryManagerContent(
 
         Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
             when (selectedTab) {
-                0 -> SearchTab(initialQuery = initialQuery)
-                1 -> InstalledTab()
-                2 -> CatalogTab()
+                0 -> SearchTab(initialQuery = initialQuery, refreshKey = installedRefreshKey)
+                1 -> InstalledTab(refreshKey = installedRefreshKey, onRefresh = { installedRefreshKey++ })
+                2 -> CatalogTab(onInstalledChanged = { installedRefreshKey++ })
             }
         }
     }
@@ -125,12 +130,12 @@ fun DictionaryManagerWindow(
 }
 
 @Composable
-private fun SearchTab(initialQuery: String) {
+private fun SearchTab(initialQuery: String, refreshKey: Int) {
     var query by remember { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
 
-    val dictDir = remember { DesktopSettings().dictDirectory() }
-    val engine = remember {
+    val dictDir = remember(refreshKey) { DesktopSettings().dictDirectory() }
+    val engine = remember(refreshKey) {
         try {
             if (dictDir.exists() && dictDir.isDirectory) {
                 val dicts = dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }?.mapNotNull { file ->
@@ -143,7 +148,7 @@ private fun SearchTab(initialQuery: String) {
         }
     }
 
-    LaunchedEffect(query) {
+    LaunchedEffect(query, refreshKey) {
         if (engine != null && query.isNotBlank()) {
             results = engine.search(query)
         } else {
@@ -177,7 +182,7 @@ private fun SearchTab(initialQuery: String) {
                     Text("Nenhum dicionário disponível", style = MaterialTheme.typography.subtitle1, color = Color(0xFFFFB4AB))
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Coloque arquivos de dicionário (.yabai) na pasta ~/.yabai_ocr/dicts/ para realizar consultas.",
+                        "Coloque arquivos de dicionário (.yabai) na pasta ${dictDir.absolutePath} para realizar consultas.",
                         color = Color.White,
                         style = MaterialTheme.typography.body2
                     )
@@ -205,9 +210,9 @@ private fun SearchTab(initialQuery: String) {
 }
 
 @Composable
-private fun InstalledTab() {
-    val dictDir = remember { File(System.getProperty("user.home"), ".yabai_ocr/dicts") }
-    var installedFiles by remember {
+private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
+    val dictDir = remember(refreshKey) { DesktopSettings().dictDirectory() }
+    var installedFiles by remember(refreshKey) {
         mutableStateOf(
             if (dictDir.exists()) dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }.orEmpty() else emptyList()
         )
@@ -216,6 +221,7 @@ private fun InstalledTab() {
     fun refreshFiles() {
         if (!dictDir.exists()) dictDir.mkdirs()
         installedFiles = dictDir.listFiles()?.filter { it.extension == "yabai" || it.isDirectory }.orEmpty()
+        onRefresh()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -233,14 +239,22 @@ private fun InstalledTab() {
                 Button(
                     onClick = {
                         val chooser = JFileChooser()
-                        chooser.dialogTitle = "Selecionar arquivo de dicionário (.yabai)"
-                        chooser.fileFilter = FileNameExtensionFilter("Dicionários Yabai (.yabai)", "yabai", "zip")
+                        chooser.dialogTitle = "Selecionar arquivo de dicionário (.yabai ou .zip)"
+                        chooser.fileFilter = FileNameExtensionFilter("Dicionários Yabai / Yomitan (.yabai, .zip)", "yabai", "zip")
                         val result = chooser.showOpenDialog(null)
                         if (result == JFileChooser.APPROVE_OPTION) {
                             val selected = chooser.selectedFile
                             if (!dictDir.exists()) dictDir.mkdirs()
-                            val dest = File(dictDir, selected.name)
-                            selected.copyTo(dest, overwrite = true)
+                            if (selected.extension.lowercase() == "zip") {
+                                val targetDir = File(dictDir, "${selected.nameWithoutExtension}.yabai")
+                                runCatching {
+                                    val compiler = DictionaryCompiler(selected, targetDir, selected.nameWithoutExtension)
+                                    compiler.compile()
+                                }
+                            } else {
+                                val dest = File(dictDir, selected.name)
+                                selected.copyTo(dest, overwrite = true)
+                            }
                             refreshFiles()
                         }
                     },
@@ -277,7 +291,7 @@ private fun InstalledTab() {
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        "Você pode importar arquivos .yabai existentes usando o botão acima, ou navegar pela aba 'Catálogo de Downloads' para baixar os dicionários recomendados.",
+                        "Você pode importar arquivos .yabai ou .zip existentes usando o botão acima, ou navegar pela aba 'Catálogo de Downloads' para baixar os dicionários recomendados.",
                         style = MaterialTheme.typography.body2,
                         color = Color(0xFFA0A6B8)
                     )
@@ -308,7 +322,7 @@ private fun InstalledTab() {
 
                             Button(
                                 onClick = {
-                                    file.delete()
+                                    file.deleteRecursively()
                                     refreshFiles()
                                 },
                                 colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A1C1C), contentColor = Color(0xFFFFB4AB))
@@ -324,7 +338,22 @@ private fun InstalledTab() {
 }
 
 @Composable
-private fun CatalogTab() {
+private fun CatalogTab(onInstalledChanged: () -> Unit) {
+    val dictDir = remember { DesktopSettings().dictDirectory() }
+
+    var downloadingId by remember { mutableStateOf<String?>(null) }
+    var downloadProgressText by remember { mutableStateOf("") }
+    var downloadProgressFraction by remember { mutableStateOf(0f) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    val installedNames = remember(downloadingId) {
+        if (dictDir.exists()) {
+            dictDir.listFiles()?.map { it.nameWithoutExtension.lowercase() }?.toSet().orEmpty()
+        } else emptySet()
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -337,14 +366,32 @@ private fun CatalogTab() {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "Baixe arquivos de dicionário desenvolvidos para leitores de japonês e coloque-os na pasta de dados (~/.yabai_ocr/dicts/).",
+                "Baixe e instale dicionários diretamente no aplicativo sem sair. Eles serão salvos e ativados na pasta de dados: ${dictDir.absolutePath}",
                 style = MaterialTheme.typography.body2,
                 color = Color(0xFFA0A6B8)
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        if (downloadError != null) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = Color(0xFF3A1C1C),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Erro no Download", style = MaterialTheme.typography.subtitle2, color = Color(0xFFFFB4AB))
+                        Text(downloadError.orEmpty(), style = MaterialTheme.typography.caption, color = Color.White)
+                    }
+                }
+            }
+        }
+
         items(DesktopDictionaryCatalog.entries) { entry ->
+            val isInstalled = installedNames.contains(entry.id.lowercase()) || installedNames.contains(entry.name.lowercase())
+            val isDownloading = downloadingId == entry.id
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 backgroundColor = Color(0xFF1B1E28),
@@ -382,21 +429,134 @@ private fun CatalogTab() {
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    val downloadUrl = entry.url ?: entry.indexUrl
-                    if (downloadUrl != null) {
+                    if (isDownloading) {
+                        Column {
+                            LinearProgressIndicator(
+                                progress = downloadProgressFraction,
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colors.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(downloadProgressText, style = MaterialTheme.typography.caption, color = Color.White)
+                        }
+                    } else if (isInstalled) {
+                        Surface(
+                            color = Color(0xFF1B382B),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "✓ Instalado",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
+                                color = Color(0xFF81C784)
+                            )
+                        }
+                    } else {
                         Button(
                             onClick = {
-                                runCatching { Desktop.getDesktop().browse(URI.create(downloadUrl)) }
+                                downloadingId = entry.id
+                                downloadError = null
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    try {
+                                        downloadAndInstallDictionary(
+                                            entry = entry,
+                                            dictDir = dictDir,
+                                            onProgress = { text, fraction ->
+                                                downloadProgressText = text
+                                                downloadProgressFraction = fraction
+                                            }
+                                        )
+                                        onInstalledChanged()
+                                    } catch (e: Exception) {
+                                        downloadError = e.message ?: "Erro ao baixar o dicionário."
+                                    } finally {
+                                        downloadingId = null
+                                    }
+                                }
                             },
-                            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344), contentColor = Color.White)
+                            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary, contentColor = Color.White)
                         ) {
-                            Text("🌐 Abrir Download no Navegador")
+                            Text("⬇️ Baixar e Instalar no App")
                         }
                     }
                 }
             }
         }
     }
+}
+
+private fun downloadAndInstallDictionary(
+    entry: DesktopDictionaryCatalog.Entry,
+    dictDir: File,
+    onProgress: (String, Float) -> Unit
+) {
+    if (!dictDir.exists()) dictDir.mkdirs()
+
+    val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    // 1. Resolve URL if indexUrl
+    val url: String = entry.url ?: entry.indexUrl?.let { indexUrl ->
+        onProgress("Consultando informações do catálogo...", 0.05f)
+        val req = Request.Builder().url(indexUrl).build()
+        client.newCall(req).execute().use { resp ->
+            val jsonText = resp.body?.string().orEmpty()
+            val obj = com.google.gson.JsonParser.parseString(jsonText).asJsonObject
+            obj.get("downloadUrl")?.asString
+        }
+    } ?: throw Exception("URL de download não encontrada para ${entry.name}")
+
+    // 2. Download zip file to temp
+    val tempZip = File(dictDir, "temp_${entry.id}.zip")
+    val request = Request.Builder().url(url).build()
+
+    onProgress("Iniciando download de ${entry.sizeLabel}...", 0.1f)
+
+    client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) throw Exception("Servidor respondeu HTTP ${response.code}")
+        val body = response.body ?: throw Exception("Download vazio do servidor")
+        val totalBytes = body.contentLength()
+
+        body.byteStream().use { inputStream ->
+            tempZip.outputStream().use { outputStream ->
+                val buffer = ByteArray(64 * 1024)
+                var bytesRead = 0L
+                var bytesCount = inputStream.read(buffer)
+                while (bytesCount >= 0) {
+                    outputStream.write(buffer, 0, bytesCount)
+                    bytesRead += bytesCount
+                    if (totalBytes > 0) {
+                        val fraction = 0.1f + (bytesRead.toFloat() / totalBytes) * 0.7f
+                        val mbRead = "%.1f".format(bytesRead.toDouble() / (1024 * 1024))
+                        val mbTotal = "%.1f".format(totalBytes.toDouble() / (1024 * 1024))
+                        onProgress("Baixando: $mbRead MB / $mbTotal MB (${(fraction * 100).toInt()}%)", fraction)
+                    } else {
+                        val mbRead = "%.1f".format(bytesRead.toDouble() / (1024 * 1024))
+                        onProgress("Baixando: $mbRead MB...", 0.5f)
+                    }
+                    bytesCount = inputStream.read(buffer)
+                }
+            }
+        }
+    }
+
+    // 3. Compile zip into .yabai dictionary
+    onProgress("Compilando e indexando dicionário...", 0.85f)
+    val targetYabaiDir = File(dictDir, "${entry.id}.yabai")
+    if (targetYabaiDir.exists()) targetYabaiDir.deleteRecursively()
+
+    val compiler = DictionaryCompiler(
+        zipFile = tempZip,
+        outputDir = targetYabaiDir,
+        sourceName = entry.name
+    )
+    compiler.compile()
+
+    // 4. Cleanup
+    tempZip.delete()
+    onProgress("Instalação concluída com sucesso!", 1.0f)
 }
 
 @Composable

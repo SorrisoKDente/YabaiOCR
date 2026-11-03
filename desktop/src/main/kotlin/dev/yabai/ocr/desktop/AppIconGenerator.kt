@@ -1,61 +1,97 @@
 package dev.yabai.ocr.desktop
 
-import java.awt.Color
-import java.awt.Graphics2D
-import java.awt.RenderingHints
+import java.awt.Image
 import java.awt.image.BufferedImage
+import java.io.ByteArrayInputStream
+import javax.imageio.ImageIO
 
 object AppIconGenerator {
-    fun createTrayImage(size: Int = 16): BufferedImage {
-        return createIconImage(size)
+
+    fun getTrayImage(): Image {
+        return getTaskbarImage()
     }
 
-    fun createWindowImage(size: Int = 64): BufferedImage {
-        return createIconImage(size)
+    fun getTaskbarImage(): Image {
+        return loadResourceIcon("ic_scan_windows.ico") ?: loadResourceIcon("ic_scan_windows.png") ?: createEmptyImage()
     }
 
-    private fun createIconImage(size: Int): BufferedImage {
-        val bi = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
-        val g = bi.createGraphics()
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+    fun createWindowImage(size: Int = 64): Image {
+        return getTaskbarImage()
+    }
 
-        // Dark background matching mobile icon (#1B1D24)
-        g.color = Color(0x1B, 0x1D, 0x24)
-        val arc = size / 4
-        g.fillRoundRect(0, 0, size, size, arc, arc)
+    fun createTrayImage(size: Int = 16): Image {
+        return getTrayImage()
+    }
 
-        // White scan viewfinder corners and text lines matching mobile ic_scan
-        g.color = Color.WHITE
-        val stroke = maxOf(1, size / 16)
-        val m = size / 6
-        val len = size / 3
+    private fun loadResourceIcon(resourceName: String): Image? {
+        return runCatching {
+            val stream = AppIconGenerator::class.java.getResourceAsStream("/$resourceName") ?: return null
+            val bytes = stream.use { it.readBytes() }
+            if (bytes.isEmpty()) return null
 
-        // Top-Left corner
-        g.fillRect(m, m, len, stroke)
-        g.fillRect(m, m, stroke, len)
+            // 1. Try parsing as ICO binary container to extract original PNG/BMP frame
+            val fromIco = parseIcoBytes(bytes)
+            if (fromIco != null) return fromIco
 
-        // Top-Right corner
-        g.fillRect(size - m - len, m, len, stroke)
-        g.fillRect(size - m - stroke, m, stroke, len)
+            // 2. Direct ImageIO read (for PNG/BMP/JPG)
+            ImageIO.read(ByteArrayInputStream(bytes))
+        }.getOrNull()
+    }
 
-        // Bottom-Left corner
-        g.fillRect(m, size - m - stroke, len, stroke)
-        g.fillRect(m, size - m - len, stroke, len)
+    /**
+     * Parses Microsoft ICO binary format and extracts the original PNG/BMP image frame.
+     */
+    private fun parseIcoBytes(bytes: ByteArray): BufferedImage? {
+        if (bytes.size < 6) return null
 
-        // Bottom-Right corner
-        g.fillRect(size - m - len, size - m - stroke, len, stroke)
-        g.fillRect(size - m - stroke, size - m - len, stroke, len)
+        // If file starts with PNG magic bytes (0x89 'P' 'N' 'G')
+        if (bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte() && bytes[2] == 'N'.code.toByte()) {
+            return ImageIO.read(ByteArrayInputStream(bytes))
+        }
 
-        // Center text lines (representing OCR text)
-        val lineW = size * 3 / 5
-        val lineH = maxOf(1, size / 12)
-        val startX = (size - lineW) / 2
-        val startY = size / 2 - lineH / 2
+        // Check ICO header: Reserved = 0, Type = 1 (ICO)
+        val reserved = (bytes[0].toInt() and 0xFF) or ((bytes[1].toInt() and 0xFF) shl 8)
+        val type = (bytes[2].toInt() and 0xFF) or ((bytes[3].toInt() and 0xFF) shl 8)
+        val count = (bytes[4].toInt() and 0xFF) or ((bytes[5].toInt() and 0xFF) shl 8)
 
-        g.fillRect(startX, startY - lineH, lineW, lineH)
-        g.fillRect(startX, startY + lineH, lineW * 4 / 5, lineH)
+        if (reserved != 0 || type != 1 || count <= 0) return null
 
-        g.dispose()
-        return bi
+        var bestImage: BufferedImage? = null
+        var bestSize = -1
+
+        for (i in 0 until count) {
+            val entryOffset = 6 + i * 16
+            if (entryOffset + 16 > bytes.size) break
+
+            var width = bytes[entryOffset].toInt() and 0xFF
+            var height = bytes[entryOffset + 1].toInt() and 0xFF
+            if (width == 0) width = 256
+            if (height == 0) height = 256
+
+            val bytesInRes = (bytes[entryOffset + 8].toInt() and 0xFF) or
+                    ((bytes[entryOffset + 9].toInt() and 0xFF) shl 8) or
+                    ((bytes[entryOffset + 10].toInt() and 0xFF) shl 16) or
+                    ((bytes[entryOffset + 11].toInt() and 0xFF) shl 24)
+
+            val imageOffset = (bytes[entryOffset + 12].toInt() and 0xFF) or
+                    ((bytes[entryOffset + 13].toInt() and 0xFF) shl 8) or
+                    ((bytes[entryOffset + 14].toInt() and 0xFF) shl 16) or
+                    ((bytes[entryOffset + 15].toInt() and 0xFF) shl 24)
+
+            if (imageOffset >= 0 && imageOffset + bytesInRes <= bytes.size && bytesInRes > 0) {
+                val frameData = bytes.copyOfRange(imageOffset, imageOffset + bytesInRes)
+                val img = runCatching { ImageIO.read(ByteArrayInputStream(frameData)) }.getOrNull()
+                if (img != null && width >= bestSize) {
+                    bestSize = width
+                    bestImage = img
+                }
+            }
+        }
+
+        return bestImage
+    }
+
+    private fun createEmptyImage(): BufferedImage {
+        return BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB)
     }
 }

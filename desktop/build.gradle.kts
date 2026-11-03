@@ -19,7 +19,11 @@ dependencies {
     implementation(project(":core"))
     implementation(compose.desktop.currentOs)
     implementation(libs.gson)
+    implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
+    implementation("com.github.kwhat:jnativehook:2.2.2")
+    implementation("net.java.dev.jna:jna:5.14.0")
+    implementation("net.java.dev.jna:jna-platform:5.14.0")
 }
 
 compose.desktop {
@@ -33,6 +37,9 @@ compose.desktop {
             )
             packageName = "yabai_ocr"
             packageVersion = "1.0.0"
+            windows {
+                iconFile.set(project.file("src/main/resources/ic_scan_windows.ico"))
+            }
         }
     }
 }
