@@ -3,8 +3,6 @@ package dev.yabai.ocr.desktop
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.awt.event.WindowAdapter
-import java.awt.event.WindowEvent
 import javax.swing.*
 
 class SystemTrayManager(
@@ -46,28 +44,30 @@ class SystemTrayManager(
 
     private fun showCustomTrayMenu(x: Int, y: Int) {
         SwingUtilities.invokeLater {
-            val window = JWindow()
-            window.isAlwaysOnTop = true
+            val popup = JPopupMenu().apply {
+                background = Color(0x12, 0x14, 0x1A)
+                border = BorderFactory.createLineBorder(Color(0x2E, 0x33, 0x44), 1)
+                isOpaque = true
+            }
 
             val panel = JPanel()
             panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
             panel.background = Color(0x12, 0x14, 0x1A)
-            panel.border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color(0x2E, 0x33, 0x44), 1),
-                BorderFactory.createEmptyBorder(8, 8, 8, 8)
-            )
+            panel.border = BorderFactory.createEmptyBorder(6, 6, 6, 6)
 
             fun createTrayButton(text: String, action: () -> Unit): JButton {
                 val btn = JButton(text)
                 btn.font = Font("SansSerif", Font.PLAIN, 13)
                 btn.foreground = Color.WHITE
-                btn.background = Color(0x1B, 0x1E, 0x28)
+                btn.background = Color(0x12, 0x14, 0x1A)
                 btn.isFocusPainted = false
                 btn.isBorderPainted = false
                 btn.isContentAreaFilled = true
                 btn.alignmentX = Component.LEFT_ALIGNMENT
                 btn.maximumSize = Dimension(220, 36)
                 btn.horizontalAlignment = SwingConstants.LEFT
+                btn.margin = Insets(0, 0, 0, 0)
+                btn.border = BorderFactory.createEmptyBorder(8, 12, 8, 12)
                 btn.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
 
                 btn.addMouseListener(object : MouseAdapter() {
@@ -75,55 +75,81 @@ class SystemTrayManager(
                         btn.background = Color(0x2E, 0x33, 0x44)
                     }
                     override fun mouseExited(e: MouseEvent) {
-                        btn.background = Color(0x1B, 0x1E, 0x28)
+                        btn.background = Color(0x12, 0x14, 0x1A)
                     }
                 })
 
                 btn.addActionListener {
-                    window.dispose()
+                    popup.isVisible = false
                     action()
                 }
                 return btn
             }
 
-            panel.add(createTrayButton(" ✂️  Capturar Tela (OCR)") { onCaptureRequested() })
+            panel.add(createTrayButton("✂️  Capturar Tela (OCR)") { onCaptureRequested() })
+            panel.add(Box.createRigidArea(Dimension(0, 2)))
+            panel.add(createTrayButton("🔍  Busca Rápida de Dicionário") { onQuickDictRequested() })
+            panel.add(Box.createRigidArea(Dimension(0, 2)))
+            panel.add(createTrayButton("📚  Gerenciar Dicionários") { onFullDictRequested() })
+            panel.add(Box.createRigidArea(Dimension(0, 2)))
+            panel.add(createTrayButton("⚙️  Ajustes e Configurações") { onSettingsRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 4)))
-            panel.add(createTrayButton(" 🔍  Busca Rápida de Dicionário") { onQuickDictRequested() })
-            panel.add(Box.createRigidArea(Dimension(0, 4)))
-            panel.add(createTrayButton(" 📚  Gerenciar Dicionários") { onFullDictRequested() })
-            panel.add(Box.createRigidArea(Dimension(0, 4)))
-            panel.add(createTrayButton(" ⚙️  Ajustes e Configurações") { onSettingsRequested() })
-            panel.add(Box.createRigidArea(Dimension(0, 6)))
 
             val sep = JSeparator()
             sep.maximumSize = Dimension(220, 1)
             sep.foreground = Color(0x2E, 0x33, 0x44)
             sep.background = Color(0x12, 0x14, 0x1A)
             panel.add(sep)
-            panel.add(Box.createRigidArea(Dimension(0, 6)))
+            panel.add(Box.createRigidArea(Dimension(0, 4)))
 
-            panel.add(createTrayButton(" ✕  Sair") { onExitRequested() })
+            panel.add(createTrayButton("✕  Sair") { onExitRequested() })
 
-            window.contentPane = panel
-            window.pack()
+            popup.add(panel)
 
-            // Position menu near tray icon (adjusting for screen edges)
-            val screenSize = Toolkit.getDefaultToolkit().screenSize
-            val winWidth = window.width
-            val winHeight = window.height
+            // Measure menu preferred size
+            val popSize = popup.preferredSize
+            val winWidth = popSize.width
+            val winHeight = popSize.height
 
-            val posX = if (x + winWidth > screenSize.width) screenSize.width - winWidth - 10 else x
-            val posY = if (y + winHeight > screenSize.height) y - winHeight else y
+            // Calculate screen bounds
+            val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
+            val gc = ge.defaultScreenDevice.defaultConfiguration
+            val screenBounds = gc.bounds
+            val insets = Toolkit.getDefaultToolkit().getScreenInsets(gc)
 
-            window.location = Point(posX, posY)
+            val maxX = screenBounds.x + screenBounds.width - insets.right
+            val maxY = screenBounds.y + screenBounds.height - insets.bottom
 
-            window.addWindowFocusListener(object : WindowAdapter() {
-                override fun windowLostFocus(e: WindowEvent?) {
-                    window.dispose()
+            // Position menu
+            var posX = if (x - winWidth >= screenBounds.x + insets.left) x - winWidth else x
+            var posY = y - winHeight
+
+            // Keep inside screen limits
+            posX = posX.coerceIn(screenBounds.x + insets.left + 4, maxX - winWidth - 4)
+            posY = posY.coerceIn(screenBounds.y + insets.top + 4, maxY - winHeight - 4)
+
+            // Temporary dark invisible invoker dialog
+            val invoker = JDialog().apply {
+                isUndecorated = true
+                isAlwaysOnTop = true
+                setSize(1, 1)
+                location = Point(posX, posY)
+                contentPane.background = Color(0x12, 0x14, 0x1A)
+                background = Color(0x12, 0x14, 0x1A)
+                isVisible = true
+            }
+
+            popup.addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
+                override fun popupMenuWillBecomeVisible(e: javax.swing.event.PopupMenuEvent?) {}
+                override fun popupMenuWillBecomeInvisible(e: javax.swing.event.PopupMenuEvent?) {
+                    invoker.dispose()
+                }
+                override fun popupMenuCanceled(e: javax.swing.event.PopupMenuEvent?) {
+                    invoker.dispose()
                 }
             })
 
-            window.isVisible = true
+            popup.show(invoker, 0, 0)
         }
     }
 
