@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
+import dev.yabai.ocr.core.dict.CompactDictionary
 import java.io.File
 import javax.swing.JFileChooser
 
@@ -30,8 +31,11 @@ fun SettingsContent(
     val settings = remember { DesktopSettings() }
 
     var globalHotkey by remember { mutableStateOf(settings.globalHotkey) }
+    var quickDictHotkey by remember { mutableStateOf(settings.quickDictHotkey) }
     var isCapturingHotkey by remember { mutableStateOf(false) }
+    var isCapturingQuickDictHotkey by remember { mutableStateOf(false) }
     val hotkeyFocusRequester = remember { FocusRequester() }
+    val quickDictFocusRequester = remember { FocusRequester() }
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
@@ -44,6 +48,7 @@ fun SettingsContent(
     var pickerReading by remember { mutableStateOf(settings.pickerReading) }
 
     var dictionaryLookup by remember { mutableStateOf(settings.dictionaryLookup) }
+    var dictionaryFilter by remember { mutableStateOf(settings.dictionaryFilter) }
     var dictionaryKeepLastSearch by remember { mutableStateOf(settings.dictionaryKeepLastSearch) }
     var stripSearchReadings by remember { mutableStateOf(settings.stripSearchReadings) }
     var dictionaryUpdateInterval by remember { mutableStateOf(settings.dictionaryUpdateInterval) }
@@ -57,12 +62,25 @@ fun SettingsContent(
     var aiProvider by remember { mutableStateOf(settings.aiProvider) }
     var aiCustomUrl by remember { mutableStateOf(settings.aiCustomUrl) }
 
-    val installedDictCount = remember(customDictDir) {
+    val installedDictTitles = remember(customDictDir) {
         val dictDir = settings.dictDirectory()
-        if (dictDir.exists() && dictDir.isDirectory) {
-            dictDir.listFiles()?.count { it.extension == "yabai" || it.isDirectory } ?: 0
-        } else 0
+        val list = mutableListOf<String>()
+        try {
+            if (dictDir.exists() && dictDir.isDirectory) {
+                dictDir.listFiles()?.forEach { file ->
+                    if (file.extension == "yabai" || file.isDirectory) {
+                        val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
+                        if (dict != null) {
+                            list.add(dict.info.title)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        list.toList()
     }
+
+    val installedDictCount = installedDictTitles.size
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -86,15 +104,15 @@ fun SettingsContent(
             }
         }
 
-        // --- 1. Atalho Global ---
+        // --- 1. Atalhos Globais ---
         item {
-            SettingCard(title = "1. Atalho Global de Captura") {
+            SettingCard(title = "1. Atalhos Globais de Teclado") {
                 Text(
-                    text = "Clique em 'Capturar Atalho' e pressione a combinação de teclas desejada no teclado.",
+                    text = "Atalho de Captura de Tela (OCR):",
                     style = MaterialTheme.typography.caption,
                     color = Color(0xFFA0A6B8)
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -150,7 +168,7 @@ fun SettingsContent(
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = if (isCapturingHotkey) "Pressione as teclas no teclado..." else "Atalho: $globalHotkey",
+                            text = if (isCapturingHotkey) "Pressione as teclas..." else "Atalho: $globalHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
                             color = if (isCapturingHotkey) Color(0xFF81C784) else Color.White
                         )
@@ -166,19 +184,111 @@ fun SettingsContent(
                             contentColor = Color.White
                         )
                     ) {
-                        Text(if (isCapturingHotkey) "Aguardando..." else "Capturar Atalho")
+                        Text(if (isCapturingHotkey) "Aguardando..." else "Capturar")
                     }
 
                     OutlinedButton(
                         onClick = {
-                            val defaultHotkey = "Ctrl + Shift + O"
-                            globalHotkey = defaultHotkey
-                            settings.globalHotkey = defaultHotkey
+                            globalHotkey = "Ctrl + Shift + O"
+                            settings.globalHotkey = "Ctrl + Shift + O"
                             isCapturingHotkey = false
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                     ) {
-                        Text("Restaurar Padrão")
+                        Text("Padrão")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "Atalho de Busca Rápida de Dicionário:",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFFA0A6B8)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(quickDictFocusRequester)
+                            .focusable()
+                            .onKeyEvent { keyEvent ->
+                                if (isCapturingQuickDictHotkey && keyEvent.type == KeyEventType.KeyDown) {
+                                    val key = keyEvent.key
+                                    if (key != Key.CtrlLeft && key != Key.CtrlRight &&
+                                        key != Key.ShiftLeft && key != Key.ShiftRight &&
+                                        key != Key.AltLeft && key != Key.AltRight &&
+                                        key != Key.MetaLeft && key != Key.MetaRight
+                                    ) {
+                                        val parts = mutableListOf<String>()
+                                        if (keyEvent.isCtrlPressed) parts.add("Ctrl")
+                                        if (keyEvent.isAltPressed) parts.add("Alt")
+                                        if (keyEvent.isShiftPressed) parts.add("Shift")
+                                        if (keyEvent.isMetaPressed) parts.add("Meta")
+
+                                        val keyName = when (key) {
+                                            Key.Spacebar -> "Space"
+                                            Key.Enter -> "Enter"
+                                            Key.Escape -> "Esc"
+                                            Key.Tab -> "Tab"
+                                            Key.Backspace -> "Backspace"
+                                            else -> java.awt.event.KeyEvent.getKeyText(key.nativeKeyCode)
+                                        }
+                                        parts.add(keyName)
+                                        val formatted = parts.joinToString(" + ")
+
+                                        quickDictHotkey = formatted
+                                        settings.quickDictHotkey = formatted
+                                        isCapturingQuickDictHotkey = false
+                                        true
+                                    } else false
+                                } else false
+                            }
+                            .background(
+                                color = if (isCapturingQuickDictHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isCapturingQuickDictHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = if (isCapturingQuickDictHotkey) "Pressione as teclas..." else "Atalho: $quickDictHotkey",
+                            style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (isCapturingQuickDictHotkey) Color(0xFF81C784) else Color.White
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            isCapturingQuickDictHotkey = true
+                            quickDictFocusRequester.requestFocus()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (isCapturingQuickDictHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(if (isCapturingQuickDictHotkey) "Aguardando..." else "Capturar")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            quickDictHotkey = "Ctrl + Shift + D"
+                            settings.quickDictHotkey = "Ctrl + Shift + D"
+                            isCapturingQuickDictHotkey = false
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text("Padrão")
                     }
                 }
             }
@@ -353,6 +463,51 @@ fun SettingsContent(
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Dicionário Padrão de Filtro:",
+                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
+                    color = Color.White
+                )
+                Text(
+                    text = "Selecione um dicionário específico para limitar as buscas ou escolha 'Todos'.",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFFA0A6B8)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                var expandedFilter by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expandedFilter = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text(if (dictionaryFilter.isBlank()) "🌐 Todos os Dicionários" else "📖 $dictionaryFilter")
+                    }
+                    DropdownMenu(
+                        expanded = expandedFilter,
+                        onDismissRequest = { expandedFilter = false }
+                    ) {
+                        DropdownMenuItem(onClick = {
+                            dictionaryFilter = ""
+                            settings.dictionaryFilter = ""
+                            expandedFilter = false
+                        }) {
+                            Text("🌐 Todos os Dicionários")
+                        }
+                        installedDictTitles.forEach { title ->
+                            DropdownMenuItem(onClick = {
+                                dictionaryFilter = title
+                                settings.dictionaryFilter = title
+                                expandedFilter = false
+                            }) {
+                                Text("📖 $title")
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = "Localização da Pasta de Dicionários:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),

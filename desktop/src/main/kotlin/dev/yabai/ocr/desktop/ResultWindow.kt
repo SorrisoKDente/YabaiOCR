@@ -44,6 +44,7 @@ fun ResultWindow(
     var recognizedText by remember { mutableStateOf("") }
     var elapsedMs by remember { mutableStateOf(0L) }
     var matches by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
+    var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
 
     val imageBitmap = remember { croppedImage.toComposeImageBitmap() }
 
@@ -60,6 +61,21 @@ fun ResultWindow(
         } catch (e: Exception) {
             null
         }
+    }
+
+    val installedDictTitles = remember(dictDir) {
+        val list = mutableListOf<String>()
+        try {
+            if (dictDir.exists() && dictDir.isDirectory) {
+                dictDir.listFiles()?.forEach { file ->
+                    if (file.extension == "yabai" || file.isDirectory) {
+                        val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
+                        if (dict != null) list.add(dict.info.title)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        list.toList()
     }
 
     // Run OCR asynchronously
@@ -88,7 +104,8 @@ fun ResultWindow(
                 elapsedMs = duration
 
                 if (fullText.isNotBlank() && engine != null) {
-                    val found = engine.lookup(fullText)
+                    val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
+                    val found = engine.lookup(fullText, only = onlySet)
                     matches = found
                 } else {
                     matches = emptyList()
@@ -98,6 +115,14 @@ fun ResultWindow(
             } finally {
                 isLoading = false
             }
+        }
+    }
+
+    // Re-run lookup when dictionary filter changes
+    LaunchedEffect(selectedFilter, engine) {
+        if (recognizedText.isNotBlank() && engine != null) {
+            val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
+            matches = engine.lookup(recognizedText, only = onlySet)
         }
     }
 
@@ -291,11 +316,47 @@ fun ResultWindow(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                                    Text(
-                                        text = "Verbetes e Dicionário",
-                                        style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
-                                        color = Color(0xFF5D84FF)
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Verbetes e Dicionário",
+                                            style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
+                                            color = Color(0xFF5D84FF)
+                                        )
+
+                                        var expandedFilter by remember { mutableStateOf(false) }
+                                        Box {
+                                            OutlinedButton(
+                                                onClick = { expandedFilter = true },
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                            ) {
+                                                Text(if (selectedFilter.isBlank()) "🌐 Todos" else "📖 $selectedFilter", fontSize = 11.sp)
+                                            }
+                                            DropdownMenu(
+                                                expanded = expandedFilter,
+                                                onDismissRequest = { expandedFilter = false }
+                                            ) {
+                                                DropdownMenuItem(onClick = {
+                                                    selectedFilter = ""
+                                                    expandedFilter = false
+                                                }) {
+                                                    Text("🌐 Todos os Dicionários")
+                                                }
+                                                installedDictTitles.forEach { title ->
+                                                    DropdownMenuItem(onClick = {
+                                                        selectedFilter = title
+                                                        expandedFilter = false
+                                                    }) {
+                                                        Text("📖 $title")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     if (matches.isEmpty()) {

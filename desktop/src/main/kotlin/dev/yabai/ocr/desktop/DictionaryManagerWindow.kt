@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -133,6 +134,7 @@ fun DictionaryManagerWindow(
 private fun SearchTab(initialQuery: String, refreshKey: Int) {
     var query by remember { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
+    var selectedFilter by remember { mutableStateOf("") }
 
     val dictDir = remember(refreshKey) { DesktopSettings().dictDirectory() }
     val engine = remember(refreshKey) {
@@ -148,15 +150,70 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
         }
     }
 
-    LaunchedEffect(query, refreshKey) {
+    val installedDictTitles = remember(refreshKey) {
+        val list = mutableListOf<String>()
+        try {
+            if (dictDir.exists() && dictDir.isDirectory) {
+                dictDir.listFiles()?.forEach { file ->
+                    if (file.extension == "yabai" || file.isDirectory) {
+                        val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
+                        if (dict != null) list.add(dict.info.title)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        list.toList()
+    }
+
+    LaunchedEffect(query, refreshKey, selectedFilter) {
         if (engine != null && query.isNotBlank()) {
-            results = engine.search(query)
+            val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
+            results = engine.search(query, only = onlySet)
         } else {
             results = emptyList()
         }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Pesquisar nos Dicionários", style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = Color.White)
+
+            var expandedFilter by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(
+                    onClick = { expandedFilter = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Text(if (selectedFilter.isBlank()) "🌐 Todos os Dicionários" else "📖 $selectedFilter", fontSize = 11.sp)
+                }
+                DropdownMenu(
+                    expanded = expandedFilter,
+                    onDismissRequest = { expandedFilter = false }
+                ) {
+                    DropdownMenuItem(onClick = {
+                        selectedFilter = ""
+                        expandedFilter = false
+                    }) {
+                        Text("🌐 Todos os Dicionários")
+                    }
+                    installedDictTitles.forEach { title ->
+                        DropdownMenuItem(onClick = {
+                            selectedFilter = title
+                            expandedFilter = false
+                        }) {
+                            Text("📖 $title")
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -196,12 +253,14 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                     style = MaterialTheme.typography.body1
                 )
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(results) { match ->
-                        DictionarySearchCard(match = match)
+                SelectionContainer {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(results) { match ->
+                            DictionarySearchCard(match = match)
+                        }
                     }
                 }
             }
