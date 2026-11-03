@@ -38,6 +38,7 @@ class AiAppSettingsTest {
     }
 
     /** A phone with one AI app and one app that only shares text. */
+    @Suppress("DEPRECATION")
     private fun phone(): MainActivity {
         val manager = shadowOf(RuntimeEnvironment.getApplication().packageManager)
         val share = Intent(Intent.ACTION_SEND).setType(AskAi.MIME_TEXT)

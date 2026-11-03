@@ -262,13 +262,11 @@ internal class SelectionToolbar(
                     Gravity.CENTER,
                 ),
             )
-            val panelLoc = IntArray(2)
             var anchorOffset = 0
             setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         view.requestFocus()
-                        panel.getLocationOnScreen(panelLoc)
                         val bounds = selectionBounds(view)
                         anchorOffset = if (isStart) {
                             bounds?.last?.plus(1) ?: view.selectionEnd
@@ -280,8 +278,8 @@ internal class SelectionToolbar(
                     }
                     MotionEvent.ACTION_MOVE -> {
                         view.requestFocus()
-                        val panelX = event.rawX - panelLoc[0]
-                        val panelY = event.rawY - panelLoc[1]
+                        val panelX = x + event.x
+                        val panelY = y + event.y
                         val currentOffset = offsetAt(view, panelX, panelY)
                         val min = minOf(anchorOffset, currentOffset)
                         val max = maxOf(anchorOffset, currentOffset)

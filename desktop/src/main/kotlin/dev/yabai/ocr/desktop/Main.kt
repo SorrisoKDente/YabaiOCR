@@ -99,7 +99,7 @@ fun main() = application {
             onHoverCycleTriggered = {
                 val newFilter = hoverOcrManager.cycleDictionaryAndRefresh()
                 hoverState.activeFilter = newFilter
-            }
+            },
         )
         hotkeyManager.updateHotkeys(
             settings.globalHotkey,
@@ -272,7 +272,7 @@ private fun HoverTooltipOverlay(
 ) {
     val hMatches = hoverState.matches
     val hPoint = hoverState.point
-    if (hMatches.isNotEmpty() && hPoint != null) {
+    if ((hMatches.isNotEmpty()) && (hPoint != null)) {
         HoverTooltipWindow(
             matches = hMatches,
             mousePoint = hPoint,

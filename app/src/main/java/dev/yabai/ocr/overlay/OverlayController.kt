@@ -1119,6 +1119,7 @@ class OverlayController(
      * while **any** panel is on screen and dropped when the last one goes, so nothing of a panel
      * outlives it.
      */
+    @Suppress("DEPRECATION")
     private fun listenForSystemDialogs() {
         if (systemDialogReceiver != null) return
         val receiver = object : BroadcastReceiver() {

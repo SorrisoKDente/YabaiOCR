@@ -11,6 +11,7 @@ import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.KanjiEntry
 import dev.yabai.ocr.core.dict.TokenMatch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,7 +57,7 @@ class PanelFoldTest {
 
         analyseAgain(panel)
 
-        assertTrue("the dictionary left the panel", section(panel, SECTION_DICTIONARY) != null)
+        assertNotNull("the dictionary left the panel", section(panel, SECTION_DICTIONARY))
         assertEquals("the fold was forgotten", View.GONE, body(panel, SECTION_DICTIONARY).visibility)
         assertEquals(
             "the other sections folded with it",

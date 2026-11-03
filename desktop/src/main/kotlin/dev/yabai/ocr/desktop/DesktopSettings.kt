@@ -15,7 +15,7 @@ enum class DesktopUpdateInterval(val days: Long) {
 enum class DesktopAiProvider { CHATGPT, GEMINI, DEEPSEEK, CLAUDE, CUSTOM }
 
 class DesktopSettings(
-    private val file: File = File(System.getProperty("user.home"), ".yabai_ocr/settings.properties")
+    private val file: File = File(System.getProperty("user.home"), ".yabai_ocr/settings.properties"),
 ) {
     private val props = Properties().apply {
         if (file.exists()) {
@@ -148,7 +148,7 @@ class DesktopSettings(
 
     var translateTarget: String
         get() = props.getProperty("translate_target", "pt")
-        set(value) { props.setProperty("translate_target", value.toString()); save() }
+        set(value) { props.setProperty("translate_target", value); save() }
 
     // 6. IA
     var showAiButton: Boolean

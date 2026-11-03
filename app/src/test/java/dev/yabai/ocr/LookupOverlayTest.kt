@@ -147,6 +147,7 @@ class LookupOverlayTest {
      * [android.content.Intent.ACTION_CLOSE_SYSTEM_DIALOGS]; the service has to close the panel and stop,
      * or the word card would be left floating over the launcher.
      */
+    @Suppress("DEPRECATION")
     @Test
     fun `o home fecha o painel do readera`() {
         val service = start("波及")

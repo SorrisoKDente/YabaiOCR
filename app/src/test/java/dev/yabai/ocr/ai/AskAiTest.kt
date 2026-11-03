@@ -207,6 +207,7 @@ class AskAiTest {
 
     // --- the list of apps -----------------------------------------------------------------------
 
+    @Suppress("DEPRECATION")
     @Test
     fun `the list is the phone's, with our own app left out`() {
         val manager = shadowOf(context.packageManager)

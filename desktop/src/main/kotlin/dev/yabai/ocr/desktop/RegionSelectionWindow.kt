@@ -58,7 +58,7 @@ fun RegionSelectionWindow(
     var initialRectForDrag by remember { mutableStateOf<Rect?>(null) }
 
     fun confirmCrop(rect: Rect, canvasWidth: Float, canvasHeight: Float) {
-        if (rect.width < 10 || rect.height < 10) {
+        if ((rect.width < 10) || (rect.height < 10)) {
             onDismiss()
             return
         }
@@ -75,7 +75,7 @@ fun RegionSelectionWindow(
             x = realX,
             y = realY,
             width = realW,
-            height = realH
+            height = realH,
         )
         onRegionSelected(cropped)
     }
@@ -89,13 +89,13 @@ fun RegionSelectionWindow(
         transparent = true,
         state = WindowState(placement = WindowPlacement.Maximized),
         onKeyEvent = { keyEvent ->
-            if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
+            if ((keyEvent.type == KeyEventType.KeyDown) && (keyEvent.key == Key.Escape)) {
                 onDismiss()
                 true
             } else {
                 false
             }
-        }
+        },
     ) {
         var canvasSize by remember { mutableStateOf(IntSize.Zero) }
 
@@ -207,7 +207,7 @@ fun RegionSelectionWindow(
                                 val pos = event.changes.firstOrNull()?.position
                                 val rect = cropRect
                                 if (pos != null) {
-                                    val handle = if (rect != null) hitTest(pos, rect) else CropHandle.NONE
+                                    val handle = rect?.let { hitTest(pos, it) } ?: CropHandle.NONE
                                     val cursorType = when (handle) {
                                         CropHandle.TOP_LEFT -> java.awt.Cursor.NW_RESIZE_CURSOR
                                         CropHandle.TOP_RIGHT -> java.awt.Cursor.NE_RESIZE_CURSOR

@@ -20,7 +20,8 @@ class YabaiTileService : TileService() {
         }
     }
 
-    @SuppressLint("NewApi", "Deprecation", "StartActivityAndCollapseDeprecated")
+    @Suppress("DEPRECATION")
+    @SuppressLint("NewApi", "StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
         val intent = Intent(this, StartOcrActivity::class.java).apply {

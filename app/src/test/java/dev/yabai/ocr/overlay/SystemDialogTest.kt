@@ -317,6 +317,7 @@ class SystemDialogTest {
      * What the system sends when HOME or recents is pressed — see
      * [Intent.ACTION_CLOSE_SYSTEM_DIALOGS].
      */
+    @Suppress("DEPRECATION")
     private fun systemDialog(reason: String) {
         context.sendBroadcast(
             Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS).putExtra("reason", reason),
