@@ -34,6 +34,7 @@ import javax.imageio.ImageIO
 @Composable
 fun ResultWindow(
     croppedImage: BufferedImage,
+    initialText: String? = null,
     onClose: () -> Unit,
     onNewSelectionRequested: () -> Unit,
     onOpenFullDictRequested: (String) -> Unit,
@@ -73,9 +74,19 @@ fun ResultWindow(
     }
 
     // Run OCR asynchronously
-    LaunchedEffect(croppedImage) {
+    LaunchedEffect(croppedImage, initialText) {
         isLoading = true
         errorMessage = null
+
+        // A paragraph chosen in the full-screen picker already came back recognised, and it is the
+        // exact text the user clicked. Recognising the crop again would cost a second round trip
+        // and could return a different reading of the same ink.
+        if (initialText != null) {
+            recognizedText = initialText
+            elapsedMs = 0
+            isLoading = false
+            return@LaunchedEffect
+        }
 
         withContext(Dispatchers.IO) {
             try {
@@ -159,7 +170,11 @@ fun ResultWindow(
                             )
                             if (!isLoading && recognizedText.isNotBlank()) {
                                 Text(
-                                    text = "Reconhecido em ${elapsedMs}ms • Google Lens",
+                                    text = if (initialText != null) {
+                                        "Trecho escolhido no seletor de tela"
+                                    } else {
+                                        "Reconhecido em ${elapsedMs}ms • Google Lens"
+                                    },
                                     style = MaterialTheme.typography.caption,
                                     color = Color(0xFF81C784)
                                 )

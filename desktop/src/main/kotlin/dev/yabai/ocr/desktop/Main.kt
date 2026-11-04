@@ -78,19 +78,32 @@ fun main(args: Array<String>) = application {
     }
 
     var screenCaptureForSelection by remember { mutableStateOf<BufferedImage?>(null) }
+    var pickerCapture by remember { mutableStateOf<BufferedImage?>(null) }
     var temporaryViewImage by remember { mutableStateOf<BufferedImage?>(null) }
+    var resultInitialText by remember { mutableStateOf<String?>(null) }
     var captureGeneration by remember { mutableStateOf(0L) }
+
+    // One entry point for every capture: the shortcut, the tray and «Recortar» all land here, so
+    // the «escolher trecho» preference cannot be honoured in one path and forgotten in another.
+    fun startCapture() {
+        try {
+            val fullScreen = ScreenCapture.captureScreen()
+            resultInitialText = null
+            if (settings.pickText) {
+                pickerCapture = fullScreen
+            } else {
+                screenCaptureForSelection = fullScreen
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     // Setup Global Hotkey Listener (JNativeHook)
     DisposableEffect(Unit) {
         val hotkeyManager = GlobalHotkeyManager(
             onOcrTriggered = {
-                try {
-                    val fullScreen = ScreenCapture.captureScreen()
-                    screenCaptureForSelection = fullScreen
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+                startCapture()
             },
             onQuickDictTriggered = {
                 showQuickDict = true
@@ -120,12 +133,7 @@ fun main(args: Array<String>) = application {
     DisposableEffect(Unit) {
         val trayManager = SystemTrayManager(
             onCaptureRequested = {
-                try {
-                    val fullScreen = ScreenCapture.captureScreen()
-                    screenCaptureForSelection = fullScreen
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+                startCapture()
             },
             onQuickDictRequested = {
                 showQuickDict = true
@@ -155,6 +163,30 @@ fun main(args: Array<String>) = application {
         }
     }
 
+    // Full-screen picker: the screen as it was, with a clickable box over each paragraph
+    val picker = pickerCapture
+    if (picker != null) {
+        SegmentPickerWindow(
+            screenImage = picker,
+            readingMode = settings.pickerReading,
+            dictionaryFilter = settings.dictionaryFilter,
+            engineProvider = { DesktopDictLoader.cachedEngine(settings) },
+            onBlockSelected = { cropped, text ->
+                pickerCapture = null
+                resultInitialText = text
+                temporaryViewImage = cropped
+                captureGeneration++
+            },
+            onManualCrop = {
+                pickerCapture = null
+                screenCaptureForSelection = picker
+            },
+            onDismiss = {
+                pickerCapture = null
+            },
+        )
+    }
+
     // Region Selection Overlay Window
     val capture = screenCaptureForSelection
     if (capture != null) {
@@ -162,6 +194,7 @@ fun main(args: Array<String>) = application {
             screenImage = capture,
             onRegionSelected = { cropped ->
                 screenCaptureForSelection = null
+                resultInitialText = null
                 temporaryViewImage = cropped
                 captureGeneration++
             },
@@ -177,16 +210,13 @@ fun main(args: Array<String>) = application {
         key(captureGeneration) {
             ResultWindow(
                 croppedImage = tempImage,
+                initialText = resultInitialText,
                 onClose = {
                     temporaryViewImage = null
+                    resultInitialText = null
                 },
                 onNewSelectionRequested = {
-                    try {
-                        val fullScreen = ScreenCapture.captureScreen()
-                        screenCaptureForSelection = fullScreen
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    startCapture()
                 },
                 onOpenFullDictRequested = { query ->
                     mainDictInitialQuery = query

@@ -727,6 +727,9 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
 
                                     Button(
                                         onClick = {
+                                            // The picker keeps its dictionaries open between
+                                            // captures; on Windows an open blob blocks the delete.
+                                            DesktopDictLoader.closeCached()
                                             file.deleteRecursively()
                                             refreshFiles()
                                         },
@@ -971,6 +974,9 @@ private fun downloadAndInstallDictionary(
     // 3. Compile zip into .yabai dictionary
     onProgress("Compilando e indexando dicionário...", 0.85f)
     val targetYabaiDir = File(dictDir, "${entry.id}.yabai")
+    // The picker's cached engine may still hold the old blobs open; without this the delete below
+    // is a no-op on Windows and the compile would write into the previous version's files.
+    DesktopDictLoader.closeCached()
     if (targetYabaiDir.exists()) targetYabaiDir.deleteRecursively()
 
     val compiler = DictionaryCompiler(

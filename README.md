@@ -754,11 +754,32 @@ dicionário instalado», «Nenhum texto reconhecido perto do cursor» ou «Texto
 …». Os dicionários ficam na pasta escolhida em **Ajustes → Pasta de Dicionários** (a chave antiga
 `custom_dict_directory` continua sendo lida) e são abertos uma vez só, sob demanda.
 
+### Escolher o trecho na tela inteira
+
+1. Aperte o atalho de captura (padrão **`Ctrl + Shift + O`**). Em vez de pedir um arrasto, o app
+   captura a tela e mostra o próprio screenshot com uma **caixa clicável sobre cada parágrafo**.
+2. Clique no trecho que quer ler. A janela de resultado abre com o texto daquele parágrafo já
+   reconhecido — o clique é o recorte —, com a imagem do bloco e os verbetes dos dicionários.
+3. **Esc**, clique direito, «✕ Cancelar» ou fechar a janela desistem da captura. «✂️ Recortar à mão»
+   volta ao overlay de arrasto sobre a mesma imagem capturada, para páginas que o reconhecedor não
+   conseguiu separar.
+4. **Rubi e faixa:** em **Ajustes → Comportamento do OCR e resultado → Leituras dos kanjis no seletor
+   da página** escolha:
+   - «Rubi sobre o texto» — a leitura dos kanjis vem dos **dicionários instalados** e é desenhada
+     acima do texto horizontal ou na calha à direita do texto vertical;
+   - «Faixa indicativa legível» — uma faixa com a frase reconhecida aparece ao lado de cada caixa,
+     presa à tela e desviada das outras faixas;
+   - «Desativado» — só as caixas, sem leituras.
+5. Para voltar ao recorte à mão sempre, desmarque **Ajustes → Comportamento do OCR e resultado →
+   «Escolher trecho na captura da tela inteira»**. A opção vem marcada por padrão.
+
+O seletor captura o **monitor principal**; o modo hover continua escolhendo o monitor sob o ponteiro.
+
 ### Atalhos globais
 
 | Atalho | Ação |
 | --- | --- |
-| `Ctrl + Shift + O` (padrão) | Capturar a tela e escolher a área para OCR |
+| `Ctrl + Shift + O` (padrão) | Capturar a tela e escolher o trecho (ou a área, sem o seletor) |
 | `Ctrl + Shift + D` (padrão) | Abrir a busca rápida de dicionário |
 | `Ctrl + Shift + H` (padrão) | Ligar/desligar o modo hover |
 
@@ -773,9 +794,10 @@ gradlew :desktop:test
 
 Cobrem o que pode ser quebrado sem tela: casamento dos atalhos (incluindo o fato de os códigos
 `VC_*` do JNativeHook não serem os do AWT), debounce do hover, carência antes de fechar o cartão,
-recorte/HiDPI/multimonitor, escolha da palavra sob o ponteiro e a leitura da pasta de dicionários
-(inclusive a chave antiga). A verificação ponta a ponta — Lens de verdade, mouse parado, cartão na
-tela — é feita rodando o app.
+recorte/HiDPI/multimonitor, escolha da palavra sob o ponteiro, a leitura da pasta de dicionários
+(inclusive a chave antiga) e a geometria do seletor de tela inteira (escala das caixas, acerto pela
+menor caixa, folga presa à imagem, posição do rubi e das faixas). A verificação ponta a ponta — Lens
+de verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
 
 ---
 

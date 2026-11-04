@@ -58,6 +58,7 @@ fun SettingsContent(
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var showSegments by remember { mutableStateOf(settings.showSegments) }
+    var pickText by remember { mutableStateOf(settings.pickText) }
     var upscaleSmall by remember { mutableStateOf(settings.upscaleSmall) }
     var showImage by remember { mutableStateOf(settings.showImage) }
     var furiganaInParentheses by remember { mutableStateOf(settings.furiganaInParentheses) }
@@ -686,6 +687,16 @@ fun SettingsContent(
                     onCheckedChange = {
                         autoCopy = it
                         settings.autoCopy = it
+                    }
+                )
+
+                SettingCheckboxItem(
+                    checked = pickText,
+                    title = "Escolher trecho na captura da tela inteira",
+                    description = "Ao capturar, mostra a tela inteira com uma caixa clicável sobre cada parágrafo. Desativado, você desenha o recorte à mão como antes.",
+                    onCheckedChange = {
+                        pickText = it
+                        settings.pickText = it
                     }
                 )
 
