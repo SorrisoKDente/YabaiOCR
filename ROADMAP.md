@@ -3610,7 +3610,7 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D22 | `[x]` | **Créditos e Licenças dos Dicionários**: Opção/botão para visualizar créditos, licenças e informações de atribuição legal dos dicionários no desktop | fácil |
 | D19 | `[x]` | **Gerenciamento e Verificação de Atualizações de Dicionários**: Verificação de atualizações de dicionários, botão para verificar e para atualizar todos ou individualmente | médio |
 | D23 | `[x]` | **Prioridade e Ativação/Desativação de Dicionários**: Permitir definir a ordem de prioridade dos dicionários e opção de desabilitar/habilitar sem deletar | médio |
-| D24 | `[ ]` | **Fix de Layout em Textos Longos (Posição da Imagem)**: Corrigir posicionamento da imagem recortada quando a seleção de texto for muito longa para não ficar escondida abaixo da tela | médio |
+| D24 | `[x]` | **Fix de Layout em Textos Longos (Posição da Imagem)**: Corrigir posicionamento da imagem recortada quando a seleção de texto for muito longa para não ficar escondida abaixo da tela | médio |
 | D25 | `[ ]` | **Captura de Tela Inteira e Opções Avançadas**: Adicionar opção de captura de tela inteira com escolha de trecho, rubi sobre o texto e faixa indicativa legível | avançado |
 | D26 | `[x]` | **Fix de Perda de Tela Cheia ao Alternar Telas**: Corrigir bug onde abrir o gerenciador de dicionários ou voltar ao menu anterior redefiniam o estado de maximizado/tamanho da janela principal | fácil |
 
@@ -3645,6 +3645,11 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 - Adicionado suporte em `DesktopSettings` e `DesktopDictLoader` para gerenciar dicionários desativados (`disabled_dictionaries`) e ordem de prioridade (`dictionary_order`).
 - Adicionados controles na aba de dicionários instalados (`DictionaryManagerWindow.kt`): checkbox de Ativo/Desativado e botões de reordenação (▲ / ▼) para definir a prioridade de consulta de verbetes.
 - Integração em `QuickDictWindow`, `ResultWindow` e `HoverOcrManager` para respeitar a ordem de prioridade e os dicionários desativados.
+
+### D24 — Fix de Layout em Textos Longos (Posição da Imagem) `[x]` (03/11/2026)
+
+- Corrigido o layout horizontal no `ResultWindow.kt`: a imagem recortada foi reposicionada para o **topo** (acima da caixa de texto), evitando que ficasse oculta abaixo da tela quando o texto reconhecido fosse longo.
+- Adicionadas restrições de altura (`heightIn(min = 100.dp, max = 240.dp)`) no campo de texto para garantir rolagem interna limpa sem comprometer a visibilidade do recorte original.
 
 ### D18 — Hover em tempo real: o que estava quebrado (03/11/2026) `[x]`
 

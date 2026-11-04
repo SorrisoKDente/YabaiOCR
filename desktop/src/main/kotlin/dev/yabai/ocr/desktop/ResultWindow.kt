@@ -337,6 +337,25 @@ fun ResultWindow(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
+                                            if (!isVerticalText && showImageToggle) {
+                                                Card(
+                                                    modifier = Modifier.fillMaxWidth().height(150.dp),
+                                                    backgroundColor = Color(0xFF1B1E28),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.fillMaxSize().padding(4.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Image(
+                                                            bitmap = imageBitmap,
+                                                            contentDescription = "Recorte Horizontal",
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                }
+                                            }
+
                                             Card(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 backgroundColor = Color(0xFF1B1E28),
@@ -352,12 +371,12 @@ fun ResultWindow(
                                                     OutlinedTextField(
                                                         value = recognizedText,
                                                         onValueChange = { recognizedText = it },
-                                                        modifier = Modifier.fillMaxWidth(),
+                                                        modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 240.dp),
                                                         textStyle = TextStyle(
-                                                            fontSize = 20.sp,
+                                                            fontSize = 18.sp,
                                                             fontWeight = FontWeight.SemiBold,
                                                             color = Color.White,
-                                                            lineHeight = 28.sp
+                                                            lineHeight = 26.sp
                                                         ),
                                                         colors = TextFieldDefaults.outlinedTextFieldColors(
                                                             textColor = Color.White,
@@ -365,25 +384,6 @@ fun ResultWindow(
                                                             unfocusedBorderColor = Color(0xFF2E3344)
                                                         )
                                                     )
-                                                }
-                                            }
-
-                                            if (!isVerticalText && showImageToggle) {
-                                                Card(
-                                                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                                                    backgroundColor = Color(0xFF1B1E28),
-                                                    shape = RoundedCornerShape(12.dp)
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier.fillMaxSize().padding(4.dp),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Image(
-                                                            bitmap = imageBitmap,
-                                                            contentDescription = "Recorte Horizontal",
-                                                            modifier = Modifier.fillMaxSize()
-                                                        )
-                                                    }
                                                 }
                                             }
                                         }

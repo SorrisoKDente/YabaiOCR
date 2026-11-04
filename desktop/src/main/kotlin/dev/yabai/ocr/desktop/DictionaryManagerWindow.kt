@@ -425,7 +425,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             }
                                         } else if (catalogEntry.url != null) {
                                             runCatching {
-                                                val req = Request.Builder().url(catalogEntry.url).head().build()
+                                                val req = Request.Builder().url(catalogEntry.url).build()
                                                 client.newCall(req).execute().use { resp ->
                                                     val finalUrl = resp.request.url.toString()
                                                     val remoteVersion = extractVersionFromUrl(finalUrl) ?: formatRemoteLabel(resp.header("Last-Modified"), resp.header("ETag"))
@@ -628,12 +628,10 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                     Spacer(modifier = Modifier.height(2.dp))
                                     val revStr = if (revision.isNotBlank()) " • Atual: $revision" else ""
                                     val remoteRev = remoteRevisionMap[file.name]
-                                    val updateText = if (hasUpdate) {
-                                        if (remoteRev != null && remoteRev != "Disponível") {
-                                            " • ✨ Nova: $remoteRev"
-                                        } else {
-                                            " • ✨ Atualização disponível"
-                                        }
+                                    val updateText = if (hasUpdate && remoteRev != null && remoteRev != "Disponível") {
+                                        " • ✨ Nova: $remoteRev"
+                                    } else if (hasUpdate) {
+                                        " • ✨ Atualização disponível"
                                     } else ""
                                     Text(
                                         "Arquivo: ${file.name} • Tamanho: $sizeMb$revStr$updateText",
