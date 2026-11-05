@@ -35,6 +35,14 @@ class DesktopSettings(
         get() = props.getProperty("global_hotkey", "Ctrl + Shift + O")
         set(value) { props.setProperty("global_hotkey", value); save() }
 
+    /**
+     * The hand-drawn crop. Kept apart from [globalHotkey] so the full-screen picker and the drag
+     * overlay are two visible actions, not one shortcut with a hidden preference behind it.
+     */
+    var regionHotkey: String
+        get() = props.getProperty("region_hotkey", "Ctrl + Shift + A")
+        set(value) { props.setProperty("region_hotkey", value); save() }
+
     var quickDictHotkey: String
         get() = props.getProperty("quick_dict_hotkey", "Ctrl + Shift + D")
         set(value) { props.setProperty("quick_dict_hotkey", value); save() }
@@ -72,10 +80,6 @@ class DesktopSettings(
     var showSegments: Boolean
         get() = props.getProperty("show_segments", "false").toBoolean()
         set(value) { props.setProperty("show_segments", value.toString()); save() }
-
-    var pickText: Boolean
-        get() = props.getProperty("pick_text", "true").toBoolean()
-        set(value) { props.setProperty("pick_text", value.toString()); save() }
 
     var upscaleSmall: Boolean
         get() = props.getProperty("upscale_small", "true").toBoolean()

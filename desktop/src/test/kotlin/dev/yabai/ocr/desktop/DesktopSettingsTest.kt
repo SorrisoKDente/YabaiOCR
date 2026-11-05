@@ -4,6 +4,7 @@ import java.io.File
 import java.util.Properties
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -59,5 +60,25 @@ class DesktopSettingsTest {
         val settings = DesktopSettings(file)
 
         assertTrue(settings.customDictDirectoryPath.endsWith(".yabai_ocr${File.separator}dicts"))
+    }
+
+    @Test
+    fun `full-screen capture and region crop have distinct shortcuts by default`() {
+        val settings = DesktopSettings(tempSettings())
+
+        assertEquals("Ctrl + Shift + O", settings.globalHotkey)
+        assertEquals("Ctrl + Shift + A", settings.regionHotkey)
+        assertNotEquals(settings.globalHotkey, settings.regionHotkey)
+    }
+
+    @Test
+    fun `the region shortcut is read from its own key`() {
+        val file = tempSettings()
+        write(file, "global_hotkey" to "Insert", "region_hotkey" to "Ctrl + Alt + R")
+
+        val settings = DesktopSettings(file)
+
+        assertEquals("Insert", settings.globalHotkey)
+        assertEquals("Ctrl + Alt + R", settings.regionHotkey)
     }
 }

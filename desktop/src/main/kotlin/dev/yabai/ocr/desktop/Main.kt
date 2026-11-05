@@ -21,6 +21,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.yabai.ocr.core.dict.TokenMatch
 import java.awt.Point
+import java.awt.Rectangle
 import java.awt.image.BufferedImage
 
 enum class MainScreen { SETTINGS, DICTIONARIES }
@@ -32,6 +33,9 @@ class HoverStateHolder(defaultFilter: String = "") {
     var active by mutableStateOf(false)
     var status by mutableStateOf("Modo Hover desativado — ative para traduzir passando o mouse.")
 }
+
+/** A full-screen capture plus the screen rectangle it came from. */
+private data class CapturedScreen(val image: BufferedImage, val screenBounds: Rectangle)
 
 fun main(args: Array<String>) = application {
     val startMinimized = args.contains("--minimized") || args.contains("--tray")
@@ -77,33 +81,47 @@ fun main(args: Array<String>) = application {
         onDispose { hoverOcrManager.close() }
     }
 
-    var screenCaptureForSelection by remember { mutableStateOf<BufferedImage?>(null) }
-    var pickerCapture by remember { mutableStateOf<BufferedImage?>(null) }
+    var regionCapture by remember { mutableStateOf<CapturedScreen?>(null) }
+    var pickerCapture by remember { mutableStateOf<CapturedScreen?>(null) }
     var temporaryViewImage by remember { mutableStateOf<BufferedImage?>(null) }
     var resultInitialText by remember { mutableStateOf<String?>(null) }
     var captureGeneration by remember { mutableStateOf(0L) }
 
-    // One entry point for every capture: the shortcut, the tray and «Recortar» all land here, so
-    // the «escolher trecho» preference cannot be honoured in one path and forgotten in another.
-    fun startCapture() {
+    // The two captures are two visible actions: the whole screen with clickable paragraphs, and
+    // the hand-drawn crop. Neither hides behind a preference the user cannot see.
+    fun startFullScreenCapture() {
         try {
-            val fullScreen = ScreenCapture.captureScreen()
-            resultInitialText = null
-            if (settings.pickText) {
-                pickerCapture = fullScreen
-            } else {
-                screenCaptureForSelection = fullScreen
-            }
+            pickerCapture = CapturedScreen(
+                image = ScreenCapture.captureScreen(),
+                screenBounds = ScreenCapture.screenBounds(),
+            )
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    // Setup Global Hotkey Listener (JNativeHook)
-    DisposableEffect(Unit) {
-        val hotkeyManager = GlobalHotkeyManager(
-            onOcrTriggered = {
-                startCapture()
+    fun startRegionCapture() {
+        try {
+            resultInitialText = null
+            regionCapture = CapturedScreen(
+                image = ScreenCapture.captureScreen(),
+                screenBounds = ScreenCapture.screenBounds(),
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // Setup Global Hotkey Listener (JNativeHook). The manager is remembered so a shortcut changed
+    // in the Settings window takes effect immediately; a DisposableEffect(Unit) would keep the
+    // old specs until the app restarted.
+    val hotkeyManager = remember {
+        GlobalHotkeyManager(
+            onFullScreenTriggered = {
+                startFullScreenCapture()
+            },
+            onRegionTriggered = {
+                startRegionCapture()
             },
             onQuickDictTriggered = {
                 showQuickDict = true
@@ -116,8 +134,12 @@ fun main(args: Array<String>) = application {
                 hoverState.activeFilter = newFilter
             },
         )
+    }
+
+    DisposableEffect(hotkeyManager) {
         hotkeyManager.updateHotkeys(
             settings.globalHotkey,
+            settings.regionHotkey,
             settings.quickDictHotkey,
             settings.hoverHotkey,
             settings.hoverCycleHotkey
@@ -132,8 +154,11 @@ fun main(args: Array<String>) = application {
     // Setup System Tray (Steam-like behavior)
     DisposableEffect(Unit) {
         val trayManager = SystemTrayManager(
-            onCaptureRequested = {
-                startCapture()
+            onFullScreenCaptureRequested = {
+                startFullScreenCapture()
+            },
+            onRegionCaptureRequested = {
+                startRegionCapture()
             },
             onQuickDictRequested = {
                 showQuickDict = true
@@ -167,7 +192,8 @@ fun main(args: Array<String>) = application {
     val picker = pickerCapture
     if (picker != null) {
         SegmentPickerWindow(
-            screenImage = picker,
+            screenImage = picker.image,
+            screenBounds = picker.screenBounds,
             readingMode = settings.pickerReading,
             dictionaryFilter = settings.dictionaryFilter,
             engineProvider = { DesktopDictLoader.cachedEngine(settings) },
@@ -179,7 +205,7 @@ fun main(args: Array<String>) = application {
             },
             onManualCrop = {
                 pickerCapture = null
-                screenCaptureForSelection = picker
+                regionCapture = picker
             },
             onDismiss = {
                 pickerCapture = null
@@ -188,18 +214,19 @@ fun main(args: Array<String>) = application {
     }
 
     // Region Selection Overlay Window
-    val capture = screenCaptureForSelection
+    val capture = regionCapture
     if (capture != null) {
         RegionSelectionWindow(
-            screenImage = capture,
+            screenImage = capture.image,
+            screenBounds = capture.screenBounds,
             onRegionSelected = { cropped ->
-                screenCaptureForSelection = null
+                regionCapture = null
                 resultInitialText = null
                 temporaryViewImage = cropped
                 captureGeneration++
             },
             onDismiss = {
-                screenCaptureForSelection = null
+                regionCapture = null
             },
         )
     }
@@ -216,7 +243,7 @@ fun main(args: Array<String>) = application {
                     resultInitialText = null
                 },
                 onNewSelectionRequested = {
-                    startCapture()
+                    startRegionCapture()
                 },
                 onOpenFullDictRequested = { query ->
                     mainDictInitialQuery = query
@@ -273,11 +300,19 @@ fun main(args: Array<String>) = application {
                             hoverStatus = hoverState.status,
                             onHoverToggle = { applyHover(!hoverState.active) },
                             onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
-                            onHotkeysChanged = { ocr, quickDict, hover, hoverCycle ->
-                                settings.globalHotkey = ocr
+                            onHotkeysChanged = { fullScreen, region, quickDict, hover, hoverCycle ->
+                                settings.globalHotkey = fullScreen
+                                settings.regionHotkey = region
                                 settings.quickDictHotkey = quickDict
                                 settings.hoverHotkey = hover
                                 settings.hoverCycleHotkey = hoverCycle
+                                hotkeyManager.updateHotkeys(
+                                    fullScreen,
+                                    region,
+                                    quickDict,
+                                    hover,
+                                    hoverCycle,
+                                )
                             },
                             onManageDictionariesRequested = {
                                 mainDictInitialQuery = ""

@@ -8,16 +8,24 @@ import java.util.logging.Logger
 
 /**
  * Global shortcuts through JNativeHook.
+ *
+ * The full-screen picker and the hand-drawn crop have **separate** shortcuts on purpose: they are
+ * two actions with different results, and a hidden preference deciding which one a single key does
+ * is a switch the user cannot see.
  */
 class GlobalHotkeyManager(
-    private val onOcrTriggered: () -> Unit,
+    private val onFullScreenTriggered: () -> Unit,
+    private val onRegionTriggered: () -> Unit,
     private val onQuickDictTriggered: () -> Unit,
     private val onHoverTriggered: () -> Unit,
     private val onHoverCycleTriggered: () -> Unit = {},
 ) : NativeKeyListener {
 
     @Volatile
-    private var ocrSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + O")
+    private var fullScreenSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + O")
+
+    @Volatile
+    private var regionSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + A")
 
     @Volatile
     private var quickDictSpec: HotkeySpec? = HotkeyMatcher.parse("Ctrl + Shift + D")
@@ -33,16 +41,19 @@ class GlobalHotkeyManager(
 
     /** Replaces the shortcuts immediately; the listener reads these specs on the next key press. */
     fun updateHotkeys(
-        ocr: String,
+        fullScreen: String,
+        region: String,
         quickDict: String,
         hover: String = "Ctrl + Shift + H",
         hoverCycle: String = "Ctrl + Shift + X"
     ) {
-        ocrSpec = HotkeyMatcher.parse(ocr)
+        fullScreenSpec = HotkeyMatcher.parse(fullScreen)
+        regionSpec = HotkeyMatcher.parse(region)
         quickDictSpec = HotkeyMatcher.parse(quickDict)
         hoverSpec = HotkeyMatcher.parse(hover)
         hoverCycleSpec = HotkeyMatcher.parse(hoverCycle)
-        if (ocrSpec == null) println("[Hotkey] atalho de OCR inválido: \"$ocr\"")
+        if (fullScreenSpec == null) println("[Hotkey] atalho da tela inteira inválido: \"$fullScreen\"")
+        if (regionSpec == null) println("[Hotkey] atalho do recorte inválido: \"$region\"")
         if (quickDictSpec == null) println("[Hotkey] atalho de busca inválido: \"$quickDict\"")
         if (hoverSpec == null) println("[Hotkey] atalho de hover inválido: \"$hover\"")
         if (hoverCycleSpec == null) println("[Hotkey] atalho de alternar dicionário no hover inválido: \"$hoverCycle\"")
@@ -92,7 +103,8 @@ class GlobalHotkeyManager(
         )
 
         when {
-            HotkeyMatcher.matches(ocrSpec, stroke) -> onOcrTriggered()
+            HotkeyMatcher.matches(fullScreenSpec, stroke) -> onFullScreenTriggered()
+            HotkeyMatcher.matches(regionSpec, stroke) -> onRegionTriggered()
             HotkeyMatcher.matches(quickDictSpec, stroke) -> onQuickDictTriggered()
             HotkeyMatcher.matches(hoverSpec, stroke) -> onHoverTriggered()
             HotkeyMatcher.matches(hoverCycleSpec, stroke) -> onHoverCycleTriggered()

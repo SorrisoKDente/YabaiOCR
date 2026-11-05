@@ -31,34 +31,42 @@ fun SettingsContent(
     hoverStatus: String = "",
     onHoverToggle: () -> Unit = {},
     onHoverTest: () -> Unit = {},
-    onHotkeysChanged: (ocr: String, quickDict: String, hover: String, hoverCycle: String) -> Unit = { _, _, _, _ -> },
+    onHotkeysChanged: (
+        fullScreen: String,
+        region: String,
+        quickDict: String,
+        hover: String,
+        hoverCycle: String,
+    ) -> Unit = { _, _, _, _, _ -> },
 ) {
     val settings = remember { DesktopSettings() }
 
     var globalHotkey by remember { mutableStateOf(settings.globalHotkey) }
+    var regionHotkey by remember { mutableStateOf(settings.regionHotkey) }
     var quickDictHotkey by remember { mutableStateOf(settings.quickDictHotkey) }
     var hoverHotkey by remember { mutableStateOf(settings.hoverHotkey) }
     var hoverCycleHotkey by remember { mutableStateOf(settings.hoverCycleHotkey) }
 
     var isCapturingHotkey by remember { mutableStateOf(false) }
+    var isCapturingRegionHotkey by remember { mutableStateOf(false) }
     var isCapturingQuickDictHotkey by remember { mutableStateOf(false) }
     var isCapturingHoverHotkey by remember { mutableStateOf(false) }
     var isCapturingHoverCycleHotkey by remember { mutableStateOf(false) }
 
     val hotkeyFocusRequester = remember { FocusRequester() }
+    val regionHotkeyFocusRequester = remember { FocusRequester() }
     val quickDictFocusRequester = remember { FocusRequester() }
     val hoverHotkeyFocusRequester = remember { FocusRequester() }
     val hoverCycleHotkeyFocusRequester = remember { FocusRequester() }
 
     fun notifyHotkeysChanged() {
-        onHotkeysChanged(globalHotkey, quickDictHotkey, hoverHotkey, hoverCycleHotkey)
+        onHotkeysChanged(globalHotkey, regionHotkey, quickDictHotkey, hoverHotkey, hoverCycleHotkey)
     }
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var showSegments by remember { mutableStateOf(settings.showSegments) }
-    var pickText by remember { mutableStateOf(settings.pickText) }
     var upscaleSmall by remember { mutableStateOf(settings.upscaleSmall) }
     var showImage by remember { mutableStateOf(settings.showImage) }
     var furiganaInParentheses by remember { mutableStateOf(settings.furiganaInParentheses) }
@@ -128,7 +136,7 @@ fun SettingsContent(
             SettingCard(title = "Atalhos Globais de Teclado") {
                 // OCR Hotkey
                 Text(
-                    text = "Atalho de Captura de Tela (OCR):",
+                    text = "Atalho da Captura da Tela Inteira (OCR):",
                     style = MaterialTheme.typography.caption,
                     color = Color(0xFFA0A6B8)
                 )
@@ -213,6 +221,103 @@ fun SettingsContent(
                             globalHotkey = "Ctrl + Shift + O"
                             settings.globalHotkey = "Ctrl + Shift + O"
                             isCapturingHotkey = false
+                            notifyHotkeysChanged()
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text("Padrão")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Region Crop Hotkey
+                Text(
+                    text = "Atalho do Recorte de Área (OCR):",
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFFA0A6B8)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(regionHotkeyFocusRequester)
+                            .focusable()
+                            .onKeyEvent { keyEvent ->
+                                if (isCapturingRegionHotkey && keyEvent.type == KeyEventType.KeyDown) {
+                                    val key = keyEvent.key
+                                    if (key != Key.CtrlLeft && key != Key.CtrlRight &&
+                                        key != Key.ShiftLeft && key != Key.ShiftRight &&
+                                        key != Key.AltLeft && key != Key.AltRight &&
+                                        key != Key.MetaLeft && key != Key.MetaRight
+                                    ) {
+                                        val parts = mutableListOf<String>()
+                                        if (keyEvent.isCtrlPressed) parts.add("Ctrl")
+                                        if (keyEvent.isAltPressed) parts.add("Alt")
+                                        if (keyEvent.isShiftPressed) parts.add("Shift")
+                                        if (keyEvent.isMetaPressed) parts.add("Meta")
+
+                                        val keyName = when (key) {
+                                            Key.Spacebar -> "Space"
+                                            Key.Enter -> "Enter"
+                                            Key.Escape -> "Esc"
+                                            Key.Tab -> "Tab"
+                                            Key.Backspace -> "Backspace"
+                                            else -> java.awt.event.KeyEvent.getKeyText(key.nativeKeyCode)
+                                        }
+                                        parts.add(keyName)
+                                        val formatted = parts.joinToString(" + ")
+
+                                        regionHotkey = formatted
+                                        settings.regionHotkey = formatted
+                                        isCapturingRegionHotkey = false
+                                        notifyHotkeysChanged()
+                                        true
+                                    } else false
+                                } else false
+                            }
+                            .background(
+                                color = if (isCapturingRegionHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isCapturingRegionHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = if (isCapturingRegionHotkey) "Pressione as teclas..." else "Atalho: $regionHotkey",
+                            style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (isCapturingRegionHotkey) Color(0xFF81C784) else Color.White
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            isCapturingRegionHotkey = true
+                            regionHotkeyFocusRequester.requestFocus()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (isCapturingRegionHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(if (isCapturingRegionHotkey) "Aguardando..." else "Capturar")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            regionHotkey = "Ctrl + Shift + A"
+                            settings.regionHotkey = "Ctrl + Shift + A"
+                            isCapturingRegionHotkey = false
                             notifyHotkeysChanged()
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
@@ -687,16 +792,6 @@ fun SettingsContent(
                     onCheckedChange = {
                         autoCopy = it
                         settings.autoCopy = it
-                    }
-                )
-
-                SettingCheckboxItem(
-                    checked = pickText,
-                    title = "Escolher trecho na captura da tela inteira",
-                    description = "Ao capturar, mostra a tela inteira com uma caixa clicável sobre cada parágrafo. Desativado, você desenha o recorte à mão como antes.",
-                    onCheckedChange = {
-                        pickText = it
-                        settings.pickText = it
                     }
                 )
 

@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -23,12 +24,15 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.rememberWindowState
+import java.awt.Rectangle
 import java.awt.image.BufferedImage
 import kotlin.math.abs
 import kotlin.math.max
@@ -45,6 +49,7 @@ enum class CropHandle {
 @Composable
 fun RegionSelectionWindow(
     screenImage: BufferedImage,
+    screenBounds: Rectangle,
     onRegionSelected: (BufferedImage) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -80,14 +85,22 @@ fun RegionSelectionWindow(
         onRegionSelected(cropped)
     }
 
+    // Same rectangle that was captured, so the image lands 1:1 on the canvas instead of being
+    // squeezed by the work area (which used different X and Y ratios and left the taskbar out).
+    val windowState = rememberWindowState(
+        placement = WindowPlacement.Floating,
+        position = WindowPosition.Absolute(x = screenBounds.x.dp, y = screenBounds.y.dp),
+        size = DpSize(screenBounds.width.dp, screenBounds.height.dp),
+    )
+
     Window(
         onCloseRequest = onDismiss,
         title = "Yabai OCR - Selecionar Área (Lightshot)",
         undecorated = true,
         alwaysOnTop = true,
         focusable = true,
-        transparent = true,
-        state = WindowState(placement = WindowPlacement.Maximized),
+        resizable = false,
+        state = windowState,
         onKeyEvent = { keyEvent ->
             if ((keyEvent.type == KeyEventType.KeyDown) && (keyEvent.key == Key.Escape)) {
                 onDismiss()
@@ -232,10 +245,11 @@ fun RegionSelectionWindow(
                 val canvasWidth = size.width
                 val canvasHeight = size.height
 
-                // 1. Draw background image
+                // 1. Draw the capture exactly as it was taken
                 drawImage(
                     image = imageBitmap,
-                    dstSize = IntSize(canvasWidth.toInt(), canvasHeight.toInt())
+                    dstSize = IntSize(canvasWidth.toInt(), canvasHeight.toInt()),
+                    filterQuality = FilterQuality.None,
                 )
 
                 val rect = cropRect
@@ -284,8 +298,6 @@ fun RegionSelectionWindow(
                             style = Stroke(width = 1f)
                         )
                     }
-                } else {
-                    drawRect(Color.Black.copy(alpha = 0.35f))
                 }
             }
 

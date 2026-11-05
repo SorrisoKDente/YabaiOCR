@@ -3611,7 +3611,7 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D19 | `[x]` | **Gerenciamento e Verificação de Atualizações de Dicionários**: Verificação de atualizações de dicionários, botão para verificar e para atualizar todos ou individualmente | médio |
 | D23 | `[x]` | **Prioridade e Ativação/Desativação de Dicionários**: Permitir definir a ordem de prioridade dos dicionários e opção de desabilitar/habilitar sem deletar | médio |
 | D24 | `[x]` | **Fix de Layout em Textos Longos (Posição da Imagem)**: Corrigir posicionamento da imagem recortada quando a seleção de texto for muito longa para não ficar escondida abaixo da tela | médio |
-| D25 | `[x]` | **Captura de Tela Inteira e Opções Avançadas**: Adicionar opção de captura de tela inteira com escolha de trecho, rubi sobre o texto e faixa indicativa legível | avançado |
+| D25 | `[x]` | **Captura de Tela Inteira e Opções Avançadas**: Captura de tela inteira com escolha de trecho, atalho e botão próprios para o recorte de área, rubi sobre o texto e faixa indicativa legível | avançado |
 | D26 | `[x]` | **Fix de Perda de Tela Cheia ao Alternar Telas**: Corrigir bug onde abrir o gerenciador de dicionários ou voltar ao menu anterior redefiniam o estado de maximizado/tamanho da janela principal | fácil |
 
 ### D21 — Limpeza da Tela de Ajustes `[x]` (03/11/2026)
@@ -3694,15 +3694,17 @@ teste falhar e restaurá-la o faz passar.
 
 ### D25 — Captura de tela inteira com seletor de trechos `[x]` (03/11/2026)
 
-O ajuste «Escolher trecho na captura da tela inteira» existia desde as primeiras versões, mas o D21
-o removeu porque **nada o lia**: o atalho sempre abria o recorte à mão. O D25 devolve a opção com o
-comportamento que o nome promete — capturar a tela inteira, reconhecê-la e deixar o usuário clicar no
-parágrafo que quer, em vez de adivinhar onde a frase começa com um arrasto.
+O D21 tinha removido o ajuste «Escolher trecho na captura da tela inteira» porque **nada o lia**: o
+atalho sempre abria o recorte à mão. O D25 implementa de fato a captura da tela inteira com escolha
+de parágrafo e, na revisão, transforma as duas capturas em **duas ações visíveis** — sem preferência
+escondida decidindo o que um único atalho faz.
 
-- **Um único caminho de captura.** O atalho global, o menu da bandeja e o botão «Recortar» chamam
-  `startCapture()` em `Main.kt`. Com `pick_text` ligado (padrão), a captura vai para o
-  `SegmentPickerWindow`; desligado, vai para o `RegionSelectionWindow` de sempre. Assim a preferência
-  não pode ser honrada num caminho e esquecida em outro.
+- **Duas capturas, dois atalhos.** `global_hotkey` (o atalho que já existia — `Insert` nesta
+  máquina) é a **tela inteira**; o novo `region_hotkey` (padrão `Ctrl + Shift + A`) é o recorte à
+  mão. A bandeja ganhou «🖥️ Capturar Tela Inteira (OCR)» e «✂️ Capturar Área (OCR)», e o clique
+  esquerdo no ícone abre a tela inteira. `pick_text` foi removido do código e dos Ajustes.
+- **Atalhos ao vivo.** `GlobalHotkeyManager` é criado com `remember` (não `DisposableEffect(Unit)`)
+  e o callback dos Ajustes chama `updateHotkeys`; trocar a combinação vale na hora, sem reiniciar.
 - **Seletor sobre a tela.** O picker mostra o screenshot em tela cheia e desenha uma caixa sobre cada
   `LensResult.blocks`. O OCR roda em `Dispatchers.IO` com o mesmo `LensClient` do resultado, e a
   janela mostra «Reconhecendo a tela inteira…» em vez de parecer travada; uma falha de rede exibe o
@@ -3728,17 +3730,26 @@ parágrafo que quer, em vez de adivinhar onde a frase começa com um arrasto.
   `LookupEngine` enquanto pasta, conjunto habilitado, ordem de prioridade e nome/tamanho/data dos
   `.yabai` não mudarem; ao mudar, fecha o antigo e reabre. Abrir os dicionários é a parte lenta do
   lookup e o picker precisa deles logo depois da captura. `closeCached()` libera os arquivos.
-- **Ajustes.** O checkbox «Escolher trecho na captura da tela inteira» voltou ao cartão de
-  comportamento, ligado a `pick_text` (padrão `true`). Os radios de rubi/faixa já existiam e agora
-  têm efeito.
+
+**A captura é o framebuffer, não uma miniatura.** A janela do seletor usa os bounds AWT inteiros (a
+área da barra de tarefas incluída; a barra em si continua por cima, como sempre) e é posicionada e
+dimensionada com os valores AWT **diretos** em `.dp`: converter com `toDp()` aplicava a densidade
+duas vezes e encolhia a janela para 2/3 da tela num display a 150%. `ScreenCapture.captureScreen()` passou a usar
+`createMultiResolutionScreenCapture` e a pegar a variante **nativa** (1920×1080 num display de
+1280×720 a 150%); `createScreenCapture` devolvia a variante de usuário (1280×720), e desenhá-la
+sobre um canvas de 1920×1080 reamostrava — e borrava — cada glifo. O picker desenha 1:1 com
+`FilterQuality.None`, em janela opaca e sem véu; o overlay de recorte usa o mesmo enquadramento e
+também desenha 1:1, e o escurecimento só aparece **depois** de o usuário arrastar (fora da
+seleção), como retorno visual.
 
 A geometria ficou fora do Compose, em `PickerBoxes.kt` (escala imagem↔canvas, folga presa à imagem,
 acerto pela **menor** caixa que contém o ponto — parágrafos e colunas se sobrepõem — e recorte nunca
 vazio) e `PickerReadings.kt` (`PickerRuby.spot` e `PickerLabels.place`), para ser testável sem tela.
 A janela em si é `SegmentPickerWindow.kt`.
 
-Testes: **69 no total**, com 22 novos — `PickerBoxesTest` (9) e `PickerReadingsTest` (13). As cinco
-regras que mais doem foram conferidas por mutação, cada uma falhando e voltando a passar ao restaurar:
+Testes: **74 no total**, com 27 novos — `PickerBoxesTest` (9), `PickerReadingsTest` (13),
+`DesktopSettingsTest` (2) e `ScreenCaptureTest` (3). As oito regras que mais doem foram conferidas
+por mutação, cada uma falhando e voltando a passar ao restaurar:
 
 | mutação | teste que acusa |
 | --- | --- |
@@ -3747,12 +3758,19 @@ regras que mais doem foram conferidas por mutação, cada uma falhando e voltand
 | faixa aglomerada anda no eixo errado | `a crowded strip below its box steps sideways…` (e mais 2) |
 | rubi vertical limitado só pela largura | `a short run caps the reading by its height…` |
 | recorte sem o limite da borda direita | `padding never leaves the image` |
+| `region_hotkey` com o mesmo padrão da tela inteira | `full-screen capture and region crop have distinct shortcuts by default` |
+| `region_hotkey` lendo a chave `global_hotkey` | `the region shortcut is read from its own key` |
+| captura pedindo a resolução de usuário (sem escala) | `a display scaled at 150 percent asks for the native device size` |
 
 Ponta a ponta, com o app rodando: em RUBY as caixas cobriram todos os parágrafos e `にほんご` foi
 desenhado sobre `日本語`; um clique em (600, 300) abriu o resultado com `日本語を勉強します` e o
 cabeçalho do seletor. Em LABEL as faixas apareceram ao lado das caixas, presas à tela e sem se
-sobrepor. Com `pick_text=false`, o Insert voltou a abrir «Arraste para selecionar» e o arrasto
-reconheceu em 1141 ms pelo Google Lens.
+sobrepor. `Insert` abriu o picker cobrindo a tela inteira (1280×720) e `Ctrl + Shift + A` abriu
+«Arraste para selecionar». A comparação pixel a pixel antes/depois do picker deu **0 diferenças**
+em 25.200 px (página branca), 9.200 px (xadrez de 1 px), 16.000 px (fundo preto) e 22.500 px (área
+vazia). O xadrez de 1 px é o teste decisivo: antes da correção, 6.900 dos 9.200 pixels mudavam.
+A área do texto não entra na conta porque leva o rubi e o contorno das caixas por desenho, e a
+barra de tarefas fica acima da janela (o acrílico do Windows muda de tom conforme o que está atrás).
 
 Limitação conhecida: `ScreenCapture.captureScreen()` captura apenas o monitor principal; o hover já
 usa o monitor sob o ponteiro, mas o seletor ainda não.

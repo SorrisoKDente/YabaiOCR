@@ -6,7 +6,8 @@ import java.awt.event.MouseEvent
 import javax.swing.*
 
 class SystemTrayManager(
-    private val onCaptureRequested: () -> Unit,
+    private val onFullScreenCaptureRequested: () -> Unit,
+    private val onRegionCaptureRequested: () -> Unit,
     private val onQuickDictRequested: () -> Unit,
     private val onFullDictRequested: () -> Unit,
     private val onSettingsRequested: () -> Unit,
@@ -27,7 +28,7 @@ class SystemTrayManager(
 
         trayIcon = TrayIcon(bi, "Yabai OCR Desktop").apply {
             isImageAutoSize = true
-            addActionListener { onCaptureRequested() }
+            addActionListener { onFullScreenCaptureRequested() }
             addMouseListener(object : MouseAdapter() {
                 override fun mouseReleased(e: MouseEvent) {
                     if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3 || e.button == MouseEvent.BUTTON1) {
@@ -88,7 +89,9 @@ class SystemTrayManager(
                 return btn
             }
 
-            panel.add(createTrayButton("✂️  Capturar Tela (OCR)") { onCaptureRequested() })
+            panel.add(createTrayButton("🖥️  Capturar Tela Inteira (OCR)") { onFullScreenCaptureRequested() })
+            panel.add(Box.createRigidArea(Dimension(0, 2)))
+            panel.add(createTrayButton("✂️  Capturar Área (OCR)") { onRegionCaptureRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton("🔍  Busca Rápida de Dicionário") { onQuickDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))

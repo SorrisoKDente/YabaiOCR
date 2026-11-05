@@ -754,10 +754,11 @@ dicionário instalado», «Nenhum texto reconhecido perto do cursor» ou «Texto
 …». Os dicionários ficam na pasta escolhida em **Ajustes → Pasta de Dicionários** (a chave antiga
 `custom_dict_directory` continua sendo lida) e são abertos uma vez só, sob demanda.
 
-### Escolher o trecho na tela inteira
+### Capturar a tela inteira e escolher o trecho
 
-1. Aperte o atalho de captura (padrão **`Ctrl + Shift + O`**). Em vez de pedir um arrasto, o app
-   captura a tela e mostra o próprio screenshot com uma **caixa clicável sobre cada parágrafo**.
+1. Aperte o atalho da **tela inteira** (padrão **`Ctrl + Shift + O`**; se você já usava `Insert`,
+   é ele que continua valendo). Em vez de pedir um arrasto, o app captura a tela e mostra o próprio
+   screenshot com uma **caixa clicável sobre cada parágrafo**.
 2. Clique no trecho que quer ler. A janela de resultado abre com o texto daquele parágrafo já
    reconhecido — o clique é o recorte —, com a imagem do bloco e os verbetes dos dicionários.
 3. **Esc**, clique direito, «✕ Cancelar» ou fechar a janela desistem da captura. «✂️ Recortar à mão»
@@ -770,8 +771,14 @@ dicionário instalado», «Nenhum texto reconhecido perto do cursor» ou «Texto
    - «Faixa indicativa legível» — uma faixa com a frase reconhecida aparece ao lado de cada caixa,
      presa à tela e desviada das outras faixas;
    - «Desativado» — só as caixas, sem leituras.
-5. Para voltar ao recorte à mão sempre, desmarque **Ajustes → Comportamento do OCR e resultado →
-   «Escolher trecho na captura da tela inteira»**. A opção vem marcada por padrão.
+5. O **recorte à mão** é uma ação separada, não uma preferência escondida: use o atalho próprio
+   (padrão **`Ctrl + Shift + A`**) ou **«✂️ Capturar Área (OCR)»** no menu da bandeja. O item
+   «🖥️ Capturar Tela Inteira (OCR)» e o clique esquerdo no ícone abrem o seletor de parágrafos.
+
+A captura aparece nas **cores e na resolução reais**: a imagem vem do framebuffer em resolução
+nativa, a janela usa a tela inteira como moldura (a área da barra de tarefas incluída; a barra em si
+continua por cima, como sempre) e o desenho é 1:1 — sem véu escurecendo nem reamostragem. No recorte
+à mão o escurecimento só aparece **depois** de você arrastar, para destacar a seleção.
 
 O seletor captura o **monitor principal**; o modo hover continua escolhendo o monitor sob o ponteiro.
 
@@ -779,7 +786,8 @@ O seletor captura o **monitor principal**; o modo hover continua escolhendo o mo
 
 | Atalho | Ação |
 | --- | --- |
-| `Ctrl + Shift + O` (padrão) | Capturar a tela e escolher o trecho (ou a área, sem o seletor) |
+| `Ctrl + Shift + O` (padrão) | Capturar a tela inteira e escolher o trecho |
+| `Ctrl + Shift + A` (padrão) | Capturar uma área com arrasto (recorte à mão) |
 | `Ctrl + Shift + D` (padrão) | Abrir a busca rápida de dicionário |
 | `Ctrl + Shift + H` (padrão) | Ligar/desligar o modo hover |
 
@@ -793,11 +801,12 @@ gradlew :desktop:test
 ```
 
 Cobrem o que pode ser quebrado sem tela: casamento dos atalhos (incluindo o fato de os códigos
-`VC_*` do JNativeHook não serem os do AWT), debounce do hover, carência antes de fechar o cartão,
-recorte/HiDPI/multimonitor, escolha da palavra sob o ponteiro, a leitura da pasta de dicionários
-(inclusive a chave antiga) e a geometria do seletor de tela inteira (escala das caixas, acerto pela
-menor caixa, folga presa à imagem, posição do rubi e das faixas). A verificação ponta a ponta — Lens
-de verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
+`VC_*` do JNativeHook não serem os do AWT e de a tela inteira e o recorte terem chaves e padrões
+distintos), o tamanho nativo pedido à captura em HiDPI, debounce do hover, carência antes de fechar
+o cartão, recorte/HiDPI/multimonitor, escolha da palavra sob o ponteiro, a leitura da pasta de
+dicionários (inclusive a chave antiga) e a geometria do seletor de tela inteira (escala das caixas,
+acerto pela menor caixa, folga presa à imagem, posição do rubi e das faixas). A verificação ponta a
+ponta — Lens de verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
 
 ---
 

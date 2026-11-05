@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.input.key.*
@@ -25,12 +26,14 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.lens.EncodedImage
 import dev.yabai.ocr.core.lens.LensClient
@@ -87,6 +90,7 @@ sealed interface PickerScan {
 @Composable
 fun SegmentPickerWindow(
     screenImage: BufferedImage,
+    screenBounds: Rectangle,
     readingMode: DesktopPickerReadingMode,
     dictionaryFilter: String,
     engineProvider: () -> LookupEngine?,
@@ -109,14 +113,28 @@ fun SegmentPickerWindow(
         }
     }
 
+    // The window uses the whole screen rectangle — the same one that was captured — instead of the
+    // work area. Maximizing to the work area would leave the taskbar out and squeeze the image,
+    // resampling every glyph. Window bounds are AWT units, so they are used as they are: converting
+    // them to dp first shrank the picker to two thirds of the screen on a scaled display. (Windows
+    // keeps the taskbar itself on top, so that strip shows the real taskbar.)
+    val windowState = rememberWindowState(
+        placement = WindowPlacement.Floating,
+        position = WindowPosition.Absolute(
+            x = screenBounds.x.dp,
+            y = screenBounds.y.dp,
+        ),
+        size = DpSize(screenBounds.width.dp, screenBounds.height.dp),
+    )
+
     Window(
         onCloseRequest = onDismiss,
         title = "Yabai OCR - Escolher trecho",
         undecorated = true,
         alwaysOnTop = true,
         focusable = true,
-        transparent = true,
-        state = WindowState(placement = WindowPlacement.Maximized),
+        resizable = false,
+        state = windowState,
         onKeyEvent = { keyEvent ->
             if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.Escape) {
                 onDismiss()
@@ -194,8 +212,8 @@ fun SegmentPickerWindow(
                 drawImage(
                     image = imageBitmap,
                     dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                    filterQuality = FilterQuality.None,
                 )
-                drawRect(Color.Black.copy(alpha = 0.45f))
 
                 val ready = scan as? PickerScan.Ready
                 val blocks = ready?.blocks.orEmpty()
