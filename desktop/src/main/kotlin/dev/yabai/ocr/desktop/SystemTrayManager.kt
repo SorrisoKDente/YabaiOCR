@@ -32,7 +32,10 @@ class SystemTrayManager(
             addMouseListener(object : MouseAdapter() {
                 override fun mouseReleased(e: MouseEvent) {
                     if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3 || e.button == MouseEvent.BUTTON1) {
-                        showCustomTrayMenu(e.x, e.y)
+                        // TrayIcon mouse coordinates are icon-relative on Windows; the pointer is
+                        // what the user sees, and it is already in screen coordinates.
+                        val anchor = MouseInfo.getPointerInfo()?.location ?: Point(e.x, e.y)
+                        showCustomTrayMenu(anchor)
                     }
                 }
             })
@@ -45,7 +48,7 @@ class SystemTrayManager(
         }
     }
 
-    private fun showCustomTrayMenu(x: Int, y: Int) {
+    private fun showCustomTrayMenu(anchor: Point) {
         SwingUtilities.invokeLater {
             val popup = JPopupMenu().apply {
                 background = Color(0x12, 0x14, 0x1A)
@@ -121,29 +124,25 @@ class SystemTrayManager(
             val winWidth = popSize.width
             val winHeight = popSize.height
 
-            // Calculate screen bounds
-            val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
-            val gc = ge.defaultScreenDevice.defaultConfiguration
+            // Work area of the monitor under the cursor, taskbar excluded.
+            val gc = screenConfigurationAt(anchor)
             val screenBounds = gc.bounds
             val insets = Toolkit.getDefaultToolkit().getScreenInsets(gc)
+            val workArea = Rectangle(
+                screenBounds.x + insets.left,
+                screenBounds.y + insets.top,
+                screenBounds.width - insets.left - insets.right,
+                screenBounds.height - insets.top - insets.bottom,
+            )
 
-            val maxX = screenBounds.x + screenBounds.width - insets.right
-            val maxY = screenBounds.y + screenBounds.height - insets.bottom
-
-            // Position menu
-            var posX = if (x - winWidth >= screenBounds.x + insets.left) x - winWidth else x
-            var posY = y - winHeight
-
-            // Keep inside screen limits
-            posX = posX.coerceIn(screenBounds.x + insets.left + 4, maxX - winWidth - 4)
-            posY = posY.coerceIn(screenBounds.y + insets.top + 4, maxY - winHeight - 4)
+            val position = placeTrayMenu(anchor, winWidth, winHeight, workArea)
 
             // Temporary dark invisible invoker dialog
             val invoker = JDialog().apply {
                 isUndecorated = true
                 isAlwaysOnTop = true
                 setSize(1, 1)
-                location = Point(posX, posY)
+                location = position
                 contentPane.background = Color(0x12, 0x14, 0x1A)
                 background = Color(0x12, 0x14, 0x1A)
                 isVisible = true
@@ -161,6 +160,18 @@ class SystemTrayManager(
 
             popup.show(invoker, 0, 0)
         }
+    }
+
+    /**
+     * The monitor under [point], so a tray menu on a secondary taskbar stays on that monitor.
+     * Falls back to the default screen when the point is outside every device.
+     */
+    private fun screenConfigurationAt(point: Point): GraphicsConfiguration {
+        val environment = GraphicsEnvironment.getLocalGraphicsEnvironment()
+        return environment.screenDevices
+            .firstOrNull { it.defaultConfiguration.bounds.contains(point) }
+            ?.defaultConfiguration
+            ?: environment.defaultScreenDevice.defaultConfiguration
     }
 
     /** Updates the tooltip of the tray icon, which is the only always-visible hover feedback. */
