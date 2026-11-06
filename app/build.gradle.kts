@@ -59,7 +59,16 @@ android {
     testOptions {
         // The overlay layouts are built in code and measured in Robolectric tests, which need the
         // real resources (strings, colours, themes) to resolve.
-        unitTests.isIncludeAndroidResources = true
+        unitTests {
+            isIncludeAndroidResources = true
+            all {
+                it.maxHeapSize = "2048m"
+                // Robolectric generates lambda classes with ASM while inflating animated widgets.
+                // The default worker stack runs out on the full suite and surfaces as a bogus
+                // StackOverflowError in an unrelated test.
+                it.jvmArgs("-Xss4m")
+            }
+        }
     }
 
     packaging {

@@ -108,6 +108,7 @@ class DictionaryActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppSettings(this).applyTheme(this)
         setContentView(buildContent())
         // WorkManager keeps the schedule across restarts; this only creates it if it went missing
         // (first run after the update, or after the app data was restored).
@@ -162,7 +163,7 @@ class DictionaryActivity : AppCompatActivity() {
         column.addView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+                background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
                 setPadding(dp(14), dp(12), dp(14), dp(12))
                 addView(
                     CheckBox(this@DictionaryActivity).apply {
@@ -213,7 +214,7 @@ class DictionaryActivity : AppCompatActivity() {
         column.addView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+                background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
                 setPadding(dp(14), dp(12), dp(14), dp(14))
                 addView(
                     textLabel(
@@ -239,7 +240,7 @@ class DictionaryActivity : AppCompatActivity() {
         column.addView(sectionHeader("Créditos e Licenças"))
         creditsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
             setPadding(dp(14), dp(12), dp(14), dp(12))
             visibility = View.GONE
         }
@@ -310,7 +311,7 @@ class DictionaryActivity : AppCompatActivity() {
         updatesContainer.removeAllViews()
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
             setPadding(dp(14), dp(12), dp(14), dp(12))
         }
 
@@ -458,7 +459,7 @@ class DictionaryActivity : AppCompatActivity() {
     private fun installedRow(item: InstalledDictionary, index: Int, total: Int): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
             setPadding(dp(14), dp(12), dp(14), dp(10))
         }
 
@@ -586,7 +587,7 @@ class DictionaryActivity : AppCompatActivity() {
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
             setPadding(dp(14), dp(12), dp(14), dp(12))
         }
         card.addView(textLabel(getString(R.string.dictionary_kanji_title), 16f, getColor(R.color.text_primary), bold = true))
@@ -720,7 +721,7 @@ class DictionaryActivity : AppCompatActivity() {
         val installed = repository.installed().any { it.id == entry.id }
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = roundedBackground(0x14FFFFFF, dp(12).toFloat(), 0x22FFFFFF)
+            background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
             setPadding(dp(14), dp(12), dp(14), dp(12))
         }
 

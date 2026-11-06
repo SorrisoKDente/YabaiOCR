@@ -98,9 +98,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
         settings = AppSettings(this)
+        settings.applyTheme(this)
+
+        setContentView(R.layout.activity_main)
 
         // WorkManager persists the periodic check, but a force-stop clears it; opening the app is
         // the moment to put it back without resetting the period (R43).
@@ -125,6 +126,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, HelpActivity::class.java))
         }
 
+        bindThemeSelector()
         bindEngineSelector()
         bindBehaviourSwitches()
         bindTranslationAndDictionaries()
@@ -149,6 +151,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     // --- settings wiring -----------------------------------------------------------------------
+
+    private fun bindThemeSelector() {
+        val btnThemeToggle = findViewById<Button>(R.id.btnThemeToggle)
+        val themeGroup = findViewById<RadioGroup>(R.id.themeGroup)
+
+        fun updateUi() {
+            btnThemeToggle.text = when (settings.appTheme) {
+                AppThemeChoice.DARK -> "🌙 Escuro"
+                AppThemeChoice.LIGHT -> "☀️ Claro"
+                AppThemeChoice.SYSTEM -> "💻 Sistema"
+            }
+            val checkedId = when (settings.appTheme) {
+                AppThemeChoice.DARK -> R.id.themeDark
+                AppThemeChoice.LIGHT -> R.id.themeLight
+                AppThemeChoice.SYSTEM -> R.id.themeSystem
+            }
+            if (themeGroup.checkedRadioButtonId != checkedId) {
+                themeGroup.check(checkedId)
+            }
+        }
+
+        updateUi()
+
+        btnThemeToggle.setOnClickListener {
+            val nextTheme = when (settings.appTheme) {
+                AppThemeChoice.DARK -> AppThemeChoice.LIGHT
+                AppThemeChoice.LIGHT -> AppThemeChoice.SYSTEM
+                AppThemeChoice.SYSTEM -> AppThemeChoice.DARK
+            }
+            if (settings.appTheme != nextTheme) {
+                settings.appTheme = nextTheme
+                updateUi()
+            }
+        }
+
+        themeGroup.setOnCheckedChangeListener { _, id ->
+            val newTheme = when (id) {
+                R.id.themeLight -> AppThemeChoice.LIGHT
+                R.id.themeSystem -> AppThemeChoice.SYSTEM
+                else -> AppThemeChoice.DARK
+            }
+            if (settings.appTheme != newTheme) {
+                settings.appTheme = newTheme
+                updateUi()
+            }
+        }
+    }
 
     private fun bindEngineSelector() {
         val group = findViewById<RadioGroup>(R.id.engineGroup)

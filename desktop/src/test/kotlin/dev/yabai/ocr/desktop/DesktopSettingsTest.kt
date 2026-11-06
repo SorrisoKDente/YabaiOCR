@@ -81,4 +81,18 @@ class DesktopSettingsTest {
         assertEquals("Insert", settings.globalHotkey)
         assertEquals("Ctrl + Alt + R", settings.regionHotkey)
     }
+
+    @Test
+    fun `darkTheme defaults to true and persists changes`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertTrue(settings.darkTheme)
+
+        settings.darkTheme = false
+        assertFalse(DesktopSettings(file).darkTheme)
+
+        settings.darkTheme = true
+        assertTrue(DesktopSettings(file).darkTheme)
+    }
 }

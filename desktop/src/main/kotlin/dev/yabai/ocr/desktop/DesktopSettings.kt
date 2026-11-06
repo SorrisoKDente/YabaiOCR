@@ -81,6 +81,10 @@ class DesktopSettings(
         get() = props.getProperty("show_segments", "false").toBoolean()
         set(value) { props.setProperty("show_segments", value.toString()); save() }
 
+    var darkTheme: Boolean
+        get() = props.getProperty("dark_theme", "true").toBoolean()
+        set(value) { props.setProperty("dark_theme", value.toString()); save() }
+
     var upscaleSmall: Boolean
         get() = props.getProperty("upscale_small", "true").toBoolean()
         set(value) { props.setProperty("upscale_small", value.toString()); save() }

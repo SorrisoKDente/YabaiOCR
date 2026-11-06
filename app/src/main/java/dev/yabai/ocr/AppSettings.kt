@@ -1,12 +1,15 @@
 package dev.yabai.ocr
 
 import android.content.Context
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.edit
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.core.dict.DictionaryQuery
 import dev.yabai.ocr.overlay.PickerReadingMode
 
 enum class EngineChoice { AUTO, LENS, MLKIT }
+enum class AppThemeChoice { SYSTEM, LIGHT, DARK }
 
 /**
  * How often the app asks the publishers whether an installed dictionary changed (R43).
@@ -25,8 +28,8 @@ enum class UpdateInterval(val days: Long) {
 /** Everything the floating service and the main screen share. */
 class AppSettings(context: Context) {
 
-    private val prefs = context.applicationContext
-        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     var engine: EngineChoice
         get() = when (prefs.getString(KEY_ENGINE, null)) {
@@ -256,6 +259,37 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_AI_PACKAGE, "") ?: ""
         set(value) = prefs.edit { putString(KEY_AI_PACKAGE, value) }
 
+    var appTheme: AppThemeChoice
+        get() = when (prefs.getString(KEY_APP_THEME, null)) {
+            AppThemeChoice.LIGHT.name -> AppThemeChoice.LIGHT
+            AppThemeChoice.SYSTEM.name -> AppThemeChoice.SYSTEM
+            else -> AppThemeChoice.DARK
+        }
+        set(value) {
+            prefs.edit(commit = true) { putString(KEY_APP_THEME, value.name) }
+            applyTheme()
+        }
+
+    fun applyTheme(@Suppress("UNUSED_PARAMETER") activity: AppCompatActivity? = null) {
+        val mode = when (appTheme) {
+            AppThemeChoice.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            AppThemeChoice.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+            AppThemeChoice.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        AppCompatDelegate.setDefaultNightMode(mode)
+        val nightMask = when (appTheme) {
+            AppThemeChoice.LIGHT -> android.content.res.Configuration.UI_MODE_NIGHT_NO
+            AppThemeChoice.DARK -> android.content.res.Configuration.UI_MODE_NIGHT_YES
+            AppThemeChoice.SYSTEM -> android.content.res.Configuration.UI_MODE_NIGHT_UNDEFINED
+        }
+        if (nightMask != android.content.res.Configuration.UI_MODE_NIGHT_UNDEFINED) {
+            val config = appContext.resources.configuration
+            config.uiMode = (config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or nightMask
+            @Suppress("DEPRECATION")
+            appContext.resources.updateConfiguration(config, appContext.resources.displayMetrics)
+        }
+    }
+
     companion object {
         const val PREFS_NAME = "yabai_ocr_settings"
 
@@ -283,6 +317,7 @@ class AppSettings(context: Context) {
         const val DEFAULT_MAX_DIMENSION = 1600
 
         private const val KEY_ENGINE = "engine"
+        private const val KEY_APP_THEME = "app_theme"
         private const val KEY_AUTO_COPY = "auto_copy"
         private const val KEY_SHOW_SEGMENTS = "show_segments"
         private const val KEY_PICK_TEXT = "pick_text"

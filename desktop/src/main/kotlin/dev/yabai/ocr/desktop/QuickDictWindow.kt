@@ -95,30 +95,22 @@ fun QuickDictWindow(onClose: () -> Unit) {
             window.iconImage = AppIconGenerator.createWindowImage(64)
         }
 
-        MaterialTheme(
-            colors = darkColors(
-                background = Color(0xFF12141A),
-                surface = Color(0xFF1B1E28),
-                primary = Color(0xFF4C78FF),
-                onPrimary = Color.White,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-        ) {
-            Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF12141A)) {
+        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
+            val palette = yabaiPalette()
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Busca Rápida", style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                        Text("Busca Rápida", style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
 
                         var expandedFilter by remember { mutableStateOf(false) }
                         Box {
                             OutlinedButton(
                                 onClick = { expandedFilter = true },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                             ) {
                                 Text(if (selectedFilter.isBlank()) "🌐 Todos" else "📖 $selectedFilter", fontSize = 10.sp)
                             }
@@ -158,9 +150,9 @@ fun QuickDictWindow(onClose: () -> Unit) {
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             colors = TextFieldDefaults.outlinedTextFieldColors(
-                                textColor = Color.White,
+                                textColor = MaterialTheme.colors.onSurface,
                                 focusedBorderColor = MaterialTheme.colors.primary,
-                                unfocusedBorderColor = Color(0xFF2E3344)
+                                unfocusedBorderColor = palette.fieldBorder
                             )
                         )
 
@@ -168,8 +160,8 @@ fun QuickDictWindow(onClose: () -> Unit) {
                             Button(
                                 onClick = { query = "" },
                                 colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = Color(0xFF2E3344),
-                                    contentColor = Color.White
+                                    backgroundColor = palette.field,
+                                    contentColor = MaterialTheme.colors.onSurface
                                 )
                             ) {
                                 Text("❌ Apagar", fontSize = 11.sp)
@@ -186,8 +178,8 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = Color(0xFF2E3344),
-                                    contentColor = Color.White
+                                    backgroundColor = palette.field,
+                                    contentColor = MaterialTheme.colors.onSurface
                                 )
                             ) {
                                 Text("📋 Colar", fontSize = 11.sp)
@@ -204,13 +196,13 @@ fun QuickDictWindow(onClose: () -> Unit) {
                             suggestions.take(4).forEach { suggestion ->
                                 Surface(
                                     modifier = Modifier.clickable { query = suggestion },
-                                    color = Color(0xFF232736),
+                                    color = palette.chip,
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Text(
                                         text = suggestion,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                        style = MaterialTheme.typography.caption.copy(color = Color(0xFF81D4FA))
+                                        style = MaterialTheme.typography.caption.copy(color = palette.info)
                                     )
                                 }
                             }
@@ -234,7 +226,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                 items(results) { match ->
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
-                                        backgroundColor = Color(0xFF1B1E28),
+                                        backgroundColor = MaterialTheme.colors.surface,
                                         elevation = 0.dp
                                     ) {
                                         Column(modifier = Modifier.padding(10.dp)) {
@@ -245,13 +237,13 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                             ) {
                                                 Text(
                                                     text = "${match.entry.term}  【${match.entry.reading}】",
-                                                    style = MaterialTheme.typography.subtitle1.copy(color = Color.White)
+                                                    style = MaterialTheme.typography.subtitle1.copy(color = MaterialTheme.colors.onSurface)
                                                 )
                                                 if (match.dictionaryTitle.isNotBlank()) {
                                                     Text(
                                                         text = match.dictionaryTitle,
                                                         style = MaterialTheme.typography.caption,
-                                                        color = Color(0xFFA0A6B8)
+                                                        color = MaterialTheme.colors.secondary
                                                     )
                                                 }
                                             }
@@ -260,7 +252,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                                 Text(
                                                     text = match.entry.tags,
                                                     style = MaterialTheme.typography.caption,
-                                                    color = Color(0xFFE5A93C)
+                                                    color = palette.warning
                                                 )
                                             }
 
@@ -269,7 +261,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                             Text(
                                                 text = match.entry.definition,
                                                 style = MaterialTheme.typography.body2,
-                                                color = Color.White
+                                                color = MaterialTheme.colors.onSurface
                                             )
                                         }
                                     }

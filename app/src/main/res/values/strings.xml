@@ -7,8 +7,14 @@
 
     <string name="section_permissions">1. Permissões</string>
     <string name="section_shortcuts">2. Atalhos rápidos</string>
-    <string name="section_engine">3. Motor de reconhecimento</string>
-    <string name="section_behaviour">4. Comportamento</string>
+    <string name="section_theme">3. Tema do Aplicativo</string>
+    <string name="section_engine">4. Motor de reconhecimento</string>
+    <string name="section_behaviour">5. Comportamento</string>
+
+    <string name="theme_dark">Escuro</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_system">Sistema</string>
+    <string name="theme_toggle_btn">Alternar Tema</string>
 
     <string name="permission_overlay">Sobrepor outros apps</string>
     <string name="permission_overlay_desc">Necessário para a bolha flutuante.</string>

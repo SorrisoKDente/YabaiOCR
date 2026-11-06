@@ -50,6 +50,7 @@ class LookupActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppSettings(this).applyTheme(this)
         // With the overlay permission the panel floats over the reader, exactly as the bubble's
         // dictionary does (R37). The activity only carries the word: it starts the service and gets
         // out of the way, so ReadEra is not replaced by a page of ours. It lives in a task of its

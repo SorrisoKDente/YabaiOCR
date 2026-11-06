@@ -40,7 +40,7 @@ fun DictionaryManagerContent(
     Column(modifier = Modifier.fillMaxSize()) {
         if (onBackRequested != null) {
             Surface(
-                color = Color(0xFF1B1E28),
+                color = MaterialTheme.colors.surface,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -50,8 +50,8 @@ fun DictionaryManagerContent(
                     Button(
                         onClick = onBackRequested,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF2E3344),
-                            contentColor = Color.White
+                            backgroundColor = yabaiPalette().field,
+                            contentColor = MaterialTheme.colors.onSurface
                         )
                     ) {
                         Text("◀ Voltar ao Menu Anterior", fontWeight = FontWeight.SemiBold)
@@ -60,7 +60,7 @@ fun DictionaryManagerContent(
                     Text(
                         text = "Gerenciador de Dicionários",
                         style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
+                        color = MaterialTheme.colors.onSurface
                     )
                 }
             }
@@ -69,7 +69,7 @@ fun DictionaryManagerContent(
         // --- Top Tabs ---
         TabRow(
             selectedTabIndex = selectedTab,
-            backgroundColor = Color(0xFF1B1E28),
+            backgroundColor = MaterialTheme.colors.surface,
             contentColor = MaterialTheme.colors.primary
         ) {
             Tab(
@@ -113,19 +113,10 @@ fun DictionaryManagerWindow(
             window.iconImage = AppIconGenerator.createWindowImage(64)
         }
 
-        MaterialTheme(
-            colors = darkColors(
-                background = Color(0xFF12141A),
-                surface = Color(0xFF1B1E28),
-                primary = Color(0xFF4C78FF),
-                onPrimary = Color.White,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-        ) {
+        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = Color(0xFF12141A)
+                color = MaterialTheme.colors.background
             ) {
                 DictionaryManagerContent(initialQuery = initialQuery)
             }
@@ -190,13 +181,13 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Pesquisar nos Dicionários", style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = Color.White)
+            Text("Pesquisar nos Dicionários", style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
 
             var expandedFilter by remember { mutableStateOf(false) }
             Box {
                 OutlinedButton(
                     onClick = { expandedFilter = true },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                 ) {
                     Text(if (selectedFilter.isBlank()) "🌐 Todos os Dicionários" else "📖 $selectedFilter", fontSize = 11.sp)
                 }
@@ -236,9 +227,9 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 colors = TextFieldDefaults.outlinedTextFieldColors(
-                    textColor = Color.White,
+                    textColor = MaterialTheme.colors.onSurface,
                     focusedBorderColor = MaterialTheme.colors.primary,
-                    unfocusedBorderColor = Color(0xFF2E3344)
+                    unfocusedBorderColor = yabaiPalette().fieldBorder
                 )
             )
 
@@ -246,8 +237,8 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                 Button(
                     onClick = { query = "" },
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF2E3344),
-                        contentColor = Color.White
+                        backgroundColor = yabaiPalette().field,
+                        contentColor = MaterialTheme.colors.onPrimary
                     )
                 ) {
                     Text("❌ Apagar", fontSize = 11.sp)
@@ -264,8 +255,8 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = Color(0xFF2E3344),
-                        contentColor = Color.White
+                        backgroundColor = yabaiPalette().field,
+                        contentColor = MaterialTheme.colors.onPrimary
                     )
                 ) {
                     Text("📋 Colar", fontSize = 11.sp)
@@ -282,13 +273,13 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                 suggestions.take(5).forEach { suggestion ->
                     Surface(
                         modifier = Modifier.clickable { query = suggestion },
-                        color = Color(0xFF232736),
+                        color = yabaiPalette().chip,
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = suggestion,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.caption.copy(color = Color(0xFF81D4FA))
+                            style = MaterialTheme.typography.caption.copy(color = yabaiPalette().info)
                         )
                     }
                 }
@@ -300,15 +291,15 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
         if (engine == null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF3A1C1C),
+                backgroundColor = yabaiPalette().dangerContainer,
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Nenhum dicionário disponível", style = MaterialTheme.typography.subtitle1, color = Color(0xFFFFB4AB))
+                    Text("Nenhum dicionário disponível", style = MaterialTheme.typography.subtitle1, color = yabaiPalette().danger)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         "Coloque arquivos de dicionário (.yabai) na pasta ${dictDir.absolutePath} para realizar consultas.",
-                        color = Color.White,
+                        color = MaterialTheme.colors.onSurface,
                         style = MaterialTheme.typography.body2
                     )
                 }
@@ -317,7 +308,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
             if (results.isEmpty() && query.isNotBlank()) {
                 Text(
                     text = "Nenhum resultado encontrado para 「$query」",
-                    color = Color(0xFFA0A6B8),
+                    color = MaterialTheme.colors.secondary,
                     style = MaterialTheme.typography.body1
                 )
             } else {
@@ -372,8 +363,8 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Dicionários Locais e Atualizações", style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                Text("Pasta de dados: ${dictDir.absolutePath}", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                Text("Dicionários Locais e Atualizações", style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
+                Text("Pasta de dados: ${dictDir.absolutePath}", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -458,7 +449,10 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         }
                     },
                     enabled = !checkingUpdates,
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344), contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = yabaiPalette().field,
+                        contentColor = MaterialTheme.colors.onSurface
+                    )
                 ) {
                     Text(if (checkingUpdates) "Verificando..." else "🔄 Verificar Atualizações")
                 }
@@ -485,7 +479,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                             refreshFiles()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary)
+                    colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
                 ) {
                     Text("➕ Importar")
                 }
@@ -495,7 +489,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         if (!dictDir.exists()) dictDir.mkdirs()
                         runCatching { Desktop.getDesktop().open(dictDir) }
                     },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                 ) {
                     Text("📁 Pasta")
                 }
@@ -507,12 +501,12 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
         if (checkMessage != null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF1B382B),
+                backgroundColor = yabaiPalette().successContainer,
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Status da Verificação", style = MaterialTheme.typography.subtitle2, color = Color(0xFF81C784))
-                    Text(checkMessage.orEmpty(), style = MaterialTheme.typography.caption, color = Color.White)
+                    Text("Status da Verificação", style = MaterialTheme.typography.subtitle2, color = yabaiPalette().success)
+                    Text(checkMessage.orEmpty(), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -521,12 +515,12 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
         if (updateError != null) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF3A1C1C),
+                backgroundColor = yabaiPalette().dangerContainer,
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Erro na Atualização", style = MaterialTheme.typography.subtitle2, color = Color(0xFFFFB4AB))
-                    Text(updateError.orEmpty(), style = MaterialTheme.typography.caption, color = Color.White)
+                    Text("Erro na Atualização", style = MaterialTheme.typography.subtitle2, color = yabaiPalette().danger)
+                    Text(updateError.orEmpty(), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -564,7 +558,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         }
                     }
                 },
-                colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("🔄 Atualizar Todos os Dicionários Disponíveis")
@@ -580,20 +574,20 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = Color(0xFF1B1E28),
+                        backgroundColor = MaterialTheme.colors.surface,
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
                             Text(
                                 "Nenhum dicionário instalado no momento.",
                                 style = MaterialTheme.typography.subtitle1,
-                                color = Color.White
+                                color = MaterialTheme.colors.onSurface
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 "Você pode importar arquivos .yabai ou .zip existentes usando o botão acima, ou navegar pela aba 'Catálogo de Downloads' para baixar os dicionários recomendados.",
                                 style = MaterialTheme.typography.body2,
-                                color = Color(0xFFA0A6B8)
+                                color = MaterialTheme.colors.secondary
                             )
                         }
                     }
@@ -614,7 +608,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = Color(0xFF1B1E28),
+                        backgroundColor = MaterialTheme.colors.surface,
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -624,7 +618,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(title, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                    Text(title, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
                                     Spacer(modifier = Modifier.height(2.dp))
                                     val revStr = if (revision.isNotBlank()) " • Atual: $revision" else ""
                                     val remoteRev = remoteRevisionMap[file.name]
@@ -636,7 +630,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                     Text(
                                         "Arquivo: ${file.name} • Tamanho: $sizeMb$revStr$updateText",
                                         style = MaterialTheme.typography.caption,
-                                        color = if (updateText.isNotBlank()) Color(0xFF81C784) else Color(0xFFA0A6B8)
+                                        color = if (updateText.isNotBlank()) yabaiPalette().success else MaterialTheme.colors.secondary
                                     )
                                 }
 
@@ -652,7 +646,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                         },
                                         colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colors.primary)
                                     )
-                                    Text(if (isDisabled) "Desativado" else "Ativo", style = MaterialTheme.typography.caption, color = if (isDisabled) Color(0xFFFFB4AB) else Color(0xFF81C784))
+                                    Text(if (isDisabled) "Desativado" else "Ativo", style = MaterialTheme.typography.caption, color = if (isDisabled) yabaiPalette().danger else yabaiPalette().success)
 
                                     Spacer(modifier = Modifier.width(4.dp))
 
@@ -668,7 +662,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             },
                                             modifier = Modifier.size(32.dp),
                                             contentPadding = PaddingValues(0.dp),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                                         ) {
                                             Text("▲", fontSize = 10.sp)
                                         }
@@ -684,7 +678,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             },
                                             modifier = Modifier.size(32.dp),
                                             contentPadding = PaddingValues(0.dp),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                                         ) {
                                             Text("▼", fontSize = 10.sp)
                                         }
@@ -719,7 +713,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                                 }
                                             },
                                             enabled = !isUpdating,
-                                            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary, contentColor = Color.White)
+                                            colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
                                         ) {
                                             Text(if (isUpdating) "Atualizando..." else "🔄 Atualizar")
                                         }
@@ -733,7 +727,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             file.deleteRecursively()
                                             refreshFiles()
                                         },
-                                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A1C1C), contentColor = Color(0xFFFFB4AB))
+                                        colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().dangerContainer, contentColor = yabaiPalette().danger)
                                     ) {
                                         Text("Remover")
                                     }
@@ -749,7 +743,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                         color = MaterialTheme.colors.primary
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    Text(updateProgressText, style = MaterialTheme.typography.caption, color = Color.White)
+                                    Text(updateProgressText, style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                                 }
                             }
                         }
@@ -791,13 +785,13 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
             Text(
                 "Dicionários Recomendados",
                 style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
-                color = Color.White
+                color = MaterialTheme.colors.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 "Baixe e instale dicionários diretamente no aplicativo sem sair. Eles serão salvos e ativados na pasta de dados: ${dictDir.absolutePath}",
                 style = MaterialTheme.typography.body2,
-                color = Color(0xFFA0A6B8)
+                color = MaterialTheme.colors.secondary
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -806,12 +800,12 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF3A1C1C),
+                    backgroundColor = yabaiPalette().dangerContainer,
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Erro no Download", style = MaterialTheme.typography.subtitle2, color = Color(0xFFFFB4AB))
-                        Text(downloadError.orEmpty(), style = MaterialTheme.typography.caption, color = Color.White)
+                        Text("Erro no Download", style = MaterialTheme.typography.subtitle2, color = yabaiPalette().danger)
+                        Text(downloadError.orEmpty(), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                     }
                 }
             }
@@ -823,7 +817,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                backgroundColor = Color(0xFF1B1E28),
+                backgroundColor = MaterialTheme.colors.surface,
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -833,28 +827,28 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(entry.name, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                            Text(entry.name, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
-                                color = Color(0xFF2E3344),
+                                color = yabaiPalette().chip,
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
                                     text = entry.language.uppercase(),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     fontSize = 10.sp,
-                                    color = Color(0xFF5D84FF)
+                                    color = yabaiPalette().chipText
                                 )
                             }
                         }
 
-                        Text(entry.sizeLabel, style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                        Text(entry.sizeLabel, style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(entry.description, style = MaterialTheme.typography.body2, color = Color(0xFFA0A6B8))
+                    Text(entry.description, style = MaterialTheme.typography.body2, color = MaterialTheme.colors.secondary)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Fonte: ${entry.attribution}", style = MaterialTheme.typography.caption, color = Color(0xFF70778B))
+                    Text("Fonte: ${entry.attribution}", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
 
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -866,18 +860,18 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                                 color = MaterialTheme.colors.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(downloadProgressText, style = MaterialTheme.typography.caption, color = Color.White)
+                            Text(downloadProgressText, style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                         }
                     } else if (isInstalled) {
                         Surface(
-                            color = Color(0xFF1B382B),
+                            color = yabaiPalette().successContainer,
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 text = "✓ Instalado",
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                 style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
-                                color = Color(0xFF81C784)
+                                color = yabaiPalette().success
                             )
                         }
                     } else {
@@ -903,7 +897,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary, contentColor = Color.White)
+                            colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
                         ) {
                             Text("⬇️ Baixar e Instalar no App")
                         }
@@ -1005,7 +999,7 @@ private fun DictionarySearchCard(match: TokenMatch) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = Color(0xFF1B1E28),
+        backgroundColor = MaterialTheme.colors.surface,
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -1018,14 +1012,14 @@ private fun DictionarySearchCard(match: TokenMatch) {
                     Text(
                         text = entry.term,
                         style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
+                        color = MaterialTheme.colors.onSurface
                     )
                     if (entry.reading.isNotBlank() && entry.reading != entry.term) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "【${entry.reading}】",
                             style = MaterialTheme.typography.body1,
-                            color = Color(0xFF5D84FF)
+                            color = yabaiPalette().chipText
                         )
                     }
                 }
@@ -1033,14 +1027,14 @@ private fun DictionarySearchCard(match: TokenMatch) {
                     Text(
                         text = match.dictionaryTitle,
                         style = MaterialTheme.typography.caption,
-                        color = Color(0xFFA0A6B8)
+                        color = MaterialTheme.colors.secondary
                     )
                 }
             }
 
             if (entry.tags.isNotBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(entry.tags, style = MaterialTheme.typography.caption, color = Color(0xFFE5A93C))
+                Text(entry.tags, style = MaterialTheme.typography.caption, color = yabaiPalette().warning)
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -1048,7 +1042,7 @@ private fun DictionarySearchCard(match: TokenMatch) {
             Text(
                 text = entry.definition,
                 style = MaterialTheme.typography.body2.copy(lineHeight = 18.sp),
-                color = Color.White
+                color = MaterialTheme.colors.onSurface
             )
         }
     }
@@ -1060,7 +1054,7 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = Color(0xFF1B1E28),
+        backgroundColor = MaterialTheme.colors.surface,
         shape = RoundedCornerShape(10.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1074,7 +1068,7 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
                 Text(
                     text = if (expanded) "▾ Ocultar créditos legais e licenças dos dicionários" else "▸ Ver créditos legais e licenças dos dicionários",
                     style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
-                    color = Color(0xFF5D84FF)
+                    color = yabaiPalette().chipText
                 )
             }
 
@@ -1084,7 +1078,7 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
                     Text(
                         "Nenhum dicionário instalado para exibir créditos e licenças.",
                         style = MaterialTheme.typography.body2,
-                        color = Color(0xFFA0A6B8)
+                        color = MaterialTheme.colors.secondary
                     )
                 } else {
                     installedFiles.forEach { file ->
@@ -1099,23 +1093,23 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
                         val kanjiCount = info?.kanjiCount ?: 0
 
                         Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                            Text("• $title", style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                            Text("• $title", style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
                             if (!author.isNullOrBlank()) {
-                                Text("  Autor / Origem: $author", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                                Text("  Autor / Origem: $author", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
                             if (!description.isNullOrBlank()) {
-                                Text("  Descrição: $description", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                                Text("  Descrição: $description", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
-                            Text("  Atribuição / Licença: $attribution", style = MaterialTheme.typography.caption, color = Color(0xFF81C784))
+                            Text("  Atribuição / Licença: $attribution", style = MaterialTheme.typography.caption, color = yabaiPalette().success)
                             if (!revision.isNullOrBlank()) {
-                                Text("  Revisão / Versão: $revision", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                                Text("  Revisão / Versão: $revision", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
                             if (termCount > 0 || kanjiCount > 0) {
                                 val countStr = buildList {
                                     if (termCount > 0) add("$termCount termos")
                                     if (kanjiCount > 0) add("$kanjiCount kanjis")
                                 }.joinToString(" • ")
-                                Text("  Entradas: $countStr", style = MaterialTheme.typography.caption, color = Color(0xFFA0A6B8))
+                                Text("  Entradas: $countStr", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -1127,7 +1121,7 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
                 Text(
                     "Termos gerais: Os dados de vocabulário e kanjis derivam de projetos abertos como JMdict, KANJIDIC, Wikcionário e Jitendex sob licença Creative Commons (CC BY-SA).",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFF70778B)
+                    color = MaterialTheme.colors.secondary
                 )
             }
         }

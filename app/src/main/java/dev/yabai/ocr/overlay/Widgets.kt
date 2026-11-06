@@ -7,6 +7,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.TextView
+import dev.yabai.ocr.R
 import dev.yabai.ocr.util.dp
 
 /** Rounded solid background. */
@@ -27,18 +28,22 @@ fun roundedBackground(color: Int, radiusDp: Float, strokeColor: Int? = null): Gr
 const val ACTION_BUTTON_TAG = "yabai.actionButton"
 
 /** The fill of a plain button, as opposed to one that is currently «on» and reads as pressed. */
-const val ACTION_BUTTON_BACKGROUND = 0x22FFFFFF
+val Context.actionButtonBackground: Int
+    get() = getColor(R.color.card_bg)
 
 /**
  * Plain TextView styled as a button.
  *
  * Deliberately not a MaterialButton: these views live in service-owned windows, and avoiding
  * Material widgets here means the overlay can never blow up on theme mismatch.
+ *
+ * The colours come from the theme resources, not from `Color.WHITE`: the panels follow the light
+ * and dark themes, so a fixed white label disappeared on the light background.
  */
 fun Context.actionButton(
     label: String,
-    textColor: Int = Color.WHITE,
-    background: Int = ACTION_BUTTON_BACKGROUND,
+    textColor: Int = getColor(R.color.text_primary),
+    background: Int = actionButtonBackground,
     onClick: (() -> Unit)? = null,
 ): TextView = TextView(this).apply {
     text = label
@@ -53,7 +58,7 @@ fun Context.actionButton(
     tag = ACTION_BUTTON_TAG
     // `setBackground` rather than the `background` property: the parameter of the same name wins
     // name resolution inside this lambda, which would silently assign an Int to a Drawable slot.
-    setBackground(roundedBackground(background, dp(12).toFloat()))
+    setBackground(roundedBackground(background, dp(12).toFloat(), getColor(R.color.card_stroke)))
     if (onClick != null) setOnClickListener { onClick() }
 }
 
@@ -76,8 +81,8 @@ fun Context.textLabel(
 
 fun View.actionButton(
     label: String,
-    textColor: Int = Color.WHITE,
-    background: Int = ACTION_BUTTON_BACKGROUND,
+    textColor: Int = context.getColor(R.color.text_primary),
+    background: Int = context.actionButtonBackground,
     onClick: (() -> Unit)? = null,
 ): TextView = context.actionButton(label, textColor, background, onClick)
 

@@ -141,16 +141,7 @@ fun ResultWindow(
             window.iconImage = AppIconGenerator.createWindowImage(64)
         }
 
-        MaterialTheme(
-            colors = darkColors(
-                background = Color(0xFF12141A),
-                surface = Color(0xFF1B1E28),
-                primary = Color(0xFF4C78FF),
-                onPrimary = Color.White,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-        ) {
+        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = Color(0xFF12141A)

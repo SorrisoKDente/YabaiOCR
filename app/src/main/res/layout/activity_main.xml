@@ -29,6 +29,15 @@
                 android:textStyle="bold" />
 
             <Button
+                android:id="@+id/btnThemeToggle"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="🌙 Escuro"
+                android:textColor="@color/text_primary" />
+
+            <Button
                 android:id="@+id/btnHelp"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
@@ -224,7 +233,56 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- 2. Engine -->
+        <!-- 3. Theme -->
+        <TextView
+            style="@style/SectionHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/section_theme" />
+
+        <RadioGroup
+            android:id="@+id/themeGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_panel"
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:saveEnabled="false">
+
+            <RadioButton
+                android:id="@+id/themeDark"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="🌙 Escuro"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/themeLight"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="☀️ Claro"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/themeSystem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="💻 Padrão do Sistema"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+        </RadioGroup>
+
+        <!-- 4. Engine -->
         <TextView
             style="@style/SectionHeader"
             android:layout_width="wrap_content"
@@ -239,7 +297,8 @@
             android:layout_marginTop="8dp"
             android:background="@drawable/bg_panel"
             android:orientation="vertical"
-            android:padding="8dp">
+            android:padding="8dp"
+            android:saveEnabled="false">
 
             <RadioButton
                 android:id="@+id/engineAuto"
@@ -383,7 +442,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:saveEnabled="false">
 
                 <RadioButton
                     android:id="@+id/readingOff"
@@ -494,7 +554,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="24dp"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:saveEnabled="false">
 
                 <RadioButton
                     android:id="@+id/translatePt"

@@ -35,7 +35,8 @@ import kotlin.math.roundToInt
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
 class DragToCloseTest {
 
-    private val context: Context get() = RuntimeEnvironment.getApplication()
+    private val context: Context
+        get() = android.view.ContextThemeWrapper(RuntimeEnvironment.getApplication(), R.style.Theme_YabaiOcr)
 
     /** Centred, inside the screen, and low enough to be the natural place to drop something. */
     @Test

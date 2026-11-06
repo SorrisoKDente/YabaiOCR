@@ -3,7 +3,6 @@ package dev.yabai.ocr.desktop
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
-import androidx.compose.material.darkColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +42,7 @@ fun main(args: Array<String>) = application {
     Window(onCloseRequest = {}, visible = false, title = "Yabai OCR Background") {}
 
     val settings = remember { DesktopSettings() }
+    var isDarkTheme by remember { mutableStateOf(settings.darkTheme) }
 
     var mainScreen by remember { mutableStateOf(MainScreen.SETTINGS) }
     var mainDictInitialQuery by remember { mutableStateOf("") }
@@ -280,19 +280,10 @@ fun main(args: Array<String>) = application {
                 window.iconImage = AppIconGenerator.createWindowImage(64)
             }
 
-            MaterialTheme(
-                colors = darkColors(
-                    background = Color(0xFF12141A),
-                    surface = Color(0xFF1B1E28),
-                    primary = Color(0xFF4C78FF),
-                    onPrimary = Color.White,
-                    onBackground = Color.White,
-                    onSurface = Color.White,
-                )
-            ) {
+            YabaiDesktopTheme(darkTheme = isDarkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF12141A),
+                    color = MaterialTheme.colors.background,
                 ) {
                     if (mainScreen == MainScreen.SETTINGS) {
                         SettingsContent(
@@ -300,6 +291,10 @@ fun main(args: Array<String>) = application {
                             hoverStatus = hoverState.status,
                             onHoverToggle = { applyHover(!hoverState.active) },
                             onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
+                            onThemeChanged = { isDark ->
+                                settings.darkTheme = isDark
+                                isDarkTheme = isDark
+                            },
                             onHotkeysChanged = { fullScreen, region, quickDict, hover, hoverCycle ->
                                 settings.globalHotkey = fullScreen
                                 settings.regionHotkey = region

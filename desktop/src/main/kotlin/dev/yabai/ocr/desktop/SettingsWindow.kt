@@ -31,6 +31,7 @@ fun SettingsContent(
     hoverStatus: String = "",
     onHoverToggle: () -> Unit = {},
     onHoverTest: () -> Unit = {},
+    onThemeChanged: (Boolean) -> Unit = {},
     onHotkeysChanged: (
         fullScreen: String,
         region: String,
@@ -40,6 +41,8 @@ fun SettingsContent(
     ) -> Unit = { _, _, _, _, _ -> },
 ) {
     val settings = remember { DesktopSettings() }
+    val palette = yabaiPalette()
+    var darkTheme by remember { mutableStateOf(settings.darkTheme) }
 
     var globalHotkey by remember { mutableStateOf(settings.globalHotkey) }
     var regionHotkey by remember { mutableStateOf(settings.regionHotkey) }
@@ -116,18 +119,81 @@ fun SettingsContent(
     ) {
         // --- Header ---
         item {
-            Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Yabai OCR Desktop",
+                        style = MaterialTheme.typography.h4.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colors.onBackground
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Leia japonês em qualquer aplicativo no seu PC — navegador, leitores de mangá, jogos ou PDFs. Capture a área da tela e obtenha leituras, dicionários e tradução instantânea.",
+                        style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
+                        color = MaterialTheme.colors.secondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Button(
+                    onClick = {
+                        val newDark = !darkTheme
+                        darkTheme = newDark
+                        settings.darkTheme = newDark
+                        onThemeChanged(newDark)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = palette.field,
+                        contentColor = MaterialTheme.colors.onSurface
+                    )
+                ) {
+                    Text(if (darkTheme) "🌙 Escuro" else "☀️ Claro", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // --- Aparência e Tema ---
+        item {
+            SettingCard(title = "Aparência e Tema") {
                 Text(
-                    text = "Yabai OCR Desktop",
-                    style = MaterialTheme.typography.h4.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White
+                    text = "Escolha o tema de exibição do aplicativo:",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Leia japonês em qualquer aplicativo no seu PC — navegador, leitores de mangá, jogos ou PDFs. Capture a área da tela e obtenha leituras, dicionários e tradução instantânea.",
-                    style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
-                    color = Color(0xFFA0A6B8)
-                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SettingRadioOption(
+                        selected = darkTheme,
+                        title = "Tema Escuro 🌙",
+                        description = "Ideal para leitura noturna e contraste alto em telas escuras.",
+                        onClick = {
+                            if (!darkTheme) {
+                                darkTheme = true
+                                settings.darkTheme = true
+                                onThemeChanged(true)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    SettingRadioOption(
+                        selected = !darkTheme,
+                        title = "Tema Claro ☀️",
+                        description = "Ideal para ambientes iluminados e documentos em fundo claro.",
+                        onClick = {
+                            if (darkTheme) {
+                                darkTheme = false
+                                settings.darkTheme = false
+                                onThemeChanged(false)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
@@ -138,7 +204,7 @@ fun SettingsContent(
                 Text(
                     text = "Atalho da Captura da Tela Inteira (OCR):",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -186,12 +252,12 @@ fun SettingsContent(
                                 } else false
                             }
                             .background(
-                                color = if (isCapturingHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                color = if (isCapturingHotkey) MaterialTheme.colors.primary.copy(alpha = 0.15f) else palette.field,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (isCapturingHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                color = if (isCapturingHotkey) MaterialTheme.colors.primary else palette.fieldBorder,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -199,7 +265,7 @@ fun SettingsContent(
                         Text(
                             text = if (isCapturingHotkey) "Pressione as teclas..." else "Atalho: $globalHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isCapturingHotkey) Color(0xFF81C784) else Color.White
+                            color = if (isCapturingHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
                     }
 
@@ -209,8 +275,8 @@ fun SettingsContent(
                             hotkeyFocusRequester.requestFocus()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (isCapturingHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
-                            contentColor = Color.White
+                            backgroundColor = if (isCapturingHotkey) palette.field else palette.button,
+                            contentColor = if (isCapturingHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
                         Text(if (isCapturingHotkey) "Aguardando..." else "Capturar")
@@ -223,7 +289,7 @@ fun SettingsContent(
                             isCapturingHotkey = false
                             notifyHotkeysChanged()
                         },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text("Padrão")
                     }
@@ -235,7 +301,7 @@ fun SettingsContent(
                 Text(
                     text = "Atalho do Recorte de Área (OCR):",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -283,12 +349,12 @@ fun SettingsContent(
                                 } else false
                             }
                             .background(
-                                color = if (isCapturingRegionHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                color = if (isCapturingRegionHotkey) MaterialTheme.colors.primary.copy(alpha = 0.15f) else palette.field,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (isCapturingRegionHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                color = if (isCapturingRegionHotkey) MaterialTheme.colors.primary else palette.fieldBorder,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -296,7 +362,7 @@ fun SettingsContent(
                         Text(
                             text = if (isCapturingRegionHotkey) "Pressione as teclas..." else "Atalho: $regionHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isCapturingRegionHotkey) Color(0xFF81C784) else Color.White
+                            color = if (isCapturingRegionHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
                     }
 
@@ -306,8 +372,8 @@ fun SettingsContent(
                             regionHotkeyFocusRequester.requestFocus()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (isCapturingRegionHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
-                            contentColor = Color.White
+                            backgroundColor = if (isCapturingRegionHotkey) palette.field else palette.button,
+                            contentColor = if (isCapturingRegionHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
                         Text(if (isCapturingRegionHotkey) "Aguardando..." else "Capturar")
@@ -320,7 +386,7 @@ fun SettingsContent(
                             isCapturingRegionHotkey = false
                             notifyHotkeysChanged()
                         },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text("Padrão")
                     }
@@ -332,7 +398,7 @@ fun SettingsContent(
                 Text(
                     text = "Atalho de Busca Rápida de Dicionário:",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -380,12 +446,12 @@ fun SettingsContent(
                                 } else false
                             }
                             .background(
-                                color = if (isCapturingQuickDictHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                color = if (isCapturingQuickDictHotkey) MaterialTheme.colors.primary.copy(alpha = 0.15f) else palette.field,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (isCapturingQuickDictHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                color = if (isCapturingQuickDictHotkey) MaterialTheme.colors.primary else palette.fieldBorder,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -393,7 +459,7 @@ fun SettingsContent(
                         Text(
                             text = if (isCapturingQuickDictHotkey) "Pressione as teclas..." else "Atalho: $quickDictHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isCapturingQuickDictHotkey) Color(0xFF81C784) else Color.White
+                            color = if (isCapturingQuickDictHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
                     }
 
@@ -403,8 +469,8 @@ fun SettingsContent(
                             quickDictFocusRequester.requestFocus()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (isCapturingQuickDictHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
-                            contentColor = Color.White
+                            backgroundColor = if (isCapturingQuickDictHotkey) palette.field else palette.button,
+                            contentColor = if (isCapturingQuickDictHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
                         Text(if (isCapturingQuickDictHotkey) "Aguardando..." else "Capturar")
@@ -417,7 +483,7 @@ fun SettingsContent(
                             isCapturingQuickDictHotkey = false
                             notifyHotkeysChanged()
                         },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text("Padrão")
                     }
@@ -429,7 +495,7 @@ fun SettingsContent(
                 Text(
                     text = "Atalho de Ligar/Desligar Modo Hover:",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -477,12 +543,12 @@ fun SettingsContent(
                                 } else false
                             }
                             .background(
-                                color = if (isCapturingHoverHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                color = if (isCapturingHoverHotkey) MaterialTheme.colors.primary.copy(alpha = 0.15f) else palette.field,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (isCapturingHoverHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                color = if (isCapturingHoverHotkey) MaterialTheme.colors.primary else palette.fieldBorder,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -490,7 +556,7 @@ fun SettingsContent(
                         Text(
                             text = if (isCapturingHoverHotkey) "Pressione as teclas..." else "Atalho: $hoverHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isCapturingHoverHotkey) Color(0xFF81C784) else Color.White
+                            color = if (isCapturingHoverHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
                     }
 
@@ -500,8 +566,8 @@ fun SettingsContent(
                             hoverHotkeyFocusRequester.requestFocus()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (isCapturingHoverHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
-                            contentColor = Color.White
+                            backgroundColor = if (isCapturingHoverHotkey) palette.field else palette.button,
+                            contentColor = if (isCapturingHoverHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
                         Text(if (isCapturingHoverHotkey) "Aguardando..." else "Capturar")
@@ -514,7 +580,7 @@ fun SettingsContent(
                             isCapturingHoverHotkey = false
                             notifyHotkeysChanged()
                         },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text("Padrão")
                     }
@@ -526,7 +592,7 @@ fun SettingsContent(
                 Text(
                     text = "Atalho para Alternar Dicionário no Hover:",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -574,12 +640,12 @@ fun SettingsContent(
                                 } else false
                             }
                             .background(
-                                color = if (isCapturingHoverCycleHotkey) Color(0xFF2B3A60) else Color(0xFF141620),
+                                color = if (isCapturingHoverCycleHotkey) MaterialTheme.colors.primary.copy(alpha = 0.15f) else palette.field,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (isCapturingHoverCycleHotkey) MaterialTheme.colors.primary else Color(0xFF2E3344),
+                                color = if (isCapturingHoverCycleHotkey) MaterialTheme.colors.primary else palette.fieldBorder,
                                 shape = RoundedCornerShape(8.dp)
                             )
                             .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -587,7 +653,7 @@ fun SettingsContent(
                         Text(
                             text = if (isCapturingHoverCycleHotkey) "Pressione as teclas..." else "Atalho: $hoverCycleHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (isCapturingHoverCycleHotkey) Color(0xFF81C784) else Color.White
+                            color = if (isCapturingHoverCycleHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
                     }
 
@@ -597,8 +663,8 @@ fun SettingsContent(
                             hoverCycleHotkeyFocusRequester.requestFocus()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (isCapturingHoverCycleHotkey) Color(0xFF2E3344) else MaterialTheme.colors.primary,
-                            contentColor = Color.White
+                            backgroundColor = if (isCapturingHoverCycleHotkey) palette.field else palette.button,
+                            contentColor = if (isCapturingHoverCycleHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
                         Text(if (isCapturingHoverCycleHotkey) "Aguardando..." else "Capturar")
@@ -611,7 +677,7 @@ fun SettingsContent(
                             isCapturingHoverCycleHotkey = false
                             notifyHotkeysChanged()
                         },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text("Padrão")
                     }
@@ -649,14 +715,14 @@ fun SettingsContent(
                             "⚪ Inativo — ative para traduzir só passando o mouse."
                         },
                         style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
-                        color = if (hoverActive) Color(0xFF81C784) else Color(0xFFA0A6B8)
+                        color = if (hoverActive) palette.success else MaterialTheme.colors.secondary
                     )
 
                     Button(
                         onClick = onHoverToggle,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (hoverActive) Color(0xFF7A2E2E) else MaterialTheme.colors.primary,
-                            contentColor = Color.White
+                            backgroundColor = if (hoverActive) palette.dangerContainer else palette.button,
+                            contentColor = if (hoverActive) palette.danger else MaterialTheme.colors.onPrimary
                         )
                     ) {
                         Text(if (hoverActive) "Desativar" else "Ativar")
@@ -667,7 +733,7 @@ fun SettingsContent(
                 Text(
                     text = "Dicionário Padrão do Modo Hover:",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -676,7 +742,7 @@ fun SettingsContent(
                     OutlinedButton(
                         onClick = { expandedHoverDictFilter = true },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text(if (hoverDictionaryFilter.isBlank()) "🌐 Todos os Dicionários (Padrão)" else "📖 $hoverDictionaryFilter")
                     }
@@ -710,14 +776,14 @@ fun SettingsContent(
                         "o cartão com leitura e definição aparece ao lado do cursor. Mover o mouse para fora " +
                         "fecha o cartão.",
                     style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Atalho para ligar/desligar: $hoverHotkey • Alternar dicionário: $hoverCycleHotkey",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFF81D4FA)
+                    color = palette.info
                 )
 
                 if (hoverStatus.isNotBlank()) {
@@ -725,7 +791,7 @@ fun SettingsContent(
                     Text(
                         text = "Status: $hoverStatus",
                         style = MaterialTheme.typography.caption,
-                        color = Color(0xFFE5A93C)
+                        color = palette.warning
                     )
                 }
 
@@ -733,7 +799,7 @@ fun SettingsContent(
                 OutlinedButton(
                     onClick = onHoverTest,
                     enabled = hoverActive,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                 ) {
                     Text("Testar no cursor atual")
                 }
@@ -746,7 +812,7 @@ fun SettingsContent(
                 Text(
                     text = "Escolha como o texto em japonês será reconhecido da imagem.",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -849,7 +915,7 @@ fun SettingsContent(
                 Text(
                     text = "Leituras dos kanjis no seletor da página:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colors.onSurface
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -902,12 +968,12 @@ fun SettingsContent(
                 Text(
                     text = "Dicionário Padrão de Filtro:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colors.onSurface
                 )
                 Text(
                     text = "Selecione um dicionário específico para limitar as buscas ou escolha 'Todos'.",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -916,7 +982,7 @@ fun SettingsContent(
                     OutlinedButton(
                         onClick = { expandedFilter = true },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text(if (dictionaryFilter.isBlank()) "🌐 Todos os Dicionários" else "📖 $dictionaryFilter")
                     }
@@ -947,19 +1013,19 @@ fun SettingsContent(
                 Text(
                     text = "Localização da Pasta de Dicionários:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colors.onSurface
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Column(
                     modifier = Modifier.fillMaxWidth()
-                        .background(Color(0xFF141620), RoundedCornerShape(8.dp))
+                        .background(palette.field, RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
                     Text(
                         text = customDictDir,
                         style = MaterialTheme.typography.body2,
-                        color = Color.White
+                        color = MaterialTheme.colors.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -976,7 +1042,7 @@ fun SettingsContent(
                                     customDictDir = selected.absolutePath
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(backgroundColor = MaterialTheme.colors.primary)
+                            colors = ButtonDefaults.buttonColors(backgroundColor = palette.button, contentColor = palette.onButton)
                         ) {
                             Text("Alterar Pasta...")
                         }
@@ -987,7 +1053,7 @@ fun SettingsContent(
                                 settings.customDictDirectoryPath = defaultDir
                                 customDictDir = defaultDir
                             },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                         ) {
                             Text("Restaurar Padrão")
                         }
@@ -997,7 +1063,7 @@ fun SettingsContent(
                 Spacer(modifier = Modifier.height(10.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = Color(0xFF141620),
+                    backgroundColor = palette.field,
                     shape = RoundedCornerShape(8.dp),
                     elevation = 0.dp
                 ) {
@@ -1012,12 +1078,12 @@ fun SettingsContent(
                                 else
                                     "$installedDictCount dicionário(s) encontrado(s) na pasta atual",
                                 style = MaterialTheme.typography.body2,
-                                color = if (installedDictCount == 0) Color(0xFFFFB4AB) else Color.White
+                                color = if (installedDictCount == 0) palette.danger else MaterialTheme.colors.onSurface
                             )
                             Text(
                                 text = "Arquivos .yabai ou subpastas de dicionário.",
                                 style = MaterialTheme.typography.caption,
-                                color = Color(0xFFA0A6B8)
+                                color = MaterialTheme.colors.secondary
                             )
                         }
                         if (onManageDictionariesRequested != null) {
@@ -1025,8 +1091,8 @@ fun SettingsContent(
                             Button(
                                 onClick = onManageDictionariesRequested,
                                 colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = Color(0xFF2E3344),
-                                    contentColor = Color.White
+                                    backgroundColor = palette.field,
+                                    contentColor = MaterialTheme.colors.onSurface
                                 )
                             ) {
                                 Text("Gerenciar")
@@ -1059,7 +1125,7 @@ fun SettingsContent(
                 Text(
                     text = "Verificação de atualizações dos dicionários:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colors.onSurface
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -1083,11 +1149,11 @@ fun SettingsContent(
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 backgroundColor = if (isSelected) MaterialTheme.colors.primary.copy(alpha = 0.2f) else Color.Transparent,
-                                contentColor = if (isSelected) MaterialTheme.colors.primary else Color(0xFFA0A6B8)
+                                contentColor = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.secondary
                             ),
                             border = ButtonDefaults.outlinedBorder.copy(
                                 brush = androidx.compose.ui.graphics.SolidColor(
-                                    if (isSelected) MaterialTheme.colors.primary else Color(0xFF2E3344)
+                                    if (isSelected) MaterialTheme.colors.primary else palette.fieldBorder
                                 )
                             )
                         ) {
@@ -1115,7 +1181,7 @@ fun SettingsContent(
                 Text(
                     text = "Idioma de destino da tradução:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colors.onSurface
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -1162,7 +1228,7 @@ fun SettingsContent(
                 Text(
                     text = "Provedor / Serviço de IA:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colors.onSurface
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -1228,9 +1294,9 @@ fun SettingsContent(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = TextFieldDefaults.outlinedTextFieldColors(
-                            textColor = Color.White,
+                            textColor = MaterialTheme.colors.onSurface,
                             focusedBorderColor = MaterialTheme.colors.primary,
-                            unfocusedBorderColor = Color(0xFF2E3344)
+                            unfocusedBorderColor = palette.fieldBorder
                         )
                     )
                 }
@@ -1239,12 +1305,12 @@ fun SettingsContent(
                 Text(
                     text = "Prompt / Pergunta inicial enviada à IA:",
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = Color.White
+                    color = MaterialTheme.colors.onSurface
                 )
                 Text(
                     text = "A instrução colocada antes do texto em japonês recortado.",
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -1257,9 +1323,9 @@ fun SettingsContent(
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3,
                     colors = TextFieldDefaults.outlinedTextFieldColors(
-                        textColor = Color.White,
+                        textColor = MaterialTheme.colors.onSurface,
                         focusedBorderColor = MaterialTheme.colors.primary,
-                        unfocusedBorderColor = Color(0xFF2E3344)
+                        unfocusedBorderColor = palette.fieldBorder
                     )
                 )
             }
@@ -1281,19 +1347,10 @@ fun SettingsWindow(
             window.iconImage = AppIconGenerator.createWindowImage(64)
         }
 
-        MaterialTheme(
-            colors = darkColors(
-                background = Color(0xFF12141A),
-                surface = Color(0xFF1B1E28),
-                primary = Color(0xFF4C78FF),
-                onPrimary = Color.White,
-                onBackground = Color.White,
-                onSurface = Color.White
-            )
-        ) {
+        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
-                color = Color(0xFF12141A)
+                color = MaterialTheme.colors.background
             ) {
                 SettingsContent(onManageDictionariesRequested = onManageDictionariesRequested)
             }
@@ -1308,9 +1365,9 @@ private fun SettingCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        backgroundColor = Color(0xFF1B1E28),
+        backgroundColor = MaterialTheme.colors.surface,
         shape = RoundedCornerShape(12.dp),
-        elevation = 0.dp
+        elevation = if (MaterialTheme.colors.isLight) 1.dp else 0.dp
     ) {
         Column(
             modifier = Modifier.padding(18.dp)
@@ -1321,7 +1378,7 @@ private fun SettingCard(
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp
                 ),
-                color = Color(0xFF5D84FF)
+                color = if (MaterialTheme.colors.isLight) Color(0xFF2B4FC4) else Color(0xFF5D84FF)
             )
             Spacer(modifier = Modifier.height(12.dp))
             content()
@@ -1348,7 +1405,7 @@ private fun SettingCheckboxItem(
             onCheckedChange = onCheckedChange,
             colors = CheckboxDefaults.colors(
                 checkedColor = MaterialTheme.colors.primary,
-                uncheckedColor = Color(0xFF43485A)
+                uncheckedColor = if (MaterialTheme.colors.isLight) Color(0xFFB0B5C0) else Color(0xFF43485A)
             )
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -1356,14 +1413,14 @@ private fun SettingCheckboxItem(
             Text(
                 text = title,
                 style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Medium),
-                color = Color.White
+                color = MaterialTheme.colors.onSurface
             )
             if (description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = description,
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
             }
         }
@@ -1390,7 +1447,7 @@ private fun SettingRadioOption(
             onClick = onClick,
             colors = RadioButtonDefaults.colors(
                 selectedColor = MaterialTheme.colors.primary,
-                unselectedColor = Color(0xFF43485A)
+                unselectedColor = if (MaterialTheme.colors.isLight) Color(0xFFB0B5C0) else Color(0xFF43485A)
             )
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -1398,14 +1455,14 @@ private fun SettingRadioOption(
             Text(
                 text = title,
                 style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Medium),
-                color = Color.White
+                color = MaterialTheme.colors.onSurface
             )
             if (description.isNotBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = description,
                     style = MaterialTheme.typography.caption,
-                    color = Color(0xFFA0A6B8)
+                    color = MaterialTheme.colors.secondary
                 )
             }
         }

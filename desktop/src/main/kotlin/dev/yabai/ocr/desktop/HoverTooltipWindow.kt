@@ -21,7 +21,6 @@ import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
-import androidx.compose.material.darkColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -97,16 +96,7 @@ fun HoverTooltipWindow(
             }
         }
 
-        MaterialTheme(
-            colors = darkColors(
-                background = Color(0xFF1B1E28),
-                surface = Color(0xFF1B1E28),
-                primary = Color(0xFF4C78FF),
-                onPrimary = Color.White,
-                onBackground = Color.White,
-                onSurface = Color.White,
-            )
-        ) {
+        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
             Surface(
                 modifier = Modifier.fillMaxWidth().wrapContentHeight(),
                 color = Color(0xFF1B1E28),

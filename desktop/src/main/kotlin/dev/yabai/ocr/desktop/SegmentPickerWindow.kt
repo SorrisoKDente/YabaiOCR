@@ -150,16 +150,7 @@ fun SegmentPickerWindow(
 
         // Without a theme the window would inherit Material's light defaults: the toolbar button
         // came out white with white text.
-        MaterialTheme(
-            colors = darkColors(
-                background = Color(0xFF12141A),
-                surface = Color(0xFF1B1E28),
-                primary = Color(0xFF4C78FF),
-                onPrimary = Color.White,
-                onBackground = Color.White,
-                onSurface = Color.White,
-            )
-        ) {
+        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

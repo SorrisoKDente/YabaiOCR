@@ -8,6 +8,7 @@ class HelpActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppSettings(this).applyTheme(this)
         setContentView(R.layout.activity_help)
 
         findViewById<ImageButton>(R.id.btnBack).setOnClickListener {

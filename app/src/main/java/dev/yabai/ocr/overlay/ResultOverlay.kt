@@ -1326,7 +1326,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     private fun dictionaryChip(label: String, chosen: Boolean, onClick: () -> Unit): TextView =
         context.actionButton(
             label,
-            background = if (chosen) context.getColor(R.color.accent_dark) else ACTION_BUTTON_BACKGROUND,
+            background = if (chosen) context.getColor(R.color.accent_dark) else context.actionButtonBackground,
             onClick = onClick,
         ).apply {
             maxLines = 1
@@ -1550,7 +1550,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     }
 
     private fun imageButtonBackground(): Int =
-        if (imageShown) context.getColor(R.color.accent_dark) else ACTION_BUTTON_BACKGROUND
+        if (imageShown) context.getColor(R.color.accent_dark) else context.actionButtonBackground
 
     // --- folding -------------------------------------------------------------------------------
 
