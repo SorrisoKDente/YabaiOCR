@@ -39,16 +39,39 @@ compose.desktop {
     application {
         mainClass = "dev.yabai.ocr.desktop.MainKt"
         nativeDistributions {
+            outputBaseDir.set(layout.buildDirectory.dir("distributions"))
+            appResourcesRootDir.set(project.file("package/windows"))
             targetFormats(
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
             )
-            packageName = "yabai_ocr"
+            packageName = "Yabai OCR"
             packageVersion = "1.0.0"
             windows {
                 iconFile.set(project.file("src/main/resources/ic_scan_windows.ico"))
+                shortcut = false
+                menu = true
+                dirChooser = true
+                upgradeUuid = "d7b93a8e-4f12-4c2a-9e81-2a6b4d3f5e01"
             }
         }
     }
 }
+
+tasks.register<Exec>("packageInnoSetup") {
+    dependsOn("createDistributable")
+    group = "compose desktop"
+    description = "Packs the desktop app into an Inno Setup installer with optional desktop shortcut and launch on finish checkboxes."
+
+    val userHome = System.getProperty("user.home")
+    val isccPath = listOf(
+        "$userHome\\AppData\\Local\\Programs\\Inno Setup 6\\ISCC.exe",
+        "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe",
+        "C:\\Program Files\\Inno Setup 6\\ISCC.exe"
+    ).firstOrNull { File(it).exists() } ?: "iscc"
+
+    workingDir = project.file("package/windows")
+    commandLine = listOf(isccPath, "installer.iss")
+}
+
+
