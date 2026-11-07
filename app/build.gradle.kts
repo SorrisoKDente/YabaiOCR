@@ -41,6 +41,15 @@ android {
         }
     }
 
+    androidComponents {
+        onVariants { variant ->
+            val apkName = if (variant.name == "debug") "Yabai OCR-debug.apk" else "Yabai OCR.apk"
+            variant.outputs.forEach { output ->
+                (output as com.android.build.api.variant.impl.VariantOutputImpl).outputFileName.set(apkName)
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -120,16 +129,21 @@ dependencies {
     testImplementation(libs.androidx.work.testing)
 }
 
-tasks.register<Copy>("renameReleaseApk") {
-    dependsOn("assembleRelease")
-    from("build/outputs/apk/release/app-release.apk")
+val renameReleaseApk = tasks.register<Copy>("renameReleaseApk") {
+    from("build/outputs/apk/release/Yabai OCR.apk")
     into(rootProject.file("apk-output"))
-    rename { "Yabai OCR.apk" }
 }
 
-tasks.register<Copy>("renameDebugApk") {
-    dependsOn("assembleDebug")
-    from("build/outputs/apk/debug/app-debug.apk")
+val renameDebugApk = tasks.register<Copy>("renameDebugApk") {
+    from("build/outputs/apk/debug/Yabai OCR-debug.apk")
     into(rootProject.file("apk-output"))
-    rename { "Yabai OCR-debug.apk" }
+}
+
+afterEvaluate {
+    tasks.named("assembleRelease") {
+        finalizedBy(renameReleaseApk)
+    }
+    tasks.named("assembleDebug") {
+        finalizedBy(renameDebugApk)
+    }
 }
