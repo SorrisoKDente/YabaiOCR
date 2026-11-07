@@ -74,4 +74,14 @@ tasks.register<Exec>("packageInnoSetup") {
     commandLine = listOf(isccPath, "installer.iss")
 }
 
+tasks.register<Zip>("packagePortableZip") {
+    dependsOn("createDistributable")
+    group = "compose desktop"
+    description = "Compresses the standalone portable application folder into a zip archive."
+
+    archiveFileName.set("Yabai_OCR_Portable_1.0.0.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions/portable"))
+    from(layout.buildDirectory.dir("distributions/main/app/Yabai OCR"))
+}
+
 
