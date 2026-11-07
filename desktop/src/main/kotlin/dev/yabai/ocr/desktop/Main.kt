@@ -19,6 +19,8 @@ import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.yabai.ocr.core.dict.TokenMatch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.image.BufferedImage
@@ -152,8 +154,8 @@ fun main(args: Array<String>) = application {
     }
 
     // Setup System Tray (Steam-like behavior)
-    DisposableEffect(Unit) {
-        val trayManager = SystemTrayManager(
+    val trayManager = remember {
+        SystemTrayManager(
             onFullScreenCaptureRequested = {
                 startFullScreenCapture()
             },
@@ -182,6 +184,9 @@ fun main(args: Array<String>) = application {
                 exitApplication()
             },
         )
+    }
+
+    DisposableEffect(Unit) {
         trayManager.setup()
         onDispose {
             trayManager.remove()
@@ -280,6 +285,21 @@ fun main(args: Array<String>) = application {
                 window.iconImage = AppIconGenerator.createWindowImage(64)
                 if (settings.startOnBoot) {
                     StartupManager.setStartOnBoot(true)
+                }
+                withContext(Dispatchers.IO) {
+                    // 1. Check for Desktop App updates on GitHub
+                    val appUpdate = DesktopAppUpdateChecker.checkForAppUpdate()
+                    if (appUpdate?.hasUpdate == true) {
+                        trayManager.setStatus("✨ Nova versão v${appUpdate.latestVersion} disponível!")
+                    }
+
+                    // 2. Periodic background check for dictionary updates
+                    if (DesktopDictionaryUpdateChecker.shouldCheck(settings)) {
+                        val dictResult = DesktopDictionaryUpdateChecker.checkUpdates(settings)
+                        if (dictResult.updatesAvailableCount > 0) {
+                            trayManager.setStatus("📚 ${dictResult.updatesAvailableCount} atualização(ões) de dicionário disponível(is)")
+                        }
+                    }
                 }
             }
 

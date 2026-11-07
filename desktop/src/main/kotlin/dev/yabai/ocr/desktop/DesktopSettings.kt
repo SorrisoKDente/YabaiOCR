@@ -139,6 +139,10 @@ class DesktopSettings(
         }
         set(value) { props.setProperty("dictionary_update_interval", value.name); save() }
 
+    var lastDictUpdateCheck: Long
+        get() = props.getProperty("last_dict_update_check", "0").toLongOrNull() ?: 0L
+        set(value) { props.setProperty("last_dict_update_check", value.toString()); save() }
+
     var customDictDirectoryPath: String
         get() = props.getProperty("custom_dict_dir")
             ?: props.getProperty("custom_dict_directory")

@@ -119,3 +119,17 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.work.testing)
 }
+
+tasks.register<Copy>("renameReleaseApk") {
+    dependsOn("assembleRelease")
+    from("build/outputs/apk/release/app-release.apk")
+    into(rootProject.file("apk-output"))
+    rename { "Yabai OCR.apk" }
+}
+
+tasks.register<Copy>("renameDebugApk") {
+    dependsOn("assembleDebug")
+    from("build/outputs/apk/debug/app-debug.apk")
+    into(rootProject.file("apk-output"))
+    rename { "Yabai OCR-debug.apk" }
+}
