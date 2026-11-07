@@ -278,6 +278,9 @@ fun main(args: Array<String>) = application {
             LaunchedEffect(Unit) {
                 window.isAutoRequestFocus = false
                 window.iconImage = AppIconGenerator.createWindowImage(64)
+                if (settings.startOnBoot) {
+                    StartupManager.setStartOnBoot(true)
+                }
             }
 
             YabaiDesktopTheme(darkTheme = isDarkTheme) {

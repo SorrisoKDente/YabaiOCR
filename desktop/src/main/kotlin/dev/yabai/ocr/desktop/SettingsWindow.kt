@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.core.dict.CompactDictionary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.swing.JFileChooser
 
@@ -1328,6 +1332,108 @@ fun SettingsContent(
                         unfocusedBorderColor = palette.fieldBorder
                     )
                 )
+            }
+        }
+
+        // --- 7. Sobre e Atualizações do Aplicativo ---
+        item {
+            var isCheckingUpdate by remember { mutableStateOf(false) }
+            var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
+            var updateStatusText by remember { mutableStateOf<String?>(null) }
+            val coroutineScope = rememberCoroutineScope()
+
+            SettingCard(title = "Sobre o Yabai OCR e Atualizações do Aplicativo") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Versão Instalada: v${DesktopAppUpdateChecker.getCurrentVersion()}",
+                            style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colors.onSurface
+                        )
+                        Text(
+                            text = "Yabai OCR Desktop — Leitor OCR de Japonês com Dicionários Offline",
+                            style = MaterialTheme.typography.caption,
+                            color = MaterialTheme.colors.secondary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Button(
+                        enabled = !isCheckingUpdate,
+                        onClick = {
+                            isCheckingUpdate = true
+                            updateStatusText = "Verificando lançamentos no GitHub..."
+                            coroutineScope.launch(Dispatchers.IO) {
+                                val info = DesktopAppUpdateChecker.checkForAppUpdate()
+                                withContext(Dispatchers.Main) {
+                                    isCheckingUpdate = false
+                                    updateInfo = info
+                                    if (info == null) {
+                                        updateStatusText = "Não foi possível conectar ao GitHub para verificar atualizações."
+                                    } else if (!info.hasUpdate) {
+                                        updateStatusText = "Você já está usando a versão mais recente (${info.currentVersion})."
+                                    } else {
+                                        updateStatusText = null
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = MaterialTheme.colors.primary,
+                            contentColor = MaterialTheme.colors.onPrimary
+                        )
+                    ) {
+                        Text(if (isCheckingUpdate) "Verificando..." else "🔄 Verificar Atualizações")
+                    }
+                }
+
+                if (updateInfo?.hasUpdate == true) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        backgroundColor = palette.success.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, palette.success),
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = 0.dp
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "✨ Nova versão do aplicativo disponível: v${updateInfo?.latestVersion}",
+                                style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold),
+                                color = palette.success
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Uma versão mais recente do Yabai OCR foi lançada no GitHub.",
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    runCatching {
+                                        java.awt.Desktop.getDesktop().browse(java.net.URI(updateInfo?.releaseUrl ?: "https://github.com/SorrisoKDente/yabai_ocr/releases/latest"))
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
+                            ) {
+                                Text("🌐 Baixar Atualização no GitHub")
+                            }
+                        }
+                    }
+                } else if (updateStatusText != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = updateStatusText.orEmpty(),
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.secondary
+                    )
+                }
             }
         }
     }
