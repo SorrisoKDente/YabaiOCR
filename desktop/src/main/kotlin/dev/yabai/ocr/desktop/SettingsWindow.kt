@@ -30,6 +30,7 @@ import javax.swing.JFileChooser
 
 @Composable
 fun SettingsContent(
+    settings: DesktopSettings = remember { DesktopSettings() },
     onManageDictionariesRequested: (() -> Unit)? = null,
     hoverActive: Boolean = false,
     hoverStatus: String = "",
@@ -44,7 +45,6 @@ fun SettingsContent(
         hoverCycle: String,
     ) -> Unit = { _, _, _, _, _ -> },
 ) {
-    val settings = remember { DesktopSettings() }
     val palette = yabaiPalette()
     var darkTheme by remember { mutableStateOf(settings.darkTheme) }
 
@@ -73,6 +73,7 @@ fun SettingsContent(
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
+    var closeToTray by remember { mutableStateOf(settings.closeToTray) }
     var showSegments by remember { mutableStateOf(settings.showSegments) }
     var upscaleSmall by remember { mutableStateOf(settings.upscaleSmall) }
     var showImage by remember { mutableStateOf(settings.showImage) }
@@ -689,9 +690,9 @@ fun SettingsContent(
             }
         }
 
-        // --- Inicialização do Sistema ---
+        // --- Inicialização e Comportamento do Sistema ---
         item {
-            SettingCard(title = "Inicialização do Sistema") {
+            SettingCard(title = "Inicialização e Comportamento da Janela") {
                 SettingCheckboxItem(
                     checked = startOnBoot,
                     title = "Iniciar na bandeja ao ligar o computador",
@@ -699,6 +700,18 @@ fun SettingsContent(
                     onCheckedChange = {
                         startOnBoot = it
                         settings.startOnBoot = it
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                SettingCheckboxItem(
+                    checked = closeToTray,
+                    title = "Manter na bandeja ao fechar a janela",
+                    description = "Ao fechar a janela principal, o programa continua rodando em segundo plano na bandeja para responder aos atalhos de teclado. Se desativado, o aplicativo será encerrado por completo.",
+                    onCheckedChange = {
+                        closeToTray = it
+                        settings.closeToTray = it
                     }
                 )
             }

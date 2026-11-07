@@ -95,4 +95,18 @@ class DesktopSettingsTest {
         settings.darkTheme = true
         assertTrue(DesktopSettings(file).darkTheme)
     }
+
+    @Test
+    fun `closeToTray defaults to true and persists changes`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertTrue(settings.closeToTray)
+
+        settings.closeToTray = false
+        assertFalse(DesktopSettings(file).closeToTray)
+
+        settings.closeToTray = true
+        assertTrue(DesktopSettings(file).closeToTray)
+    }
 }

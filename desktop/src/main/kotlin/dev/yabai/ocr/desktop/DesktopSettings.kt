@@ -77,6 +77,10 @@ class DesktopSettings(
             StartupManager.setStartOnBoot(value)
         }
 
+    var closeToTray: Boolean
+        get() = props.getProperty("close_to_tray", "true").toBoolean()
+        set(value) { props.setProperty("close_to_tray", value.toString()); save() }
+
     var showSegments: Boolean
         get() = props.getProperty("show_segments", "false").toBoolean()
         set(value) { props.setProperty("show_segments", value.toString()); save() }

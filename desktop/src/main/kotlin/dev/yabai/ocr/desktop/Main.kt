@@ -276,7 +276,13 @@ fun main(args: Array<String>) = application {
             "Yabai OCR - Gerenciador de Dicionários"
         }
         Window(
-            onCloseRequest = { showMainWindow = false },
+            onCloseRequest = {
+                if (settings.closeToTray) {
+                    showMainWindow = false
+                } else {
+                    exitApplication()
+                }
+            },
             title = title,
             state = windowState,
         ) {
@@ -310,6 +316,7 @@ fun main(args: Array<String>) = application {
                 ) {
                     if (mainScreen == MainScreen.SETTINGS) {
                         SettingsContent(
+                            settings = settings,
                             hoverActive = hoverState.active,
                             hoverStatus = hoverState.status,
                             onHoverToggle = { applyHover(!hoverState.active) },

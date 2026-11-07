@@ -14,3 +14,19 @@ local.properties
 .kotlin/
 .artifacts/
 *.class
+
+# Package files and built binaries
+*.apk
+*.aab
+*.exe
+*.msi
+*.zip
+
+# Build output directories
+/apk-output/
+/release-apk/
+/release/
+
+# Logs and temp files
+*.log
+*.tmp
