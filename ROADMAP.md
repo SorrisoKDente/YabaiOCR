@@ -3939,4 +3939,56 @@ hover por KWin script são P2–P4. O Windows foi verificado por `:desktop:test`
 `:desktop:createDistributable`; nenhum processo do app ficou aberto e `settings.properties` não foi
 tocado.
 
+---
+
+### D30 — Captura Wayland: screencast, estados de permissão e picker fullscreen `[x]` (07/11/2026)
+
+Segunda fase (P2) do plano `LINUX.md`. No Wayland o `Robot` não enxerga a tela real: cada aplicativo
+só vê a própria superfície. A captura passa a usar o `org.freedesktop.portal.ScreenCast` através da
+implementação do JDK 21 (`awt.robot.screenshotMethod=dbusScreencast`), com estado explícito de
+permissão em vez de tela preta silenciosa.
+
+- `ScreenshotMethod.kt`: `screenshotMethodOverride`/`configureScreenshotMethod` definem
+  `dbusScreencast` **só** em Linux + Wayland + KDE. GNOME fica no default do JDK (RemoteDesktop) e
+  Windows/X11 não são tocados. A propriedade é aplicada no início de `main`, antes de qualquer uso de
+  AWT/Toolkit.
+- `ScreenCapture.kt`: `CaptureAvailability` (`READY`, `NEEDS_PERMISSION`, `DENIED`, `UNSUPPORTED`),
+  mensagens pt-BR distintas, `ScreenCaptureException` e a interface `ScreenCaptureBackend`.
+  `RobotScreenCapture` preserva byte a byte o caminho histórico (variante nativa para HiDPI).
+  `ScreencastScreenCapture` devolve `UNSUPPORTED` com JDK < 21, `NEEDS_PERMISSION` enquanto não há
+  token de restore (`~/.java/robot/screencast-tokens.properties` ou
+  `~/.awt/robot/screencast-tokens.properties`), `DENIED` depois de `SecurityException` e limpa a
+  falha quando uma captura volta a dar certo.
+- `PlatformServices.kt`: `captureBackendFor` escolhe screencast apenas em Linux Wayland; o resto
+  continua no Robot.
+- `PickerWindowPlacement.kt` + `RegionSelectionWindow.kt` + `SegmentPickerWindow.kt`: no Wayland os
+  pickers abrem em `WindowPlacement.Fullscreen` com `WindowPosition.PlatformDefault`; no Windows/X11
+  continuam com os bounds exatos capturados.
+- `CaptureNoticeWindow.kt` + `Main.kt`: falha de captura vira janela visível (permissão negada,
+  sessão sem suporte ou erro inesperado); antes só havia `printStackTrace()` no stderr.
+
+**Causa raiz.** A escolha de backend não existia: todo SO capturava com `Robot`, e o Wayland nunca
+definia `awt.robot.screenshotMethod`, então a captura caía no XWayland (ilha do próprio app) ou
+falhava sem mensagem. O picker também dependia de posicionamento absoluto, que o Wayland ignora.
+
+**Testes.** `:desktop:test` passou de 123 para **138** (15 novos): `ScreenshotMethodTest` (3),
+`ScreencastCaptureTest` (6), `ScreenCaptureBackendTest` (4), `PickerPlacementTest` (2).
+
+**Mutações provadas** (script `mutation-proof.ps1`, restauração com hash conferido):
+
+| mutação | teste que acusou |
+| --- | --- |
+| método Wayland ignora o desktop (contamina GNOME) | `gnome wayland keeps the jdk default instead of forcing screencast` |
+| Wayland volta para o backend Robot | `linux wayland uses the screencast backend` |
+| JDK antigo deixa de ser `UNSUPPORTED` | `an old jdk is reported as unsupported` |
+| token de restore ignorado | `an existing restore token means the session is ready` |
+| negação do portal não é lembrada | `a denied portal is remembered and explained` |
+| sucesso não limpa a falha anterior | `a successful capture after a denial clears the failure` |
+| picker ignora fullscreen no Wayland | `wayland pickers open as fullscreen instead of absolute windows` |
+
+**Limitações desta fase.** Nada foi executado em Wayland real: a captura via portal, o token de
+restore e o comportamento do picker em fullscreen só podem ser confirmados no Steam Deck/Plasma. O
+Windows foi verificado por `:desktop:test` (138) e `:desktop:createDistributable`. Atalhos por portal
+(P3) e hover por KWin script (P4) seguem pendentes.
+
 

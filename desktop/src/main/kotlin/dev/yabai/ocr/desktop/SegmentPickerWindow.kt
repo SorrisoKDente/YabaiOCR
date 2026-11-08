@@ -118,12 +118,11 @@ fun SegmentPickerWindow(
     // resampling every glyph. Window bounds are AWT units, so they are used as they are: converting
     // them to dp first shrank the picker to two thirds of the screen on a scaled display. (Windows
     // keeps the taskbar itself on top, so that strip shows the real taskbar.)
+    // Wayland ignores absolute placement, so there the picker opens as a real fullscreen window.
+    val useFullscreen = DesktopPlatform.isWayland
     val windowState = rememberWindowState(
-        placement = WindowPlacement.Floating,
-        position = WindowPosition.Absolute(
-            x = screenBounds.x.dp,
-            y = screenBounds.y.dp,
-        ),
+        placement = pickerWindowPlacement(useFullscreen),
+        position = pickerWindowPosition(screenBounds, useFullscreen),
         size = DpSize(screenBounds.width.dp, screenBounds.height.dp),
     )
 

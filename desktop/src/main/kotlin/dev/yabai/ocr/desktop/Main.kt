@@ -38,7 +38,14 @@ class HoverStateHolder(defaultFilter: String = "") {
 /** A full-screen capture plus the screen rectangle it came from. */
 private data class CapturedScreen(val image: BufferedImage, val screenBounds: Rectangle)
 
-fun main(args: Array<String>) = application {
+fun main(args: Array<String>) {
+    // Must be set before the first AWT/Toolkit use: the JDK reads it when Robot is initialized.
+    configureScreenshotMethod(
+        isLinux = DesktopPlatform.isLinux,
+        session = DesktopPlatform.session,
+        desktop = DesktopPlatform.desktop,
+    )
+    application {
     val startMinimized = args.contains("--minimized") || args.contains("--tray")
     // Hidden background window to keep application alive in System Tray when all visible windows are closed
     Window(onCloseRequest = {}, visible = false, title = "Yabai OCR Background") {}
@@ -88,6 +95,7 @@ fun main(args: Array<String>) = application {
     var temporaryViewImage by remember { mutableStateOf<BufferedImage?>(null) }
     var resultInitialText by remember { mutableStateOf<String?>(null) }
     var captureGeneration by remember { mutableStateOf(0L) }
+    var captureNotice by remember { mutableStateOf<String?>(null) }
 
     // The two captures are two visible actions: the whole screen with clickable paragraphs, and
     // the hand-drawn crop. Neither hides behind a preference the user cannot see.
@@ -97,8 +105,10 @@ fun main(args: Array<String>) = application {
                 image = ScreenCapture.captureScreen(),
                 screenBounds = ScreenCapture.screenBounds(),
             )
+        } catch (e: ScreenCaptureException) {
+            captureNotice = e.message
         } catch (e: Exception) {
-            e.printStackTrace()
+            captureNotice = "Não foi possível capturar a tela: ${e.message ?: e::class.simpleName}"
         }
     }
 
@@ -109,8 +119,10 @@ fun main(args: Array<String>) = application {
                 image = ScreenCapture.captureScreen(),
                 screenBounds = ScreenCapture.screenBounds(),
             )
+        } catch (e: ScreenCaptureException) {
+            captureNotice = e.message
         } catch (e: Exception) {
-            e.printStackTrace()
+            captureNotice = "Não foi possível capturar a tela: ${e.message ?: e::class.simpleName}"
         }
     }
 
@@ -236,6 +248,14 @@ fun main(args: Array<String>) = application {
         )
     }
 
+    val notice = captureNotice
+    if (notice != null) {
+        CaptureNoticeWindow(
+            message = notice,
+            onDismiss = { captureNotice = null },
+        )
+    }
+
     // Result Window (OCR, furigana, token lookup, translation & AI)
     val tempImage = temporaryViewImage
     if (tempImage != null) {
@@ -356,6 +376,7 @@ fun main(args: Array<String>) = application {
             }
         }
     }
+}
 }
 
 @Composable

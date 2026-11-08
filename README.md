@@ -748,9 +748,10 @@ gradlew :desktop:run
 
 > A versão desktop é feita para Windows. O plano de portabilidade para Linux — com **suporte completo
 > no Wayland** (captura, atalhos, hover e bandeja) e o **Steam Deck** como alvo principal — está em
-> [LINUX.md](LINUX.md). A base Linux (P1) já está no código: detecção de sessão/desktop, autostart
-> XDG, ícone PNG e build condicional AppImage/`.deb`. Captura, atalhos e hover no Wayland ainda não
-> foram implementados, e o empacotamento Linux precisa ser gerado e validado em Linux.
+> [LINUX.md](LINUX.md). A base Linux (P1) e a captura Wayland (P2) já estão no código: detecção de
+> sessão/desktop, autostart XDG, ícone PNG, build condicional AppImage/`.deb`, `dbusScreencast` no
+> KDE Wayland, estados de permissão do portal e pickers em fullscreen. Atalhos e hover no Wayland
+> ainda não foram implementados, e o empacotamento/captura Linux precisam ser validados em Linux.
 
 ### Aparência: tema claro e escuro
 
@@ -861,7 +862,7 @@ dicionários (inclusive a chave antiga), a geometria do seletor de tela inteira 
 acerto pela menor caixa, folga presa à imagem, posição do rubi e das faixas), a posição do menu da
 bandeja (borda inferior no cursor, inversão à esquerda, work area), o contraste das cores do tema
 nos dois modos (4,5:1 para texto e rótulo de botão) e a preferência do modo de busca (palavra ou
-tradução, lembrada entre aberturas). Hoje são **96 testes**. A verificação ponta a ponta — Lens de
+tradução, lembrada entre aberturas). Hoje são **138 testes**. A verificação ponta a ponta — Lens de
 verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
 
 ---

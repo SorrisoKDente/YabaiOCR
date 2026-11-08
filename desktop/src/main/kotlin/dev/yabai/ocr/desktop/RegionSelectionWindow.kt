@@ -87,9 +87,11 @@ fun RegionSelectionWindow(
 
     // Same rectangle that was captured, so the image lands 1:1 on the canvas instead of being
     // squeezed by the work area (which used different X and Y ratios and left the taskbar out).
+    // Wayland ignores absolute placement, so there the window opens as fullscreen instead.
+    val useFullscreen = DesktopPlatform.isWayland
     val windowState = rememberWindowState(
-        placement = WindowPlacement.Floating,
-        position = WindowPosition.Absolute(x = screenBounds.x.dp, y = screenBounds.y.dp),
+        placement = pickerWindowPlacement(useFullscreen),
+        position = pickerWindowPosition(screenBounds, useFullscreen),
         size = DpSize(screenBounds.width.dp, screenBounds.height.dp),
     )
 

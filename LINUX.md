@@ -1,7 +1,8 @@
 # Portabilidade para Linux e Wayland — plano de implementação
 
-**Status:** **P1 (base Linux) implementada em 07/11/2026**; P2–P6 pendentes. Nenhuma validação em
-host Linux/Steam Deck real foi feita ainda — o empacotamento Linux precisa ser gerado em Linux.
+**Status:** **P1 (base Linux) e P2 (captura Wayland) implementadas em 07/11/2026**; P3–P6 pendentes.
+Nenhuma validação em host Linux/Steam Deck real foi feita ainda — o empacotamento Linux precisa ser
+gerado em Linux e a captura por portal precisa de uma sessão Wayland de verdade.
 **Módulo afetado:** `:desktop` (e apenas ele). `:core` só muda se for para extrair algo comprovadamente
 independente de SO; `:app` (Android) não é tocado.
 **Alvo primário:** **Steam Deck / SteamOS em Desktop Mode (KDE Plasma 6 + Wayland nativo)**.
@@ -9,10 +10,17 @@ independente de SO; `:app` (Android) não é tocado.
 **Não muda:** Windows continua sendo a plataforma de referência; Android continua intacto.
 **Data desta revisão:** 07/11/2026.
 
-**O que a P1 já entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
+**O que a P1 entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
 `Exec`, ícone PNG Linux, `YABAI_HOME`, build condicional `Deb`/`AppImage` + `packagePortableTarGz`, e
-27 testes novos (suíte desktop em **123**). As oito mutações da P1 foram provadas (ver §13.3).
-Captura, atalhos e hover do Wayland continuam sendo P2–P4.
+27 testes novos. As oito mutações da P1 foram provadas.
+
+**O que a P2 entregou:** `ScreenshotMethod` (`awt.robot.screenshotMethod=dbusScreencast` só em Linux
+Wayland KDE), backend `ScreencastScreenCapture` com `CaptureAvailability`
+(`READY`/`NEEDS_PERMISSION`/`DENIED`/`UNSUPPORTED`), `ScreenCaptureException`, pickers em
+`WindowPlacement.Fullscreen` no Wayland e `CaptureNoticeWindow` para falha de captura. 15 testes novos
+(suíte desktop em **138**); as sete mutações da P2 foram provadas.
+
+Atalhos e hover do Wayland continuam sendo P3–P4.
 
 > Esta revisão **substitui** a versão anterior do documento, que tratava Wayland como “melhor esforço”
 > e descrevia captura, atalhos e hover como indisponíveis. O requisito agora é **paridade funcional no
@@ -770,7 +778,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | suíte | hoje | regra |
 | --- | --- | --- |
 | `:core:test` | 153 (26 pulados) | não pode cair; nenhum teste Linux novo aqui |
-| `:desktop:test` | 96 | continua 96 + novos; `StartupManagerTest` continua pulando fora do Windows |
+| `:desktop:test` | 138 | continua verde; `StartupManagerTest` continua pulando fora do Windows |
 | `:app:testDebugUnitTest` | 397 | não pode mudar; nenhuma alteração em `app/` |
 
 ### 13.2 Testes novos (JVM puros, sem abrir janela nem portal)
@@ -784,9 +792,10 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | `TrayFallbackTest` | `startMinimized && !trayReady` → janela visível; `trayReady` → escondida; `!startMinimized` → visível |
 | `TrayMenuStrategyTest` | Wayland usa `PopupMenu` nativo; Windows mantém `JPopupMenu`; nenhum usa `MouseInfo` no Wayland |
 | `IconResourceTest` | `ic_scan_linux.png` existe e abre; `.ico` do Windows continua |
-| `ScreenCaptureBackendTest` | Windows/X11 → Robot; Wayland → screencast; nunca `x11` no Wayland |
-| `ScreenshotMethodTest` | `dbusScreencast` definido só em Linux Wayland, antes do AWT |
-| `CaptureAvailabilityTest` | `NEEDS_PERMISSION`, `DENIED`, `UNSUPPORTED` produzem mensagens distintas e não vazias |
+| `ScreenCaptureBackendTest` | Windows/X11 → Robot; Wayland → screencast; mensagens distintas para cada `CaptureAvailability`; nunca `x11` no Wayland |
+| `ScreenshotMethodTest` | `dbusScreencast` definido só em Linux Wayland KDE, antes do AWT; GNOME e X11 intactos |
+| `ScreencastCaptureTest` | JDK < 21 → `UNSUPPORTED`; sem token → `NEEDS_PERMISSION`; com token → `READY`; `SecurityException` → `DENIED` lembrado; sucesso limpa a falha; recorte usa o mesmo guard |
+| `PickerPlacementTest` | Wayland → `WindowPlacement.Fullscreen` + `PlatformDefault`; Windows/X11 → bounds exatos |
 | `HoverCapabilityTest` | KDE Wayland → bridge; GNOME/Game Mode → indisponível; X11/Windows → `MouseInfo` |
 | `HoverCoordinateTest` | ponteiro + bounds + escala → retângulo 640×360 correto, preso à tela |
 | `XdgTriggerTest` | `Ctrl+Shift+O` → `CTRL+SHIFT+O`; `Super+Space` → `LOGO+space`; combinação inválida → `null` |
@@ -815,7 +824,14 @@ Cada linha precisa ser reintroduzida, ver o teste nomeado falhar e restaurar par
 | Linux continua com `JPopupMenu` + `MouseInfo` | `TrayMenuStrategyTest` |
 | `AppIconGenerator` continua usando `.ico` no Linux | `IconResourceTest` |
 | Wayland chama `x11` ou não define `screenshotMethod` | `ScreenshotMethodTest` / `ScreenCaptureBackendTest` |
-| Wayland trata negação como sucesso/tela preta | `CaptureAvailabilityTest` |
+| `screenshotMethod` definido sem exigir KDE (GNOME contaminado) | `ScreenshotMethodTest` |
+| Wayland continua no backend Robot | `ScreenCaptureBackendTest` |
+| JDK antigo deixa de ser `UNSUPPORTED` | `ScreencastCaptureTest` |
+| token de restore ignorado (sempre `NEEDS_PERMISSION`) | `ScreencastCaptureTest` |
+| negação do portal não é lembrada | `ScreencastCaptureTest` |
+| captura bem-sucedida não limpa a falha anterior | `ScreencastCaptureTest` |
+| picker abre `Floating` no Wayland | `PickerPlacementTest` |
+| Wayland trata negação como sucesso/tela preta | `ScreencastCaptureTest` / `ScreenCaptureBackendTest` |
 | Wayland ainda inicia o poll do hover | `HoverCapabilityTest` |
 | recorte do hover ignora a escala | `HoverCoordinateTest` |
 | conversão XDG usa `Ctrl+Shift+O` literal | `XdgTriggerTest` |
@@ -893,7 +909,7 @@ Adicionar verificação de que `git diff -- app core` está vazio durante a impl
 | --- | --- | --- |
 | **P0 — inventário no Deck** | rodar o app atual em Desktop Mode; registrar o que abre/falha; medir captura, bandeja, atalhos | relatório com versões, logs e capturas; nenhum código de produção |
 | **P1 — base Linux** | `DesktopPlatform`, `PlatformServices`, autostart XDG, ícone PNG, build AppImage/`.deb`, `YABAI_HOME`, integração `.desktop` | `:desktop:test` verde nos dois SOs; AppImage abre no Deck |
-| **P2 — captura Wayland** | `screenshotMethod`, `RobotScreencastCapture`, estados de permissão, pickers fullscreen | capturas fullscreen/recorte corretas no Deck; token reutilizado |
+| **P2 — captura Wayland** | `screenshotMethod`, `ScreencastScreenCapture`, estados de permissão, pickers fullscreen | capturas fullscreen/recorte corretas no Deck; token reutilizado |
 | **P3 — atalhos Wayland** | `PortalGlobalShortcuts`, conversão XDG, estado na UI, fallback KWin | atalhos disparam no Deck; diálogo do portal funciona |
 | **P4 — hover Wayland** | `YabaiDbusService`, `KWinHoverBridge`, script, regra de tooltip | hover lê a palavra sob o cursor; tooltip acima e sem foco |
 | **P5 — polimento Linux** | menu de bandeja nativo, fallback, textos, integração, update checker | checklist Desktop Mode completo |
@@ -932,7 +948,7 @@ P1–P5 não tocam `:core`/`:app`. Se algum passo exigir mudança neles, parar e
 
 ### 15.4 Windows (não-regressão)
 
-- [ ] `:desktop:test` continua verde (96 + novos).
+- [ ] `:desktop:test` continua verde (138 hoje).
 - [ ] `packageExe`, `packageMsi` e `packageInnoSetup` continuam funcionando.
 - [ ] Autostart pelo registro cria/remove exatamente a mesma chave.
 - [ ] Bandeja, atalhos, captura, hover, recorte e tooltip inalterados.
