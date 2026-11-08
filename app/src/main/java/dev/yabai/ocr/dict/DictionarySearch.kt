@@ -37,6 +37,7 @@ suspend fun searchWords(context: Context, query: String): ResultOverlay.WordsSta
         }
         val only = filter?.let { setOf(it) }.orEmpty()
         val text = settings.dictionaryQuery(query.trim())
+        val byTranslation = settings.searchByTranslation
         if (engine == null || text.isEmpty()) {
             ResultOverlay.WordsState.Done(
                 matches = emptyList(),
@@ -46,6 +47,20 @@ suspend fun searchWords(context: Context, query: String): ResultOverlay.WordsSta
                 selected = filter,
                 stale = stale,
                 query = query,
+                searchByTranslation = byTranslation,
+            )
+        } else if (byTranslation) {
+            // A meaning query is Latin text and cannot be a kanji or a reading, so the kanji block
+            // and the headword suggestions would be noise (R35f).
+            ResultOverlay.WordsState.Done(
+                matches = engine.searchTranslation(text, only = only),
+                kanji = emptyList(),
+                dictionaryCount = titles.size,
+                titles = titles,
+                selected = filter,
+                stale = stale,
+                query = query,
+                searchByTranslation = true,
             )
         } else {
             ResultOverlay.WordsState.Done(

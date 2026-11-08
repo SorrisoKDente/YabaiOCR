@@ -2527,7 +2527,7 @@ Ordem de trabalho: **bug primeiro**, depois do mais fácil ao mais difícil, com
 | R35c | `[x]` | **Bolha com posição livre**, não presa às bordas | baixa |
 | R35d | `[x]` | Opção para **ignorar o texto entre parênteses** na consulta (双(そう)眸(ぼう) → 双眸) | média |
 | R35e | `[x]` | **Integração com o ReadEra**: abrir a palavra direto no dicionário do app | estudo + média |
-| R35f | `[-]` | **Pesquisar pela tradução** no dicionário — medido: não vale a pena | estudo + alta |
+| R35f | `[x]` | **Pesquisar pela tradução** no dicionário — índice invertido sob demanda, no Android e no desktop | estudo + alta |
 
 ### R35a — Copiar, colar e selecionar tudo não funcionam  `[x]` (28/10/2026)
 
@@ -2787,53 +2787,82 @@ extras), não construir outra tela às cegas.
 **Confirmado no aparelho (29/10/2026):** «Yabai OCR» aparece na lista e abre a palavra; a tela cheia
 foi a única coisa que o usuário pediu para trocar — o painel por cima do leitor está no **R37b**.
 
-### R35f — Pesquisar pela tradução  `[-]` (28/10/2026 — medido, não vale a pena)
+### R35f — Pesquisar pela tradução  `[x]` (07/11/2026)
 
 **Pedido:** no dicionário, poder procurar pela **tradução** — digitar «espada» e achar 剣 / 刀 — com um
-botão que escolha entre procurar «o original em japonês» e «a tradução».
+botão que escolha entre procurar «o original em japonês» e «a tradução». O pedido voltou depois de a
+primeira medição (28/10) ter fechado o item: o usuário quis a função de qualquer forma, nas duas
+versões (Android e desktop), desde que o custo só fosse pago por quem a liga.
 
-**O que o código de hoje permite:** nada disso de graça. O dicionário compilado é indexado por
-**headword e leitura** (`CompactDictionary.keysStartingWith`); as definições ficam em blobs lidos um a
-um, e não há índice invertido. Procurar «espada» nas definições hoje significaria ler as ~200 mil
-entradas de um JMdict/Jitendex **a cada consulta** — segundos de CPU e bateria, e a cada tecla.
+**O que a primeira medição tinha medido:** procurar «espada» nas definições **a cada consulta**
+significava ler as ~430 mil entradas do Jitendex PT-BR (3,3 s de varredura no PC) — inviável por
+tecla. O piso de um índice invertido «ingênuo» (4 bytes por ocorrência, chave de 40 bytes, sem
+stopwords além de 1–2 letras) foi estimado em **≈40 MB por dicionário**, e por isso o item foi
+fechado. A medição estava certa para aquele desenho; o que mudou foi o desenho.
 
-**Medição (feita e depois removida):** um teste temporário compilou o **Jitendex PT-BR** e percorreu
-todas as entradas uma vez, contando o que um índice invertido teria de guardar. Números do PC de
-desenvolvimento, com o arquivo `ggjz-jitendex-ptbr.zip` (39,5 MB):
+- **Causa raiz (do custo):** um índice invertido guardado como lista de ids brutos por palavra paga
+  uma posição por ocorrência. Como o mesmo verbete repete «espada» em vários sentidos, as listas
+  ficam longas e esparsas — daí os 40 MB.
+- **Correção.**
+  - `TranslationIndex` (core) grava um **sidecar** ao lado do dicionário, na primeira consulta por
+    sentido, com postings comprimidos em **runs** (`palavra → runs de ids consecutivos`), chaves
+    ordenadas com offsets e um `terms.invmeta` com o fingerprint de `terms.dat` (tamanho, mtime e
+    nº de entradas). Nada disso entra no `terms.dat` nem no formato do dicionário: um sidecar
+    apagado é reconstruído, e um dicionário atualizado invalida o índice sozinho.
+  - A construção lê as definições em **chunks de 150 mil pares** e faz merge externo, para não
+    estourar a memória do celular; o progresso é reportado ao painel.
+  - **Tokenização normalizada:** minúsculas, acentos removidos (NFD), tokens de 1 letra e stopwords
+    PT/EN/ES fora. `agua` e «água» acham o mesmo verbete.
+  - **AND:** todos os tokens da consulta precisam estar na definição — senão «espada longa» traria
+    meio dicionário. Os postings são intersectados do menor para o maior, e no máximo 20 mil ids
+    são decodificados por consulta, com a ordem final pelo `score` do dicionário.
+  - `LookupEngine.searchTranslation` mantém um índice aberto por dicionário e fecha tudo em
+    `close()`.
+  - **Android:** botão «🔤 Palavra / 🔄 Tradução» no cartão de busca (`ResultOverlay`), preferência
+    `AppSettings.searchByTranslation`, aviso «Pesquisando pelo sentido… o primeiro uso de cada
+    dicionário prepara um índice» e mensagem de vazio própria (uma consulta por sentido não é «uma
+    frase sem palavras conhecidas»).
+  - **Desktop:** o mesmo botão na «Busca Rápida» e no «Consultar Dicionários», preferência
+    `DesktopSettings.searchByTranslation`, busca em `Dispatchers.Default` e status
+    «Preparando o índice de tradução… %».
+- **Arquivos.** `core/…/dict/TranslationIndex.kt` (novo) · `core/…/dict/LookupEngine.kt` ·
+  `core/…/dict/CompactDictionary.kt` · `desktop/…/QuickDictWindow.kt` ·
+  `desktop/…/DictionaryManagerWindow.kt` · `desktop/…/DesktopSettings.kt` ·
+  `app/…/overlay/ResultOverlay.kt` · `app/…/dict/DictionarySearch.kt` · `app/…/AppSettings.kt`
 
-| medida | valor |
+Testes: **153 no core** (26 pulados, os que pedem dicionário/Lens de verdade), **96 no desktop** e
+**397 no app**, sem falhas. Os novos são `TranslationIndexTest` (9), `TranslationIndexRealTest` (1,
+mede um `.yabai` de verdade e é pulado sem `-PcompiledDicts`), `DesktopSettingsTest` (1) e
+`DictionarySearchPanelTest` (3). As regras que mais doem foram conferidas por mutação:
+
+| mutação | teste que acusa |
 | --- | --- |
-| compilação | 9,2 s |
-| varredura das definições | 3,3 s |
-| entradas | 428.496 |
-| caracteres de definição | 32,65 milhões |
-| palavras (tokens) | 4,71 milhões |
-| palavras distintas | 351.861 |
-| `terms.dat` atual | 55 MB |
-| índice invertido, piso | **≈51 MB** (4 bytes por ocorrência + chaves + sobrecarga do mapa) |
-| índice sem stopwords e palavras de 1–2 letras | **≈40 MB** |
+| intersecção trocada por «qualquer token» (união) | `every query token must be in the definition` |
+| `normalize` sem remover acentos | `an accented query finds the unaccented definition and vice versa`, `tokens are lowercased and lose their accents` |
+| fingerprint do dicionário ignorado ao abrir o sidecar | `an index whose dictionary changed is rebuilt instead of trusted` |
+| nenhum progresso `building` antes do primeiro chunk | `the sidecar is written beside the dictionary and reports a one-time build` |
+| mensagem de vazio sempre «nenhuma palavra deste texto» | `a translation search opens with its own hint and empty message` |
+| botão do modo sem inverter o estado | `the mode button starts on Palavra and flips to Traducao` |
+| `searchByTranslation` do desktop sempre `false` | `searchByTranslation defaults to false and persists the switch` |
 
-O piso é generoso: conta 4 bytes por ocorrência e uma chave de 40 bytes, sem dicionário de sinônimos,
-sem stemming e sem posição no verbete — o índice real seria maior. E é **por dicionário**: quem tem
-Jitendex PT + JMdict + KANJIDIC pagaria isso três vezes. No celular, a varredura inicial seria bem mais
-lenta que os 3,3 s do PC e o índice ficaria na RAM (ou seria lido do disco a cada consulta), no mesmo
-aparelho que já mantém o índice de chaves dos dicionários ativos.
+**Medição real do índice** (teste `-PcompiledDicts`, Jitendex inglês: 436.555 entradas, 51 MB):
+índice de **310.452 palavras em 7,0 s**, 8.120 KiB de postings + 4.422 KiB de chaves (≈12,5 MB no
+disco), reabertura em **11 ms**; `sword` devolve **568 verbetes**, entre eles 剣. No Jitendex PT-BR
+(ggjz, 68 MB) o sidecar ficou em **14,8 MB**.
 
-**Decisão: fechar sem código.** O custo medido — quase dobrar o espaço ocupado pelos dicionários, pagando
-uma varredura longa na primeira vez, por dicionário — não se justifica para uma busca que o usuário faz
-ocasionalmente e que hoje tem alternativa: ele já pode procurar em japonês (inclusive **romaji**, que o
-R31 converte) e ler a definição. Dois caminhos foram descartados junto com o índice:
+Ponta a ponta, com o app real (`--minimized`) e o Jitendex PT-BR: «Busca Rápida» pela bandeja →
+botão «🔤 Palavra» virou «🔄 Tradução» e o campo passou a pedir «Pesquisar pelo sentido (ex.: espada)»
+→ «espada» mostrou «Preparando o índice de tradução… 0%», 27% e 55% nos quadros seguintes, e
+terminou em **2 min 18 s** (23:54:56 → 23:57:14), com o sidecar de 14,8 MB gravado; a consulta
+seguinte respondeu na hora. Depois de **fechar e reabrir a janela e reiniciar o app**, o modo voltou
+como «🔄 Tradução» (preferência lembrada) e «espada» trouxe 刀【かたな】e 剣【けん】do Jitendex PT-BR;
+`agua`, sem acento, trouxe 泉【いずみ】e 管【かん】em menos de 1,5 s, **sem** o aviso de preparação —
+prova de que o índice foi reutilizado. `settings.properties` foi restaurado com o SHA-256 conferido.
 
-| caminho | por que não |
-| --- | --- |
-| índice no import | mudaria o formato: **todos** os dicionários teriam de ser reimportados, e o arquivo cresceria os mesmos ~40–50 MB por dicionário; o aviso de formato antigo existe, mas a cura seria pior que a doença |
-| traduzir a consulta | ML Kit traduz «espada» → `剣` e consulta: devolve **uma** palavra, não os verbetes que contêm o sentido — não é busca por significado, é busca por uma tradução escolhida por um modelo |
-
-**O que fica registrado para o futuro:** se o item voltar, o caminho é o **índice no import**, com
-aumento de `FORMAT_VERSION` e o aviso de reimportação já existente, e com o tamanho medido **antes** de
-prometer a função. O teste de medição não fica no repositório: era um instrumento, não uma garantia, e
-um teste que só imprime números passaria por construção. Não há teste de regressão para esta rodada
-porque **nada foi entregue** — o que fecha o item são os números acima.
+Limitação conhecida: o índice existe **por dicionário** e ocupa espaço em disco (≈12–17 MB por
+dicionário grande) até o dicionário ser removido — ele não é apagado quando o modo é desligado; a
+busca por sentido é por **palavra inteira** (não há stemming: «espadas» não acha «espada»), e a
+ordem dentro de cada dicionário é o `score` dele, não a proximidade do sentido.
 
 ---
 
@@ -3613,6 +3642,8 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D24 | `[x]` | **Fix de Layout em Textos Longos (Posição da Imagem)**: Corrigir posicionamento da imagem recortada quando a seleção de texto for muito longa para não ficar escondida abaixo da tela | médio |
 | D25 | `[x]` | **Captura de Tela Inteira e Opções Avançadas**: Captura de tela inteira com escolha de trecho, atalho e botão próprios para o recorte de área, rubi sobre o texto e faixa indicativa legível | avançado |
 | D26 | `[x]` | **Fix de Perda de Tela Cheia ao Alternar Telas**: Corrigir bug onde abrir o gerenciador de dicionários ou voltar ao menu anterior redefiniam o estado de maximizado/tamanho da janela principal | fácil |
+| D27 | `[x]` | **Menu da bandeja no cursor, como o da Steam**: abrir no canto inferior esquerdo do ponteiro sobre a barra de tarefas, crescendo para cima, e inverter para a esquerda quando não couber | fácil |
+| D28 | `[x]` | **Contraste dos botões nos dois temas**: acabar com `Color.White` fixo no desktop e no Android, que deixava botões como «Padrão» e «Verificar atualizações» ilegíveis no tema claro | médio |
 
 ### D21 — Limpeza da Tela de Ajustes `[x]` (03/11/2026)
 
@@ -3774,5 +3805,85 @@ barra de tarefas fica acima da janela (o acrílico do Windows muda de tom confor
 
 Limitação conhecida: `ScreenCapture.captureScreen()` captura apenas o monitor principal; o hover já
 usa o monitor sob o ponteiro, mas o seletor ainda não.
+
+### D27 — Menu da bandeja no cursor, como o da Steam `[x]` (06/11/2026)
+
+**Causa raiz.** O menu do tray (popup Swing próprio, D17) era mostrado em `(0, 0)` de um `JDialog`
+invisível, sem consultar o ponteiro nem a área útil do monitor. Na prática ele abria no canto
+superior esquerdo da tela, longe do ícone e, em monitores com escala ou múltiplos monitores, fora do
+lugar onde o usuário clicou.
+
+**O que mudou.** A regra saiu da janela e virou função pura em `TrayMenuPlacement.kt`: a **borda
+inferior** do menu fica na altura do cursor e a **esquerda** no X do cursor, como o menu da Steam;
+se não couber à direita, inverte para a borda direita no cursor e cresce para a esquerda; se não
+couber acima, abre abaixo; o resultado é preso à **work area** do monitor sob o cursor (fora da
+barra de tarefas, inclusive em monitores com X/Y negativos). `SystemTrayManager` ancora em
+`MouseInfo.getPointerInfo()` — coordenadas de tela, não relativas ao ícone — e calcula a work area
+com `getScreenInsets` do device sob o ponteiro.
+
+**Testes e mutações.** `TrayMenuPlacementTest` (7 testes) cobre as quatro bordas, a inversão, o
+monitor secundário e o menu maior que a área útil. Mutação provada: fixar o X no cursor (sem
+inverter) derruba dois testes («flips to the left…» e «stays inside a secondary monitor…»).
+
+**Limitação do E2E.** O ícone do Yabai fica no *overflow* da barra de tarefas e o menu fecha ao
+perder o foco; a captura via `java.awt.Robot` não conseguiu manter o menu aberto para medir a
+posição pixel a pixel. A regra geométrica é provada por teste; a abertura real foi confirmada
+manualmente (o menu passa a aparecer junto ao cursor).
+
+### D28 — Contraste dos botões nos dois temas `[x]` (06/11/2026)
+
+**Causa raiz.** As janelas ganharam tema claro/escuro, mas a cor do texto continuou fixa em vários
+pontos. No desktop, cada botão «Padrão» usava `outlinedButtonColors(contentColor = Color.White)`;
+como o `OutlinedButton` é transparente sobre `surface`, no tema claro o rótulo ficava **branco sobre
+branco**. No Android, `actionButton` (o construtor de botões dos painéis e da tela de dicionários)
+usava `textColor = Color.WHITE` e fundo `0x22FFFFFF`: «Verificar atualizações» e «Desligado»
+sumiam no tema claro. A tela `DictionaryActivity` também pintava cartões com `0x14FFFFFF` fixo.
+
+**O que mudou.**
+
+- **Desktop:** `DesktopTheme.kt` ganhou a paleta semântica `YabaiPalette` (campo, borda, chip,
+  sucesso/perigo/aviso/info) escolhida por `paletteFor(darkTheme)`, e `desktopColors(darkTheme)`
+  virou a fonte única das cores do Material. `SettingsWindow`, `QuickDictWindow` e
+  `DictionaryManagerWindow` deixaram de usar branco/hex fixo para texto e fundo. O preenchimento do
+  botão primário virou `palette.button`/`palette.onButton`, separado de `primary`, que continua
+  servindo de acento sobre o fundo (um preenchimento precisa ser escuro para o branco; um acento
+  precisa ser claro para o fundo escuro — uma cor só não faz os dois).
+- **Android:** `actionButton` passou a ler `R.color.text_primary` e `R.color.card_bg`/
+  `R.color.card_stroke` (os mesmos recursos `values`/`values-night` do resto do app), e
+  `DictionaryActivity` usa `card_bg`/`card_stroke` em vez dos hex translúcidos fixos. Os overlays
+  que são **sempre escuros por desenho** (resultado, picker de região, kanji) ficaram intocados.
+- **Janelas sempre escuras** (`ResultWindow`, `SegmentPickerWindow`, `RegionSelectionWindow`,
+  `HoverTooltipWindow`) também ficaram como estavam: são autoconsistentes e não seguem o tema.
+
+**Testes e mutações.**
+
+| arquivo de teste | o que prende | mutação que o derruba |
+| --- | --- | --- |
+| `DesktopThemeContrastTest` (5) | contraste WCAG de 4,5:1 para texto normal e rótulo de botão; 3:1 para o acento não textual | `secondary` branco no tema claro; `button` de volta a `#4C78FF` (3,86:1) |
+| `ThemeWindowColorsTest` (2) | as três janelas temáticas não podem ter `Color.White`/`Color.Black` nem hex fixo fora de `isLight` | devolver `contentColor = Color.White` a um «Padrão» |
+| `ActionButtonThemeTest` (3) | no tema claro o rótulo é `text_primary` (não branco) e o contraste sobre `card_bg` composto com `panel_bg` é ≥ 4,5:1 | `textColor = Color.WHITE` no `actionButton` |
+
+O teste Android troca o tema pelo caminho real (`AppSettings.appTheme`, o mesmo dos rádios), porque
+`applyTheme()` reescreve o `night mode` dos recursos e anula o qualificador `qualifiers` do
+Robolectric.
+
+**E2E (tema claro e escuro, app real).** Capturas em 1280×720 com o app rodando:
+
+| botão | tema | cor do texto / fundo medidos | contraste |
+| --- | --- | --- | --- |
+| «Padrão» | claro | `#1C1C1E` / `#FFFFFF` | **17,01:1** |
+| «Capturar» | claro | `#FFFFFF` / `#3D6BF3` | **4,57:1** |
+| «Padrão» | escuro | `#FFFFFF` / `#1B1E28` | **16,63:1** |
+| «Capturar» | escuro | `#FFFFFF` / `#3B63D9` | **5,29:1** |
+| campo «Atalho: Insert» | claro | `#1C1C1E` / `#EFF1F5` | **15,05:1** |
+
+Antes, «Padrão» no claro media **1,0:1** (branco sobre branco). O `settings.properties` foi
+restaurado do backup com hash conferido e nenhum processo ficou aberto.
+
+**Custo colateral.** A suíte Android passou a falhar de forma intermitente com `StackOverflowError`
+do Robolectric ao inflar um `RadioButton` animado **sem** o teste novo (reproduzido removendo-o). O
+worker de testes ganhou `-Xss4m` em `app/build.gradle.kts`; a suíte voltou a 394 testes verdes.
+
+**Números.** Desktop: **89 testes**. Android: **394 testes**.
 
 

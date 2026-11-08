@@ -82,6 +82,9 @@ class OverlayController(
         /** The query in the dictionary search box changed (R31). */
         fun onDictionarySearchChanged(text: String) {}
 
+        /** The search box switched between words and meanings (R35f). */
+        fun onDictionarySearchModeChanged(searchByTranslation: Boolean) {}
+
         /** The finger is on character [index] of the [piece] the kanji overlay is showing. */
         fun onKanjiTapped(piece: Int, index: Int)
 
@@ -939,6 +942,10 @@ class OverlayController(
                     this@OverlayController.callbacks?.onDictionarySearchChanged(text)
                 }
 
+                override fun onSearchModeChanged(searchByTranslation: Boolean) {
+                    this@OverlayController.callbacks?.onDictionarySearchModeChanged(searchByTranslation)
+                }
+
                 override fun onAskAi(text: String) {
                     this@OverlayController.callbacks?.onAskAiRequested(text)
                 }
@@ -1030,10 +1037,19 @@ class OverlayController(
         stale: List<String> = emptyList(),
         initialQuery: String = "",
         canAskAi: Boolean = false,
+        searchByTranslation: Boolean = false,
     ) {
         if (!canDrawOverlays()) return
         val panel = ensureResultPanel() ?: return
-        panel.showSearch(titles, selected, dictionaryCount, stale, initialQuery, canAskAi)
+        panel.showSearch(
+            titles,
+            selected,
+            dictionaryCount,
+            stale,
+            initialQuery,
+            canAskAi,
+            searchByTranslation,
+        )
         panel.post { panel.showKeyboard() }
     }
 

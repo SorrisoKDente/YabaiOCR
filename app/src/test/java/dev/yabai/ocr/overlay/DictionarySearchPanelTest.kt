@@ -372,6 +372,103 @@ class DictionarySearchPanelTest {
         )
     }
 
+    /**
+     * Word ⇄ meaning (R35f).
+     *
+     * The button is part of the search card, not a hidden setting: it says which question the box
+     * is answering, and flipping it tells the app to run the same query again in the other mode.
+     */
+    @Test
+    fun `the mode button starts on Palavra and flips to Traducao`() {
+        val recorder = Recorder()
+        val panel = searchPanel(recorder)
+        val field = editor(panel)
+
+        val mode = searchModeButton(panel)
+        assertEquals(
+            context.getString(R.string.dictionary_search_mode_word),
+            mode.text.toString(),
+        )
+        assertEquals(context.getString(R.string.dictionary_search_hint), field.hint.toString())
+
+        mode.performClick()
+
+        assertEquals(
+            context.getString(R.string.dictionary_search_mode_translation),
+            mode.text.toString(),
+        )
+        assertEquals(
+            "the field still promises a Japanese headword after switching to meanings",
+            context.getString(R.string.dictionary_search_translation_hint),
+            field.hint.toString(),
+        )
+        assertEquals("the app was not told about the mode", listOf(true), recorder.modes)
+
+        mode.performClick()
+
+        assertEquals(context.getString(R.string.dictionary_search_mode_word), mode.text.toString())
+        assertEquals(listOf(true, false), recorder.modes)
+    }
+
+    @Test
+    fun `a translation search opens with its own hint and empty message`() {
+        val panel = ResultOverlay(context).apply {
+            callbacks = Recorder()
+            showSearch(TITLES, null, TITLES.size, searchByTranslation = true)
+            layout(this)
+        }
+
+        assertEquals(
+            context.getString(R.string.dictionary_search_translation_hint),
+            editor(panel).hint.toString(),
+        )
+        assertEquals(
+            context.getString(R.string.dictionary_search_mode_translation),
+            searchModeButton(panel).text.toString(),
+        )
+
+        panel.setWords(
+            ResultOverlay.WordsState.Done(
+                matches = emptyList(),
+                kanji = emptyList(),
+                dictionaryCount = TITLES.size,
+                titles = TITLES,
+                query = "espada",
+                searchByTranslation = true,
+            ),
+        )
+        layout(panel)
+
+        val texts = labels(panel).map { it.text.toString() }
+        assertTrue(
+            "a meaning query with no hit needs the translation advice: $texts",
+            texts.contains(context.getString(R.string.dictionary_search_translation_empty)),
+        )
+        assertFalse(
+            "«nenhuma palavra» is about a Japanese sentence, not a meaning query: $texts",
+            texts.contains(context.getString(R.string.dictionary_no_match)),
+        )
+    }
+
+    @Test
+    fun `a translation search says it is preparing the index`() {
+        val panel = ResultOverlay(context).apply {
+            callbacks = Recorder()
+            showSearch(TITLES, null, TITLES.size, searchByTranslation = true)
+            layout(this)
+        }
+
+        panel.setWords(ResultOverlay.WordsState.Working(preparing = true))
+        layout(panel)
+
+        assertTrue(
+            "the first meaning query must warn about the index build",
+            labels(panel).any {
+                it.text.toString() == context.getString(R.string.dictionary_search_preparing)
+            },
+        )
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private fun searchPanel(
@@ -406,6 +503,15 @@ class DictionarySearchPanelTest {
                 "no button described as «${context.getString(description)}»: " +
                     labels(root).map { it.contentDescription },
             )
+
+    private fun searchModeButton(root: ViewGroup): TextView =
+        labels(root).firstOrNull {
+            it.contentDescription?.toString() ==
+                context.getString(R.string.dictionary_search_mode_description)
+        } ?: error(
+            "the search card offered no word/meaning toggle: " +
+                labels(root).map { it.contentDescription },
+        )
 
     private fun editor(root: ViewGroup): EditText {
         fun find(group: ViewGroup): EditText? {
@@ -476,6 +582,7 @@ class DictionarySearchPanelTest {
         val dictionaries = ArrayList<String?>()
         val copied = ArrayList<String>()
         val asked = ArrayList<String>()
+        val modes = ArrayList<Boolean>()
         var dismissed = 0
 
         override fun onCopyOriginal(text: String) {
@@ -498,6 +605,10 @@ class DictionarySearchPanelTest {
 
         override fun onSearchChanged(text: String) {
             searches.add(text)
+        }
+
+        override fun onSearchModeChanged(searchByTranslation: Boolean) {
+            modes.add(searchByTranslation)
         }
 
         override fun onDismiss() {

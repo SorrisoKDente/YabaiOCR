@@ -20,6 +20,13 @@ object DictFiles {
     const val TERM_DAT = "terms.dat"
     const val TERM_ENTOFF = "terms.entoff"
 
+    /** Sidecar of the optional translation index; not part of the dictionary format. */
+    const val INV_KEYS = "terms.invkeys"
+    const val INV_KEYOFF = "terms.invkeyoff"
+    const val INV_POST = "terms.invpost"
+    const val INV_POSTOFF = "terms.invpostoff"
+    const val INV_META = "terms.invmeta"
+
     const val KANJI_KEYS = "kanji.keys"
     const val KANJI_KEYOFF = "kanji.keyoff"
     const val KANJI_KEYSTART = "kanji.keystart"
@@ -55,6 +62,9 @@ class CompactDictionary private constructor(
     ) : Closeable {
         val keyCount: Int get() = keyOffsets.size - 1
 
+        /** One id per stored entry; the blob offsets have one extra slot for the end. */
+        val entryCount: Int get() = maxOf(0, blobOffsets.size - 1)
+
         private var blob: RandomAccessFile? = null
         private val lock = Any()
 
@@ -82,6 +92,27 @@ class CompactDictionary private constructor(
 
     val termCount: Int get() = info.termCount
     val kanjiCount: Int get() = info.kanjiCount
+
+    /**
+     * How many word entries the compiler wrote. One per sense, not per headword: two senses of the
+     * same word are two blobs, and the translation index needs every one of them.
+     */
+    val entryCount: Int get() = terms?.entryCount ?: 0
+
+    /**
+     * One entry by its stored id.
+     *
+     * The normal path reaches entries through the sorted key index, which is right for a lookup.
+     * Walking the whole dictionary — as the translation index does once, to find the words whose
+     * definitions contain a term — needs the ids directly.
+     */
+    fun entryById(id: Int): DictionaryEntry? {
+        val index = terms ?: return null
+        return decodeEntry(index, id)
+    }
+
+    /** The definition blob file, so a derived index can tell when the dictionary was replaced. */
+    internal fun definitionsFile(): File? = terms?.blobFile
 
     /** True when this dictionary has the word in any form. */
     fun hasTerm(key: String): Boolean = terms?.let { position(it, key) } != null

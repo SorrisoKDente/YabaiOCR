@@ -66,6 +66,9 @@ para ~52 MB.
 
 Detalhes úteis:
 
+- O botão **🌙 Escuro / ☀️ Claro** no topo troca o tema do app inteiro. Tema claro não é só a
+  janela principal: painéis, tela de dicionários e botões seguem o mesmo `values`/`values-night`, com
+  o rótulo sempre contrastando com o fundo (o mesmo botão é escuro sobre claro e claro sobre escuro).
 - A bolha pode ser **arrastada** para onde você quiser: de fábrica ela **fica onde o dedo solta** e só
   não sai da tela. Para quem prefere a bolha sempre fora do caminho, **«Prender a bolha nas bordas»**,
   nos ajustes, traz de volta o encaixe na lateral mais próxima.
@@ -172,6 +175,17 @@ mesmos dicionários ativos e obedecem ao mesmo seletor do cabeçalho («Todos» 
 
 - A consulta inteira é tentada **primeiro como palavra**: `にほん` acha `日本` e `食べました` acha
   `食べる`, sem passar pela segmentação de frase.
+- **Procurar pelo sentido:** ao lado do campo, o botão «🔤 Palavra» alterna para «🔄 Tradução». Nesse
+  modo a consulta é procurada **dentro das definições**, não nos verbetes: `espada` acha 剣, 刀,
+  サーベル e o que mais for definido assim, com a mesma ordem de importância dos dicionários. Todas
+  as palavras digitadas precisam aparecer na definição (`espada longa` só traz o que tem as duas).
+  Acentuação não atrapalha: `agua` acha «água» e vice-versa. O modo fica guardado e vale para as
+  próximas buscas.
+- **O primeiro uso da tradução prepara um índice.** Ele é gravado **ao lado de cada dicionário**
+  (uns 10 a 20 MB no maior) e leva de segundos a alguns minutos, uma vez só — o painel avisa
+  «Pesquisando pelo sentido… o primeiro uso de cada dicionário prepara um índice». Depois disso a
+  busca responde na hora, e o índice é refeito sozinho se o dicionário for atualizado. Quem nunca
+  liga o modo «Tradução» não paga nada por ele.
 - **Romaji também funciona:** digite `nihon` ou `toukyou` e o app converte para hiragana
   (`にほん`, `とうきょう`) antes de procurar. Vogais longas com acento (`tōkyō`) também são aceitas.
   Romaji sem acento de vogal longa (`tokyo`) é ambíguo — prefira `toukyou` ou `tōkyō`.
@@ -732,6 +746,23 @@ nem abrir outra janela. Rode com:
 gradlew :desktop:run
 ```
 
+### Aparência: tema claro e escuro
+
+Em **Ajustes → Aparência e Tema** escolha «Tema Escuro» ou «Tema Claro». A troca vale na hora, sem
+reiniciar. Todas as janelas do app — Ajustes, dicionário rápido e gerenciador de dicionários — seguem
+o tema, inclusive os botões: o rótulo de «Padrão» é escuro sobre branco no tema claro e branco sobre
+o fundo escuro no tema escuro, sempre acima de 4,5:1 de contraste (WCAG AA). O seletor de tela
+inteira, o recorte à mão, o cartão do hover e a janela de resultado são escuros por desenho e não
+mudam com o tema.
+
+### Menu da bandeja
+
+O menu abre **junto ao ponteiro**, como o da Steam: o canto inferior esquerdo do menu fica na altura
+do cursor e ele cresce para cima e para a direita. Se não couber à direita, ele inverte e cresce para
+a esquerda; se não couber acima, abre abaixo. O menu fica sempre dentro da área útil do monitor sob o
+cursor, fora da barra de tarefas — inclusive num segundo monitor. Clique esquerdo no ícone abre a
+captura de tela inteira; clique direito abre o menu.
+
 ### Hover em tempo real (estilo Yomitan/Rikaichan)
 
 1. Abra **Ajustes → Modo Hover → Ativar** (ou aperte o atalho, padrão **`Ctrl + Shift + H`**; o mesmo
@@ -782,6 +813,22 @@ continua por cima, como sempre) e o desenho é 1:1 — sem véu escurecendo nem 
 
 O seletor captura o **monitor principal**; o modo hover continua escolhendo o monitor sob o ponteiro.
 
+### Busca rápida de dicionário
+
+O atalho **`Ctrl + Shift + D`** (ou «🔍 Busca Rápida de Dicionário» no menu da bandeja) abre uma
+janela pequena para consultar os dicionários sem capturar a tela. Ela tem o mesmo seletor de
+dicionário do painel e os mesmos dois modos:
+
+- **«🔤 Palavra»** — procura o verbete, o kanji ou a leitura (hiragana/romaji), com sugestões de
+  quem começa pela consulta.
+- **«🔄 Tradução»** — procura **pelo sentido**: `espada` responde 刀【かたな】e 剣【けん】, com a
+  definição completa. É a mesma busca por tradução do Android, com o mesmo custo: o primeiro uso
+  prepara um índice ao lado de cada dicionário (o status mostra «Preparando o índice de
+  tradução… %») e depois as consultas são quase instantâneas. A escolha fica guardada em
+  `search_by_translation`.
+
+A janela guarda posição e tamanho, e prefere o dicionário escolhido no seletor.
+
 ### Atalhos globais
 
 | Atalho | Ação |
@@ -804,9 +851,12 @@ Cobrem o que pode ser quebrado sem tela: casamento dos atalhos (incluindo o fato
 `VC_*` do JNativeHook não serem os do AWT e de a tela inteira e o recorte terem chaves e padrões
 distintos), o tamanho nativo pedido à captura em HiDPI, debounce do hover, carência antes de fechar
 o cartão, recorte/HiDPI/multimonitor, escolha da palavra sob o ponteiro, a leitura da pasta de
-dicionários (inclusive a chave antiga) e a geometria do seletor de tela inteira (escala das caixas,
-acerto pela menor caixa, folga presa à imagem, posição do rubi e das faixas). A verificação ponta a
-ponta — Lens de verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
+dicionários (inclusive a chave antiga), a geometria do seletor de tela inteira (escala das caixas,
+acerto pela menor caixa, folga presa à imagem, posição do rubi e das faixas), a posição do menu da
+bandeja (borda inferior no cursor, inversão à esquerda, work area), o contraste das cores do tema
+nos dois modos (4,5:1 para texto e rótulo de botão) e a preferência do modo de busca (palavra ou
+tradução, lembrada entre aberturas). Hoje são **96 testes**. A verificação ponta a ponta — Lens de
+verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
 
 ---
 
@@ -837,6 +887,16 @@ Os nomes de arquivo esperados são os mesmos da lista do app (`JMdict_english.zi
 `jitendex-yomitan.zip`, `JMnedict.zip`, `KANJIDIC_english.zip`, `KANJIDIC_portuguese.zip`,
 `kty-ja-pt.zip`, `kty-ja-ja.zip`, `kty-ja-en.zip`, `surasura.zip`); o que faltar é simplesmente
 ignorado.
+
+O índice da busca por tradução é medido contra um dicionário **já convertido** (o teste copia para
+uma pasta temporária antes de gravar o índice, e é ignorado se a pasta não existir):
+
+```powershell
+gradle :core:test -PcompiledDicts="C:\caminho\para\os\.yabai"
+```
+
+Com o Jitendex de 436.555 verbetes: índice de 310.452 palavras em ~7 s, 12,5 MB gravados e a
+reabertura em 11 ms; `sword` devolve 568 verbetes, entre eles 剣.
 
 Existe um teste que fala com o endpoint de verdade, desligado por padrão:
 

@@ -20,6 +20,8 @@ import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.*
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun QuickDictWindow(onClose: () -> Unit) {
@@ -49,6 +51,9 @@ fun QuickDictWindow(onClose: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
     var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
+    // Word (headword/reading) or translation (definition) search; see DesktopSettings.searchByTranslation.
+    var translationMode by remember { mutableStateOf(settings.searchByTranslation) }
+    var status by remember { mutableStateOf("") }
 
     // Load dictionaries from configured dictionary directory
     val engine = remember {
@@ -70,19 +75,36 @@ fun QuickDictWindow(onClose: () -> Unit) {
         list.toList()
     }
 
-    val suggestions = remember(query, engine, selectedFilter) {
-        if (engine != null && query.isNotBlank()) {
+    val suggestions = remember(query, engine, selectedFilter, translationMode) {
+        // A Latin word has no Japanese headword to suggest; «espada» must not offer エスパダ.
+        if (!translationMode && engine != null && query.isNotBlank()) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
             engine.suggest(query, only = onlySet)
         } else emptyList()
     }
 
-    LaunchedEffect(query, selectedFilter) {
-        if (engine != null && query.isNotBlank()) {
+    LaunchedEffect(query, selectedFilter, translationMode) {
+        val current = engine
+        if (current != null && query.isNotBlank()) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
-            results = engine.search(query, only = onlySet)
+            results = withContext(Dispatchers.Default) {
+                if (translationMode) {
+                    status = "Preparando o índice de tradução… (só na primeira vez)"
+                    val found = current.searchTranslation(query, only = onlySet) { progress ->
+                        if (progress.building) {
+                            status = "Preparando o índice de tradução… ${(progress.fraction * 100).toInt()}%"
+                        }
+                    }
+                    status = ""
+                    found
+                } else {
+                    status = ""
+                    current.search(query, only = onlySet)
+                }
+            }
         } else {
             results = emptyList()
+            status = ""
         }
     }
 
@@ -106,30 +128,48 @@ fun QuickDictWindow(onClose: () -> Unit) {
                     ) {
                         Text("Busca Rápida", style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
 
-                        var expandedFilter by remember { mutableStateOf(false) }
-                        Box {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             OutlinedButton(
-                                onClick = { expandedFilter = true },
+                                onClick = {
+                                    translationMode = !translationMode
+                                    settings.searchByTranslation = translationMode
+                                },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                             ) {
-                                Text(if (selectedFilter.isBlank()) "🌐 Todos" else "📖 $selectedFilter", fontSize = 10.sp)
+                                Text(
+                                    if (translationMode) "🔄 Tradução" else "🔤 Palavra",
+                                    fontSize = 10.sp
+                                )
                             }
-                            DropdownMenu(
-                                expanded = expandedFilter,
-                                onDismissRequest = { expandedFilter = false }
-                            ) {
-                                DropdownMenuItem(onClick = {
-                                    selectedFilter = ""
-                                    expandedFilter = false
-                                }) {
-                                    Text("🌐 Todos os Dicionários")
+
+                            var expandedFilter by remember { mutableStateOf(false) }
+                            Box {
+                                OutlinedButton(
+                                    onClick = { expandedFilter = true },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
+                                ) {
+                                    Text(if (selectedFilter.isBlank()) "🌐 Todos" else "📖 $selectedFilter", fontSize = 10.sp)
                                 }
-                                installedDictTitles.forEach { title ->
+                                DropdownMenu(
+                                    expanded = expandedFilter,
+                                    onDismissRequest = { expandedFilter = false }
+                                ) {
                                     DropdownMenuItem(onClick = {
-                                        selectedFilter = title
+                                        selectedFilter = ""
                                         expandedFilter = false
                                     }) {
-                                        Text("📖 $title")
+                                        Text("🌐 Todos os Dicionários")
+                                    }
+                                    installedDictTitles.forEach { title ->
+                                        DropdownMenuItem(onClick = {
+                                            selectedFilter = title
+                                            expandedFilter = false
+                                        }) {
+                                            Text("📖 $title")
+                                        }
                                     }
                                 }
                             }
@@ -146,7 +186,12 @@ fun QuickDictWindow(onClose: () -> Unit) {
                         OutlinedTextField(
                             value = query,
                             onValueChange = { query = it },
-                            label = { Text("Pesquisar palavra, kanji ou leitura...") },
+                            label = {
+                                Text(
+                                    if (translationMode) "Pesquisar pelo sentido (ex.: espada)"
+                                    else "Pesquisar palavra, kanji ou leitura..."
+                                )
+                            },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             colors = TextFieldDefaults.outlinedTextFieldColors(
@@ -185,6 +230,15 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                 Text("📋 Colar", fontSize = 11.sp)
                             }
                         }
+                    }
+
+                    if (status.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = status,
+                            style = MaterialTheme.typography.caption,
+                            color = MaterialTheme.colors.secondary
+                        )
                     }
 
                     if (suggestions.isNotEmpty()) {

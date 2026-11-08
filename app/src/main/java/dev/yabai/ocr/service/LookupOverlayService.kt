@@ -15,6 +15,7 @@ import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.searchWords
 import dev.yabai.ocr.overlay.OverlayController
+import dev.yabai.ocr.overlay.ResultOverlay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -55,6 +56,11 @@ class LookupOverlayService : Service() {
         overlays = OverlayController(this).apply {
             callbacks = object : OverlayController.Callbacks {
                 override fun onDictionarySearchChanged(text: String) = lookup(text)
+
+                override fun onDictionarySearchModeChanged(searchByTranslation: Boolean) {
+                    settings.searchByTranslation = searchByTranslation
+                    lookup(query)
+                }
 
                 override fun onDictionaryPicked(title: String?) {
                     settings.dictionaryFilter = title.orEmpty()
@@ -155,6 +161,7 @@ class LookupOverlayService : Service() {
             stale = stale,
             initialQuery = query,
             canAskAi = settings.showAiButton,
+            searchByTranslation = settings.searchByTranslation,
         )
         // No window, no reason to stay: a service with no panel would be a process the user cannot
         // see or close.
@@ -165,6 +172,9 @@ class LookupOverlayService : Service() {
     private fun lookup(text: String) {
         query = text
         searchJob?.cancel()
+        if (settings.searchByTranslation && text.isNotBlank()) {
+            overlays.showResultWords(ResultOverlay.WordsState.Working(preparing = true))
+        }
         searchJob = scope.launch {
             val state = searchWords(this@LookupOverlayService, text)
             if (query == text) overlays.showResultWords(state)

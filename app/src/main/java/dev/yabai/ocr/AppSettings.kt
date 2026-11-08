@@ -146,6 +146,17 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit { putBoolean(KEY_DICTIONARY_KEEP_LAST, value) }
 
     /**
+     * Search the dictionary **definitions** instead of the headwords (R35f).
+     *
+     * Off by default: the first search in this mode builds a sidecar index for each dictionary,
+     * which costs seconds and a few megabytes. The mode is remembered because whoever turned it on
+     * chose to pay that once, not on every query.
+     */
+    var searchByTranslation: Boolean
+        get() = prefs.getBoolean(KEY_SEARCH_BY_TRANSLATION, false)
+        set(value) = prefs.edit { putBoolean(KEY_SEARCH_BY_TRANSLATION, value) }
+
+    /**
      * The last query typed in the dictionary search (R31), kept only when
      * [dictionaryKeepLastSearch] is on.
      */
@@ -330,6 +341,7 @@ class AppSettings(context: Context) {
         private const val KEY_DICTIONARY_FILTER = "dictionary_filter"
         private const val KEY_KANJI_DICTIONARY = "kanji_dictionary"
         private const val KEY_DICTIONARY_KEEP_LAST = "dictionary_keep_last_search"
+        private const val KEY_SEARCH_BY_TRANSLATION = "search_by_translation"
         private const val KEY_DICTIONARY_LAST_QUERY = "dictionary_last_query"
         private const val KEY_TRANSLATE = "translate_sentence"
         private const val KEY_FURIGANA = "furigana_parentheses"

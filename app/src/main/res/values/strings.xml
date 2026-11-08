@@ -153,6 +153,12 @@
     <string name="dictionary_search_paste">Colar</string>
     <string name="dictionary_search_paste_description">Colar o texto copiado na consulta</string>
     <string name="dictionary_search_clipboard_empty">Não há texto copiado para colar.</string>
+    <string name="dictionary_search_mode_word">🔤 Palavra</string>
+    <string name="dictionary_search_mode_translation">🔄 Tradução</string>
+    <string name="dictionary_search_mode_description">Alternar entre procurar a palavra e procurar pelo sentido</string>
+    <string name="dictionary_search_translation_hint">Pesquisar pelo sentido (ex.: espada)…</string>
+    <string name="dictionary_search_translation_empty">Nenhum verbete tem todas essas palavras na definição. Tente menos palavras ou outro sinônimo.</string>
+    <string name="dictionary_search_preparing">Pesquisando pelo sentido… o primeiro uso de cada dicionário prepara um índice e pode demorar.</string>
     <string name="dictionary_suggestions">Sugestões</string>
     <string name="dictionary_suggestion_description">Consultar «%1$s»</string>
 

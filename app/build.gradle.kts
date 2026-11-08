@@ -71,11 +71,16 @@ android {
         unitTests {
             isIncludeAndroidResources = true
             all {
-                it.maxHeapSize = "2048m"
+                it.maxHeapSize = "3072m"
                 // Robolectric generates lambda classes with ASM while inflating animated widgets.
                 // The default worker stack runs out on the full suite and surfaces as a bogus
                 // StackOverflowError in an unrelated test.
-                it.jvmArgs("-Xss4m")
+                it.jvmArgs("-Xss8m")
+                // Robolectric keeps every activity and resource it ever inflated; one JVM for ~400
+                // tests grows until an unrelated test is the one that meets the ceiling. Restarting
+                // the worker every 100 tests bounds that; it is the difference between a green suite
+                // and a random OutOfMemoryError.
+                it.forkEvery = 100
             }
         }
     }

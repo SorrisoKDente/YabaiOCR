@@ -17,6 +17,10 @@ package dev.yabai.ocr.core.dict
  */
 class LookupEngine(private val dictionaries: List<CompactDictionary>) {
 
+    /** Translation sidecars, keyed by dictionary folder; built on first use (see [searchTranslation]). */
+    private val translationIndexes = HashMap<String, TranslationIndex>()
+    private val translationLock = Any()
+
     /** [only] narrows the search to those dictionary titles; empty means every dictionary held. */
     fun lookup(text: String, maxMatches: Int = 600, only: Set<String> = emptySet()): List<TokenMatch> {
         val usable = selected(only)
@@ -139,6 +143,112 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
     }
 
     /**
+     * Search the **definitions** instead of the headwords: «sword» finds 剣, 刀, サーベル.
+     *
+     * The normal [search] follows the sorted key index, so it only answers queries written in
+     * Japanese (or romaji). A reader who knows the meaning but not the word needs the opposite
+     * direction, and that cannot be answered by a key index: the definition has to be read. This
+     * walks a sidecar inverted index ([TranslationIndex]) built once per dictionary, so only the
+     * first query on a large dictionary pays the scan; later ones read just the postings of the
+     * words they asked for.
+     *
+     * Every query token must be present in the definition (AND), because matching any word of
+     * «espada longa» would return most of the dictionary. The result is ordered by the dictionary's
+     * own commonness score, exactly like [suggest].
+     *
+     * [onProgress] reports the one-time index build, which is slow enough to need a line in the UI.
+     */
+    fun searchTranslation(
+        text: String,
+        maxMatches: Int = 60,
+        only: Set<String> = emptySet(),
+        onProgress: (TranslationProgress) -> Unit = {},
+    ): List<TokenMatch> {
+        val query = text.trim()
+        if (query.isEmpty() || maxMatches <= 0) return emptyList()
+        val tokens = TranslationTokens.tokenize(query).distinct()
+        if (tokens.isEmpty()) return emptyList()
+        val usable = selected(only)
+        if (usable.isEmpty()) return emptyList()
+
+        val matches = ArrayList<TokenMatch>(maxMatches)
+        for (dictionary in usable) {
+            val index = translationIndex(dictionary, onProgress) ?: continue
+            // Intersect the postings, smallest first: the rarest token usually cuts the candidate
+            // set down before the others are ever read.
+            val postings = tokens
+                .map { index.postings(it) }
+                .sortedBy { it.size }
+            if (postings.any { it.isEmpty() }) continue
+            var ids = postings.first()
+            for (other in postings.drop(1)) ids = intersect(ids, other)
+            if (ids.isEmpty()) continue
+
+            // Decoding a blob is the expensive part, and a common word («water») can be in tens of
+            // thousands of definitions. The cap keeps a keystroke bounded; the exact order inside
+            // the cap is settled by the commonness score below.
+            val scan = minOf(ids.size, TRANSLATION_SCAN_LIMIT)
+            for (i in 0 until scan) {
+                val entry = dictionary.entryById(ids[i]) ?: continue
+                matches.add(
+                    TokenMatch(
+                        surface = entry.term,
+                        start = 0,
+                        end = query.length,
+                        entry = entry,
+                        dictionaryTitle = dictionary.info.title,
+                        reasons = emptyList(),
+                    ),
+                )
+            }
+        }
+
+        return matches
+            .sortedWith(
+                compareByDescending<TokenMatch> { it.entry.score }
+                    .thenBy { it.entry.term.length }
+                    .thenBy { it.entry.reading.ifEmpty { it.entry.term } }
+                    .thenBy { it.entry.term },
+            )
+            .take(maxMatches)
+    }
+
+    /** Sorted-array intersection; both inputs are ascending entry ids. */
+    private fun intersect(a: IntArray, b: IntArray): IntArray {
+        val out = IntArray(minOf(a.size, b.size))
+        var i = 0
+        var j = 0
+        var size = 0
+        while (i < a.size && j < b.size) {
+            when {
+                a[i] < b[j] -> i++
+                a[i] > b[j] -> j++
+                else -> {
+                    out[size++] = a[i]
+                    i++
+                    j++
+                }
+            }
+        }
+        return out.copyOf(size)
+    }
+
+    /** The sidecar index for one dictionary, built on first use and kept for the engine's life. */
+    private fun translationIndex(
+        dictionary: CompactDictionary,
+        onProgress: (TranslationProgress) -> Unit,
+    ): TranslationIndex? = synchronized(translationLock) {
+        val key = dictionary.dir.absolutePath
+        translationIndexes[key]?.let {
+            onProgress(TranslationProgress(dictionary.info.title, 1f, building = false))
+            return it
+        }
+        val built = runCatching { TranslationIndex.ensure(dictionary, onProgress) }.getOrNull()
+        if (built != null) translationIndexes[key] = built
+        built
+    }
+
+    /**
      * Kanji breakdown, but only for a capture that is a single character.
      *
      * Showing a reading and stroke count for every kanji in a whole page of manga would bury the
@@ -244,6 +354,10 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
 
     /** Releases the blob file handles held by the dictionaries. */
     fun close() {
+        synchronized(translationLock) {
+            for (index in translationIndexes.values) runCatching { index.close() }
+            translationIndexes.clear()
+        }
         for (dictionary in dictionaries) runCatching { dictionary.close() }
     }
 
@@ -358,6 +472,9 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
 
         /** How many suggestions are looked at before the order is decided; see [suggest]. */
         private const val CANDIDATE_FACTOR = 8
+
+        /** Definition hits decoded per keystroke before [searchTranslation] settles the order. */
+        private const val TRANSLATION_SCAN_LIMIT = 20_000
 
         fun isWordCodePoint(codePoint: Int): Boolean = when (codePoint) {
             in 0x3041..0x309F -> true // hiragana

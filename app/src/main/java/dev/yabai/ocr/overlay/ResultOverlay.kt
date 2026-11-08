@@ -90,6 +90,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         fun onSearchChanged(text: String) {}
 
         /**
+         * The user switched the search box between words and meanings (R35f). The choice is a
+         * setting; the app runs the current query again in the new mode.
+         */
+        fun onSearchModeChanged(searchByTranslation: Boolean) {}
+
+        /**
          * The user wants an AI app to answer about the recognised text. The text is what is on screen,
          * corrections included, and what happens to it — clipboard, prompt, which app — is the app's
          * business, not the panel's.
@@ -111,7 +117,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
     /** Dictionary section state. */
     sealed interface WordsState {
         data object Hidden : WordsState
-        data object Working : WordsState
+
+        /** A lookup in flight; [preparing] is the one-time translation index build. */
+        data class Working(val preparing: Boolean = false) : WordsState
         data class Done(
             val matches: List<TokenMatch>,
             val kanji: List<KanjiEntry>,
@@ -138,6 +146,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             val query: String = "",
             /** Other headwords to offer above the answer, empty outside the search (R31). */
             val suggestions: List<String> = emptyList(),
+            /** True when the box answered by meaning, not by headword (R35f). */
+            val searchByTranslation: Boolean = false,
         ) : WordsState {
             /** One dictionary is nothing to choose between, so the selector stays out of the way. */
             val pickable: Boolean get() = titles.size > 1
@@ -307,6 +317,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * same words instead of asking the app to look them up again (R16).
      */
     private var wordsState: WordsState.Done? = null
+
+    /** Whether the search box is answering by meaning; the toggle flips it (R35f). */
+    private var searchByTranslation = false
+
+    /** The «Palavra / Tradução» button of the search box, so its label follows the mode. */
+    private var searchModeButton: TextView? = null
 
     private val analyseHandler = Handler(Looper.getMainLooper())
 
@@ -562,11 +578,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         stale: List<String> = emptyList(),
         initialQuery: String = "",
         canAskAi: Boolean = false,
+        searchByTranslation: Boolean = false,
     ) {
         card.removeAllViews()
         selectionToolbar.hide()
         // An analysis scheduled for the card being replaced must not reach the dictionary as a query.
         analyseHandler.removeCallbacks(analyseSoon)
+        this.searchByTranslation = searchByTranslation
+        searchModeButton = null
         searching = true
         canGoBack = false
         minimised = false
@@ -585,6 +604,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         cleanText = ""
 
         configureSearchEditor()
+        originalEditor.setHint(searchHint())
         showText(initialQuery)
 
         card.addView(buildHeader("", R.string.dictionary_search_title))
@@ -620,6 +640,31 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
         // The button follows the field's content from the start: a pre-filled query opens as «✕».
         updateSearchAction()
+
+        // Word or meaning (R35f). Beside the field, not buried in the settings: the two modes answer
+        // different questions, and a reader who knows «espada» but not 剣 must see the door.
+        card.addView(
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(4), 0, 0)
+                val modeButton = context.actionButton(searchModeLabel()) { toggleSearchMode() }.apply {
+                    contentDescription = context.getString(R.string.dictionary_search_mode_description)
+                }
+                searchModeButton = modeButton
+                addView(
+                    modeButton,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ),
+                )
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
 
         for (view in listOf(translationSection, wordsSection)) {
             (view.parent as? ViewGroup)?.removeView(view)
@@ -733,6 +778,23 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             else R.string.dictionary_search_clear,
         )
         updateSearchActions()
+    }
+
+    private fun searchModeLabel(): String = context.getString(
+        if (searchByTranslation) R.string.dictionary_search_mode_translation
+        else R.string.dictionary_search_mode_word,
+    )
+
+    private fun searchHint(): Int =
+        if (searchByTranslation) R.string.dictionary_search_translation_hint
+        else R.string.dictionary_search_hint
+
+    /** Flips word ⇄ meaning, relabels the button and lets the app answer the same query again. */
+    private fun toggleSearchMode() {
+        searchByTranslation = !searchByTranslation
+        searchModeButton?.text = searchModeLabel()
+        originalEditor.setHint(searchHint())
+        callbacks?.onSearchModeChanged(searchByTranslation)
     }
 
     /** Shows the query's actions only while there is a query (R39). */
@@ -1121,7 +1183,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         }
         when (state) {
             is WordsState.Hidden -> applyReading(null)
-            is WordsState.Working -> wordsSection.addView(busyRow(context.getString(R.string.dictionary_working)))
+            is WordsState.Working -> wordsSection.addView(
+                busyRow(
+                    context.getString(
+                        if (state.preparing) R.string.dictionary_search_preparing
+                        else R.string.dictionary_working,
+                    ),
+                ),
+            )
             is WordsState.Failed -> {
                 wordsSection.addView(
                     section(SECTION_DICTIONARY, context.getString(R.string.result_dictionary_label)) { body ->
@@ -1208,10 +1277,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             )
         }
         if (state.matches.isEmpty()) {
-            val message = if (searching && state.query.isBlank()) {
-                context.getString(R.string.dictionary_search_empty)
-            } else {
-                context.getString(R.string.dictionary_no_match)
+            val message = when {
+                searching && state.query.isBlank() -> context.getString(R.string.dictionary_search_empty)
+                state.searchByTranslation -> context.getString(R.string.dictionary_search_translation_empty)
+                else -> context.getString(R.string.dictionary_no_match)
             }
             wordsSection.addView(
                 dictionarySection(state, context.getString(R.string.result_dictionary_label)) { body ->

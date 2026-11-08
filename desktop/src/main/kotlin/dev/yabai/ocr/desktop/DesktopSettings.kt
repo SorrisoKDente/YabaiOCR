@@ -130,6 +130,17 @@ class DesktopSettings(
         get() = props.getProperty("dictionary_keep_last_search", "true").toBoolean()
         set(value) { props.setProperty("dictionary_keep_last_search", value.toString()); save() }
 
+    /**
+     * Search the definitions instead of the headwords (R35f).
+     *
+     * Kept as a preference because the first search in this mode builds a sidecar index per
+     * dictionary; whoever turned it on is willing to pay for it, and turning it off goes back to
+     * the key index with no build at all.
+     */
+    var searchByTranslation: Boolean
+        get() = props.getProperty("search_by_translation", "false").toBoolean()
+        set(value) { props.setProperty("search_by_translation", value.toString()); save() }
+
     var stripSearchReadings: Boolean
         get() = props.getProperty("strip_search_readings", "true").toBoolean()
         set(value) { props.setProperty("strip_search_readings", value.toString()); save() }

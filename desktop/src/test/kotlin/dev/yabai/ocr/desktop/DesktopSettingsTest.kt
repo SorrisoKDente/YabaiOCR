@@ -109,4 +109,24 @@ class DesktopSettingsTest {
         settings.closeToTray = true
         assertTrue(DesktopSettings(file).closeToTray)
     }
+
+    /**
+     * The search starts on words and remembers a switch to meanings (R35f).
+     *
+     * The mode is a preference because the first meaning query builds a sidecar index; it must not
+     * silently come back off, or the user would pay — and wait — for the build again on every visit.
+     */
+    @Test
+    fun `searchByTranslation defaults to false and persists the switch`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertFalse(settings.searchByTranslation)
+
+        settings.searchByTranslation = true
+        assertTrue(DesktopSettings(file).searchByTranslation)
+
+        settings.searchByTranslation = false
+        assertFalse(DesktopSettings(file).searchByTranslation)
+    }
 }

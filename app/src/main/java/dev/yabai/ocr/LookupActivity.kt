@@ -72,6 +72,10 @@ class LookupActivity : AppCompatActivity() {
                 override fun onAskAi(text: String) = askAi(text)
                 override fun onDismiss() = finish()
                 override fun onSearchChanged(text: String) = lookup(text)
+                override fun onSearchModeChanged(searchByTranslation: Boolean) {
+                    settings.searchByTranslation = searchByTranslation
+                    lookup(searching)
+                }
                 override fun onDictionaryPicked(title: String?) {
                     settings.dictionaryFilter = title.orEmpty()
                     lookup(searching)
@@ -166,6 +170,7 @@ class LookupActivity : AppCompatActivity() {
             stale = stale,
             initialQuery = incomingText(intent),
             canAskAi = settings.showAiButton,
+            searchByTranslation = settings.searchByTranslation,
         )
     }
 
@@ -173,6 +178,9 @@ class LookupActivity : AppCompatActivity() {
     private fun lookup(query: String) {
         searching = query
         searchJob?.cancel()
+        if (settings.searchByTranslation && query.isNotBlank() && ::overlay.isInitialized) {
+            overlay.setWords(ResultOverlay.WordsState.Working(preparing = true))
+        }
         searchJob = scope.launch {
             val state = searchWords(this@LookupActivity, query)
             if (searching == query) overlay.setWords(state)

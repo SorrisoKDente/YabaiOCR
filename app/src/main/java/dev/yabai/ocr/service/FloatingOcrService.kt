@@ -474,6 +474,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             stale = stale,
             initialQuery = initialQuery,
             canAskAi = settings.showAiButton,
+            searchByTranslation = settings.searchByTranslation,
         )
     }
 
@@ -482,10 +483,20 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         searchDictionary(text)
     }
 
+    override fun onDictionarySearchModeChanged(searchByTranslation: Boolean) {
+        settings.searchByTranslation = searchByTranslation
+        if (searchingDictionary) searchDictionary(searchQuery)
+    }
+
     /** Looks [query] up off the main thread; a newer keystroke cancels the answer in flight. */
     private fun searchDictionary(query: String) {
         searchQuery = query
         searchJob?.cancel()
+        // The first meaning query on a dictionary builds its sidecar; say so instead of leaving the
+        // panel on a bare «Procurando…» for the several seconds that costs (R35f).
+        if (settings.searchByTranslation && query.isNotBlank()) {
+            overlays.showResultWords(ResultOverlay.WordsState.Working(preparing = true))
+        }
         searchJob = scope.launch {
             val state = runSearch(query)
             if (settings.dictionaryKeepLastSearch && query.isNotBlank()) {
@@ -937,7 +948,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         val wantTranslation = settings.translateSentence
         val target = settings.translateTarget
 
-        overlays.showResultWords(if (wantDictionary) ResultOverlay.WordsState.Working else ResultOverlay.WordsState.Hidden)
+        overlays.showResultWords(
+            if (wantDictionary) ResultOverlay.WordsState.Working() else ResultOverlay.WordsState.Hidden,
+        )
         overlays.showResultTranslation(
             if (wantTranslation) ResultOverlay.TranslationState.Working else ResultOverlay.TranslationState.Hidden,
         )
