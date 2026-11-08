@@ -746,6 +746,10 @@ nem abrir outra janela. Rode com:
 gradlew :desktop:run
 ```
 
+> A versão desktop é feita para Windows. O plano de portabilidade para Linux — com **suporte completo
+> no Wayland** (captura, atalhos, hover e bandeja) e o **Steam Deck** como alvo principal — está em
+> [LINUX.md](LINUX.md).
+
 ### Aparência: tema claro e escuro
 
 Em **Ajustes → Aparência e Tema** escolha «Tema Escuro» ou «Tema Claro». A troca vale na hora, sem
