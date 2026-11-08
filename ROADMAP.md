@@ -3886,4 +3886,57 @@ worker de testes ganhou `-Xss4m` em `app/build.gradle.kts`; a suíte voltou a 39
 
 **Números.** Desktop: **89 testes**. Android: **394 testes**.
 
+---
+
+### D29 — Base Linux: sessão, autostart XDG, ícone e empacotamento `[x]` (07/11/2026)
+
+Primeira fase (P1) do plano `LINUX.md`: o app continua idêntico no Windows, mas a base Linux deixa de
+ser “só abre”. O que entrou:
+
+- `DesktopPlatform.kt`: detecção pura de SO, sessão (`XDG_SESSION_TYPE`, `WAYLAND_DISPLAY`,
+  `DISPLAY`), desktop (KDE/GNOME) e SteamOS (`/etc/os-release`), com testes por parâmetro.
+- `PlatformServices.kt` + `Autostart.kt`: um único ponto escolhe o backend. `StartupManager` virou
+  fachada; o registro do Windows foi movido sem alteração para `WindowsAutostart.kt`.
+- `LinuxAutostart.kt`: grava `$XDG_CONFIG_HOME/autostart/yabai-ocr.desktop` com o caminho real do
+  AppImage/jpackage e `--minimized`; desligar **apaga** o arquivo. Sem executável encontrado, não
+  grava entrada quebrada.
+- `LinuxDesktopEntry.kt`: `Exec` sempre entre aspas com escape de `"`, `` ` ``, `$` e `\`; descoberta
+  do executável na ordem `APPIMAGE` → `jpackage.app-path` → comando → `~/.local/bin` → `/usr/bin` →
+  `/opt` → `~/Applications/*.AppImage`.
+- `AppIconGenerator.kt`: no Linux usa `ic_scan_linux.png` (256×256, extraído do ICO existente) e
+  mantém o ICO como fallback; o Windows continua começando pelo `.ico`.
+- `DesktopSettings.kt`: aceita `desktopHome` injetável e respeita `YABAI_HOME` no caminho padrão,
+  para o E2E não tocar em `~/.yabai_ocr`.
+- `desktop/build.gradle.kts`: `Deb`/`AppImage` + `packagePortableTarGz` só em host Linux; tarefas
+  Inno/ZIP só em Windows; `packageName` `yabai-ocr` no Linux; `-Dfile.encoding=UTF-8`.
+- `desktop/package/linux/` passa a existir como raiz de recursos Linux.
+
+**Causa raiz coberta pelos testes.** O código anterior fazia `if (os.contains("win"))` e retornava
+`false` para qualquer outro SO; não havia como o Linux criar autostart, e o executável era adivinhado
+por caminhos fixos de Windows. Os testes novos amarram a decisão por plataforma e o conteúdo exato do
+`.desktop`, não apenas “não lançou exceção”.
+
+**Testes.** `:desktop:test` passou de 96 para **123** (27 novos): `DesktopPlatformTest`,
+`LinuxAutostartTest`, `LinuxDesktopEntryTest`, `AutostartSelectionTest`, `IconResourceTest`,
+`DesktopHomeSettingsTest`.
+
+**Mutações provadas** (script `mutation-proof.ps1`, restauração com hash conferido):
+
+| mutação | teste que acusou |
+| --- | --- |
+| `detectSessionType` ignora `WAYLAND_DISPLAY` | `wayland display alone is treated as wayland` |
+| `desktopEntryArgument` não escapa a aspa | `exec arguments are always quoted and escaped` |
+| `setEnabled(false)` não apaga o arquivo | `disabling deletes the entry instead of hiding it` |
+| seleção Linux devolve o backend Windows | `linux selects the xdg implementation` |
+| ícone Linux volta para a lista do Windows | `linux prefers a png and windows keeps the ico first` |
+| `YABAI_HOME` ignorado | `yabai home overrides the data directory` |
+| dicionário padrão ignora `desktopHome` | os dois de `DesktopHomeSettingsTest` |
+| resolver aceita candidato inexistente | `resolver skips a missing appimage and picks the existing launcher` |
+
+**Limitações desta fase.** Nada foi executado em Linux/Steam Deck: `packageAppImage`/`packageDeb` e
+a abertura do AppImage ainda precisam de um host Linux. Captura via ScreenCast, atalhos por portal e
+hover por KWin script são P2–P4. O Windows foi verificado por `:desktop:test` (123) e
+`:desktop:createDistributable`; nenhum processo do app ficou aberto e `settings.properties` não foi
+tocado.
+
 

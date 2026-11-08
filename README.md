@@ -748,7 +748,9 @@ gradlew :desktop:run
 
 > A versão desktop é feita para Windows. O plano de portabilidade para Linux — com **suporte completo
 > no Wayland** (captura, atalhos, hover e bandeja) e o **Steam Deck** como alvo principal — está em
-> [LINUX.md](LINUX.md).
+> [LINUX.md](LINUX.md). A base Linux (P1) já está no código: detecção de sessão/desktop, autostart
+> XDG, ícone PNG e build condicional AppImage/`.deb`. Captura, atalhos e hover no Wayland ainda não
+> foram implementados, e o empacotamento Linux precisa ser gerado e validado em Linux.
 
 ### Aparência: tema claro e escuro
 

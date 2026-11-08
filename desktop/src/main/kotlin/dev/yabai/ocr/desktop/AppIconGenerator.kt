@@ -5,6 +5,17 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import javax.imageio.ImageIO
 
+/**
+ * Resource order for the window/tray icon. Linux gets a real PNG so the desktop theme picks it up;
+ * Windows keeps the historical ICO first, with the PNG as a fallback.
+ */
+internal fun iconResourceCandidates(isLinux: Boolean): List<String> =
+    if (isLinux) {
+        listOf("ic_scan_linux.png", "ic_scan_windows.ico", "ic_scan_windows.png")
+    } else {
+        listOf("ic_scan_windows.ico", "ic_scan_windows.png")
+    }
+
 object AppIconGenerator {
 
     fun getTrayImage(): Image {
@@ -12,7 +23,10 @@ object AppIconGenerator {
     }
 
     fun getTaskbarImage(): Image {
-        return loadResourceIcon("ic_scan_windows.ico") ?: loadResourceIcon("ic_scan_windows.png") ?: createEmptyImage()
+        for (resource in iconResourceCandidates(DesktopPlatform.isLinux)) {
+            loadResourceIcon(resource)?.let { return it }
+        }
+        return createEmptyImage()
     }
 
     fun createWindowImage(size: Int = 64): Image {

@@ -15,7 +15,8 @@ enum class DesktopUpdateInterval(val days: Long) {
 enum class DesktopAiProvider { CHATGPT, GEMINI, DEEPSEEK, CLAUDE, CUSTOM }
 
 class DesktopSettings(
-    private val file: File = File(System.getProperty("user.home"), ".yabai_ocr/settings.properties"),
+    private val file: File = File(defaultDesktopHome(), "settings.properties"),
+    private val desktopHome: File = defaultDesktopHome(),
 ) {
     private val props = Properties().apply {
         if (file.exists()) {
@@ -169,7 +170,7 @@ class DesktopSettings(
         }
 
     fun defaultDictDirectory(): File {
-        return File(System.getProperty("user.home"), ".yabai_ocr/dicts")
+        return File(desktopHome, "dicts")
     }
 
     fun dictDirectory(): File {

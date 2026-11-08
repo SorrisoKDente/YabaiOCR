@@ -1,12 +1,18 @@
 # Portabilidade para Linux e Wayland — plano de implementação
 
-**Status:** planejamento. Nenhum código de portabilidade foi escrito ainda.
+**Status:** **P1 (base Linux) implementada em 07/11/2026**; P2–P6 pendentes. Nenhuma validação em
+host Linux/Steam Deck real foi feita ainda — o empacotamento Linux precisa ser gerado em Linux.
 **Módulo afetado:** `:desktop` (e apenas ele). `:core` só muda se for para extrair algo comprovadamente
 independente de SO; `:app` (Android) não é tocado.
 **Alvo primário:** **Steam Deck / SteamOS em Desktop Mode (KDE Plasma 6 + Wayland nativo)**.
 **Alvo secundário:** Linux desktop com Wayland (KDE Plasma) e Linux com X11.
 **Não muda:** Windows continua sendo a plataforma de referência; Android continua intacto.
 **Data desta revisão:** 07/11/2026.
+
+**O que a P1 já entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
+`Exec`, ícone PNG Linux, `YABAI_HOME`, build condicional `Deb`/`AppImage` + `packagePortableTarGz`, e
+27 testes novos (suíte desktop em **123**). As oito mutações da P1 foram provadas (ver §13.3).
+Captura, atalhos e hover do Wayland continuam sendo P2–P4.
 
 > Esta revisão **substitui** a versão anterior do documento, que tratava Wayland como “melhor esforço”
 > e descrevia captura, atalhos e hover como indisponíveis. O requisito agora é **paridade funcional no
@@ -818,6 +824,7 @@ Cada linha precisa ser reintroduzida, ver o teste nomeado falhar e restaurar par
 | `metadata.json` sem `X-Plasma-MainScript` | `KWinMetadataTest` |
 | tooltip usa transparente sem suporte | `TranslucentBackgroundTest` |
 | `DesktopSettings` ignora `YABAI_HOME` | `DesktopSettingsTest` |
+| resolver aceita o primeiro candidato mesmo inexistente | `resolver skips a missing appimage…` |
 | build Linux não adiciona `Deb`/`AppImage` | tarefa de CI que falha se `packageAppImage` não existir |
 
 ### 13.4 E2E no Steam Deck (Desktop Mode)
