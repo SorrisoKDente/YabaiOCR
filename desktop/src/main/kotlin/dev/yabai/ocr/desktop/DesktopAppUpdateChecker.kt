@@ -11,7 +11,31 @@ data class AppUpdateInfo(
     val currentVersion: String,
     val releaseUrl: String,
     val releaseNotes: String,
+    /** Direct download for this OS when the release publishes a matching asset. */
+    val downloadUrl: String? = null,
 )
+
+internal data class ReleaseAsset(val name: String, val downloadUrl: String)
+
+/**
+ * Picks the installer that matches the running OS.
+ *
+ * A release can publish assets for several platforms; sending a Windows user to the `.AppImage`
+ * (or the opposite) makes the update button useless. The order inside a family is the preference:
+ * an `.exe` installer is friendlier than a `.msi`, and Linux only ships AppImages.
+ */
+internal fun preferredReleaseAsset(family: OsFamily, assets: List<ReleaseAsset>): ReleaseAsset? {
+    val suffixes = when (family) {
+        OsFamily.WINDOWS -> listOf(".exe", ".msi")
+        OsFamily.LINUX -> listOf(".appimage")
+        OsFamily.MACOS -> listOf(".dmg", ".pkg")
+        OsFamily.OTHER -> emptyList()
+    }
+    for (suffix in suffixes) {
+        assets.firstOrNull { it.name.lowercase().endsWith(suffix) }?.let { return it }
+    }
+    return null
+}
 
 object DesktopAppUpdateChecker {
     private const val CURRENT_VERSION = "1.0.0"
@@ -24,7 +48,7 @@ object DesktopAppUpdateChecker {
 
     fun getCurrentVersion(): String = CURRENT_VERSION
 
-    fun checkForAppUpdate(): AppUpdateInfo? {
+    internal fun checkForAppUpdate(family: OsFamily = DesktopPlatform.family): AppUpdateInfo? {
         return try {
             val request = Request.Builder()
                 .url(GITHUB_RELEASE_URL)
@@ -43,12 +67,22 @@ object DesktopAppUpdateChecker {
 
                 val hasUpdate = compareVersions(CURRENT_VERSION, tagName) < 0
 
+                val assets = json.getAsJsonArray("assets")
+                    ?.mapNotNull { element ->
+                        val asset = element.asJsonObject
+                        val name = asset.get("name")?.asString ?: return@mapNotNull null
+                        val url = asset.get("browser_download_url")?.asString ?: return@mapNotNull null
+                        ReleaseAsset(name, url)
+                    }
+                    .orEmpty()
+
                 AppUpdateInfo(
                     hasUpdate = hasUpdate,
                     latestVersion = tagName,
                     currentVersion = CURRENT_VERSION,
                     releaseUrl = htmlUrl,
-                    releaseNotes = bodyText
+                    releaseNotes = bodyText,
+                    downloadUrl = preferredReleaseAsset(family, assets)?.downloadUrl
                 )
             }
         } catch (_: Exception) {

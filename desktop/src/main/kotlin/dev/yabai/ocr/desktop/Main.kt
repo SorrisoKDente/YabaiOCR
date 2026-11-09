@@ -266,11 +266,45 @@ fun main(args: Array<String>) {
             },
         )
     }
+    var trayReady by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
-        trayManager.setup()
+        trayReady = trayManager.setup()
+        // `--minimized` is only honest when the tray icon exists. Without it the only way to reach
+        // the app is the window, so open it instead of running invisibly.
+        if (shouldShowMainWindowOnStart(startMinimized, trayReady)) {
+            showMainWindow = true
+        }
         onDispose {
             trayManager.remove()
+        }
+    }
+
+    LaunchedEffect(hoverState.active) {
+        trayManager.updateHover(hoverState.active)
+    }
+
+    // Linux: "Integrar ao sistema" writes a per-user desktop entry and icon. The card only exists
+    // when the integration can name an executable, so Windows keeps the exact same UI as before.
+    val linuxIntegration = remember {
+        if (DesktopPlatform.isLinux) LinuxSystemIntegration() else null
+    }
+    var linuxIntegrationStatus by remember {
+        mutableStateOf(
+            if (linuxIntegration?.desktopFile?.isFile == true) {
+                "Atalho já instalado para este usuário."
+            } else {
+                ""
+            }
+        )
+    }
+    val installLinuxIntegration: (() -> Unit)? = linuxIntegration?.let { integration ->
+        {
+            linuxIntegrationStatus = if (integration.install()) {
+                "Atalho e ícone instalados no menu de aplicativos."
+            } else {
+                "Não foi possível instalar o atalho. Rode o Yabai OCR a partir do AppImage ou de um executável instalado."
+            }
         }
     }
 
@@ -366,7 +400,7 @@ fun main(args: Array<String>) {
         }
         Window(
             onCloseRequest = {
-                if (settings.closeToTray) {
+                if (settings.closeToTray && trayReady) {
                     showMainWindow = false
                 } else {
                     exitApplication()
@@ -406,6 +440,8 @@ fun main(args: Array<String>) {
                             hoverActive = hoverState.active,
                             hoverStatus = hoverState.status,
                             hotkeyBackendStatus = hotkeyStatus,
+                            linuxIntegrationStatus = linuxIntegrationStatus,
+                            onInstallLinuxIntegration = installLinuxIntegration,
                             onHoverToggle = { applyHover(!hoverState.active) },
                             onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
                             onThemeChanged = { isDark ->

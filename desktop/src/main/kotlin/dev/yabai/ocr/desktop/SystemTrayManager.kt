@@ -5,7 +5,7 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
 
-class SystemTrayManager(
+internal class SystemTrayManager(
     private val onFullScreenCaptureRequested: () -> Unit,
     private val onRegionCaptureRequested: () -> Unit,
     private val onQuickDictRequested: () -> Unit,
@@ -14,37 +14,88 @@ class SystemTrayManager(
     private val onHoverRequested: () -> Unit,
     private val isHoverActive: () -> Boolean,
     private val onExitRequested: () -> Unit,
+    private val menuKind: TrayMenuKind = trayMenuKindFor(DesktopPlatform.family, DesktopPlatform.session),
 ) {
     private var trayIcon: TrayIcon? = null
+    private var nativeHoverItem: MenuItem? = null
 
-    fun setup() {
+    /** Returns true only when the icon was really added to the system tray. */
+    fun setup(): Boolean {
         if (!SystemTray.isSupported()) {
             println("SystemTray não é suportado no sistema.")
-            return
+            return false
         }
 
         val tray = SystemTray.getSystemTray()
         val bi = AppIconGenerator.createTrayImage(16)
 
-        trayIcon = TrayIcon(bi, "Yabai OCR Desktop").apply {
+        val icon = TrayIcon(bi, "Yabai OCR Desktop").apply {
             isImageAutoSize = true
             addActionListener { onFullScreenCaptureRequested() }
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseReleased(e: MouseEvent) {
-                    if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3 || e.button == MouseEvent.BUTTON1) {
-                        // TrayIcon mouse coordinates are icon-relative on Windows; the pointer is
-                        // what the user sees, and it is already in screen coordinates.
-                        val anchor = MouseInfo.getPointerInfo()?.location ?: Point(e.x, e.y)
-                        showCustomTrayMenu(anchor)
+            if (menuKind == TrayMenuKind.CUSTOM) {
+                addMouseListener(object : MouseAdapter() {
+                    override fun mouseReleased(e: MouseEvent) {
+                        if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3 || e.button == MouseEvent.BUTTON1) {
+                            // TrayIcon mouse coordinates are icon-relative on Windows; the pointer is
+                            // what the user sees, and it is already in screen coordinates.
+                            val anchor = MouseInfo.getPointerInfo()?.location ?: Point(e.x, e.y)
+                            showCustomTrayMenu(anchor)
+                        }
                     }
-                }
-            })
+                })
+            }
         }
 
-        try {
-            tray.add(trayIcon)
+        if (menuKind == TrayMenuKind.NATIVE) {
+            icon.popupMenu = createNativeMenu()
+        }
+
+        return try {
+            tray.add(icon)
+            trayIcon = icon
+            true
         } catch (e: Exception) {
             e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Native menu for Linux: the desktop positions it at the icon, so it works without a global
+     * pointer. The left click still performs the full-screen capture, as on Windows.
+     */
+    private fun createNativeMenu(): PopupMenu {
+        val menu = PopupMenu()
+
+        fun add(label: String, action: () -> Unit) {
+            menu.add(MenuItem(label).apply { addActionListener { action() } })
+        }
+
+        add("🖥️  Capturar Tela Inteira (OCR)") { onFullScreenCaptureRequested() }
+        add("✂️  Capturar Área (OCR)") { onRegionCaptureRequested() }
+        add("🔍  Busca Rápida de Dicionário") { onQuickDictRequested() }
+
+        nativeHoverItem = MenuItem(hoverMenuItemLabel()).apply {
+            addActionListener { onHoverRequested() }
+        }
+        nativeHoverItem?.let { menu.add(it) }
+
+        menu.addSeparator()
+        add("📚  Gerenciar Dicionários") { onFullDictRequested() }
+        add("⚙️  Ajustes e Configurações") { onSettingsRequested() }
+        menu.addSeparator()
+        add("✕  Sair") { onExitRequested() }
+        return menu
+    }
+
+    private fun hoverMenuItemLabel(): String =
+        if (isHoverActive()) "🌐  Modo Hover [Ativo]" else "🌐  Modo Hover [Inativo]"
+
+    /** Keeps the native menu label truthful after the hover is toggled anywhere. */
+    fun updateHover(active: Boolean) {
+        SwingUtilities.invokeLater {
+            nativeHoverItem?.label =
+                if (active) "🌐  Modo Hover [Ativo]" else "🌐  Modo Hover [Inativo]"
         }
     }
 
@@ -191,5 +242,6 @@ class SystemTrayManager(
             SystemTray.getSystemTray().remove(it)
         }
         trayIcon = null
+        nativeHoverItem = null
     }
 }

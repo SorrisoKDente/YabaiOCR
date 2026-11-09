@@ -28,3 +28,21 @@ function pushCursor() {
 }
 
 workspace.cursorPosChanged.connect(pushCursor);
+
+// Wayland has no reliable alwaysOnTop from the client side. Mark the hover window so it stays above
+// normal windows and out of the taskbar. windowAdded covers tooltips created after the script
+// loaded; windowList/clientList covers a tooltip that was already open.
+const HOVER_WINDOW_TITLE = "Yabai OCR - Hover";
+
+function markHoverWindow(window) {
+    if (!window || window.caption !== HOVER_WINDOW_TITLE) return;
+    window.keepAbove = true;
+    window.skipTaskbar = true;
+}
+
+workspace.windowAdded.connect(markHoverWindow);
+
+const existingWindows = typeof workspace.windowList === "function"
+    ? workspace.windowList()
+    : (typeof workspace.clientList === "function" ? workspace.clientList() : []);
+existingWindows.forEach(markHoverWindow);

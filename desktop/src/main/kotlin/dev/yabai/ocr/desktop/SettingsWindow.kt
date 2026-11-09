@@ -35,6 +35,8 @@ fun SettingsContent(
     hoverActive: Boolean = false,
     hoverStatus: String = "",
     hotkeyBackendStatus: String = "",
+    linuxIntegrationStatus: String = "",
+    onInstallLinuxIntegration: (() -> Unit)? = null,
     onHoverToggle: () -> Unit = {},
     onHoverTest: () -> Unit = {},
     onThemeChanged: (Boolean) -> Unit = {},
@@ -695,6 +697,31 @@ fun SettingsContent(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
                         Text("Padrão")
+                    }
+                }
+            }
+        }
+
+        // --- Integração com o Linux ---
+        if (onInstallLinuxIntegration != null) {
+            item {
+                SettingCard(title = "Integração com o Linux") {
+                    Text(
+                        text = linuxIntegrationStatus.ifBlank {
+                            "Cria o atalho no menu de aplicativos e instala o ícone do Yabai OCR para o seu usuário."
+                        },
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.secondary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onInstallLinuxIntegration,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = palette.button,
+                            contentColor = MaterialTheme.colors.onPrimary
+                        )
+                    ) {
+                        Text("Integrar ao sistema")
                     }
                 }
             }
@@ -1439,13 +1466,15 @@ fun SettingsContent(
                             Spacer(modifier = Modifier.height(8.dp))
                             OutlinedButton(
                                 onClick = {
+                                    val url = updateInfo?.downloadUrl ?: updateInfo?.releaseUrl
+                                        ?: "https://github.com/SorrisoKDente/yabai_ocr/releases/latest"
                                     runCatching {
-                                        java.awt.Desktop.getDesktop().browse(java.net.URI(updateInfo?.releaseUrl ?: "https://github.com/SorrisoKDente/yabai_ocr/releases/latest"))
+                                        java.awt.Desktop.getDesktop().browse(java.net.URI(url))
                                     }
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
                             ) {
-                                Text("🌐 Baixar Atualização no GitHub")
+                                Text(if (updateInfo?.downloadUrl != null) "⬇️ Baixar Atualização" else "🌐 Baixar Atualização no GitHub")
                             }
                         }
                     }

@@ -4183,3 +4183,56 @@ temporário e a suíte deixa o hash do arquivo do usuário intacto (verificado a
 deste host já tinha sido gravado por execuções anteriores desta sessão (`dictionary_update_interval`
 terminou em `WEEKLY` e `last_dict_update_check` com o valor de teste); não havia backup do carimbo
 anterior para restaurar. Nenhuma outra preferência foi alterada pelo código da P4.
+
+### D34 — Polimento Linux: bandeja nativa, `keepAbove`, integração e update por SO `[x]` (08/11/2026)
+
+Quinta fase (P5) do plano `LINUX.md`. Fecha o que a P4 deixou em aberto no Wayland e no primeiro uso
+do AppImage, sem mexer em `:core`/`:app`.
+
+- `TrayMenu.kt`: `TrayMenuKind` (`NATIVE`/`CUSTOM`), `trayMenuKindFor(family, session)` e
+  `shouldShowMainWindowOnStart(startMinimized, trayReady)`. Linux usa `java.awt.PopupMenu` em qualquer
+  sessão; Windows mantém o `JPopupMenu` customizado.
+- `SystemTrayManager.kt`: `setup(): Boolean` (só `true` quando o ícone entrou de fato), menu nativo
+  no Linux, menu customizado com `MouseInfo` no Windows, `updateHover(active)` para o rótulo
+  `Modo Hover [Ativo/Inativo]` e limpeza do `MenuItem` no `remove()`.
+- `Main.kt`: `trayReady`; `--minimized` abre a janela quando a bandeja falhou; `closeToTray` só
+  esconde com bandeja ativa; `LaunchedEffect(hoverState.active)` sincroniza o menu; cartão de
+  integração Linux com estado e ação.
+- `LinuxSystemIntegration.kt` + `defaultDataHome`: “Integrar ao sistema” grava
+  `$XDG_DATA_HOME/applications/yabai-ocr.desktop` e
+  `$XDG_DATA_HOME/icons/hicolor/256x256/apps/yabai-ocr.png`. Executável ausente/vazio ou ícone
+  ausente cancelam tudo — nunca deixa atalho quebrado. Nada é escrito em `/usr`.
+- `SettingsWindow.kt`: cartão “Integração com o Linux” (`linuxIntegrationStatus`,
+  `onInstallLinuxIntegration`) só quando a ação existe.
+- `DesktopAppUpdateChecker.kt`: `ReleaseAsset`, `preferredReleaseAsset(family, assets)` e
+  `AppUpdateInfo.downloadUrl`. Linux → `.AppImage`; Windows → `.exe` e depois `.msi`; macOS →
+  `.dmg`/`.pkg`. Sem asset do SO, a UI volta para a página do release.
+- `kwin/yabai-ocr/code/main.js`: `keepAbove = true` e `skipTaskbar = true` na janela
+  `Yabai OCR - Hover`, aplicados em `windowAdded` e nas janelas já abertas (`windowList`/
+  `clientList`).
+
+**Causa raiz.** No Wayland não existe ponteiro global para o `JPopupMenu` do Windows, então o menu
+abria no lugar errado; `setup()` não informava falha e `--minimized` deixava o app invisível; o
+tooltip dependia de `alwaysOnTop`, que o compositor ignora; e o primeiro uso do AppImage não criava
+atalho no menu de aplicativos. O update checker abria sempre a página do release, mesmo quando o
+release publicava um asset específico de SO.
+
+**Testes.** `:desktop:test` passou de 198 para **214** (16 novos): `TrayMenuTest` (4),
+`LinuxSystemIntegrationTest` (5), `UpdateAssetTest` (6) e um caso novo em `KWinScriptTest` (9 no
+total).
+
+**Mutações provadas** (script `mutation-proof.ps1`, restauração com hash conferido):
+
+| mutação | teste que acusou |
+| --- | --- |
+| Linux volta a usar o menu customizado | `linux always uses the native menu on any session` |
+| `--minimized` ignora a falha da bandeja | `a minimized start opens the window when the tray failed` |
+| Windows prefere `.msi` antes de `.exe` | `windows prefers the exe over the msi` |
+| integração grava atalho sem executável válido | `blank executable is refused` / `no executable means no broken entry` |
+| script KWin não aplica `keepAbove` | `the hover window is kept above and out of the taskbar` |
+
+**Limitações desta fase.** Bandeja StatusNotifier, posição real do `PopupMenu`, `keepAbove` e a
+instalação do `.desktop` só podem ser vistos numa sessão KDE Wayland/Steam Deck; nada disso roda no
+host Windows usado aqui. `:desktop:createDistributable` foi refeito (verde). Windows foi verificado
+pela suíte (214) e nenhum processo ficou aberto. O hash de `~/.yabai_ocr/settings.properties` foi
+conferido antes/depois da suíte e não mudou.

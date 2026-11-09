@@ -31,6 +31,17 @@ class KWinScriptTest {
     }
 
     @Test
+    fun `the hover window is kept above and out of the taskbar`() {
+        val script = KWinScript.baseMainScript()
+
+        assertTrue(script.contains("Yabai OCR - Hover"))
+        assertTrue(script.contains("keepAbove = true"))
+        assertTrue(script.contains("skipTaskbar = true"))
+        assertTrue(script.contains("windowAdded.connect"))
+        assertTrue(script.contains("windowList"))
+    }
+
+    @Test
     fun `fallback shortcuts generate registerShortcut and the dbus callback`() {
         val block = KWinScript.fallbackShortcutBlock(bindings())
 

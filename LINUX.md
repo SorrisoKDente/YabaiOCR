@@ -1,10 +1,11 @@
 # Portabilidade para Linux e Wayland — plano de implementação
 
-**Status:** **P1 (base Linux), P2 (captura Wayland), P3 (atalhos Wayland) e P4 (hover Wayland
-pelo KWin) implementadas em 08/11/2026**; P5–P6 pendentes. Nenhuma validação em host Linux/Steam Deck
-real foi feita ainda — o empacotamento Linux precisa ser gerado em Linux, a captura por portal precisa
-de uma sessão Wayland de verdade, o diálogo de atalhos do portal só existe no KDE e o script KWin/D-Bus
-não roda neste host Windows.
+**Status:** **P1 (base Linux), P2 (captura Wayland), P3 (atalhos Wayland), P4 (hover Wayland
+pelo KWin) e P5 (polimento Linux) implementadas em 08/11/2026**; P6 pendente. Nenhuma validação em
+host Linux/Steam Deck real foi feita ainda — o empacotamento Linux precisa ser gerado em Linux, a
+captura por portal precisa de uma sessão Wayland de verdade, o diálogo de atalhos do portal só existe
+no KDE, o script KWin/D-Bus não roda neste host Windows e a bandeja StatusNotifier/`keepAbove` só
+podem ser vistos numa sessão KDE real.
 **Módulo afetado:** `:desktop` (e apenas ele). `:core` só muda se for para extrair algo comprovadamente
 independente de SO; `:app` (Android) não é tocado.
 **Alvo primário:** **Steam Deck / SteamOS em Desktop Mode (KDE Plasma 6 + Wayland nativo)**.
@@ -40,6 +41,16 @@ screencast só no KWin), `PointerSource`/`KwinPointerSource` (posição do scrip
 visível), `KWinScript` (metadata, script principal e bloco de atalhos de fallback),
 `HoverOcrManager` sem `MouseInfo`/poll no KWin e com captura screencast, e o wiring em `Main.kt`.
 29 testes novos (suíte desktop em **198**); as oito mutações da P4 foram provadas.
+
+**O que a P5 entregou:** menu de bandeja nativo (`java.awt.PopupMenu`) no Linux e menu customizado
+mantido no Windows (`TrayMenuKind`/`TrayMenuTest`); `SystemTrayManager.setup(): Boolean` com fallback
+de `--minimized` para janela visível; `closeToTray` só esconde com bandeja ativa; rótulo
+`Modo Hover [Ativo/Inativo]` atualizado ao vivo no menu nativo; `keepAbove`/`skipTaskbar` do tooltip
+pelo script KWin; “Integrar ao sistema” (`LinuxSystemIntegration`) gravando `.desktop` + PNG em
+`$XDG_DATA_HOME` (nunca em `/usr`) e cartão “Integração com o Linux” nos Ajustes; update checker
+escolhendo o asset do SO (`.AppImage` no Linux, `.exe`/`.msi` no Windows, `.dmg` no macOS) com fallback
+para a página do release. 16 testes novos (suíte desktop em **214**); as cinco mutações da P5 foram
+provadas.
 
 Com a P4, o fallback KWin dos atalhos do §5.2 passa a existir: quando o portal termina em
 `UNAVAILABLE`, o script registra as mesmas combinações e chama `ShortcutPressed` no app.
@@ -566,6 +577,12 @@ estéticas.
 - `closeToTray` sem bandeja não pode esconder o app para sempre: encerrar ou avisar.
 - O Game Mode não tem bandeja; o app aberto por lá deve mostrar a janela.
 
+**Implementado na P5:** `TrayMenu.kt` escolhe `NATIVE` no Linux (inclusive Wayland) e `CUSTOM` no
+Windows; `SystemTrayManager.setup()` devolve se o ícone entrou e `Main.kt` abre a janela quando
+`--minimized` falhou; `closeToTray` também exige `trayReady`; `updateHover(active)` mantém o rótulo
+do menu nativo sincronizado. O script KWin marca a janela `Yabai OCR - Hover` com `keepAbove` e
+`skipTaskbar`, porque `alwaysOnTop` é só melhor esforço no Wayland.
+
 ### 8.2 Autostart XDG
 
 - `StartupManager` vira fachada; `WindowsAutostart` mantém o registro atual; `LinuxAutostart` grava
@@ -605,12 +622,14 @@ X-GNOME-Autostart-enabled=true
 
 1. Baixar `Yabai_OCR-<versao>-x86_64.AppImage` e colocar em `~/Applications/`.
 2. `chmod +x` no arquivo.
-3. Abrir uma vez; o app oferece “Integrar ao sistema”, que copia:
-   - `yabai-ocr.desktop` para `~/.local/share/applications/`;
-   - `yabai-ocr.png` para `~/.local/share/icons/hicolor/256x256/apps/`;
+3. Abrir uma vez; o app oferece “Integrar ao sistema” (cartão “Integração com o Linux”), que copia:
+   - `yabai-ocr.desktop` para `$XDG_DATA_HOME/applications/` (padrão `~/.local/share/applications/`);
+   - `yabai-ocr.png` para `$XDG_DATA_HOME/icons/hicolor/256x256/apps/`;
    - (opcional) atalho na área de trabalho.
-4. O `.desktop` usa `Exec=<caminho real do AppImage> %U` e `Icon=yabai-ocr`.
+4. O `.desktop` usa `Exec=<caminho real do AppImage>` e `Icon=yabai-ocr`.
 5. Autostart é criado pelo toggle dos Ajustes em `~/.config/autostart/`.
+6. Se o release publicar um AppImage, o botão “Baixar Atualização” abre o asset direto; sem asset
+   correspondente ao SO, abre a página do release.
 
 Por que AppImage:
 
@@ -820,7 +839,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | suíte | hoje | regra |
 | --- | --- | --- |
 | `:core:test` | 153 (26 pulados) | não pode cair; nenhum teste Linux novo aqui |
-| `:desktop:test` | 198 | continua verde; `StartupManagerTest` continua pulando fora do Windows |
+| `:desktop:test` | 214 | continua verde; `StartupManagerTest` continua pulando fora do Windows |
 | `:app:testDebugUnitTest` | 397 | não pode mudar; nenhuma alteração em `app/` |
 
 ### 13.2 Testes novos (JVM puros, sem abrir janela nem portal)
@@ -831,8 +850,8 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | `LinuxAutostartTest` | cria/apaga `.desktop` em pasta temporária; `--minimized`; `Icon`; `XDG_CONFIG_HOME`; executável ausente não grava arquivo quebrado |
 | `DesktopEntryExecTest` | escape de espaço, `"`, `\`, `$`, backtick no campo `Exec` |
 | `LinuxDesktopEntryTest` | `.desktop` do AppImage aponta para `$APPIMAGE`/caminho real; ícone e categoria corretos |
-| `TrayFallbackTest` | `startMinimized && !trayReady` → janela visível; `trayReady` → escondida; `!startMinimized` → visível |
-| `TrayMenuStrategyTest` | Wayland usa `PopupMenu` nativo; Windows mantém `JPopupMenu`; nenhum usa `MouseInfo` no Wayland |
+| `TrayMenuTest` | Linux usa `PopupMenu` nativo em qualquer sessão; Windows mantém o menu customizado; `--minimized` sem bandeja abre a janela |
+| `LinuxSystemIntegrationTest` | grava `.desktop` + PNG em `$XDG_DATA_HOME`; executável vazio/ausente ou ícone ausente não deixam atalho quebrado |
 | `IconResourceTest` | `ic_scan_linux.png` existe e abre; `.ico` do Windows continua |
 | `ScreenCaptureBackendTest` | Windows/X11 → Robot; Wayland → screencast; mensagens distintas para cada `CaptureAvailability`; nunca `x11` no Wayland |
 | `ScreenshotMethodTest` | `dbusScreencast` definido só em Linux Wayland KDE, antes do AWT; GNOME e X11 intactos |
@@ -851,7 +870,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | `PortalGlobalShortcutsTest` | sessão criada uma vez, bind com os cinco triggers, `Activated` chega na ação certa, portal ausente/negado não finge bind, atualização não recria sessão |
 | `TranslucentBackgroundTest` | sem `PERPIXEL_TRANSLUCENT` → opaco; com → transparente |
 | `DesktopSettingsTest` | `YABAI_HOME` sobrescreve; sem a variável, comportamento antigo |
-| `UpdateAssetTest` (se implementado) | escolhe AppImage/`.deb` no Linux e `.exe`/`.msi` no Windows; nunca cruza |
+| `UpdateAssetTest` | escolhe AppImage no Linux, `.exe` antes de `.msi` no Windows e `.dmg` no macOS; liberação sem asset do SO volta para a página do release; extensão sem diferenciar maiúsculas |
 
 > Testes que leem `System.getenv()`/`System.getProperty()` recebem `Map`/valor por parâmetro. Nada de
 > `setProperty("os.name")` global em teste paralelo.
@@ -867,8 +886,8 @@ Cada linha precisa ser reintroduzida, ver o teste nomeado falhar e restaurar par
 | `detectDesktopFamily` não reconhece `KDE` | `DesktopPlatformTest` |
 | `LinuxAutostart` grava `Exec` sem aspas | `DesktopEntryExecTest` / `LinuxAutostartTest` |
 | `setEnabled(false)` só marca `Hidden=true` | `LinuxAutostartTest` |
-| `Main` ignora falha da bandeja com `--minimized` | `TrayFallbackTest` |
-| Linux continua com `JPopupMenu` + `MouseInfo` | `TrayMenuStrategyTest` |
+| `Main` ignora falha da bandeja com `--minimized` | `TrayMenuTest` |
+| Linux continua com `JPopupMenu` + `MouseInfo` | `TrayMenuTest` |
 | `AppIconGenerator` continua usando `.ico` no Linux | `IconResourceTest` |
 | Wayland chama `x11` ou não define `screenshotMethod` | `ScreenshotMethodTest` / `ScreenCaptureBackendTest` |
 | `screenshotMethod` definido sem exigir KDE (GNOME contaminado) | `ScreenshotMethodTest` |
@@ -897,6 +916,9 @@ Cada linha precisa ser reintroduzida, ver o teste nomeado falhar e restaurar par
 | script é dado como carregado sem `isScriptLoaded` | `KWinHoverBridgeTest` |
 | KWin sobe sem o serviço D-Bus | `KWinIntegrationTest` |
 | tooltip usa transparente sem suporte | `TranslucentBackgroundTest` |
+| inventário Linux escreve atalho sem executável válido ou sem ícone | `LinuxSystemIntegrationTest` |
+| update checker manda o Linux para o `.exe` (ou o Windows para o AppImage) | `UpdateAssetTest` |
+| script KWin deixa de aplicar `keepAbove`/`skipTaskbar` no tooltip | `KWinScriptTest` |
 | `DesktopSettings` ignora `YABAI_HOME` | `DesktopSettingsTest` |
 | resolver aceita o primeiro candidato mesmo inexistente | `resolver skips a missing appimage…` |
 | build Linux não adiciona `Deb`/`AppImage` | tarefa de CI que falha se `packageAppImage` não existir |
@@ -974,6 +996,10 @@ Adicionar verificação de que `git diff -- app core` está vazio durante a impl
 | **P6 — regressão e release** | E2E X11/Windows/Android, docs, assets, checksums | Windows intacto, Android 397, core 153; release publicada |
 
 P1–P5 não tocam `:core`/`:app`. Se algum passo exigir mudança neles, parar e reavaliar o contrato.
+
+P5 concluída em 08/11/2026: suíte desktop em **214 testes**, cinco mutações provadas e
+`:desktop:createDistributable` verde. A validação real do item “polimento Linux” continua pendente
+numa sessão KDE Wayland/Steam Deck (bandeja StatusNotifier, `keepAbove` e instalação do `.desktop`).
 
 ---
 

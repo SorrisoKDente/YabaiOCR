@@ -65,6 +65,14 @@ internal fun defaultConfigHome(
     return if (!override.isNullOrBlank()) File(override) else File(userHome, ".config")
 }
 
+internal fun defaultDataHome(
+    env: Map<String, String> = System.getenv(),
+    userHome: String = System.getProperty("user.home"),
+): File {
+    val override = env["XDG_DATA_HOME"]?.trim()
+    return if (!override.isNullOrBlank()) File(override) else File(userHome, ".local/share")
+}
+
 /**
  * Ordered executable candidates for a Linux launcher. Pure so the precedence can be tested without
  * a real AppImage: the caller passes the filesystem-dependent extras (AppImages under
