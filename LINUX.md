@@ -620,6 +620,8 @@ X-GNOME-Autostart-enabled=true
 
 ### 9.1 Instalação recomendada
 
+> Requisitos, dependências e passo a passo detalhado no SteamOS: [STEAMOS.md](STEAMOS.md).
+
 1. Baixar `Yabai_OCR-<versao>-x86_64.AppImage` e colocar em `~/Applications/`.
 2. `chmod +x` no arquivo.
 3. Abrir uma vez; o app oferece “Integrar ao sistema” (cartão “Integração com o Linux”), que copia:

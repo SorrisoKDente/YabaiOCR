@@ -756,6 +756,8 @@ gradlew :desktop:run
 > responde, menu de bandeja nativo, “Integrar ao sistema” (atalho + ícone em `$XDG_DATA_HOME`) e update
 > checker que baixa o asset do SO. O empacotamento Linux, a bandeja nativa, a captura e o hover ainda
 > precisam ser validados numa sessão Linux/Steam Deck real.
+>
+> Passo a passo de requisitos e instalação no Deck: [STEAMOS.md](STEAMOS.md).
 
 ### Aparência: tema claro e escuro
 
