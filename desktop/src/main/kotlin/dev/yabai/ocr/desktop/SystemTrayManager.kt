@@ -15,6 +15,7 @@ internal class SystemTrayManager(
     private val isHoverActive: () -> Boolean,
     private val onExitRequested: () -> Unit,
     private val menuKind: TrayMenuKind = trayMenuKindFor(DesktopPlatform.family, DesktopPlatform.session),
+    private val showMenuOnLeftClick: Boolean = !DesktopPlatform.isLinux,
 ) {
     private var trayIcon: TrayIcon? = null
     private var nativeHoverItem: MenuItem? = null
@@ -35,12 +36,11 @@ internal class SystemTrayManager(
             if (menuKind == TrayMenuKind.CUSTOM) {
                 addMouseListener(object : MouseAdapter() {
                     override fun mouseReleased(e: MouseEvent) {
-                        if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3 || e.button == MouseEvent.BUTTON1) {
-                            // TrayIcon mouse coordinates are icon-relative on Windows; the pointer is
-                            // what the user sees, and it is already in screen coordinates.
-                            val anchor = MouseInfo.getPointerInfo()?.location ?: Point(e.x, e.y)
-                            showCustomTrayMenu(anchor)
-                        }
+                        if (!trayMenuOpensOn(e.button, e.isPopupTrigger, showMenuOnLeftClick)) return
+                        // On Wayland AWT runs through XWayland and may or may not report a global
+                        // pointer; when it does not, the menu opens in the work-area corner instead
+                        // of using the icon-relative event coordinates, which are not screen ones.
+                        showCustomTrayMenu(MouseInfo.getPointerInfo()?.location)
                     }
                 })
             }
@@ -99,7 +99,7 @@ internal class SystemTrayManager(
         }
     }
 
-    private fun showCustomTrayMenu(anchor: Point) {
+    private fun showCustomTrayMenu(anchor: Point?) {
         SwingUtilities.invokeLater {
             val popup = JPopupMenu().apply {
                 background = Color(0x12, 0x14, 0x1A)
@@ -175,8 +175,10 @@ internal class SystemTrayManager(
             val winWidth = popSize.width
             val winHeight = popSize.height
 
-            // Work area of the monitor under the cursor, taskbar excluded.
-            val gc = screenConfigurationAt(anchor)
+            // Work area of the monitor under the cursor, taskbar excluded. Without a global pointer
+            // (native Wayland) the menu falls back to the bottom-right of the default monitor.
+            val gc = anchor?.let { screenConfigurationAt(it) }
+                ?: GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration
             val screenBounds = gc.bounds
             val insets = Toolkit.getDefaultToolkit().getScreenInsets(gc)
             val workArea = Rectangle(
@@ -186,7 +188,8 @@ internal class SystemTrayManager(
                 screenBounds.height - insets.top - insets.bottom,
             )
 
-            val position = placeTrayMenu(anchor, winWidth, winHeight, workArea)
+            val anchorPoint = anchor ?: trayMenuFallbackAnchor(workArea)
+            val position = placeTrayMenu(anchorPoint, winWidth, winHeight, workArea)
 
             // Temporary dark invisible invoker dialog
             val invoker = JDialog().apply {

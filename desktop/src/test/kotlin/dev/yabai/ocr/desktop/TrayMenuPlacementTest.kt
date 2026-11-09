@@ -54,6 +54,16 @@ class TrayMenuPlacementTest {
     }
 
     @Test
+    fun `without a global pointer the menu falls back to the bottom-right corner`() {
+        val anchor = trayMenuFallbackAnchor(workArea)
+        val position = placeTrayMenu(anchor, 230, 300, workArea)
+
+        assertEquals(Point(1682, 732), position)
+        assertEquals(1912, position.x + 230)
+        assertEquals(1032, position.y + 300)
+    }
+
+    @Test
     fun `a monitor with negative coordinates keeps the menu on that monitor`() {
         val leftMonitor = Rectangle(-1920, 0, 1920, 1040)
 

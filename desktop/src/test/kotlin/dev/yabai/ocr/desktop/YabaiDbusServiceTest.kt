@@ -7,7 +7,10 @@ import org.junit.Test
 
 class YabaiDbusServiceTest {
 
-    private class FakeTransport(private val starts: Boolean = true) : YabaiDbusTransport {
+    private class FakeTransport(
+        private val starts: Boolean = true,
+        override val lastError: String? = null,
+    ) : YabaiDbusTransport {
         var startCalls = 0
         var stopCalls = 0
         var hover: ((Int, Int) -> Unit)? = null
@@ -55,6 +58,23 @@ class YabaiDbusServiceTest {
         assertFalse(service.start())
         assertFalse(service.running)
         assertEquals(1, transport.stopCalls)
+    }
+
+    @Test
+    fun `a transport failure keeps the reason for the status line`() {
+        val transport = FakeTransport(starts = false, lastError = "NoClassDefFoundError: jdk/net/ExtendedSocketOptions")
+        val service = YabaiDbusService({ _, _ -> }, {}, { transport })
+
+        assertFalse(service.start())
+        assertEquals("NoClassDefFoundError: jdk/net/ExtendedSocketOptions", service.lastError)
+    }
+
+    @Test
+    fun `a transport factory that throws is reported instead of swallowed`() {
+        val service = YabaiDbusService({ _, _ -> }, {}, { error("sem barramento") })
+
+        assertFalse(service.start())
+        assertTrue(service.lastError?.contains("sem barramento") == true)
     }
 
     @Test

@@ -8,10 +8,27 @@ import org.junit.Test
 class TrayMenuTest {
 
     @Test
-    fun `linux always uses the native menu on any session`() {
-        assertEquals(TrayMenuKind.NATIVE, trayMenuKindFor(OsFamily.LINUX, SessionType.WAYLAND))
+    fun `linux wayland uses the custom menu because the native popup is not delivered`() {
+        assertEquals(TrayMenuKind.CUSTOM, trayMenuKindFor(OsFamily.LINUX, SessionType.WAYLAND))
+    }
+
+    @Test
+    fun `linux x11 keeps the native menu`() {
         assertEquals(TrayMenuKind.NATIVE, trayMenuKindFor(OsFamily.LINUX, SessionType.X11))
         assertEquals(TrayMenuKind.NATIVE, trayMenuKindFor(OsFamily.LINUX, SessionType.UNKNOWN))
+    }
+
+    @Test
+    fun `linux opens the custom menu on the right button only`() {
+        assertFalse(trayMenuOpensOn(java.awt.event.MouseEvent.BUTTON1, false, showOnLeftClick = false))
+        assertTrue(trayMenuOpensOn(java.awt.event.MouseEvent.BUTTON3, false, showOnLeftClick = false))
+        assertTrue(trayMenuOpensOn(java.awt.event.MouseEvent.NOBUTTON, true, showOnLeftClick = false))
+    }
+
+    @Test
+    fun `windows still opens the menu on both buttons`() {
+        assertTrue(trayMenuOpensOn(java.awt.event.MouseEvent.BUTTON1, false, showOnLeftClick = true))
+        assertTrue(trayMenuOpensOn(java.awt.event.MouseEvent.BUTTON3, false, showOnLeftClick = true))
     }
 
     @Test

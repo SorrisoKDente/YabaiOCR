@@ -20,13 +20,23 @@ internal class KWinIntegration(
         if (started) return true
 
         if (!service.start()) {
-            statusMessage = "Não foi possível publicar o serviço D-Bus dev.yabai.Ocr."
+            val detail = service.lastError?.takeIf { it.isNotBlank() }
+            statusMessage = if (detail == null) {
+                "Não foi possível publicar o serviço D-Bus dev.yabai.Ocr."
+            } else {
+                "Não foi possível publicar o serviço D-Bus dev.yabai.Ocr ($detail)."
+            }
             return false
         }
 
         if (!bridge.start(fallbackShortcuts())) {
             service.stop()
-            statusMessage = "Não foi possível ativar o bridge do KWin."
+            val detail = bridge.lastError?.takeIf { it.isNotBlank() }
+            statusMessage = if (detail == null) {
+                "Não foi possível ativar o bridge do KWin."
+            } else {
+                "Não foi possível ativar o bridge do KWin ($detail)."
+            }
             return false
         }
 

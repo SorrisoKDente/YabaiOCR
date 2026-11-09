@@ -40,3 +40,13 @@ internal fun placeTrayMenu(
 
     return Point(x, y)
 }
+
+/**
+ * Where the menu opens when the session reports no global pointer (native Wayland), so the tray
+ * menu still has a reachable, on-screen position instead of the icon-relative mouse coordinates.
+ */
+internal fun trayMenuFallbackAnchor(workArea: Rectangle, margin: Int = 8): Point =
+    Point(
+        workArea.x + workArea.width - margin,
+        workArea.y + workArea.height - margin,
+    )

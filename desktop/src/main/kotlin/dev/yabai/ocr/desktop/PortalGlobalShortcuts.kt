@@ -64,6 +64,9 @@ internal interface PortalRequestDbus : DBusInterface {
 
 /** The portal contract the app needs, separated so [PortalGlobalShortcuts] can be tested without D-Bus. */
 internal interface PortalShortcutsTransport {
+    /** Last failure, or null. Lets the Settings window show the real portal error. */
+    val lastError: String? get() = null
+
     fun isAvailable(): Boolean
     fun createSession(): String?
     fun bindShortcuts(sessionHandle: String, shortcuts: List<PortalShortcutRequest>): Boolean
@@ -94,26 +97,43 @@ internal class PortalGlobalShortcuts(
     private var sessionHandle: String? = null
     private var started = false
 
+    override var lastError: String? = null
+        private set
+
     override fun start(bindings: List<HotkeyBinding>): Boolean {
         if (started) return update(bindings)
+        lastError = null
 
         val requests = portalRequests(bindings)
-        if (requests.isEmpty()) return false
+        if (requests.isEmpty()) {
+            lastError = "nenhum atalho tem combinação configurada"
+            return false
+        }
 
-        val created = runCatching(transportFactory).getOrNull() ?: return false
+        val created = runCatching(transportFactory).getOrElse { error ->
+            lastError = error.describe()
+            logDbusFailure("criar o transporte do portal", error)
+            return false
+        } ?: run {
+            lastError = "transporte do portal indisponível"
+            return false
+        }
         if (!created.isAvailable()) {
+            lastError = "o portal org.freedesktop.portal.GlobalShortcuts não está no barramento"
             runCatching { created.close() }
             return false
         }
 
         val session = created.createSession()
         if (session == null) {
+            lastError = created.lastError ?: "o portal não criou a sessão de atalhos"
             runCatching { created.close() }
             return false
         }
 
         created.setShortcutListener { callbacks.dispatch(it) }
         if (!created.bindShortcuts(session, requests)) {
+            lastError = created.lastError ?: "o portal recusou registrar os atalhos"
             runCatching { created.close() }
             return false
         }
@@ -128,8 +148,13 @@ internal class PortalGlobalShortcuts(
         val active = transport ?: return false
         val session = sessionHandle ?: return false
         val requests = portalRequests(bindings)
-        if (requests.isEmpty()) return false
-        return runCatching { active.bindShortcuts(session, requests) }.getOrDefault(false)
+        if (requests.isEmpty()) {
+            lastError = "nenhum atalho tem combinação configurada"
+            return false
+        }
+        return runCatching { active.bindShortcuts(session, requests) }.getOrDefault(false).also { ok ->
+            lastError = if (ok) null else active.lastError ?: "o portal recusou atualizar os atalhos"
+        }
     }
 
     override fun stop() {
@@ -165,6 +190,9 @@ internal class DbusPortalShortcutsTransport : PortalShortcutsTransport {
     private var portal: PortalGlobalShortcutsDbus? = null
     private var listener: ((String) -> Unit)? = null
 
+    override var lastError: String? = null
+        private set
+
     private val token = AtomicInteger(0)
     private val pending = ConcurrentHashMap<String, CompletableFuture<PortalResponse>>()
     private val early = ConcurrentHashMap<String, PortalResponse>()
@@ -174,7 +202,11 @@ internal class DbusPortalShortcutsTransport : PortalShortcutsTransport {
     override fun isAvailable(): Boolean = runCatching {
         ensureConnected()
         connection?.getDBusOwnerName(PORTAL_BUS) != null
-    }.getOrDefault(false)
+    }.getOrElse { error ->
+        lastError = error.describe()
+        logDbusFailure("consultar o portal de atalhos", error)
+        false
+    }
 
     override fun createSession(): String? = runCatching {
         ensureConnected()
@@ -183,10 +215,23 @@ internal class DbusPortalShortcutsTransport : PortalShortcutsTransport {
             "session_handle_token" to Variant(nextToken(), "s"),
         )
         val request = portal!!.createSession(options).path
-        val response = await(request, SESSION_TIMEOUT_MS) ?: return@runCatching null
-        if (response.code != 0) return@runCatching null
-        response.results["session_handle"]?.value as? String
-    }.getOrNull()
+        val response = await(request, SESSION_TIMEOUT_MS)
+        if (response == null) {
+            lastError = "o portal não respondeu ao CreateSession"
+            return@runCatching null
+        }
+        if (response.code != 0) {
+            lastError = "CreateSession recusado (código ${response.code})"
+            return@runCatching null
+        }
+        (response.results["session_handle"]?.value as? String).also {
+            if (it == null) lastError = "CreateSession não devolveu session_handle"
+        }
+    }.getOrElse { error ->
+        lastError = error.describe()
+        logDbusFailure("criar a sessão do portal", error)
+        null
+    }
 
     override fun bindShortcuts(sessionHandle: String, shortcuts: List<PortalShortcutRequest>): Boolean =
         runCatching {
@@ -207,8 +252,20 @@ internal class DbusPortalShortcutsTransport : PortalShortcutsTransport {
                 "",
                 options,
             ).path
-            await(request, BIND_TIMEOUT_MS)?.code == 0
-        }.getOrDefault(false)
+            val response = await(request, BIND_TIMEOUT_MS)
+            if (response == null) {
+                lastError = "o portal não respondeu ao BindShortcuts"
+                return@runCatching false
+            }
+            if (response.code != 0) {
+                lastError = "BindShortcuts recusado (código ${response.code})"
+            }
+            response.code == 0
+        }.getOrElse { error ->
+            lastError = error.describe()
+            logDbusFailure("registrar os atalhos no portal", error)
+            false
+        }
 
     override fun setShortcutListener(listener: (String) -> Unit) {
         this.listener = listener

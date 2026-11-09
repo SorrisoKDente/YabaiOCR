@@ -41,6 +41,9 @@ internal class ShortcutsDbusObject(
 
 /** D-Bus side separated so [YabaiDbusService] can be tested without a real session bus. */
 internal interface YabaiDbusTransport {
+    /** Last failure, if any, so the UI can show why the bus name could not be published. */
+    val lastError: String? get() = null
+
     fun start(onCursorMoved: (Int, Int) -> Unit, onShortcutPressed: (String) -> Unit): Boolean
     fun stop()
 }
@@ -61,11 +64,26 @@ internal class YabaiDbusService(
     var running: Boolean = false
         private set
 
+    /** Why [start] failed, or null on success. Kept for the status line instead of a silent false. */
+    var lastError: String? = null
+        private set
+
     fun start(): Boolean {
         if (running) return true
+        lastError = null
 
-        val created = runCatching(transportFactory).getOrNull() ?: return false
+        val created = runCatching(transportFactory).getOrElse { error ->
+            lastError = error.describe()
+            logDbusFailure("criar o transporte D-Bus", error)
+            return false
+        } ?: run {
+            lastError = "transporte D-Bus indisponível"
+            return false
+        }
+
         if (!created.start(onCursorMoved, onShortcutPressed)) {
+            lastError = created.lastError ?: "o barramento da sessão recusou a conexão"
+            logDbusFailure("publicar ${KWinScript.SERVICE_NAME}", null, lastError)
             runCatching { created.stop() }
             return false
         }
@@ -87,15 +105,21 @@ internal class DbusYabaiTransport : YabaiDbusTransport {
 
     private var connection: DBusConnection? = null
 
+    override var lastError: String? = null
+        private set
+
     override fun start(onCursorMoved: (Int, Int) -> Unit, onShortcutPressed: (String) -> Unit): Boolean =
         runCatching {
+            lastError = null
             val created = DBusConnectionBuilder.forSessionBus().build()
             created.requestBusName(KWinScript.SERVICE_NAME)
             created.exportObject(KWinScript.HOVER_PATH, HoverDbusObject(onCursorMoved))
             created.exportObject(KWinScript.SHORTCUTS_PATH, ShortcutsDbusObject(onShortcutPressed))
             connection = created
             true
-        }.getOrElse {
+        }.getOrElse { error ->
+            lastError = error.describe()
+            logDbusFailure("conectar ao barramento da sessão", error)
             runCatching { connection?.close() }
             connection = null
             false
@@ -105,4 +129,18 @@ internal class DbusYabaiTransport : YabaiDbusTransport {
         runCatching { connection?.close() }
         connection = null
     }
+}
+
+/** Short, user-facing reason. The full stack trace goes to stderr for a bug report. */
+internal fun Throwable.describe(): String {
+    val type = this::class.simpleName ?: "erro"
+    val detail = message?.takeIf { it.isNotBlank() }
+    return if (detail == null) type else "$type: $detail"
+}
+
+/** D-Bus failures used to be swallowed by `runCatching`; stderr is the only log the packaged app has. */
+internal fun logDbusFailure(step: String, error: Throwable?, detail: String? = null) {
+    val text = detail ?: error?.describe().orEmpty()
+    System.err.println("Yabai OCR: falha ao $step: $text")
+    error?.printStackTrace(System.err)
 }

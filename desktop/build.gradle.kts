@@ -46,6 +46,10 @@ compose.desktop {
         jvmArgs += listOf("-Dfile.encoding=UTF-8")
         nativeDistributions {
             outputBaseDir.set(layout.buildDirectory.dir("distributions"))
+            // dbus-java's native unix-socket transport reads `jdk.net:ExtendedSocketOptions.SO_PEERCRED`.
+            // Without this module the jlink runtime image throws NoClassDefFoundError on Linux and the
+            // D-Bus service, the KWin bridge and the portal shortcuts all silently fail.
+            modules("jdk.net")
             appResourcesRootDir.set(
                 project.file(if (isWindowsHost) "package/windows" else "package/linux")
             )
@@ -125,6 +129,18 @@ if (isLinuxHost) {
         destinationDirectory.set(layout.buildDirectory.dir("distributions/portable"))
         from(layout.buildDirectory.dir("distributions/main/app/yabai-ocr"))
         compression = Compression.GZIP
+    }
+
+    // Compose 1.7 maps TargetFormat.AppImage to `jpackage --type app-image`, which produces a
+    // directory, not the single-file AppImage format. This task wraps that directory with a real
+    // AppRun/desktop entry and calls appimagetool, which the user must have installed.
+    tasks.register<Exec>("packageLinuxAppImage") {
+        dependsOn("createDistributable")
+        group = "compose desktop"
+        description = "Builds a single-file .AppImage with appimagetool (requires appimagetool on PATH or APPIMAGETOOL)."
+
+        workingDir = project.file("package/linux")
+        commandLine("bash", "build-appimage.sh")
     }
 }
 

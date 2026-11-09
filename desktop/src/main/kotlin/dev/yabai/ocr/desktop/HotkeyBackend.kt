@@ -34,6 +34,9 @@ internal fun hotkeyBackendFailureMessage(kind: HotkeyBackendKind): String = when
 internal interface HotkeyBackend {
     val kind: HotkeyBackendKind
 
+    /** Why [start]/[update] failed, when the transport knows. Shown after the generic message. */
+    val lastError: String? get() = null
+
     /** Installs the backend and binds [bindings]; false means the caller should explain the failure. */
     fun start(bindings: List<HotkeyBinding>): Boolean
 
@@ -129,7 +132,12 @@ internal class HotkeyService(
 
         runCatching { backend.stop() }
         activeKind = HotkeyBackendKind.UNAVAILABLE
-        statusMessage = hotkeyBackendFailureMessage(kind)
+        val detail = backend.lastError?.takeIf { it.isNotBlank() }
+        statusMessage = if (detail == null) {
+            hotkeyBackendFailureMessage(kind)
+        } else {
+            "${hotkeyBackendFailureMessage(kind)} Detalhe: $detail."
+        }
         return false
     }
 

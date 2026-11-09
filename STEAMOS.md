@@ -18,12 +18,12 @@ completo está em [LINUX.md](LINUX.md).
 | --- | --- | --- |
 | SteamOS | 3.x atual, x86_64 | Steam Deck LCD/OLED e outros PCs com SteamOS |
 | sessão | **Desktop Mode**, `XDG_SESSION_TYPE=wayland`, KDE Plasma | X11 também funciona, com o caminho legado |
-| espaço | ~1 GB para o AppImage + dados | dicionários podem ocupar mais |
-| FUSE | `libfuse.so.2` | se faltar, o AppImage roda com `--appimage-extract-and-run` |
+| espaço | ~1 GB para o app + dados | dicionários podem ocupar mais |
+| FUSE | `libfuse.so.2` | só é necessário se você usar o `.AppImage`; o pacote `.tar.gz` não usa FUSE |
 | portal | `xdg-desktop-portal` + `xdg-desktop-portal-kde` | captura de tela e atalhos globais |
 | PipeWire | `pipewire` + `wireplumber` | usado pelo portal `ScreenCast` |
 | fontes | Noto CJK | o SteamOS já traz; validar com `fc-list :lang=ja` |
-| Java | **não precisa** | o runtime JDK 21 vai embutido no AppImage |
+| Java | **não precisa** | o runtime JDK 21 vai embutido no pacote |
 
 O app **não escreve em `/usr`**, não pede root e não instala dependências do sistema. Tudo que ele
 grava fica em `$HOME` (ver §8).
@@ -34,10 +34,10 @@ grava fica em `$HOME` (ver §8).
 | --- | --- |
 | JDK | **21+** (`jdk21-openjdk`) — o runtime empacotado precisa de 21 para ScreenCast |
 | Gradle | o wrapper `./gradlew` baixa sozinho |
-| empacotamento | `fakeroot`, `fuse2` |
+| empacotamento | `fakeroot` para `.deb`; `appimagetool` é opcional, só para o `.AppImage` de arquivo único |
 | rede | para baixar Gradle e dependências na primeira compilação |
 
-> **Recomendação:** compile no Ubuntu/Debian ou em um container e copie só o AppImage para o Deck.
+> **Recomendação:** compile no Ubuntu/Debian ou em um container e copie só o pacote para o Deck.
 > Instalar JDK/pacotes no SteamOS exige desbloquear a raiz e pode ser desfeito por atualizações do
 > sistema. O passo a passo de compilação no SteamOS está em §6, mas é o caminho menos estável.
 

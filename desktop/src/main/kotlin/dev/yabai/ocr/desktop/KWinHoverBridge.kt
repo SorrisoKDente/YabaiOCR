@@ -43,27 +43,42 @@ internal class KWinHoverBridge(
     var running: Boolean = false
         private set
 
+    /** Why [start] failed, so the Settings status line can say more than "indisponível". */
+    var lastError: String? = null
+        private set
+
     fun start(fallbackShortcuts: List<HotkeyBinding>): Boolean {
         if (running) return true
+        lastError = null
 
-        val created = runCatching(hostFactory).getOrNull() ?: return false
+        val created = runCatching(hostFactory).getOrElse { error ->
+            lastError = "D-Bus do KWin: ${error.describe()}"
+            logDbusFailure("abrir a conexão com o KWin", error)
+            return false
+        } ?: run {
+            lastError = "D-Bus do KWin indisponível"
+            return false
+        }
         if (!created.isAvailable()) {
+            lastError = "o KWin não expôs org.kde.KWin /Scripting"
             runCatching { created.close() }
             return false
         }
 
-        val files = runCatching { KWinScript.install(scriptDirectory, fallbackShortcuts) }.getOrNull()
-        if (files == null) {
+        val files = runCatching { KWinScript.install(scriptDirectory, fallbackShortcuts) }.getOrElse { error ->
+            lastError = "não foi possível gravar o script: ${error.describe()}"
             runCatching { created.close() }
             return false
         }
 
         val script = files.firstOrNull { it.name == "main.js" }
         if (script == null || !created.loadScript(script.absolutePath, KWinScript.PLUGIN_NAME)) {
+            lastError = "o KWin recusou carregar o script ${script?.absolutePath ?: "main.js"}"
             runCatching { created.close() }
             return false
         }
         if (!created.start() || !created.isLoaded(KWinScript.PLUGIN_NAME)) {
+            lastError = "o script foi carregado mas não iniciou"
             runCatching { created.unload(KWinScript.PLUGIN_NAME) }
             runCatching { created.close() }
             return false
@@ -107,28 +122,42 @@ internal class DbusKWinScriptHost : KWinScriptHost {
     override fun isAvailable(): Boolean = runCatching {
         ensureConnected()
         connection?.getDBusOwnerName(KWIN_BUS) != null
-    }.getOrDefault(false)
+    }.getOrElse { error ->
+        logDbusFailure("consultar o KWin", error)
+        false
+    }
 
     override fun loadScript(path: String, pluginName: String): Boolean = runCatching {
         ensureConnected()
         scripting!!.loadScript(path, pluginName) >= 0
-    }.getOrDefault(false)
+    }.getOrElse { error ->
+        logDbusFailure("carregar o script do KWin", error)
+        false
+    }
 
     override fun start(): Boolean = runCatching {
         ensureConnected()
         scripting!!.startScript()
         true
-    }.getOrDefault(false)
+    }.getOrElse { error ->
+        logDbusFailure("iniciar o script do KWin", error)
+        false
+    }
 
     override fun isLoaded(pluginName: String): Boolean = runCatching {
         ensureConnected()
         scripting!!.isScriptLoaded(pluginName)
-    }.getOrDefault(false)
+    }.getOrElse { error ->
+        logDbusFailure("consultar o estado do script do KWin", error)
+        false
+    }
 
     override fun unload(pluginName: String) {
         runCatching {
             ensureConnected()
             scripting!!.unloadScript(pluginName)
+        }.onFailure { error ->
+            logDbusFailure("descarregar o script do KWin", error)
         }
     }
 
