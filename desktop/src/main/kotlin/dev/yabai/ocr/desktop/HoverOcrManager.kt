@@ -8,10 +8,10 @@ import dev.yabai.ocr.core.lens.LensClient
 import dev.yabai.ocr.core.lens.LensOptions
 import dev.yabai.ocr.core.lens.LensResult
 import java.awt.GraphicsEnvironment
-import java.awt.MouseInfo
 import java.awt.Point
 import java.awt.Rectangle
 import java.awt.Robot
+import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.imageio.ImageIO
@@ -28,10 +28,13 @@ import kotlinx.coroutines.launch
 /**
  * OCR em tempo real sob o ponteiro — o «hover» no estilo Yomitan/Rikaichan.
  */
-class HoverOcrManager(
+internal class HoverOcrManager(
     private val onResultsReady: (List<TokenMatch>, Point, String) -> Unit,
     private val onDismiss: () -> Unit,
     private val onStatus: (String) -> Unit = {},
+    private val backendKind: HoverBackendKind = HoverBackendKind.AWT,
+    private val pointerSource: PointerSource = AwtPointerSource(),
+    private val captureProvider: ((Rectangle) -> BufferedImage)? = null,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gate = HoverGate()
@@ -80,13 +83,24 @@ class HoverOcrManager(
     }
 
     fun setEnabled(enabled: Boolean): Boolean {
+        if (enabled && backendKind == HoverBackendKind.UNSUPPORTED) {
+            publishStatus(hoverBackendLabel(HoverBackendKind.UNSUPPORTED))
+            return false
+        }
         if (isEnabled == enabled) return isEnabled
         isEnabled = enabled
 
         if (enabled) {
             gate.reset()
-            startPolling()
-            publishStatus("Modo Hover ativo — pare o mouse sobre um texto japonês.")
+            // On KWin the pointer arrives from the D-Bus bridge; there is no global pointer to poll.
+            if (backendKind != HoverBackendKind.KWIN) startPolling()
+            publishStatus(
+                if (backendKind == HoverBackendKind.KWIN) {
+                    "Modo Hover ativo (ponteiro do KWin) — pare o mouse sobre um texto japonês."
+                } else {
+                    "Modo Hover ativo — pare o mouse sobre um texto japonês."
+                },
+            )
             triggerAtCursor(force = true)
         } else {
             stopPolling()
@@ -104,6 +118,17 @@ class HoverOcrManager(
         if (!force && !isEnabled) return
         val point = pointerLocation() ?: return
         lookupAt(point)
+    }
+
+    /**
+     * Called by the KWin D-Bus bridge on every pointer move.
+     *
+     * The script already rate-limits and [KwinPointerSource] drops repeated positions, so a resting
+     * pointer does not run OCR again. Dismissal still follows movement, like the polled path.
+     */
+    fun onPointerMoved(point: Point) {
+        (pointerSource as? KwinPointerSource)?.update(point)
+        if (isEnabled) tick(point)
     }
 
     fun getInstalledDictionaryTitles(): List<String> {
@@ -240,7 +265,9 @@ class HoverOcrManager(
             try {
                 val screen = HoverGeometry.screenAt(point)
                 val cropRect = HoverGeometry.planCrop(point, screen, CROP_WIDTH, CROP_HEIGHT)
-                val image = robotFor(cropRect).createScreenCapture(cropRect)
+                // Windows/X11 keeps the per-device Robot; Wayland uses the screencast backend.
+                val image = captureProvider?.invoke(cropRect)
+                    ?: robotFor(cropRect).createScreenCapture(cropRect)
                 if (image.width <= 0 || image.height <= 0) {
                     fail("Recorte de tela vazio.")
                     return@launch
@@ -343,8 +370,7 @@ class HoverOcrManager(
         SwingUtilities.invokeLater { onStatus(message) }
     }
 
-    private fun pointerLocation(): Point? =
-        runCatching { MouseInfo.getPointerInfo()?.location }.getOrNull()
+    private fun pointerLocation(): Point? = pointerSource.current()
 
     @Synchronized
     private fun robotFor(crop: Rectangle): Robot {

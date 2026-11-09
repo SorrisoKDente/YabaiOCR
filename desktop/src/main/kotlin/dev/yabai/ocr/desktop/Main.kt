@@ -66,6 +66,18 @@ fun main(args: Array<String>) {
 
     val hoverState = remember { HoverStateHolder(settings.hoverDictionaryFilter) }
 
+    val hoverBackendKind = remember {
+        hoverBackendKindFor(
+            family = DesktopPlatform.family,
+            session = DesktopPlatform.session,
+            desktop = DesktopPlatform.desktop,
+        )
+    }
+    val kwinPointer = remember { KwinPointerSource() }
+    // AWT needs no bridge; KWin has one that can fail, and UNSUPPORTED has no pointer at all.
+    var hoverBackendReady by remember { mutableStateOf(hoverBackendKind == HoverBackendKind.AWT) }
+    var hoverBackendFailure by remember { mutableStateOf<String?>(null) }
+
     val hoverOcrManager = remember {
         HoverOcrManager(
             onResultsReady = { matches, pt, filter ->
@@ -80,10 +92,26 @@ fun main(args: Array<String>) {
             onStatus = { message ->
                 hoverState.status = message
             },
+            backendKind = hoverBackendKind,
+            pointerSource = if (hoverBackendKind == HoverBackendKind.KWIN) kwinPointer else AwtPointerSource(),
+            captureProvider = hoverCaptureProvider(hoverBackendKind) { rect ->
+                ScreenCapture.captureRegion(rect)
+            },
         )
     }
 
     fun applyHover(enabled: Boolean) {
+        if (enabled && !hoverBackendReady) {
+            hoverState.active = false
+            hoverState.matches = emptyList()
+            hoverState.point = null
+            hoverState.status = hoverBackendFailure ?: when (hoverBackendKind) {
+                HoverBackendKind.UNSUPPORTED -> hoverBackendLabel(HoverBackendKind.UNSUPPORTED)
+                else -> "Hover indisponível: o bridge do KWin não está ativo."
+            }
+            return
+        }
+
         hoverState.active = hoverOcrManager.setEnabled(enabled)
         if (!hoverState.active) {
             hoverState.matches = emptyList()
@@ -161,6 +189,48 @@ fun main(args: Array<String>) {
 
         onDispose {
             hotkeyService.stop()
+        }
+    }
+
+    // KDE Wayland: the pointer and the fallback shortcuts arrive through D-Bus from a KWin script.
+    // The effect runs after the hotkey effect, so a portal failure is already known when the script
+    // is generated. Starting is all-or-nothing: no script without the service, no hover without the
+    // script.
+    if (hoverBackendKind == HoverBackendKind.KWIN) {
+        val kwinIntegration = remember {
+            KWinIntegration(
+                service = YabaiDbusService(
+                    onCursorMoved = { x, y -> hoverOcrManager.onPointerMoved(Point(x, y)) },
+                    onShortcutPressed = { id -> hotkeyCallbacks.dispatch(id) },
+                ),
+                bridge = KWinHoverBridge(),
+                fallbackShortcuts = {
+                    if (hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE) {
+                        hotkeyBindings(
+                            fullScreen = settings.globalHotkey,
+                            region = settings.regionHotkey,
+                            quickDict = settings.quickDictHotkey,
+                            hover = settings.hoverHotkey,
+                            hoverCycle = settings.hoverCycleHotkey,
+                        )
+                    } else {
+                        emptyList()
+                    }
+                },
+            )
+        }
+
+        DisposableEffect(kwinIntegration) {
+            hoverBackendReady = kwinIntegration.start()
+            if (!hoverBackendReady) {
+                hoverBackendFailure = kwinIntegration.statusMessage
+                hoverState.status = kwinIntegration.statusMessage
+            }
+
+            onDispose {
+                kwinIntegration.stop()
+                hoverBackendReady = false
+            }
         }
     }
 

@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import java.nio.file.Files
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -8,9 +10,21 @@ import org.junit.Test
 
 class DesktopDictionaryUpdateCheckerTest {
 
+    // The real settings live in ~/.yabai_ocr; a test that mutates them would rewrite the user's
+    // preferences (and the store timestamp) every time the suite runs.
+    private val home = Files.createTempDirectory("yabai-settings").toFile()
+    private val settings = DesktopSettings(
+        file = home.resolve("settings.properties"),
+        desktopHome = home,
+    )
+
+    @After
+    fun cleanUp() {
+        home.deleteRecursively()
+    }
+
     @Test
     fun testShouldCheckIntervals() {
-        val settings = DesktopSettings()
         settings.dictionaryUpdateInterval = DesktopUpdateInterval.OFF
         assertFalse(DesktopDictionaryUpdateChecker.shouldCheck(settings))
 

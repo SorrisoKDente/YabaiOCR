@@ -748,12 +748,12 @@ gradlew :desktop:run
 
 > A versão desktop é feita para Windows. O plano de portabilidade para Linux — com **suporte completo
 > no Wayland** (captura, atalhos, hover e bandeja) e o **Steam Deck** como alvo principal — está em
-> [LINUX.md](LINUX.md). A base Linux (P1), a captura Wayland (P2) e os atalhos globais pelo portal
-> (P3) já estão no código: detecção de sessão/desktop, autostart XDG, ícone PNG, build condicional
-> AppImage/`.deb`, `dbusScreencast` no KDE Wayland, estados de permissão do portal, pickers em
-> fullscreen e `GlobalShortcuts` com status na tela de Ajustes. Hover no Wayland e o fallback KWin
-> dos atalhos ainda não foram implementados, e o empacotamento/captura Linux precisam ser validados
-> em Linux.
+> [LINUX.md](LINUX.md). A base Linux (P1), a captura Wayland (P2), os atalhos globais pelo portal
+> (P3) e o hover pelo KWin (P4) já estão no código: detecção de sessão/desktop, autostart XDG, ícone
+> PNG, build condicional AppImage/`.deb`, `dbusScreencast` no KDE Wayland, estados de permissão do
+> portal, pickers em fullscreen, `GlobalShortcuts` com status na tela de Ajustes, serviço D-Bus
+> `dev.yabai.Ocr`, script KWin e fallback dos atalhos quando o portal não responde. O empacotamento
+> Linux, a captura e o hover ainda precisam ser validados numa sessão Linux/Steam Deck real.
 
 ### Aparência: tema claro e escuro
 
@@ -878,7 +878,7 @@ dicionários (inclusive a chave antiga), a geometria do seletor de tela inteira 
 acerto pela menor caixa, folga presa à imagem, posição do rubi e das faixas), a posição do menu da
 bandeja (borda inferior no cursor, inversão à esquerda, work area), o contraste das cores do tema
 nos dois modos (4,5:1 para texto e rótulo de botão) e a preferência do modo de busca (palavra ou
-tradução, lembrada entre aberturas). Hoje são **169 testes**. A verificação ponta a ponta — Lens de
+tradução, lembrada entre aberturas). Hoje são **198 testes**. A verificação ponta a ponta — Lens de
 verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
 
 ---

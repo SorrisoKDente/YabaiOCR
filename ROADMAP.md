@@ -4118,3 +4118,68 @@ depende do serviço D-Bus `dev.yabai.Ocr` e do script KWin que a P4 instala; sem
 “indisponíveis” e mantém as ações no menu da bandeja. O Windows foi verificado por `:desktop:test`
 (169) e `:desktop:createDistributable`; `settings.properties` não foi tocado e nenhum processo ficou
 aberto.
+
+---
+
+### D33 — Hover Wayland pelo KWin e fallback de atalhos `[x]` (08/11/2026)
+
+Quarta fase (P4) do plano `LINUX.md`. No Wayland o app não pode ler o ponteiro global com `MouseInfo`,
+e o JNativeHook também não recebe teclas de outras janelas. A P4 liga o hover a um script KWin e
+fecha o fallback de atalhos que a P3 havia deixado em aberto.
+
+- `HoverCapability.kt`: `HoverBackendKind` (`AWT`/`KWIN`/`UNSUPPORTED`), escolha por SO/sessão/desktop
+  (KDE Wayland → KWin; Wayland sem KWin → indisponível, sem poll inútil) e
+  `hoverCaptureProvider` (screencast só no KWin; Windows/X11 continuam no `Robot` por dispositivo).
+- `PointerSource.kt`: `AwtPointerSource` (`MouseInfo`) e `KwinPointerSource`, que guarda a última
+  posição do script e descarta repetição para não rodar OCR com o mouse parado.
+- `YabaiDbusService.kt`: publica `dev.yabai.Ocr` na sessão D-Bus e exporta
+  `dev.yabai.Ocr.Hover.CursorMoved(x, y)` e `dev.yabai.Ocr.Shortcuts.ShortcutPressed(id)`; falha de
+  start fecha o transporte em vez de deixar objeto meio exportado.
+- `KWinHoverBridge.kt`: `KWinScript.install` copia `metadata.json`/`code/main.js` para
+  `~/.local/share/kwin/scripts/yabai-ocr/` (ou `XDG_DATA_HOME`) só quando o conteúdo muda e usa
+  `org.kde.KWin` `/Scripting` (`loadScript`, `start`, `isScriptLoaded`, `unloadScript`). Sem root,
+  sem escrever em `/usr`, sem reiniciar o KWin.
+- `KWinIntegration.kt`: ordem D-Bus → script, rollback e status visível; `Main.kt` só habilita o
+  hover quando o bridge está ativo e informa o motivo quando não está.
+- `KWinScript.kt` + recursos `kwin/yabai-ocr/`: script de ponteiro (`cursorPosChanged`, `callDBus`,
+  100 ms) e bloco opcional de `registerShortcut`/`notifyShortcut` gerado só quando o portal terminou
+  em `UNAVAILABLE`.
+- `HoverOcrManager.kt`: recebe `backendKind`, `PointerSource` e `captureProvider`; no KWin não inicia
+  o poll de `MouseInfo`, reage a `onPointerMoved` e captura pelo backend screencast. O caminho
+  Windows/X11 permanece idêntico.
+
+**Causa raiz.** O hover dependia exclusivamente de `MouseInfo` + `Robot`, ambos globais só no X11.
+No Wayland o ponteiro devolvia uma posição que nunca mudava e a captura vinha da janela errada — sem
+erro, apenas um hover que não reagia. Faltava também o serviço D-Bus que o fallback de atalhos da P3
+precisava para receber `ShortcutPressed`.
+
+**Testes.** `:desktop:test` passou de 169 para **198** (29 novos): `HoverCapabilityTest` (5),
+`KwinPointerSourceTest` (3), `KWinScriptTest` (8), `YabaiDbusServiceTest` (4),
+`KWinHoverBridgeTest` (6) e `KWinIntegrationTest` (3).
+
+**Mutações provadas** (script `mutation-proof.ps1`, restauração com hash conferido):
+
+| mutação | teste que acusou |
+| --- | --- |
+| Wayland sem KWin vira KWin | `wayland without kwin is unsupported instead of polling a dead pointer` |
+| screencast usado em todos os backends | `only kwin replaces the robot with the screencast capture` |
+| ponteiro repetido não é deduplicado | `the latest position is kept and repeated positions are dropped` |
+| atalho sem modificador é registrado no KWin | `fallback block is empty when no shortcut can be represented` |
+| script KWin não é reescrito quando muda | `install writes both files and does not rewrite unchanged content` |
+| falha do D-Bus não fecha o transporte | `a transport that cannot start is closed and the service stays down` |
+| script é dado como carregado sem checar | `a script that does not start or stay loaded is unloaded` |
+| KWin sobe sem o serviço D-Bus | `a dbus failure stops before any kwin script is touched` |
+
+**Limitações desta fase.** D-Bus real, `org.kde.KWin` e o script só podem ser validados numa sessão
+KDE Wayland (Steam Deck); nada disso roda no host Windows usado aqui. O `keepAbove` do tooltip pelo
+script ficou para o polimento (P5): por ora o tooltip continua `alwaysOnTop` como melhor esforço.
+GNOME/Sway e o Game Mode do SteamOS não têm ponteiro global — o app mostra “indisponível” e mantém a
+captura por atalho/bandeja. Windows foi verificado por `:desktop:test` (198) e
+`:desktop:createDistributable`; nenhum processo ficou aberto.
+
+**Correção de higiene da suíte.** `DesktopDictionaryUpdateCheckerTest` usava `DesktopSettings()` com o
+arquivo real e gravava em `~/.yabai_ocr/settings.properties` a cada execução. Ele agora usa um arquivo
+temporário e a suíte deixa o hash do arquivo do usuário intacto (verificado antes/depois). O arquivo
+deste host já tinha sido gravado por execuções anteriores desta sessão (`dictionary_update_interval`
+terminou em `WEEKLY` e `last_dict_update_check` com o valor de teste); não havia backup do carimbo
+anterior para restaurar. Nenhuma outra preferência foi alterada pelo código da P4.
