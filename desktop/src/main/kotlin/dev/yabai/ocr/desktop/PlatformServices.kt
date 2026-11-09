@@ -17,7 +17,7 @@ internal fun captureBackendFor(
 internal object PlatformServices {
     val autostart: Autostart = autostartFor(
         family = DesktopPlatform.family,
-        windows = WindowsAutostart,
+        windows = WindowsAutostart(),
         linux = LinuxAutostart(),
         other = NoopAutostart,
     )

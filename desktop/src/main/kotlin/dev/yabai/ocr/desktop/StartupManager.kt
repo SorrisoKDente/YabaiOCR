@@ -10,4 +10,10 @@ object StartupManager {
     }
 
     fun isStartOnBootEnabled(): Boolean = PlatformServices.autostart.isEnabled()
+
+    /**
+     * Called once in [main], before any window: the logon entry has to match the preference even
+     * when Windows starts the app with `--minimized` and no settings window is ever created.
+     */
+    fun reconcileStartOnBoot(enabled: Boolean): Boolean = PlatformServices.autostart.reconcile(enabled)
 }

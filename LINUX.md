@@ -1,14 +1,15 @@
 # Portabilidade para Linux e Wayland — plano de implementação
 
-**Status:** **P1 (base Linux) e P2 (captura Wayland) implementadas em 07/11/2026**; P3–P6 pendentes.
-Nenhuma validação em host Linux/Steam Deck real foi feita ainda — o empacotamento Linux precisa ser
-gerado em Linux e a captura por portal precisa de uma sessão Wayland de verdade.
+**Status:** **P1 (base Linux), P2 (captura Wayland) e P3 (atalhos Wayland) implementadas em 08/11/2026**;
+P4–P6 pendentes. Nenhuma validação em host Linux/Steam Deck real foi feita ainda — o empacotamento
+Linux precisa ser gerado em Linux, a captura por portal precisa de uma sessão Wayland de verdade e o
+diálogo de atalhos do portal só existe no KDE.
 **Módulo afetado:** `:desktop` (e apenas ele). `:core` só muda se for para extrair algo comprovadamente
 independente de SO; `:app` (Android) não é tocado.
 **Alvo primário:** **Steam Deck / SteamOS em Desktop Mode (KDE Plasma 6 + Wayland nativo)**.
 **Alvo secundário:** Linux desktop com Wayland (KDE Plasma) e Linux com X11.
 **Não muda:** Windows continua sendo a plataforma de referência; Android continua intacto.
-**Data desta revisão:** 07/11/2026.
+**Data desta revisão:** 08/11/2026.
 
 **O que a P1 entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
 `Exec`, ícone PNG Linux, `YABAI_HOME`, build condicional `Deb`/`AppImage` + `packagePortableTarGz`, e
@@ -20,7 +21,15 @@ Wayland KDE), backend `ScreencastScreenCapture` com `CaptureAvailability`
 `WindowPlacement.Fullscreen` no Wayland e `CaptureNoticeWindow` para falha de captura. 15 testes novos
 (suíte desktop em **138**); as sete mutações da P2 foram provadas.
 
-Atalhos e hover do Wayland continuam sendo P3–P4.
+**O que a P3 entregou:** `HotkeyBackend`/`HotkeyService` (seleção JNativeHook × portal, status na UI),
+`toXdgTrigger` (conversão para o formato XDG, recusando combinação inválida), `HotkeyBindings` (ids
+estáveis e descrições pt-BR) e `PortalGlobalShortcuts` + `DbusPortalShortcutsTransport`
+(`CreateSession`/`BindShortcuts`/`Activated` via `dbus-java` 5.1.1). 25 testes novos (suíte desktop em
+**169**); as sete mutações da P3 foram provadas.
+
+Hover do Wayland continua sendo P4. O fallback KWin dos atalhos também fica para a P4: ele depende do
+serviço D-Bus e do script KWin que a P4 instala. Até lá, se o portal não responder, a P3 mostra
+“atalhos indisponíveis” e mantém todas as ações no menu da bandeja.
 
 > Esta revisão **substitui** a versão anterior do documento, que tratava Wayland como “melhor esforço”
 > e descrevia captura, atalhos e hover como indisponíveis. O requisito agora é **paridade funcional no
@@ -381,6 +390,11 @@ script (o usuário as edita em Atalhos do Sistema, não nos Ajustes do app) e ex
 Ordem de escolha: **portal primeiro**, KWin como fallback, indisponível por último. A UI informa qual
 backend está ativo.
 
+> **Estado na P3:** o portal está implementado (`PortalGlobalShortcuts`, `HotkeyBackend`,
+> `HotkeyService`). O fallback KWin desta seção é entregue na P4 junto com o serviço D-Bus
+> `dev.yabai.Ocr` e o script que ele usa; sem o portal, a P3 cai em “indisponível” com o motivo na
+> tela de Ajustes, sem esconder as ações do menu da bandeja.
+
 ### 5.3 X11 e Windows
 
 - X11 continua com JNativeHook 2.2.2, exatamente como hoje.
@@ -628,7 +642,7 @@ como tal, sem prometer hover/atalhos.
 | `StartupManager.kt` | registro Windows | fachada + `WindowsAutostart`/`LinuxAutostart` | baixo |
 | `AppIconGenerator.kt` | `.ico` | escolher PNG no Linux; manter `.ico` no Windows | baixo |
 | `SystemTrayManager.kt` | `JPopupMenu` + `MouseInfo`; `setup(): Unit` | `PopupMenu` nativo no Linux; `setup(): Boolean`; fallback | médio |
-| `GlobalHotkeyManager.kt` | JNativeHook direto | `HotkeyBackend`; portal/KWin no Wayland | alto |
+| `GlobalHotkeyManager.kt` | JNativeHook direto | preservado atrás de `JNativeHookHotkeys`; portal no Wayland | alto |
 | `ScreenCapture.kt` | `Robot` multi-resolução | `ScreenCaptureBackend`; screencast no Wayland | alto |
 | `HoverOcrManager.kt` | `MouseInfo` + crop | `PointerLocationProvider`; KWin bridge no Wayland | alto |
 | `RegionSelectionWindow.kt` | posição/bounds + `alwaysOnTop` | fullscreen no Wayland | médio |
@@ -648,8 +662,11 @@ como tal, sem prometer hover/atalhos.
 | `PlatformServices.kt` | composição única dos backends |
 | `LinuxAutostart.kt` | `.desktop` de autostart e escape de `Exec` |
 | `LinuxDesktopEntry.kt` | geração do `.desktop` e integração do AppImage |
-| `PortalGlobalShortcuts.kt` | sessão/bind/activated do portal |
-| `KWinScriptHotkeys.kt` | fallback de atalhos via script |
+| `PortalGlobalShortcuts.kt` | sessão/bind/activated do portal (implementado na P3) |
+| `HotkeyBackend.kt` | interface de atalhos, seleção e status (implementado na P3) |
+| `HotkeyBindings.kt` | ids estáveis, descrições e despacho (implementado na P3) |
+| `XdgTrigger.kt` | conversão do atalho para o formato XDG (implementado na P3) |
+| `KWinScriptHotkeys.kt` | fallback de atalhos via script (P4) |
 | `KWinHoverBridge.kt` | instala/carrega script e recebe ponteiro |
 | `YabaiDbusService.kt` | serviço `dev.yabai.Ocr` (hover + atalhos) |
 | `LinuxCapabilities.kt` | probe de portal, KWin e bandeja (com timeout) |
@@ -778,7 +795,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | suíte | hoje | regra |
 | --- | --- | --- |
 | `:core:test` | 153 (26 pulados) | não pode cair; nenhum teste Linux novo aqui |
-| `:desktop:test` | 138 | continua verde; `StartupManagerTest` continua pulando fora do Windows |
+| `:desktop:test` | 169 | continua verde; `StartupManagerTest` continua pulando fora do Windows |
 | `:app:testDebugUnitTest` | 397 | não pode mudar; nenhuma alteração em `app/` |
 
 ### 13.2 Testes novos (JVM puros, sem abrir janela nem portal)
@@ -798,8 +815,10 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | `PickerPlacementTest` | Wayland → `WindowPlacement.Fullscreen` + `PlatformDefault`; Windows/X11 → bounds exatos |
 | `HoverCapabilityTest` | KDE Wayland → bridge; GNOME/Game Mode → indisponível; X11/Windows → `MouseInfo` |
 | `HoverCoordinateTest` | ponteiro + bounds + escala → retângulo 640×360 correto, preso à tela |
-| `XdgTriggerTest` | `Ctrl+Shift+O` → `CTRL+SHIFT+O`; `Super+Space` → `LOGO+space`; combinação inválida → `null` |
-| `GlobalShortcutBindingsTest` | ids estáveis, descrições pt-BR, `preferred_trigger` não vazio |
+| `XdgTriggerTest` | `Ctrl+Shift+O` → `CTRL+SHIFT+O`; `Super+Space` → `LOGO+space`; ordem dos modificadores estável; sem modificador, tecla desconhecida e string malformada → `null` |
+| `HotkeyBindingsTest` | ids estáveis (`capture-fullscreen`…), descrições pt-BR, despacho de cada id para a ação certa e descarte de `preferred_trigger` inválido |
+| `HotkeyBackendSelectionTest` | Windows/X11 → JNativeHook; Wayland → portal; falha de start degrada para indisponível; edição re-binda e expõe falha |
+| `PortalGlobalShortcutsTest` | sessão criada uma vez, bind com os cinco triggers, `Activated` chega na ação certa, portal ausente/negado não finge bind, atualização não recria sessão |
 | `KWinScriptSourceTest` | script contém `cursorPosChanged`, `callDBus`, limite de taxa, nome do serviço |
 | `KWinMetadataTest` | `metadata.json` válido para Plasma 6 (`X-Plasma-API`, `X-Plasma-MainScript`) |
 | `TranslucentBackgroundTest` | sem `PERPIXEL_TRANSLUCENT` → opaco; com → transparente |
@@ -835,7 +854,12 @@ Cada linha precisa ser reintroduzida, ver o teste nomeado falhar e restaurar par
 | Wayland ainda inicia o poll do hover | `HoverCapabilityTest` |
 | recorte do hover ignora a escala | `HoverCoordinateTest` |
 | conversão XDG usa `Ctrl+Shift+O` literal | `XdgTriggerTest` |
-| atalho inválido é enviado ao portal | `XdgTriggerTest` / `GlobalShortcutBindingsTest` |
+| atalho sem modificador ou com tecla desconhecida é enviado ao portal | `XdgTriggerTest` / `HotkeyBindingsTest` |
+| Wayland continua no JNativeHook | `HotkeyBackendSelectionTest` |
+| falha de start não degrada o status | `HotkeyBackendSelectionTest` |
+| falha de update não aparece na UI | `HotkeyBackendSelectionTest` |
+| pedido vazio abre sessão no portal | `PortalGlobalShortcutsTest` |
+| portal ausente é ignorado e o bind é fingido | `PortalGlobalShortcutsTest` |
 | script KWin sem `cursorPosChanged`/`callDBus` | `KWinScriptSourceTest` |
 | `metadata.json` sem `X-Plasma-MainScript` | `KWinMetadataTest` |
 | tooltip usa transparente sem suporte | `TranslucentBackgroundTest` |
@@ -910,7 +934,7 @@ Adicionar verificação de que `git diff -- app core` está vazio durante a impl
 | **P0 — inventário no Deck** | rodar o app atual em Desktop Mode; registrar o que abre/falha; medir captura, bandeja, atalhos | relatório com versões, logs e capturas; nenhum código de produção |
 | **P1 — base Linux** | `DesktopPlatform`, `PlatformServices`, autostart XDG, ícone PNG, build AppImage/`.deb`, `YABAI_HOME`, integração `.desktop` | `:desktop:test` verde nos dois SOs; AppImage abre no Deck |
 | **P2 — captura Wayland** | `screenshotMethod`, `ScreencastScreenCapture`, estados de permissão, pickers fullscreen | capturas fullscreen/recorte corretas no Deck; token reutilizado |
-| **P3 — atalhos Wayland** | `PortalGlobalShortcuts`, conversão XDG, estado na UI, fallback KWin | atalhos disparam no Deck; diálogo do portal funciona |
+| **P3 — atalhos Wayland** | `PortalGlobalShortcuts`, conversão XDG, estado na UI, fallback KWin (P4) | atalhos disparam no Deck; diálogo do portal funciona |
 | **P4 — hover Wayland** | `YabaiDbusService`, `KWinHoverBridge`, script, regra de tooltip | hover lê a palavra sob o cursor; tooltip acima e sem foco |
 | **P5 — polimento Linux** | menu de bandeja nativo, fallback, textos, integração, update checker | checklist Desktop Mode completo |
 | **P6 — regressão e release** | E2E X11/Windows/Android, docs, assets, checksums | Windows intacto, Android 397, core 153; release publicada |
@@ -948,7 +972,7 @@ P1–P5 não tocam `:core`/`:app`. Se algum passo exigir mudança neles, parar e
 
 ### 15.4 Windows (não-regressão)
 
-- [ ] `:desktop:test` continua verde (138 hoje).
+- [ ] `:desktop:test` continua verde (169 hoje).
 - [ ] `packageExe`, `packageMsi` e `packageInnoSetup` continuam funcionando.
 - [ ] Autostart pelo registro cria/remove exatamente a mesma chave.
 - [ ] Bandeja, atalhos, captura, hover, recorte e tooltip inalterados.

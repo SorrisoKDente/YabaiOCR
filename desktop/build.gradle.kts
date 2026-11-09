@@ -24,6 +24,8 @@ dependencies {
     implementation("com.github.kwhat:jnativehook:2.2.2")
     implementation("net.java.dev.jna:jna:5.14.0")
     implementation("net.java.dev.jna:jna-platform:5.14.0")
+    implementation("com.github.hypfvieh:dbus-java-core:5.1.1")
+    implementation("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.1.1")
 
     testImplementation(libs.junit)
 }

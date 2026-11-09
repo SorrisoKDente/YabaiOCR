@@ -748,10 +748,12 @@ gradlew :desktop:run
 
 > A versão desktop é feita para Windows. O plano de portabilidade para Linux — com **suporte completo
 > no Wayland** (captura, atalhos, hover e bandeja) e o **Steam Deck** como alvo principal — está em
-> [LINUX.md](LINUX.md). A base Linux (P1) e a captura Wayland (P2) já estão no código: detecção de
-> sessão/desktop, autostart XDG, ícone PNG, build condicional AppImage/`.deb`, `dbusScreencast` no
-> KDE Wayland, estados de permissão do portal e pickers em fullscreen. Atalhos e hover no Wayland
-> ainda não foram implementados, e o empacotamento/captura Linux precisam ser validados em Linux.
+> [LINUX.md](LINUX.md). A base Linux (P1), a captura Wayland (P2) e os atalhos globais pelo portal
+> (P3) já estão no código: detecção de sessão/desktop, autostart XDG, ícone PNG, build condicional
+> AppImage/`.deb`, `dbusScreencast` no KDE Wayland, estados de permissão do portal, pickers em
+> fullscreen e `GlobalShortcuts` com status na tela de Ajustes. Hover no Wayland e o fallback KWin
+> dos atalhos ainda não foram implementados, e o empacotamento/captura Linux precisam ser validados
+> em Linux.
 
 ### Aparência: tema claro e escuro
 
@@ -769,6 +771,20 @@ do cursor e ele cresce para cima e para a direita. Se não couber à direita, el
 a esquerda; se não couber acima, abre abaixo. O menu fica sempre dentro da área útil do monitor sob o
 cursor, fora da barra de tarefas — inclusive num segundo monitor. Clique esquerdo no ícone abre a
 captura de tela inteira; clique direito abre o menu.
+
+### Iniciar com o Windows
+
+Em **Ajustes → Inicialização e Comportamento da Janela**, «Iniciar na bandeja ao ligar o computador»
+grava a entrada `YabaiOCR` em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` apontando para o
+`Yabai OCR.exe` real, com `--minimized`. A cada início o app confere essa entrada contra a preferência:
+se ela sumiu ou aponta para um `.exe` que não existe mais (pasta movida, app recompilado, limpeza do
+registro), ele reescreve com o caminho atual — sem precisar abrir Ajustes. Quando o executável não é
+identificável (por exemplo, rodando pelo `:desktop:run` do Gradle), nada é gravado e a preferência
+fica guardada para o próximo início do executável.
+
+> A tela «Aplicativos de inicialização» do Windows também lê `StartupApproved\Run`, então ela pode
+> continuar mostrando o app como ativado mesmo quando a entrada do `Run` não existe. Quem manda é a
+> entrada do `Run`; o app a recria no próximo início.
 
 ### Hover em tempo real (estilo Yomitan/Rikaichan)
 
@@ -862,7 +878,7 @@ dicionários (inclusive a chave antiga), a geometria do seletor de tela inteira 
 acerto pela menor caixa, folga presa à imagem, posição do rubi e das faixas), a posição do menu da
 bandeja (borda inferior no cursor, inversão à esquerda, work area), o contraste das cores do tema
 nos dois modos (4,5:1 para texto e rótulo de botão) e a preferência do modo de busca (palavra ou
-tradução, lembrada entre aberturas). Hoje são **138 testes**. A verificação ponta a ponta — Lens de
+tradução, lembrada entre aberturas). Hoje são **169 testes**. A verificação ponta a ponta — Lens de
 verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
 
 ---

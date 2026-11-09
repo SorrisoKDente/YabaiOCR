@@ -45,12 +45,17 @@ fun main(args: Array<String>) {
         session = DesktopPlatform.session,
         desktop = DesktopPlatform.desktop,
     )
+    // Before any window: when Windows starts the app with `--minimized` the settings window is
+    // never created, so the logon entry has to be repaired from the stored preference here.
+    val appSettings = DesktopSettings()
+    StartupManager.reconcileStartOnBoot(appSettings.startOnBoot)
+
     application {
     val startMinimized = args.contains("--minimized") || args.contains("--tray")
     // Hidden background window to keep application alive in System Tray when all visible windows are closed
     Window(onCloseRequest = {}, visible = false, title = "Yabai OCR Background") {}
 
-    val settings = remember { DesktopSettings() }
+    val settings = remember { appSettings }
     var isDarkTheme by remember { mutableStateOf(settings.darkTheme) }
 
     var mainScreen by remember { mutableStateOf(MainScreen.SETTINGS) }
@@ -126,42 +131,36 @@ fun main(args: Array<String>) {
         }
     }
 
-    // Setup Global Hotkey Listener (JNativeHook). The manager is remembered so a shortcut changed
-    // in the Settings window takes effect immediately; a DisposableEffect(Unit) would keep the
-    // old specs until the app restarted.
-    val hotkeyManager = remember {
-        GlobalHotkeyManager(
-            onFullScreenTriggered = {
-                startFullScreenCapture()
-            },
-            onRegionTriggered = {
-                startRegionCapture()
-            },
-            onQuickDictTriggered = {
-                showQuickDict = true
-            },
-            onHoverTriggered = {
-                applyHover(!hoverState.active)
-            },
-            onHoverCycleTriggered = {
+    // Global shortcuts go through the backend the platform chose: JNativeHook on Windows/X11 and the
+    // XDG portal on Wayland. The service is remembered so a shortcut changed in the Settings window
+    // takes effect immediately; a DisposableEffect(Unit) would keep the old bindings until restart.
+    val hotkeyCallbacks = remember {
+        HotkeyCallbacks(
+            onFullScreen = { startFullScreenCapture() },
+            onRegion = { startRegionCapture() },
+            onQuickDict = { showQuickDict = true },
+            onHoverToggle = { applyHover(!hoverState.active) },
+            onHoverCycle = {
                 val newFilter = hoverOcrManager.cycleDictionaryAndRefresh()
                 hoverState.activeFilter = newFilter
             },
         )
     }
+    val hotkeyService = remember { HotkeyService(hotkeyCallbacks) }
+    var hotkeyStatus by remember { mutableStateOf(hotkeyService.statusMessage) }
 
-    DisposableEffect(hotkeyManager) {
-        hotkeyManager.updateHotkeys(
+    DisposableEffect(hotkeyService) {
+        hotkeyService.start(
             settings.globalHotkey,
             settings.regionHotkey,
             settings.quickDictHotkey,
             settings.hoverHotkey,
             settings.hoverCycleHotkey
         )
-        hotkeyManager.start()
+        hotkeyStatus = hotkeyService.statusMessage
 
         onDispose {
-            hotkeyManager.stop()
+            hotkeyService.stop()
         }
     }
 
@@ -309,9 +308,6 @@ fun main(args: Array<String>) {
             LaunchedEffect(Unit) {
                 window.isAutoRequestFocus = false
                 window.iconImage = AppIconGenerator.createWindowImage(64)
-                if (settings.startOnBoot) {
-                    StartupManager.setStartOnBoot(true)
-                }
                 withContext(Dispatchers.IO) {
                     // 1. Check for Desktop App updates on GitHub
                     val appUpdate = DesktopAppUpdateChecker.checkForAppUpdate()
@@ -339,6 +335,7 @@ fun main(args: Array<String>) {
                             settings = settings,
                             hoverActive = hoverState.active,
                             hoverStatus = hoverState.status,
+                            hotkeyBackendStatus = hotkeyStatus,
                             onHoverToggle = { applyHover(!hoverState.active) },
                             onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
                             onThemeChanged = { isDark ->
@@ -351,13 +348,14 @@ fun main(args: Array<String>) {
                                 settings.quickDictHotkey = quickDict
                                 settings.hoverHotkey = hover
                                 settings.hoverCycleHotkey = hoverCycle
-                                hotkeyManager.updateHotkeys(
+                                hotkeyService.updateHotkeys(
                                     fullScreen,
                                     region,
                                     quickDict,
                                     hover,
                                     hoverCycle,
                                 )
+                                hotkeyStatus = hotkeyService.statusMessage
                             },
                             onManageDictionariesRequested = {
                                 mainDictInitialQuery = ""

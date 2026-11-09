@@ -34,6 +34,7 @@ fun SettingsContent(
     onManageDictionariesRequested: (() -> Unit)? = null,
     hoverActive: Boolean = false,
     hoverStatus: String = "",
+    hotkeyBackendStatus: String = "",
     onHoverToggle: () -> Unit = {},
     onHoverTest: () -> Unit = {},
     onThemeChanged: (Boolean) -> Unit = {},
@@ -205,6 +206,15 @@ fun SettingsContent(
         // --- Atalhos Globais ---
         item {
             SettingCard(title = "Atalhos Globais de Teclado") {
+                if (hotkeyBackendStatus.isNotBlank()) {
+                    Text(
+                        text = hotkeyBackendStatus,
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.secondary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
                 // OCR Hotkey
                 Text(
                     text = "Atalho da Captura da Tela Inteira (OCR):",

@@ -3992,3 +3992,129 @@ Windows foi verificado por `:desktop:test` (138) e `:desktop:createDistributable
 (P3) e hover por KWin script (P4) seguem pendentes.
 
 
+
+---
+
+### D31 — Início com o Windows: entrada ausente/obsoleta sem reparo `[x]` (08/11/2026)
+
+Sintoma relatado: o app não sobe com o Windows e, em «Aplicativos de inicialização», ele aparece
+marcado. A tela do Windows parecia dizer o contrário do comportamento.
+
+**Causa raiz.** O Windows executa apenas o valor em
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, mas a página «Aplicativos de inicialização» lê
+também `StartupApproved\Run`: uma entrada apagada — ou apontando para um `.exe` que não existe mais —
+continua listada como ativada. Na máquina do relato, `StartupApproved\Run\YabaiOCR` estava habilitado
+(`02…`) enquanto o valor do `Run` **não existia**, e `settings.properties` dizia `start_on_boot=true`.
+O código não detectava nem reparava esse descompasso:
+
+- `StartupManager.isStartOnBootEnabled()` só verificava a *existência* do valor, nunca se o comando
+  apontava para um executável existente;
+- `getExecutablePath()` tinha um fallback que **inventava** `<cwd>\Yabai OCR.exe`; o valor era gravado
+  sem validação, então um caminho inexistente virava uma entrada "ativada" que não iniciava nada;
+- o único auto-reparo (`if (settings.startOnBoot) StartupManager.setStartOnBoot(true)`) vivia no
+  `LaunchedEffect` da janela de Ajustes, que **nunca é criada** quando o Windows sobe o app com
+  `--minimized`;
+- `StartupManagerTest` escrevia e apagava o valor no registro **real** do usuário (`HKCU\...\Run`):
+  a execução da suíte deixava exatamente o estado órfão observado (marca em `StartupApproved`, valor
+  ausente).
+
+**O que mudou.**
+
+- `WindowsAutostart.kt`: o registro passou para a porta `AutostartRegistry` (`HkcuRunRegistry` em
+  produção, fake nos testes); `currentExecutablePath()` devolve `String?` e só aceita arquivo que
+  existe; o layout do jpackage foi corrigido (`<App>/runtime/bin/java.exe` → `<App>/Yabai OCR.exe`,
+  um nível acima de `runtime`, antes calculado errado); o fallback fabricado foi removido.
+- `setEnabled(true)` não grava caminho inexistente: registra no stderr e mantém a preferência.
+- `isEnabled()` agora significa "a entrada existe **e** aponta para um executável existente";
+  entrada obsoleta conta como desligada.
+- `Autostart.reconcile(enabled)`: reescreve a entrada quando ela sumiu/está obsoleta e a preferência
+  está ligada, remove quando está desligada; `StartupManager.reconcileStartOnBoot` chama isso no
+  `main`, **antes de qualquer janela**, então vale também para `--minimized`.
+- O auto-reparo dentro do `LaunchedEffect` da janela foi removido (redundante e tarde demais).
+
+**Testes.** `:desktop:test` passou de 138 para **144** (6 novos; `StartupManagerTest` foi substituído
+por `WindowsAutostartTest`, que não toca mais no registro real): gravação com aspas + `--minimized`,
+`null` não grava, caminho inexistente não grava, entrada apontando para `.exe` removido conta como
+desligada, `reconcile` reescreve entrada obsoleta, `reconcile` remove com a preferência desligada,
+`setEnabled(false)` remove.
+
+**Mutações provadas** (script `mutation-proof.ps1`, restauração com hash conferido):
+
+| mutação | teste que acusou |
+| --- | --- |
+| `isEnabled()` volta a aceitar qualquer comando | `an entry pointing at a removed executable is reported as disabled`, `reconcile rewrites a stale entry to the current executable` |
+| `setEnabled(true)` não valida o `.exe` | `enabling with an executable that does not exist does not write a broken entry` |
+| `reconcile` não reescreve/remove | `reconcile rewrites a stale entry to the current executable`, `reconcile removes the entry when the preference is off` |
+
+A primeira versão do teste de caminho inexistente passava `null` ao resolvedor e **não** derrubava a
+mutação — foi reescrita para usar um caminho real que não existe (o bug histórico), e então acusou.
+
+**Evidência ponta a ponta** (Windows real, `:desktop:createDistributable`, app iniciado com
+`--minimized`, `settings.properties` salvo antes e restaurado com MD5 idêntico):
+
+| passo | `HKCU\...\Run\YabaiOCR` observado |
+| --- | --- |
+| antes | ausente (só a marca órfã em `StartupApproved\Run`) |
+| 1º início | `"…\desktop\build\distributions\main\app\Yabai OCR\Yabai OCR.exe" --minimized` |
+| valor apagado à mão e 2º início | recriado com o mesmo comando |
+| valor trocado para `"C:\Pasta Antiga\Yabai OCR.exe" --minimized` e 3º início | reescrito para o executável real |
+
+Nenhum processo do app ficou aberto ao terminar.
+
+**Limitações.** Um logon real do Windows não foi executado: a prova vai até a entrada correta no
+registro (que é o que o Windows executa). O caminho gravado é o do executável em execução; quem roda
+o app a partir de outra pasta precisa iniciá-lo de lá uma vez. No Linux o `reconcile` apenas mantém o
+arquivo XDG coerente — a validação do `Exec=` do `.desktop` continua fora do escopo.
+
+---
+
+### D32 — Atalhos Wayland pelo portal `GlobalShortcuts` `[x]` (08/11/2026)
+
+Terceira fase (P3) do plano `LINUX.md`. No Wayland o JNativeHook não recebe teclas de outras janelas,
+então os atalhos globais passam pelo `org.freedesktop.portal.GlobalShortcuts`, com a combinação
+proposta pelo app e confirmada (ou trocada) pelo usuário no diálogo do sistema.
+
+- `XdgTrigger.kt`: `toXdgTrigger` converte `Ctrl + Shift + O` em `CTRL+SHIFT+O`, `Super` em `LOGO` e
+  nomes como `Page Up`/`Enter` nos keysyms XDG. Recusa combinação sem modificador, com mais de uma
+  tecla, com tecla fora da tabela ou string malformada — nesse caso nada é enviado ao portal.
+- `HotkeyBindings.kt`: ids estáveis (`capture-fullscreen`, `capture-region`, `quick-dict`,
+  `hover-toggle`, `dict-cycle`), descrições pt-BR mostradas no diálogo do sistema, `HotkeyCallbacks`
+  para despachar a ação e `portalRequests` para descartar `preferred_trigger` inválido.
+- `HotkeyBackend.kt`: interface `HotkeyBackend`, seleção `hotkeyBackendKindFor` (Windows/X11 →
+  JNativeHook; Linux Wayland → portal), `JNativeHookHotkeys` preservando o `GlobalHotkeyManager`
+  existente e `HotkeyService` com status na UI. Falha de start não derruba o app: vira
+  `UNAVAILABLE` com a mensagem na tela de Ajustes.
+- `PortalGlobalShortcuts.kt`: `PortalGlobalShortcuts` (contrato testável) e
+  `DbusPortalShortcutsTransport` (`dbus-java` 5.1.1): `CreateSession`, `BindShortcuts`, escuta de
+  `Activated` e das respostas de request; timeout de 30 s para a sessão e 120 s para o bind (o
+  diálogo do sistema pode esperar o usuário). A sessão é criada uma vez e reaproveitada na edição.
+- `Main.kt` + `SettingsWindow.kt`: os atalhos passam pelo `HotkeyService` e a tela de Ajustes mostra
+  qual backend está ativo (ou o motivo da indisponibilidade).
+- `desktop/build.gradle.kts`: dependências `dbus-java-core` e `dbus-java-transport-native-unixsocket`
+  5.1.1 (mesma biblioteca que a P4 usa para o serviço de hover).
+
+**Causa raiz.** Não havia seleção de backend: `Main` instanciava o JNativeHook direto em qualquer SO.
+No Wayland ele não falha de forma visível — apenas não recebe tecla nenhuma —, então o usuário ficava
+sem atalhos e sem explicação. Também não existia conversão da preferência gravada para o formato XDG.
+
+**Testes.** `:desktop:test` passou de 144 para **169** (25 novos): `XdgTriggerTest` (7),
+`HotkeyBindingsTest` (5), `HotkeyBackendSelectionTest` (7), `PortalGlobalShortcutsTest` (6).
+
+**Mutações provadas** (script `mutation-proof.ps1`, restauração com hash conferido):
+
+| mutação | teste que acusou |
+| --- | --- |
+| atalho sem modificador é aceito | `a shortcut without a modifier is refused instead of bound globally` |
+| `Super` vira `CTRL` no XDG | `super becomes logo and space keeps its keysym name` |
+| pedido vazio abre sessão no portal | `shortcuts the portal cannot represent never open a session` |
+| Wayland volta para JNativeHook | `linux wayland uses the portal instead of jnativehook` |
+| falha de start não degrada o status | `a backend that cannot start degrades to unavailable instead of crashing` |
+| falha de update não aparece na UI | `editing a shortcut rebinds without restarting and exposes a failure` |
+| portal ausente é ignorado | `a missing or refused portal fails instead of pretending to bind` |
+
+**Limitações desta fase.** O diálogo do portal e o `Activated` real só podem ser validados no KDE
+Wayland (Steam Deck). O fallback KWin planejado no §5.2 do `LINUX.md` foi adiado para a P4, porque ele
+depende do serviço D-Bus `dev.yabai.Ocr` e do script KWin que a P4 instala; sem portal, a P3 mostra
+“indisponíveis” e mantém as ações no menu da bandeja. O Windows foi verificado por `:desktop:test`
+(169) e `:desktop:createDistributable`; `settings.properties` não foi tocado e nenhum processo ficou
+aberto.

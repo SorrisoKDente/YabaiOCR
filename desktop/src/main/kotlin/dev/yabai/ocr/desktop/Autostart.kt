@@ -7,11 +7,28 @@ package dev.yabai.ocr.desktop
 internal interface Autostart {
     fun setEnabled(enabled: Boolean)
     fun isEnabled(): Boolean
+
+    /**
+     * Makes the OS entry match the stored preference: writes it when it is missing or points at an
+     * executable that no longer exists, removes it when the preference is off. Returns true when the
+     * entry ended up in the requested state.
+     *
+     * The entry and the preference can drift apart (folder moved, app rebuilt, registry cleaned,
+     * entry deleted by an older build) while the Windows "Startup apps" page keeps showing the app
+     * as enabled. Without this, the app silently stops starting with the system.
+     */
+    fun reconcile(enabled: Boolean): Boolean {
+        if (isEnabled() != enabled) setEnabled(enabled)
+        return isEnabled() == enabled
+    }
 }
 
 internal object NoopAutostart : Autostart {
     override fun setEnabled(enabled: Boolean) = Unit
     override fun isEnabled(): Boolean = false
+
+    /** Nothing to manage on this platform, so the preference is as good as it gets. */
+    override fun reconcile(enabled: Boolean): Boolean = true
 }
 
 internal fun autostartFor(
