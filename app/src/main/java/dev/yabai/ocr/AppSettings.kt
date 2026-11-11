@@ -8,7 +8,7 @@ import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.core.dict.DictionaryQuery
 import dev.yabai.ocr.overlay.PickerReadingMode
 
-enum class EngineChoice { AUTO, LENS, MLKIT }
+enum class EngineChoice { AUTO, LENS, MANGA_OCR, MLKIT }
 enum class AppThemeChoice { SYSTEM, LIGHT, DARK }
 
 /**
@@ -28,12 +28,14 @@ enum class UpdateInterval(val days: Long) {
 /** Everything the floating service and the main screen share. */
 class AppSettings(context: Context) {
 
-    private val appContext = context.applicationContext
+    val appContext: Context = context.applicationContext
+    val mangaOcrDir: java.io.File get() = java.io.File(appContext.filesDir, "manga_ocr")
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     var engine: EngineChoice
         get() = when (prefs.getString(KEY_ENGINE, null)) {
             EngineChoice.LENS.name -> EngineChoice.LENS
+            EngineChoice.MANGA_OCR.name -> EngineChoice.MANGA_OCR
             EngineChoice.MLKIT.name -> EngineChoice.MLKIT
             else -> EngineChoice.AUTO
         }
@@ -41,7 +43,7 @@ class AppSettings(context: Context) {
 
     var enginePriorityList: List<EngineChoice>
         get() {
-            val raw = prefs.getString(KEY_ENGINE_PRIORITY, null) ?: "LENS,MLKIT"
+            val raw = prefs.getString(KEY_ENGINE_PRIORITY, null) ?: "LENS,MANGA_OCR,MLKIT"
             return parseEnginePriority(raw)
         }
         set(value) = prefs.edit { putString(KEY_ENGINE_PRIORITY, value.joinToString(",")) }
@@ -51,7 +53,7 @@ class AppSettings(context: Context) {
             runCatching { EngineChoice.valueOf(name.trim()) }.getOrNull()
         }.filter { it != EngineChoice.AUTO }.distinct()
 
-        val missing = listOf(EngineChoice.LENS, EngineChoice.MLKIT) - parsed.toSet()
+        val missing = listOf(EngineChoice.LENS, EngineChoice.MANGA_OCR, EngineChoice.MLKIT) - parsed.toSet()
         return parsed + missing
     }
 

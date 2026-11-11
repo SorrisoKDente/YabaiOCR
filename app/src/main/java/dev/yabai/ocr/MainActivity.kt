@@ -213,6 +213,7 @@ class MainActivity : AppCompatActivity() {
 
         val checked = when (settings.engine) {
             EngineChoice.LENS -> R.id.engineLens
+            EngineChoice.MANGA_OCR -> R.id.engineMangaOcr
             EngineChoice.MLKIT -> R.id.engineMlKit
             EngineChoice.AUTO -> R.id.engineAuto
         }
@@ -222,6 +223,7 @@ class MainActivity : AppCompatActivity() {
         group.setOnCheckedChangeListener { _, id ->
             settings.engine = when (id) {
                 R.id.engineLens -> EngineChoice.LENS
+                R.id.engineMangaOcr -> EngineChoice.MANGA_OCR
                 R.id.engineMlKit -> EngineChoice.MLKIT
                 else -> EngineChoice.AUTO
             }
@@ -237,6 +239,7 @@ class MainActivity : AppCompatActivity() {
         list.forEachIndexed { index, choice ->
             val label = when (choice) {
                 EngineChoice.LENS -> getString(R.string.engine_label_lens)
+                EngineChoice.MANGA_OCR -> getString(R.string.engine_label_manga_ocr)
                 EngineChoice.MLKIT -> getString(R.string.engine_label_mlkit)
                 else -> choice.name
             }

@@ -17,9 +17,11 @@ dependencies {
     api(libs.gson)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
+    api(libs.onnxruntime)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.core)
+    testImplementation(libs.onnxruntime)
 }
 
 tasks.withType<Test>().configureEach {

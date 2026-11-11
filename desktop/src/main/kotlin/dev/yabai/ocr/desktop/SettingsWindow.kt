@@ -873,11 +873,21 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.AUTO,
-                    title = "Automático (Usar Google Lens)",
-                    description = "Usa o motor do Google Lens para reconhecimento visual de texto.",
+                    title = "Automático (Usa Ordem de Prioridades)",
+                    description = "Tenta motores em ordem de prioridade (Google Lens, Manga-OCR offline).",
                     onClick = {
                         engineChoice = DesktopEngineChoice.AUTO
                         settings.engine = DesktopEngineChoice.AUTO
+                    }
+                )
+
+                SettingRadioOption(
+                    selected = engineChoice == DesktopEngineChoice.MANGA_OCR,
+                    title = "Somente Manga-OCR (offline)",
+                    description = "Usa o motor de inteligência artificial offline especializado em texto vertical e mangás.",
+                    onClick = {
+                        engineChoice = DesktopEngineChoice.MANGA_OCR
+                        settings.engine = DesktopEngineChoice.MANGA_OCR
                     }
                 )
 
@@ -909,6 +919,7 @@ fun SettingsContent(
 
                 enginePriority.forEachIndexed { index, choice ->
                     val label = when (choice) {
+                        DesktopEngineChoice.MANGA_OCR -> "Manga-OCR (Offline - IA Mangá)"
                         DesktopEngineChoice.LENS -> "Google Lens (Online)"
                         else -> choice.name
                     }

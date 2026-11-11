@@ -33,6 +33,8 @@
 
     <string name="engine_auto">Automático (Usa Ordem de Prioridades)</string>
     <string name="engine_auto_desc">Tenta motores em ordem de prioridade. Se falhar ou não tiver rede, passa para o próximo.</string>
+    <string name="engine_manga_ocr">Somente Manga-OCR (offline)</string>
+    <string name="engine_manga_ocr_desc">IA offline especializada em mangás e texto vertical de alta precisão.</string>
     <string name="engine_lens">Somente Google Lens (online)</string>
     <string name="engine_lens_desc">Precisão máxima online, exige internet.</string>
     <string name="engine_mlkit">Somente ML Kit (offline)</string>
@@ -40,6 +42,7 @@
     <string name="engine_priority_title">Prioridade dos motores no modo Automático:</string>
     <string name="engine_priority_desc">Defina qual motor será tentado primeiro e qual servirá de alternativa (fallback).</string>
     <string name="engine_label_lens">Google Lens (Online)</string>
+    <string name="engine_label_manga_ocr">Manga-OCR (Offline)</string>
     <string name="engine_label_mlkit">ML Kit (Offline)</string>
     <string name="btn_priority_up">▲ Subir</string>
     <string name="btn_priority_down">▼ Descer</string>

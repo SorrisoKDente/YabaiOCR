@@ -56,6 +56,7 @@ class OcrDispatcher(
             when (choice) {
                 EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                 EngineChoice.LENS -> recognizeWithLens(bitmap)
+                EngineChoice.MANGA_OCR -> recognizeWithMangaOcr(bitmap) ?: offlineEngine.recognize(bitmap)
                 EngineChoice.AUTO -> recognizeAuto(bitmap)
             }
         }
@@ -78,6 +79,7 @@ class OcrDispatcher(
             try {
                 val outcome = when (engineChoice) {
                     EngineChoice.LENS -> recognizeWithLens(bitmap)
+                    EngineChoice.MANGA_OCR -> recognizeWithMangaOcr(bitmap)
                     EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                     else -> null
                 }
@@ -93,6 +95,55 @@ class OcrDispatcher(
         }
 
         return offlineEngine.recognize(bitmap).copy(fallback = true, warning = lastWarning)
+    }
+
+    private suspend fun recognizeWithMangaOcr(bitmap: Bitmap): OcrOutcome? {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width <= 0 || height <= 0) return null
+
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val outcome = mangaEngine()?.recognizePixels(pixels, width, height) ?: return null
+
+        val blocks = outcome.blocks.map { b ->
+            OcrBlock(
+                text = b.text,
+                lines = b.lines,
+                rect = android.graphics.Rect(b.left, b.top, b.right, b.bottom),
+                pieces = b.pieces.map { p ->
+                    OcrPiece(
+                        text = p.text,
+                        rect = android.graphics.Rect(p.left, p.top, p.right, p.bottom),
+                    )
+                }
+            )
+        }
+
+        return OcrOutcome(
+            text = outcome.text,
+            lines = outcome.lines,
+            engineLabel = "Manga-OCR (Offline)",
+            language = "ja",
+            elapsedMs = outcome.elapsedMs,
+            blocks = blocks,
+        )
+    }
+
+    @Volatile
+    private var mangaCoreEngine: dev.yabai.ocr.core.manga.MangaOcrCoreEngine? = null
+
+    @Synchronized
+    private fun mangaEngine(): dev.yabai.ocr.core.manga.MangaOcrCoreEngine? {
+        mangaCoreEngine?.let { return it }
+        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
+        if (!store.isAvailable()) return null
+        return runCatching {
+            dev.yabai.ocr.core.manga.MangaOcrCoreEngine(store.detectorFile, store.recognizerFile, store.vocabFile).also {
+                mangaCoreEngine = it
+            }
+        }.getOrNull()
     }
 
     private suspend fun offlineFallback(bitmap: Bitmap, warning: String?): OcrOutcome =
