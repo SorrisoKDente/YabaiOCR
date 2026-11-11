@@ -225,7 +225,7 @@ class DesktopSettings(
         set(value) { props.setProperty("show_ai_button", value.toString()); save() }
 
     var aiPrompt: String
-        get() = props.getProperty("ai_prompt", "Analise a frase em japonês abaixo, explique a gramática, o sentido dos kanjis e traduza para o português:")
+        get() = props.getProperty("ai_prompt", dev.yabai.ocr.desktop.i18n.DesktopStrings.defaultAiPrompt)
         set(value) { props.setProperty("ai_prompt", value); save() }
 
     var aiProvider: DesktopAiProvider

@@ -1352,7 +1352,7 @@ fun SettingsContent(
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     SettingRadioOption(
                         selected = translateTarget == "pt",
-                        title = "Português (pt)",
+                        title = DesktopStrings.translateTargetPortuguese,
                         description = "",
                         onClick = {
                             translateTarget = "pt"
@@ -1363,7 +1363,7 @@ fun SettingsContent(
 
                     SettingRadioOption(
                         selected = translateTarget == "en",
-                        title = "Inglês (en)",
+                        title = DesktopStrings.translateTargetEnglish,
                         description = "",
                         onClick = {
                             translateTarget = "en"
@@ -1399,7 +1399,7 @@ fun SettingsContent(
                 SettingRadioOption(
                     selected = aiProvider == DesktopAiProvider.CHATGPT,
                     title = "ChatGPT (OpenAI)",
-                    description = "Abre https://chatgpt.com/?q=...",
+                    description = DesktopStrings.aiOpensUrl("https://chatgpt.com/?q=..."),
                     onClick = {
                         aiProvider = DesktopAiProvider.CHATGPT
                         settings.aiProvider = DesktopAiProvider.CHATGPT
@@ -1409,7 +1409,7 @@ fun SettingsContent(
                 SettingRadioOption(
                     selected = aiProvider == DesktopAiProvider.GEMINI,
                     title = "Google Gemini",
-                    description = "Abre https://gemini.google.com/app?text=...",
+                    description = DesktopStrings.aiOpensUrl("https://gemini.google.com/app?text=..."),
                     onClick = {
                         aiProvider = DesktopAiProvider.GEMINI
                         settings.aiProvider = DesktopAiProvider.GEMINI
@@ -1419,7 +1419,7 @@ fun SettingsContent(
                 SettingRadioOption(
                     selected = aiProvider == DesktopAiProvider.DEEPSEEK,
                     title = "DeepSeek",
-                    description = "Abre https://chat.deepseek.com/?q=...",
+                    description = DesktopStrings.aiOpensUrl("https://chat.deepseek.com/?q=..."),
                     onClick = {
                         aiProvider = DesktopAiProvider.DEEPSEEK
                         settings.aiProvider = DesktopAiProvider.DEEPSEEK
@@ -1429,7 +1429,7 @@ fun SettingsContent(
                 SettingRadioOption(
                     selected = aiProvider == DesktopAiProvider.CLAUDE,
                     title = "Claude (Anthropic)",
-                    description = "Abre https://claude.ai/new?q=...",
+                    description = DesktopStrings.aiOpensUrl("https://claude.ai/new?q=..."),
                     onClick = {
                         aiProvider = DesktopAiProvider.CLAUDE
                         settings.aiProvider = DesktopAiProvider.CLAUDE
@@ -1438,8 +1438,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = aiProvider == DesktopAiProvider.CUSTOM,
-                    title = "Personalizado (URL com {text})",
-                    description = "Digite manualmente o endereço do tradutor ou IA com o marcador {text}.",
+                    title = DesktopStrings.aiCustomTitle,
+                    description = DesktopStrings.aiCustomDesc,
                     onClick = {
                         aiProvider = DesktopAiProvider.CUSTOM
                         settings.aiProvider = DesktopAiProvider.CUSTOM
@@ -1454,7 +1454,7 @@ fun SettingsContent(
                             aiCustomUrl = it
                             settings.aiCustomUrl = it
                         },
-                        label = { Text("URL Personalizada (ex: https://meutradutor.com/?q={text})") },
+                        label = { Text(DesktopStrings.aiCustomUrlLabel) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = TextFieldDefaults.outlinedTextFieldColors(

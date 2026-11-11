@@ -309,4 +309,19 @@ object DesktopStrings {
     val linuxIntegrationInstalledError: String get() = if (isEnglish) "Could not install shortcut. Run Yabai OCR from AppImage or an installed executable." else "Não foi possível instalar o atalho. Rode o Yabai OCR a partir do AppImage ou de um executável instalado."
     fun appVersionNotice(version: String): String = if (isEnglish) "✨ New version v$version available!" else "✨ Nova versão v$version disponível!"
     fun dictUpdatesCountNotice(count: Int): String = if (isEnglish) "📚 $count dictionary update(s) available" else "📚 $count atualização(ões) de dicionário disponível(is)"
+
+    // AI Provider Strings
+    fun aiOpensUrl(url: String): String = if (isEnglish) "Opens $url" else "Abre $url"
+    val aiCustomTitle: String get() = if (isEnglish) "Custom (URL with {text})" else "Personalizado (URL com {text})"
+    val aiCustomDesc: String get() = if (isEnglish) "Manually enter translator or AI address with {text} placeholder." else "Digite manualmente o endereço do tradutor ou IA com o marcador {text}."
+    val aiCustomUrlLabel: String get() = if (isEnglish) "Custom URL (e.g., https://mytranslator.com/?q={text})" else "URL Personalizada (ex: https://meutradutor.com/?q={text})"
+
+    // Hover OCR Statuses & Defaults
+    val hoverNoDictsInstalled: String get() = if (isEnglish) "No dictionaries installed — open 'Dictionary Manager'." else "Nenhum dicionário instalado — abra «Gerenciar Dicionários»."
+    val hoverNoTextNearCursor: String get() = if (isEnglish) "No text recognized near the cursor." else "Nenhum texto reconhecido perto do cursor."
+    fun hoverNoMatchForText(text: String): String = if (isEnglish) "Text read, but no dictionary match: $text" else "Texto lido, mas sem verbete no dicionário: $text"
+    fun hoverOcrFailure(detail: String): String = if (isEnglish) "OCR failure: $detail" else "Falha no OCR: $detail"
+    val defaultAiPrompt: String get() = if (isEnglish) "Analyze the Japanese sentence below, explain the grammar, kanji meanings, and translate to English:" else "Analise a frase em japonês abaixo, explique a gramática, o sentido dos kanjis e traduza para o português:"
+    val translateTargetPortuguese: String get() = if (isEnglish) "Portuguese (pt)" else "Português (pt)"
+    val translateTargetEnglish: String get() = if (isEnglish) "English (en)" else "Inglês (en)"
 }

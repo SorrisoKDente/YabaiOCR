@@ -7,6 +7,7 @@ import dev.yabai.ocr.core.lens.EncodedImage
 import dev.yabai.ocr.core.lens.LensClient
 import dev.yabai.ocr.core.lens.LensOptions
 import dev.yabai.ocr.core.lens.LensResult
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.GraphicsEnvironment
 import java.awt.Point
 import java.awt.Rectangle
@@ -290,7 +291,7 @@ internal class HoverOcrManager(
                 val currentSettings = DesktopSettings()
                 val lookup = lookupEngine(currentSettings)
                 if (lookup == null) {
-                    fail("Nenhum dicionário instalado — abra «Gerenciar Dicionários».")
+                    fail(DesktopStrings.hoverNoDictsInstalled)
                     return@launch
                 }
 
@@ -314,9 +315,9 @@ internal class HoverOcrManager(
                 if (hit == null) {
                     val text = result.joinLines().trim()
                     if (text.isBlank()) {
-                        publishStatus("Nenhum texto reconhecido perto do cursor.")
+                        publishStatus(DesktopStrings.hoverNoTextNearCursor)
                     } else {
-                        publishStatus("Texto lido, mas sem verbete no dicionário: ${text.take(40)}")
+                        publishStatus(DesktopStrings.hoverNoMatchForText(text.take(40)))
                     }
                     dismiss()
                     return@launch
@@ -342,7 +343,7 @@ internal class HoverOcrManager(
                 val matches = listOf(hit.match)
                 SwingUtilities.invokeLater { onResultsReady(matches, point, filter) }
             } catch (e: Exception) {
-                fail("Falha no OCR: ${e.message ?: e.javaClass.simpleName}")
+                fail(DesktopStrings.hoverOcrFailure(e.message ?: e.javaClass.simpleName))
             } finally {
                 busy.set(false)
             }
