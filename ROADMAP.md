@@ -3562,6 +3562,63 @@ selos, botões, diálogo, permissão), `MainActivity.kt` (`ensure`), strings e `
 
 
 
+## 23. Ronda 44 — o balão do motor offline volta a ser um bloco (11/11/2026)
+
+**Relato.** «Unlimited OCR quando captura a tela toda ele está identificando blocos de textos que
+deveriam ser juntos como separados E não identificou alguns textos», com um print de um balão de duas
+colunas (「戦う術が」 / 「無い」) chegando como duas caixas, contra o exemplo do Google Lens.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R43 | `[x]` | **Colunas do mesmo balão voltam a ser um bloco no motor offline** | bug |
+
+### R43 — O balão que chegava partido  `[x]` (11/11/2026)
+
+**Causa raiz.** No Android a opção «Unlimited-OCR» **não é outro motor**:
+`OcrDispatcher.recognizeWithUnlimitedOcr` chama o `MlKitOcrEngine` e só troca o `engineLabel`. O ML Kit
+reporta japonês vertical **uma coluna por `textBlock`**, então um balão de duas colunas chega como dois
+parágrafos e a tela de trechos oferece duas caixas para uma frase. O Lens agrupa as colunas sozinho; o
+motor offline não tinha nenhuma regra de agrupamento — só a ordenação (R14) dos blocos que ele já
+trazia.
+
+**Correção.**
+
+- `core/.../layout/BlockColumns.kt` (novo): junta as caixas que são colunas do mesmo parágrafo — ambas
+  mais altas que largas, faixa vertical em comum de pelo menos 50% da menor e vão horizontal de no
+  máximo 0,6 da largura da coluna — e devolve os grupos já em ordem de leitura (direita para a
+  esquerda dentro do grupo, grupos pela ordem de `ReadingOrder`). Texto horizontal não é tocado: o
+  ML Kit já entrega linhas quebradas como um bloco, e duas linhas de parágrafos diferentes ficam
+  perto demais para uma regra de vão.
+- `MlKitOcrEngine.kt`: agrupa antes de ordenar; o `rect` do bloco passa a ser a união das colunas e os
+  `pieces` continuam sendo as colunas, cada uma com sua caixa (é o que desenha a leitura onde o texto
+  está). Uma caixa sem geometria continua parágrafo próprio.
+
+**Testes.** `BlockColumnsTest` (6 novos, no `:core`). Suítes depois do R43: **núcleo 159 testes,
+0 falhas**; **app 397 testes, 0 falhas** (a contagem do app não muda: nenhuma regra de tela foi
+tocada). As regras que mais doem foram conferidas por mutação:
+
+| mutação | teste que acusa |
+| --- | --- |
+| o vão deixa de ser comparado com a largura da coluna (`return true`) | `columns of two different balloons stay apart`, `a gap wider than a glyph is a different paragraph` |
+| `isColumn` sempre falso | `the two columns of a vertical balloon are one paragraph` |
+| `groups` devolve cada índice sozinho | 5 dos 6 (todos os que têm geometria) |
+
+**Evidência.** Não houve captura no aparelho: a prova é de unidade, com a geometria do print (coluna de
+40 px de largura, vão de 10 px dentro do balão contra 40 px entre balões) e a prova de mutação acima.
+
+**Limitações.**
+
+- **Texto que o ML Kit não lê continua não lido.** O agrupamento só junta o que veio; para mangá
+  estilizado o Lens continua sendo o motor que lê mais.
+- A opção «Unlimited-OCR» do Android **continua sendo o ML Kit com outro rótulo**. O modelo da Baidu
+  (github.com/baidu/Unlimited-OCR, MIT) é um VLM de 3,34 B parâmetros / 6,78 GB servido em GPU
+  (Transformers, vLLM, SGLang), não cabe num celular; rodá-lo de verdade exige escolher outro motor
+  local com detecção e reconhecimento próprios, com pesos baixados e licença conferida.
+- Balões empilhados no mesmo painel não são agrupados (a regra é só de colunas lado a lado), e uma
+  coluna de um único caractere é quadrada — não dá para distingui-la de uma linha horizontal.
+
+---
+
 ## Notas de ordem
 
 - B1 antes de tudo: é regressão visual e esconde um botão.

@@ -4,10 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import dev.yabai.ocr.core.jp.JapaneseText
+import dev.yabai.ocr.core.layout.BlockColumns
 import dev.yabai.ocr.core.layout.ReadingOrder
 import dev.yabai.ocr.core.lens.PixelBox
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -44,31 +46,30 @@ class MlKitOcrEngine : OcrEngine {
             .map { line -> line.text.trim() }
             .filter { it.isNotEmpty() }
 
-        // ML Kit hands the blocks over in page order — top to bottom, then left to right — which is
-        // not how a manga balloon reads: it puts the leftmost column first, when that is the last one.
-        // The boxes know the real order, so the blocks are sorted the same way the Lens ones are
-        // (R14), and so are the lines inside each block.
+        // Two things are wrong with the blocks as reported: the order, and the granularity.
+        //
+        // The order: ML Kit hands the blocks over in page order — top to bottom, then left to right —
+        // which is not how a manga balloon reads: it puts the leftmost column first, when that is the
+        // last one. The boxes know the real order, so the blocks are sorted the same way the Lens ones
+        // are (R14).
+        //
+        // The granularity: vertical text is reported one column per block, so a single balloon
+        // printed as 「戦う術が」 / 「無い」 arrives as two paragraphs and the picker offers two boxes
+        // for one sentence. BlockColumns puts side-by-side columns of the same paragraph back
+        // together (R43), and only then is the reading order applied to what is left.
         val found = text.textBlocks
-        val ordered = ReadingOrder.order(found.map { boxOf(it.boundingBox) }).map { found[it] }
+        val grouped = BlockColumns.groups(found.map { boxOf(it.boundingBox) })
 
-        // A block is already a paragraph, so, unlike Lens, nothing has to be merged here; the lines
-        // inside one are just wrapped text and are joined back together the same way Lens's columns
-        // are.
-        val blocks = ordered.mapNotNull { block ->
-            val orderedLines = ReadingOrder.order(block.lines.map { boxOf(it.boundingBox) })
-                .map { block.lines[it] }
-            val blockLines = orderedLines.map { it.text.trim() }.filter { it.isNotEmpty() }
-            val content = JapaneseText.normalize(
-                if (blockLines.isEmpty()) block.text.trim() else blockLines.joinToString(" "),
-            ).trim()
+        val blocks = grouped.mapNotNull { indices ->
+            val orderedLines = indices.flatMap { index -> linesOf(found[index]) }
+            val content = JapaneseText.normalize(orderedLines.joinToString(" ") { it.first }).trim()
             if (content.isEmpty()) return@mapNotNull null
             OcrBlock(
                 text = content,
-                lines = blockLines,
-                rect = block.boundingBox,
-                pieces = orderedLines.mapNotNull { line ->
-                    val pieceText = JapaneseText.normalize(line.text.trim()).trim()
-                    val box = line.boundingBox
+                lines = orderedLines.map { it.first },
+                rect = unionOf(indices.mapNotNull { found[it].boundingBox }),
+                pieces = orderedLines.mapNotNull { (text, box) ->
+                    val pieceText = JapaneseText.normalize(text).trim()
                     if (pieceText.isEmpty() || box == null) null else OcrPiece(pieceText, box)
                 },
             )
@@ -93,9 +94,35 @@ class MlKitOcrEngine : OcrEngine {
         )
     }
 
+    /**
+     * The lines of one reported block, in reading order, with the box each one occupies.
+     *
+     * A block with no lines is a paragraph the engine joined itself; its whole text is the only thing
+     * there is to offer, which is what the panel shows.
+     */
+    private fun linesOf(block: Text.TextBlock): List<Pair<String, Rect?>> {
+        if (block.lines.isEmpty()) {
+            val whole = block.text.trim()
+            return if (whole.isEmpty()) emptyList() else listOf(whole to block.boundingBox)
+        }
+        val order = ReadingOrder.order(block.lines.map { boxOf(it.boundingBox) })
+        return order
+            .map { block.lines[it] }
+            .map { it.text.trim() to it.boundingBox }
+            .filter { it.first.isNotEmpty() }
+    }
+
     /** The box a ML Kit element reports, in the shape the rest of the app speaks. */
     private fun boxOf(rect: Rect?): PixelBox? =
         rect?.let { PixelBox(it.left, it.top, it.width(), it.height()) }
+
+    /** The smallest box that contains every box of a paragraph. */
+    private fun unionOf(rects: List<Rect>): Rect? {
+        val first = rects.firstOrNull() ?: return null
+        val result = Rect(first)
+        for (rect in rects.drop(1)) result.union(rect)
+        return result
+    }
 
     override fun close() {
         recognizer.close()

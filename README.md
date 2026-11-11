@@ -594,6 +594,14 @@ de `肉塊に潰されてる`), mesmo com todas as letras certas. O motor offlin
 entrega a página de cima para baixo e da esquerda para a direita, o que num balão vertical põe a última
 coluna primeiro; os retângulos que ele mesmo devolve são a única coisa que sabe a ordem certa.
 
+O motor offline também reporta o texto vertical **uma coluna por bloco**: um balão de duas colunas
+chegava como duas caixas separadas na tela de trechos, uma frase cortada em duas. O `core` junta as
+colunas que estão lado a lado na mesma faixa, com vão menor que um caractere — só colunas verticais;
+texto horizontal e balões empilhados no mesmo painel continuam como o motor os reportou. A opção
+**«Unlimited-OCR»** do Android usa esse mesmo motor offline; o que ela muda é o rótulo. Nenhuma das
+duas coisas inventa o texto que o motor não leu: em mangá estilizado, o Lens continua sendo quem lê
+mais.
+
 Além disso, a imagem vai com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`) e o
 idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1600.
 
