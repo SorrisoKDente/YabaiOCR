@@ -10,6 +10,7 @@ import dev.yabai.ocr.overlay.PickerReadingMode
 
 enum class EngineChoice { AUTO, LENS, MANGA_OCR, MLKIT }
 enum class AppThemeChoice { SYSTEM, LIGHT, DARK }
+enum class AppLanguageChoice { SYSTEM, PT_BR, EN_US }
 
 /**
  * How often the app asks the publishers whether an installed dictionary changed (R43).
@@ -299,6 +300,26 @@ class AppSettings(context: Context) {
             applyTheme()
         }
 
+    var appLanguage: AppLanguageChoice
+        get() = when (prefs.getString(KEY_APP_LANGUAGE, null)) {
+            AppLanguageChoice.PT_BR.name -> AppLanguageChoice.PT_BR
+            AppLanguageChoice.EN_US.name -> AppLanguageChoice.EN_US
+            else -> AppLanguageChoice.SYSTEM
+        }
+        set(value) {
+            prefs.edit(commit = true) { putString(KEY_APP_LANGUAGE, value.name) }
+            applyAppLanguage()
+        }
+
+    fun applyAppLanguage() {
+        val locales = when (appLanguage) {
+            AppLanguageChoice.PT_BR -> androidx.core.os.LocaleListCompat.forLanguageTags("pt-BR")
+            AppLanguageChoice.EN_US -> androidx.core.os.LocaleListCompat.forLanguageTags("en-US")
+            AppLanguageChoice.SYSTEM -> androidx.core.os.LocaleListCompat.getEmptyLocaleList()
+        }
+        AppCompatDelegate.setApplicationLocales(locales)
+    }
+
     fun applyTheme(@Suppress("UNUSED_PARAMETER") activity: AppCompatActivity? = null) {
         val mode = when (appTheme) {
             AppThemeChoice.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
@@ -347,6 +368,7 @@ class AppSettings(context: Context) {
 
         private const val KEY_ENGINE = "engine"
         private const val KEY_ENGINE_PRIORITY = "engine_priority"
+        private const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_APP_THEME = "app_theme"
         private const val KEY_AUTO_COPY = "auto_copy"
         private const val KEY_SHOW_SEGMENTS = "show_segments"

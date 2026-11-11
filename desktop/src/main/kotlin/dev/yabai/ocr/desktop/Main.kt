@@ -19,6 +19,7 @@ import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.application
 import dev.yabai.ocr.core.dict.TokenMatch
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.awt.Point
@@ -48,6 +49,7 @@ fun main(args: Array<String>) {
     // Before any window: when Windows starts the app with `--minimized` the settings window is
     // never created, so the logon entry has to be repaired from the stored preference here.
     val appSettings = DesktopSettings()
+    DesktopStrings.init(appSettings)
     StartupManager.reconcileStartOnBoot(appSettings.startOnBoot)
 
     application {

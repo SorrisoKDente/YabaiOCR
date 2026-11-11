@@ -13,6 +13,7 @@ enum class DesktopUpdateInterval(val days: Long) {
     MONTHLY(30),
 }
 enum class DesktopAiProvider { CHATGPT, GEMINI, DEEPSEEK, CLAUDE, CUSTOM }
+enum class DesktopLanguageChoice { SYSTEM, PT_BR, EN_US }
 
 class DesktopSettings(
     private val file: File = File(defaultDesktopHome(), "settings.properties"),
@@ -108,6 +109,14 @@ class DesktopSettings(
     var darkTheme: Boolean
         get() = props.getProperty("dark_theme", "true").toBoolean()
         set(value) { props.setProperty("dark_theme", value.toString()); save() }
+
+    var appLanguage: DesktopLanguageChoice
+        get() = when (props.getProperty("app_language", "SYSTEM")) {
+            "PT_BR" -> DesktopLanguageChoice.PT_BR
+            "EN_US" -> DesktopLanguageChoice.EN_US
+            else -> DesktopLanguageChoice.SYSTEM
+        }
+        set(value) { props.setProperty("app_language", value.name); save() }
 
     var upscaleSmall: Boolean
         get() = props.getProperty("upscale_small", "true").toBoolean()

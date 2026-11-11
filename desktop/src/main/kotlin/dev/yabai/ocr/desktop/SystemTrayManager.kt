@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -87,9 +88,9 @@ internal class SystemTrayManager(
             menu.add(MenuItem(label).apply { addActionListener { action() } })
         }
 
-        add("🖥️  Capturar Tela Inteira (OCR)") { onFullScreenCaptureRequested() }
-        add("✂️  Capturar Área (OCR)") { onRegionCaptureRequested() }
-        add("🔍  Busca Rápida de Dicionário") { onQuickDictRequested() }
+        add(DesktopStrings.trayFullScreen) { onFullScreenCaptureRequested() }
+        add(DesktopStrings.trayRegion) { onRegionCaptureRequested() }
+        add(DesktopStrings.trayQuickDict) { onQuickDictRequested() }
 
         nativeHoverItem = MenuItem(hoverMenuItemLabel()).apply {
             addActionListener { onHoverRequested() }
@@ -97,21 +98,20 @@ internal class SystemTrayManager(
         nativeHoverItem?.let { menu.add(it) }
 
         menu.addSeparator()
-        add("📚  Gerenciar Dicionários") { onFullDictRequested() }
-        add("⚙️  Ajustes e Configurações") { onSettingsRequested() }
+        add(DesktopStrings.trayManageDicts) { onFullDictRequested() }
+        add(DesktopStrings.traySettings) { onSettingsRequested() }
         menu.addSeparator()
-        add("✕  Sair") { onExitRequested() }
+        add(DesktopStrings.trayExit) { onExitRequested() }
         return menu
     }
 
     private fun hoverMenuItemLabel(): String =
-        if (isHoverActive()) "🌐  Modo Hover [Ativo]" else "🌐  Modo Hover [Inativo]"
+        DesktopStrings.trayHover(isHoverActive())
 
     /** Keeps the native menu label truthful after the hover is toggled anywhere. */
     fun updateHover(active: Boolean) {
         SwingUtilities.invokeLater {
-            nativeHoverItem?.label =
-                if (active) "🌐  Modo Hover [Ativo]" else "🌐  Modo Hover [Inativo]"
+            nativeHoverItem?.label = DesktopStrings.trayHover(active)
         }
     }
 
@@ -164,20 +164,20 @@ internal class SystemTrayManager(
                 return btn
             }
 
-            panel.add(createTrayButton("🖥️  Capturar Tela Inteira (OCR)") { onFullScreenCaptureRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayFullScreen) { onFullScreenCaptureRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton("✂️  Capturar Área (OCR)") { onRegionCaptureRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayRegion) { onRegionCaptureRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton("🔍  Busca Rápida de Dicionário") { onQuickDictRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayQuickDict) { onQuickDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
 
-            val hoverStatus = if (isHoverActive()) "🌐  Modo Hover [Ativo]" else "🌐  Modo Hover [Inativo]"
+            val hoverStatus = DesktopStrings.trayHover(isHoverActive())
             panel.add(createTrayButton(hoverStatus) { onHoverRequested() })
 
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton("📚  Gerenciar Dicionários") { onFullDictRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayManageDicts) { onFullDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton("⚙️  Ajustes e Configurações") { onSettingsRequested() })
+            panel.add(createTrayButton(DesktopStrings.traySettings) { onSettingsRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 4)))
 
             val sep = JSeparator()
@@ -187,7 +187,7 @@ internal class SystemTrayManager(
             panel.add(sep)
             panel.add(Box.createRigidArea(Dimension(0, 4)))
 
-            panel.add(createTrayButton("✕  Sair") { onExitRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayExit) { onExitRequested() })
 
             popup.add(panel)
 

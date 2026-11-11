@@ -16,6 +16,11 @@
     <string name="theme_system">Sistema</string>
     <string name="theme_toggle_btn">Alternar Tema</string>
 
+    <string name="section_language">Idioma da Interface</string>
+    <string name="lang_system">Padrão do Sistema</string>
+    <string name="lang_pt_br">Português (Brasil)</string>
+    <string name="lang_en_us">Inglês</string>
+
     <string name="permission_overlay">Sobrepor outros apps</string>
     <string name="permission_overlay_desc">Necessário para a bolha flutuante.</string>
     <string name="permission_notifications">Notificações</string>

@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Yabai OCR</string>
+
+    <string name="hero_title">Yabai OCR</string>
+    <string name="hero_subtitle">Read Japanese in any app. The bubble floats over your screen: tap it, select an area, and text goes to your clipboard.</string>
+
+    <string name="section_permissions">1. Permissions</string>
+    <string name="section_shortcuts">2. Quick Shortcuts</string>
+    <string name="section_theme">3. App Theme</string>
+    <string name="section_engine">4. Recognition Engine</string>
+    <string name="section_behaviour">5. Behaviour</string>
+
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_system">System</string>
+    <string name="theme_toggle_btn">Toggle Theme</string>
+
+    <string name="section_language">Interface Language</string>
+    <string name="lang_system">System Default</string>
+    <string name="lang_pt_br">Portuguese (Brasil)</string>
+    <string name="lang_en_us">English</string>
+
+    <string name="permission_overlay">Display over other apps</string>
+    <string name="permission_overlay_desc">Required for the floating bubble overlay.</string>
+    <string name="permission_notifications">Notifications</string>
+    <string name="permission_notifications_desc">Required by Android while screen capture is running.</string>
+    <string name="permission_granted">Granted</string>
+    <string name="permission_missing">Not granted</string>
+    <string name="permission_grant">Grant</string>
+    <string name="permission_remove">Remove</string>
+    <string name="permission_cancel">Cancel</string>
+    <string name="permission_remove_overlay_title">Remove overlay permission?</string>
+    <string name="permission_remove_overlay_message">Without this permission, the floating OCR bubble will not appear over other apps and the floating dictionary cannot open. You can grant it again anytime.</string>
+    <string name="permission_remove_notifications_title">Remove notification permission?</string>
+    <string name="permission_remove_notifications_message">Without this permission, the active OCR status notification will disappear and the system may terminate capture. You can grant it again anytime.</string>
+    <string name="permission_remove_confirm">Remove</string>
+
+    <string name="engine_auto">Automatic (Use Priority Order)</string>
+    <string name="engine_auto_desc">Tries engines in priority order. Falls back to the next engine on network failure or error.</string>
+    <string name="engine_manga_ocr">Manga-OCR Only (offline)</string>
+    <string name="engine_manga_ocr_desc">Offline AI specialized in vertical manga text and stylized fonts.</string>
+    <string name="engine_lens">Google Lens Only (online)</string>
+    <string name="engine_lens_desc">Maximum online precision. Requires internet connection.</string>
+    <string name="engine_mlkit">ML Kit Only (offline)</string>
+    <string name="engine_mlkit_desc">Runs offline on-device. Good for basic printed text.</string>
+    <string name="engine_priority_title">Engine priority order in Automatic mode:</string>
+    <string name="engine_priority_desc">Set which engine is attempted first and which serves as fallback.</string>
+    <string name="engine_label_lens">Google Lens (Online)</string>
+    <string name="engine_label_manga_ocr">Manga-OCR (Offline)</string>
+    <string name="engine_label_mlkit">ML Kit (Offline)</string>
+    <string name="btn_priority_up">▲ Up</string>
+    <string name="btn_priority_down">▼ Down</string>
+
+    <string name="setting_auto_copy">Copy automatically after recognition</string>
+    <string name="setting_show_segments">List text line by line</string>
+    <string name="setting_pick_text">Choose text segment on page (like Google Lens)</string>
+    <string name="dictionary_strip_readings">Ignore readings in parentheses during search</string>
+    <string name="dictionary_strip_readings_hint">Applies to typed queries only: 職員（しょくいん） is searched as 職員. Displayed and copied text remain unchanged.</string>
+    <string name="setting_bubble_on_edge">Snap bubble to screen edges</string>
+    <string name="setting_upscale">Upscale small image crops (helps with tiny text)</string>
+    <string name="setting_show_image">Show captured image next to text</string>
+    <string name="setting_furigana">Keep original printed furigana — 職員（しょくいん）</string>
+    <string name="setting_furigana_readings">Write dictionary furigana in panel — 職員（しょくいん）さんに聞（き）いた</string>
+    <string name="setting_picker_reading">Kanji readings on page selection screen</string>
+    <string name="picker_reading_off">Do not show</string>
+    <string name="picker_reading_ruby">Ruby: reading drawn above each kanji</string>
+    <string name="picker_reading_label">Side label: balloon with readings in parentheses</string>
+
+    <string name="start_button">Start Floating OCR</string>
+    <string name="start_button_running">Floating OCR active — tap to reopen settings</string>
+    <string name="start_button_paused">Floating OCR paused — tap "Resume" in notification</string>
+    <string name="stop_button">Stop Floating OCR</string>
+
+    <string name="overlay_full_screen">Full Screen</string>
+    <string name="overlay_select_area">Select Area</string>
+    <string name="overlay_kanji">Read Kanji</string>
+    <string name="overlay_dictionary">Dictionary</string>
+    <string name="overlay_close_service">Stop</string>
+    <string name="overlay_settings">Settings</string>
+    <string name="overlay_drop_to_close">Release here to stop Floating OCR</string>
+    <string name="overlay_close_confirm">Stop Floating OCR?</string>
+
+    <string name="region_hint">Drag to select an area containing text</string>
+    <string name="region_cancel">Cancel</string>
+    <string name="region_full">Full Screen</string>
+    <string name="region_confirm">Recognize</string>
+
+    <string name="picker_hint">Tap a segment to copy or translate · pinch to zoom</string>
+    <string name="picker_all">All text</string>
+    <string name="picker_cancel">Cancel</string>
+
+    <string name="kanji_hint">Tap a kanji to view readings · pinch to zoom</string>
+    <string name="kanji_on">Onyomi: %1$s</string>
+    <string name="kanji_kun">Kunyomi: %1$s</string>
+    <string name="kanji_parts">Individual kanji readings: %1$s</string>
+    <string name="kanji_not_a_kanji">This is not a kanji character.</string>
+    <string name="kanji_no_dictionary">No kanji dictionary contains this character — sentence reading is shown.</string>
+    <string name="kanji_dictionary_missing">No kanji dictionary installed. Download KANJIDIC in "Dictionaries" to view kanji readings and meanings.</string>
+    <string name="kanji_dictionary_disabled">Kanji dictionary is disabled in "Dictionaries". Enable it to view kanji readings and meanings.</string>
+    <string name="kanji_no_page">No legible text was recognized on this screen.</string>
+
+    <string name="result_title">Recognized Text</string>
+    <string name="result_retry_offline">Try Offline</string>
+    <string name="result_close">Close</string>
+    <string name="result_copied">Text copied</string>
+    <string name="result_failed">Could not recognize text.</string>
+    <string name="result_note_fallback">Lens unavailable — showing offline ML Kit result.</string>
+    <string name="result_meta_ms">%1$d ms</string>
+    <string name="result_original_label">Recognized text (tap to edit; analysis updates automatically)</string>
+    <string name="result_original_hint">Recognized text</string>
+    <string name="result_copy_original">Copy Original</string>
+    <string name="result_copy_translation">Copy Translation</string>
+    <string name="result_repick">◀ Segments</string>
+    <string name="result_image">Image</string>
+    <string name="result_image_description">Captured image crop from which text was recognized</string>
+    <string name="result_ask_ai">Ask AI</string>
+    <string name="result_ask_ai_choose">Ask</string>
+    <string name="result_ask_ai_all">Show all (%1$d)</string>
+    <string name="result_ask_ai_only_ai">AI apps only</string>
+    <string name="result_ai_no_app">No installed app accepts text — recognized text has been copied to clipboard.</string>
+    <string name="result_translation_label">Translation</string>
+    <string name="result_dictionary_label">Dictionary</string>
+    <string name="result_kanji_label">Kanji</string>
+    <string name="result_furigana_note">\? — dictionary has no word entry for this kanji; readings in parentheses belong to the kanji itself.</string>
+    <string name="result_fold">Collapse panel</string>
+    <string name="result_unfold">Expand panel</string>
+    <string name="result_fold_section">Collapse section</string>
+    <string name="result_unfold_section">Expand section</string>
+
+    <string name="capture_failed">Screen capture failed. Please try again.</string>
+    <string name="capture_dismissed">Screen capture notification was dismissed, stopping OCR. Tap "Start Floating OCR" to restart.</string>
+    <string name="capture_restart_needed">Screen rotated; capture session needs to restart. Tap "Start Floating OCR" again.</string>
+    <string name="recognizing">Recognizing…</string>
+
+    <string name="notification_channel_name">Active Screen Capture</string>
+    <string name="notification_channel_desc">Shows notification while Yabai OCR is capturing the screen.</string>
+    <string name="notification_title">Yabai OCR Active</string>
+    <string name="notification_text">Tap floating bubble to read text on screen.</string>
+    <string name="notification_title_paused">Yabai OCR Paused</string>
+    <string name="notification_text_paused">Tap "Resume" to continue reading the screen.</string>
+    <string name="notification_pause">Pause</string>
+    <string name="notification_resume">Resume</string>
+    <string name="notification_stop">Stop</string>
+
+    <string name="need_overlay_permission">Grant overlay permission to continue.</string>
+    <string name="need_notification_permission">Grant notification permission to continue.</string>
+    <string name="projection_denied">Screen capture request denied.</string>
+
+    <string name="status_running">Active</string>
+    <string name="status_paused">Paused</string>
+    <string name="status_stopped">Stopped</string>
+
+    <string name="translate_working">Translating on-device…</string>
+    <string name="translate_failed">Could not translate. On first run, the app downloads language model files (~30 MB) and requires Google Play Services.</string>
+    <string name="dictionary_working">Searching dictionary…</string>
+    <string name="dictionary_failed">Could not query dictionary.</string>
+    <string name="dictionary_none_installed">No dictionaries installed. Open settings and download one under "Dictionaries".</string>
+    <string name="dictionary_no_match">No words in this text were found in installed dictionaries.</string>
+    <string name="dictionary_all">All</string>
+    <string name="dictionary_pick">Choose dictionary</string>
+    <string name="dictionary_word_count">%1$d words</string>
+    <string name="dictionary_truncated">Showing %1$d of %2$d words found.</string>
+    <string name="dictionary_search_title">Dictionary</string>
+    <string name="dictionary_search_hint">Search word, kanji, or reading…</string>
+    <string name="dictionary_search_empty">Type a word, kanji, or reading to query installed dictionaries.</string>
+    <string name="dictionary_search_clear">Clear query</string>
+    <string name="dictionary_search_paste">Paste</string>
+    <string name="dictionary_search_paste_description">Paste copied text into search field</string>
+    <string name="dictionary_search_clipboard_empty">Clipboard is empty.</string>
+    <string name="dictionary_search_mode_word">🔤 Headword</string>
+    <string name="dictionary_search_mode_translation">🔄 Definition</string>
+    <string name="dictionary_search_mode_description">Toggle between searching headwords and searching definition text</string>
+    <string name="dictionary_search_translation_hint">Search by meaning (e.g., sword)…</string>
+    <string name="dictionary_search_translation_empty">No dictionary entries match all query terms in their definition. Try fewer words or synonyms.</string>
+    <string name="dictionary_search_preparing">Building search index… first search per dictionary prepares an index and may take a moment.</string>
+    <string name="dictionary_suggestions">Suggestions</string>
+    <string name="dictionary_suggestion_description">Lookup "%1$s"</string>
+
+    <string name="section_dictionary">6. Dictionaries</string>
+    <string name="setting_dictionary">Query installed dictionaries</string>
+    <string name="setting_dictionary_keep_last">Keep last search query on reopen</string>
+    <string name="dictionary_manage_button">Manage dictionaries</string>
+    <string name="dictionary_summary_none">No dictionaries installed</string>
+    <string name="dictionary_summary">%1$d installed · %2$d active</string>
+
+    <string name="section_translation">7. Translation</string>
+    <string name="setting_translate">Translate sentence using offline model</string>
+    <string name="setting_translate_target">Target language</string>
+    <string name="translate_target_pt">Portuguese</string>
+    <string name="translate_target_en">English</string>
+
+    <string name="section_ai">8. Ask an AI</string>
+    <string name="setting_ai_button">Show "Ask AI" button in result panel</string>
+    <string name="setting_ai_prompt">Prompt question placed before recognized text (leave empty to send text only)</string>
+    <string name="setting_ai_app">Responding app</string>
+    <string name="ai_app_always">Automatic (AI apps only)</string>
+    <string name="ai_app_none">No installed app accepts text</string>
+    <string name="ai_note">Not an integration with any external API service: the app copies recognized text, formats the prompt, and hands both to your selected app (ChatGPT, Gemini, Copilot, Claude, etc.). No API key, account, or cost required.\n\nThe prompt above followed by text is sent to the app. Clipboard holds text only for pasting anywhere.</string>
+
+    <string name="dictionary_title">Dictionaries</string>
+    <string name="dictionary_subtitle">Dictionaries in Yomitan/Yomichan format. Downloaded once, converted, and queried completely offline.</string>
+    <string name="dictionary_installed_section">Installed</string>
+    <string name="dictionary_available_section">Available for Download</string>
+    <string name="dictionary_import_section">Import File</string>
+    <string name="dictionary_import_hint">Already have a Yomitan .zip dictionary file? Select it to convert and import locally.</string>
+    <string name="dictionary_import_button">Choose .zip file</string>
+    <string name="dictionary_installed_empty">No dictionaries installed. Download one below.</string>
+    <string name="dictionary_terms">%1$s entries</string>
+    <string name="dictionary_kanji_count">%1$s kanji</string>
+    <string name="dictionary_download">Download</string>
+    <string name="dictionary_download_cancelled">Download cancelled.</string>
+    <string name="dictionary_downloading">Downloading… %1$s</string>
+    <string name="dictionary_installing">Converting… %1$s</string>
+    <string name="dictionary_installed_done">"%1$s" installed</string>
+    <string name="dictionary_delete">Remove</string>
+    <string name="dictionary_cancel">Cancel</string>
+    <string name="dictionary_delete_confirm">Remove "%1$s"? Dictionary files will be deleted from your device.</string>
+    <string name="dictionary_up">Move Up</string>
+    <string name="dictionary_down">Move Down</string>
+    <string name="dictionary_enable">Active</string>
+    <string name="dictionary_priority_hint">Order sets priority: when multiple dictionaries contain the same word, the higher dictionary appears first.</string>
+    <string name="dictionary_kanji_title">Kanji dictionary</string>
+    <string name="dictionary_kanji_hint">Which dictionary answers kanji card lookups and compound kanji readings. Sentence word lookups continue to use the panel filter.</string>
+    <string name="dictionary_kanji_all">All kanji dictionaries</string>
+    <string name="dictionary_import_failed">Import failed: %1$s</string>
+    <string name="dictionary_download_failed">Download failed: %1$s</string>
+    <string name="dictionary_attribution">Source: %1$s</string>
+    <string name="dictionary_release">Revision %1$s</string>
+    <string name="dictionary_source">Source: %1$s</string>
+    <string name="dictionary_stale_banner">Compiled by an older app version, these dictionaries use an outdated format: %1$s. Tap "Update" or re-import to update definitions.</string>
+    <string name="result_stale_dictionary">Outdated dictionary format: %1$s. In "Dictionaries", tap "Update" or re-import to update definitions.</string>
+    <string name="dictionary_outdated">Compiled with an older app version: tap "Update" or re-import to organize definitions.</string>
+
+    <string name="dictionary_updates_section">Updates</string>
+    <string name="dictionary_updates_hint">Check only queries publishers for published revision headers. Download and conversion occur when you tap "Update", replacing files in-place without changing priority order or active state.</string>
+    <string name="dictionary_updates_check">Check for Updates</string>
+    <string name="dictionary_updates_checking">Checking…</string>
+    <string name="dictionary_updates_never">Never checked.</string>
+    <string name="dictionary_updates_last_check">Last check: %1$s · %2$s</string>
+    <string name="dictionary_updates_all_current">all up to date</string>
+    <string name="dictionary_updates_failed_count">%1$d failed</string>
+    <string name="dictionary_updates_nothing">No catalog dictionaries installed to check.</string>
+    <string name="dictionary_updates_auto">Automatic update checks</string>
+    <string name="dictionary_updates_auto_title">Check for updates</string>
+    <string name="dictionary_updates_off">Disabled</string>
+    <string name="dictionary_updates_daily">Daily</string>
+    <string name="dictionary_updates_weekly">Weekly</string>
+    <string name="dictionary_updates_monthly">Monthly</string>
+    <string name="dictionary_updates_no_permission">Without notification permission, update check results appear on this screen only.</string>
+    <string name="dictionary_update_available">Update available</string>
+    <string name="dictionary_update_available_version">Update available: %1$s</string>
+    <string name="dictionary_update">Update</string>
+    <string name="dictionary_update_all">Update All</string>
+    <string name="dictionary_update_all_partial">%1$d updated; %2$d failed.</string>
+    <string name="dictionary_update_unknown">Installed version could not be compared. Tap "Update" once to enable future checks.</string>
+    <string name="dictionary_update_failed">Could not check for updates: %1$s</string>
+    <string name="dictionary_update_manual">Imported from file: no remote source to check.</string>
+    <string name="dictionary_updating_named">Updating %1$s (%2$d of %3$d)…</string>
+    <string name="dictionary_updating_progress">Updating %1$s (%2$d of %3$d)… %4$s</string>
+    <string name="dictionary_updates_channel">Dictionary Updates</string>
+    <string name="dictionary_updates_channel_description">Notifies when a new dictionary version is available.</string>
+
+    <plurals name="dictionary_updates_available_count">
+        <item quantity="one">%1$d update available</item>
+        <item quantity="other">%1$d updates available</item>
+    </plurals>
+    <plurals name="dictionary_updates_notification_title">
+        <item quantity="one">%1$d dictionary update available</item>
+        <item quantity="other">%1$d dictionary updates available</item>
+    </plurals>
+    <plurals name="dictionary_update_all_done">
+        <item quantity="one">%1$d dictionary updated.</item>
+        <item quantity="other">%1$d dictionaries updated.</item>
+    </plurals>
+
+    <string name="dictionary_legal_credits_toggle">▸ View legal credits and dictionary licenses</string>
+    <string name="dictionary_legal_credits_toggle_open">▾ Hide legal credits and dictionary licenses</string>
+
+    <string name="shortcut_qs_title">Quick Settings Notification Tile</string>
+    <string name="shortcut_qs_desc">Add the Yabai OCR tile to your phone\'s Quick Settings panel to start OCR from anywhere.</string>
+
+    <string name="help_title">Help &amp; Tips</string>
+    <string name="menu_help">Help</string>
+    <string name="help_tip_area_title">1. Area Selection vs. Full Screen</string>
+    <string name="help_tip_area_desc">Selecting a specific area (crop) yields higher recognition accuracy than capturing the entire screen. By framing only the speech bubble or paragraph you want to read, you prevent background elements, graphics, or ads from confusing the OCR.</string>
+    <string name="help_tip_kanji_title">2. Tips for Complex Kanji and Furigana</string>
+    <string name="help_tip_kanji_desc">If OCR fails on a complex kanji character or skips small furigana readings, try zooming in on the page before capturing, or use area selection cropped tightly around the text. Smaller, enlarged crops significantly improve recognition accuracy for detailed glyphs.</string>
+    <string name="help_tip_engines_title">3. Recognition Engines Comparison</string>
+    <string name="help_tip_engines_desc">• Automatic: Uses Google Lens (maximum accuracy) and falls back to offline ML Kit if network is unavailable.\n\n• Manga-OCR: Offline AI specialized in vertical manga text and stylized fonts.\n\n• Google Lens Only: Maximum accuracy on manga and vertical stylized text, requires an active internet connection.\n\n• ML Kit Only: Runs 100% offline on-device. Excellent for standard printed text.</string>
+    <string name="help_tip_behaviours_title">4. Application Behaviours</string>
+    <string name="help_tip_behaviours_desc">• Auto-copy: Automatically copies recognized text to your clipboard.\n\n• Line by line: Displays text separated line by line in the panel.\n\n• Choose segment: Lets you select the exact text block to extract.\n\n• Snap bubble: Keeps the floating bubble anchored to screen edges.\n\n• Upscale crops: Improves reading accuracy on tiny fonts.\n\n• Captured image: Displays image crop alongside recognized text.</string>
+    <string name="help_tip_dicts_title">5. Dictionaries &amp; Legal Attributions</string>
+    <string name="help_tip_dicts_desc">Supports Yomitan/Yomichan format dictionaries (such as JMdict, KANJIDIC, etc.). List order defines search priority. Legal credits and licenses for each dictionary are available on the dictionary management screen.</string>
+    <string name="help_tip_ai_title">6. Ask an AI</string>
+    <string name="help_tip_ai_desc">Sends extracted text along with a custom prompt to any AI app installed on your phone (such as Gemini, ChatGPT, etc.) with a single tap.</string>
+    <string name="help_tip_translation_title">7. Offline Translation Notice</string>
+    <string name="help_tip_translation_desc">Offline translation performed by the on-device model (ML Kit) is limited and may contain contextual inaccuracies, especially for Japanese. For higher precision, consult detailed dictionary entries or use Ask AI / external specialized tools.</string>
+</resources>

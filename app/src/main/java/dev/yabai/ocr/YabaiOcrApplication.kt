@@ -7,5 +7,6 @@ class YabaiOcrApplication : Application() {
         super.onCreate()
         val settings = AppSettings(this)
         settings.applyTheme()
+        settings.applyAppLanguage()
     }
 }
