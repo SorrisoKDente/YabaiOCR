@@ -129,48 +129,28 @@ fun SettingsContent(
     ) {
         // --- Header ---
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Yabai OCR Desktop",
-                        style = MaterialTheme.typography.h4.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colors.onBackground
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Leia japonês em qualquer aplicativo no seu PC — navegador, leitores de mangá, jogos ou PDFs. Capture a área da tela e obtenha leituras, dicionários e tradução instantânea.",
-                        style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
-                        color = MaterialTheme.colors.secondary
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Button(
-                    onClick = {
-                        val newDark = !darkTheme
-                        darkTheme = newDark
-                        settings.darkTheme = newDark
-                        onThemeChanged(newDark)
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = palette.field,
-                        contentColor = MaterialTheme.colors.onSurface
-                    )
-                ) {
-                    Text(if (darkTheme) "🌙 Escuro" else "☀️ Claro", fontWeight = FontWeight.Bold)
-                }
+                Text(
+                    text = DesktopStrings.appTitle,
+                    style = MaterialTheme.typography.h4.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colors.onBackground
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = DesktopStrings.heroSubtitle,
+                    style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
+                    color = MaterialTheme.colors.secondary
+                )
             }
         }
 
         // --- Aparência e Tema ---
         item {
-            SettingCard(title = "Aparência e Tema") {
+            SettingCard(title = DesktopStrings.sectionAppearance) {
                 Text(
-                    text = "Escolha o tema de exibição do aplicativo:",
+                    text = DesktopStrings.chooseThemeDesc,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -178,8 +158,8 @@ fun SettingsContent(
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     SettingRadioOption(
                         selected = darkTheme,
-                        title = "Tema Escuro 🌙",
-                        description = "Ideal para leitura noturna e contraste alto em telas escuras.",
+                        title = DesktopStrings.themeDark,
+                        description = DesktopStrings.darkThemeDesc,
                         onClick = {
                             if (!darkTheme) {
                                 darkTheme = true
@@ -192,8 +172,8 @@ fun SettingsContent(
 
                     SettingRadioOption(
                         selected = !darkTheme,
-                        title = "Tema Claro ☀️",
-                        description = "Ideal para ambientes iluminados e documentos em fundo claro.",
+                        title = DesktopStrings.themeLight,
+                        description = DesktopStrings.lightThemeDesc,
                         onClick = {
                             if (darkTheme) {
                                 darkTheme = false
@@ -212,7 +192,7 @@ fun SettingsContent(
             var appLang by remember { mutableStateOf(settings.appLanguage) }
             SettingCard(title = DesktopStrings.sectionLanguage) {
                 Text(
-                    text = "Escolha o idioma de exibição da interface do aplicativo:",
+                    text = DesktopStrings.chooseLanguageDesc,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -221,7 +201,7 @@ fun SettingsContent(
                     SettingRadioOption(
                         selected = appLang == DesktopLanguageChoice.SYSTEM,
                         title = DesktopStrings.langSystem,
-                        description = "Padrão do sistema operacional.",
+                        description = DesktopStrings.langSystemDesc,
                         onClick = {
                             if (appLang != DesktopLanguageChoice.SYSTEM) {
                                 appLang = DesktopLanguageChoice.SYSTEM
@@ -235,7 +215,7 @@ fun SettingsContent(
                     SettingRadioOption(
                         selected = appLang == DesktopLanguageChoice.PT_BR,
                         title = DesktopStrings.langPtBr,
-                        description = "Interface em Português (Brasil).",
+                        description = DesktopStrings.langPtBrDesc,
                         onClick = {
                             if (appLang != DesktopLanguageChoice.PT_BR) {
                                 appLang = DesktopLanguageChoice.PT_BR
@@ -249,7 +229,7 @@ fun SettingsContent(
                     SettingRadioOption(
                         selected = appLang == DesktopLanguageChoice.EN_US,
                         title = DesktopStrings.langEnUs,
-                        description = "Interface in English.",
+                        description = DesktopStrings.langEnUsDesc,
                         onClick = {
                             if (appLang != DesktopLanguageChoice.EN_US) {
                                 appLang = DesktopLanguageChoice.EN_US
@@ -265,7 +245,7 @@ fun SettingsContent(
 
         // --- Atalhos Globais ---
         item {
-            SettingCard(title = "Atalhos Globais de Teclado") {
+            SettingCard(title = DesktopStrings.sectionHotkeys) {
                 if (hotkeyBackendStatus.isNotBlank()) {
                     Text(
                         text = hotkeyBackendStatus,
@@ -277,7 +257,7 @@ fun SettingsContent(
 
                 // OCR Hotkey
                 Text(
-                    text = "Atalho da Captura da Tela Inteira (OCR):",
+                    text = DesktopStrings.hkFullScreen,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -338,7 +318,7 @@ fun SettingsContent(
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = if (isCapturingHotkey) "Pressione as teclas..." else "Atalho: $globalHotkey",
+                            text = if (isCapturingHotkey) DesktopStrings.btnPressKeys else "Atalho: $globalHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
                             color = if (isCapturingHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
@@ -354,7 +334,7 @@ fun SettingsContent(
                             contentColor = if (isCapturingHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text(if (isCapturingHotkey) "Aguardando..." else "Capturar")
+                        Text(if (isCapturingHotkey) DesktopStrings.btnPressKeys else DesktopStrings.btnCapture)
                     }
 
                     OutlinedButton(
@@ -366,7 +346,7 @@ fun SettingsContent(
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text("Padrão")
+                        Text(DesktopStrings.btnDefault)
                     }
                 }
 
@@ -374,7 +354,7 @@ fun SettingsContent(
 
                 // Region Crop Hotkey
                 Text(
-                    text = "Atalho do Recorte de Área (OCR):",
+                    text = DesktopStrings.hkRegion,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -435,7 +415,7 @@ fun SettingsContent(
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = if (isCapturingRegionHotkey) "Pressione as teclas..." else "Atalho: $regionHotkey",
+                            text = if (isCapturingRegionHotkey) DesktopStrings.btnPressKeys else "Atalho: $regionHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
                             color = if (isCapturingRegionHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
@@ -451,7 +431,7 @@ fun SettingsContent(
                             contentColor = if (isCapturingRegionHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text(if (isCapturingRegionHotkey) "Aguardando..." else "Capturar")
+                        Text(if (isCapturingRegionHotkey) DesktopStrings.btnPressKeys else DesktopStrings.btnCapture)
                     }
 
                     OutlinedButton(
@@ -463,7 +443,7 @@ fun SettingsContent(
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text("Padrão")
+                        Text(DesktopStrings.btnDefault)
                     }
                 }
 
@@ -471,7 +451,7 @@ fun SettingsContent(
 
                 // Quick Dict Hotkey
                 Text(
-                    text = "Atalho de Busca Rápida de Dicionário:",
+                    text = DesktopStrings.hkQuickDict,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -532,7 +512,7 @@ fun SettingsContent(
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = if (isCapturingQuickDictHotkey) "Pressione as teclas..." else "Atalho: $quickDictHotkey",
+                            text = if (isCapturingQuickDictHotkey) DesktopStrings.btnPressKeys else "Atalho: $quickDictHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
                             color = if (isCapturingQuickDictHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
@@ -548,7 +528,7 @@ fun SettingsContent(
                             contentColor = if (isCapturingQuickDictHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text(if (isCapturingQuickDictHotkey) "Aguardando..." else "Capturar")
+                        Text(if (isCapturingQuickDictHotkey) DesktopStrings.btnPressKeys else DesktopStrings.btnCapture)
                     }
 
                     OutlinedButton(
@@ -560,7 +540,7 @@ fun SettingsContent(
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text("Padrão")
+                        Text(DesktopStrings.btnDefault)
                     }
                 }
 
@@ -568,7 +548,7 @@ fun SettingsContent(
 
                 // Hover Hotkey
                 Text(
-                    text = "Atalho de Ligar/Desligar Modo Hover:",
+                    text = DesktopStrings.hkHoverToggle,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -629,7 +609,7 @@ fun SettingsContent(
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = if (isCapturingHoverHotkey) "Pressione as teclas..." else "Atalho: $hoverHotkey",
+                            text = if (isCapturingHoverHotkey) DesktopStrings.btnPressKeys else "Atalho: $hoverHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
                             color = if (isCapturingHoverHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
@@ -645,7 +625,7 @@ fun SettingsContent(
                             contentColor = if (isCapturingHoverHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text(if (isCapturingHoverHotkey) "Aguardando..." else "Capturar")
+                        Text(if (isCapturingHoverHotkey) DesktopStrings.btnPressKeys else DesktopStrings.btnCapture)
                     }
 
                     OutlinedButton(
@@ -657,7 +637,7 @@ fun SettingsContent(
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text("Padrão")
+                        Text(DesktopStrings.btnDefault)
                     }
                 }
 
@@ -665,7 +645,7 @@ fun SettingsContent(
 
                 // Hover Cycle Hotkey
                 Text(
-                    text = "Atalho para Alternar Dicionário no Hover:",
+                    text = DesktopStrings.hkHoverCycle,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -726,7 +706,7 @@ fun SettingsContent(
                             .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = if (isCapturingHoverCycleHotkey) "Pressione as teclas..." else "Atalho: $hoverCycleHotkey",
+                            text = if (isCapturingHoverCycleHotkey) DesktopStrings.btnPressKeys else "Atalho: $hoverCycleHotkey",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.SemiBold),
                             color = if (isCapturingHoverCycleHotkey) palette.success else MaterialTheme.colors.onSurface
                         )
@@ -742,7 +722,7 @@ fun SettingsContent(
                             contentColor = if (isCapturingHoverCycleHotkey) MaterialTheme.colors.onSurface else MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text(if (isCapturingHoverCycleHotkey) "Aguardando..." else "Capturar")
+                        Text(if (isCapturingHoverCycleHotkey) DesktopStrings.btnPressKeys else DesktopStrings.btnCapture)
                     }
 
                     OutlinedButton(
@@ -754,7 +734,7 @@ fun SettingsContent(
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text("Padrão")
+                        Text(DesktopStrings.btnDefault)
                     }
                 }
             }
@@ -763,10 +743,10 @@ fun SettingsContent(
         // --- Integração com o Linux ---
         if (onInstallLinuxIntegration != null) {
             item {
-                SettingCard(title = "Integração com o Linux") {
+                SettingCard(title = DesktopStrings.sectionLinuxIntegration) {
                     Text(
                         text = linuxIntegrationStatus.ifBlank {
-                            "Cria o atalho no menu de aplicativos e instala o ícone do Yabai OCR para o seu usuário."
+                            DesktopStrings.linuxIntegrationDesc
                         },
                         style = MaterialTheme.typography.caption,
                         color = MaterialTheme.colors.secondary
@@ -779,7 +759,7 @@ fun SettingsContent(
                             contentColor = MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text("Integrar ao sistema")
+                        Text(DesktopStrings.btnIntegrateSystem)
                     }
                 }
             }
@@ -787,11 +767,11 @@ fun SettingsContent(
 
         // --- Inicialização e Comportamento do Sistema ---
         item {
-            SettingCard(title = "Inicialização e Comportamento da Janela") {
+            SettingCard(title = DesktopStrings.sectionStartup) {
                 SettingCheckboxItem(
                     checked = startOnBoot,
-                    title = "Iniciar na bandeja ao ligar o computador",
-                    description = "Abre o aplicativo minimizado na bandeja do sistema automaticamente quando o sistema operacional inicia.",
+                    title = DesktopStrings.startOnBoot,
+                    description = DesktopStrings.startOnBootDesc,
                     onCheckedChange = {
                         startOnBoot = it
                         settings.startOnBoot = it
@@ -802,8 +782,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = closeToTray,
-                    title = "Manter na bandeja ao fechar a janela",
-                    description = "Ao fechar a janela principal, o programa continua rodando em segundo plano na bandeja para responder aos atalhos de teclado. Se desativado, o aplicativo será encerrado por completo.",
+                    title = DesktopStrings.closeToTray,
+                    description = DesktopStrings.closeToTrayDesc,
                     onCheckedChange = {
                         closeToTray = it
                         settings.closeToTray = it
@@ -814,7 +794,7 @@ fun SettingsContent(
 
         // --- 1.1 Modo Hover ---
         item {
-            SettingCard(title = "Modo Hover — leitura em tempo real (Estilo Yomitan)") {
+            SettingCard(title = DesktopStrings.sectionHover) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -822,9 +802,9 @@ fun SettingsContent(
                 ) {
                     Text(
                         text = if (hoverActive) {
-                            "🟢 Ativo — pare o mouse sobre um texto japonês."
+                            DesktopStrings.hoverActive
                         } else {
-                            "⚪ Inativo — ative para traduzir só passando o mouse."
+                            DesktopStrings.hoverInactive
                         },
                         style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
                         color = if (hoverActive) palette.success else MaterialTheme.colors.secondary
@@ -837,13 +817,13 @@ fun SettingsContent(
                             contentColor = if (hoverActive) palette.danger else MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text(if (hoverActive) "Desativar" else "Ativar")
+                        Text(if (hoverActive) DesktopStrings.btnDisable else DesktopStrings.btnEnable)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Dicionário Padrão do Modo Hover:",
+                    text = DesktopStrings.hoverDefaultDict,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -856,7 +836,7 @@ fun SettingsContent(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text(if (hoverDictionaryFilter.isBlank()) "🌐 Todos os Dicionários (Padrão)" else "📖 $hoverDictionaryFilter")
+                        Text(if (hoverDictionaryFilter.isBlank()) DesktopStrings.hoverAllDicts else "📖 $hoverDictionaryFilter")
                     }
                     DropdownMenu(
                         expanded = expandedHoverDictFilter,
@@ -867,7 +847,7 @@ fun SettingsContent(
                             settings.hoverDictionaryFilter = ""
                             expandedHoverDictFilter = false
                         }) {
-                            Text("🌐 Todos os Dicionários")
+                            Text(DesktopStrings.hoverAllDicts)
                         }
                         installedDictTitles.forEach { title ->
                             DropdownMenuItem(onClick = {
@@ -883,17 +863,14 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "O modo funciona em qualquer aplicativo: navegador, leitor de mangá, PDF ou jogo. " +
-                        "Depois de ativado, basta deixar o ponteiro parado por um instante sobre a palavra; " +
-                        "o cartão com leitura e definição aparece ao lado do cursor. Mover o mouse para fora " +
-                        "fecha o cartão.",
+                    text = DesktopStrings.hoverExplanation,
                     style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
                     color = MaterialTheme.colors.secondary
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Atalho para ligar/desligar: $hoverHotkey • Alternar dicionário: $hoverCycleHotkey",
+                    text = DesktopStrings.hoverShortcutsNotice(hoverHotkey, hoverCycleHotkey),
                     style = MaterialTheme.typography.caption,
                     color = palette.info
                 )
@@ -913,16 +890,16 @@ fun SettingsContent(
                     enabled = hoverActive,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                 ) {
-                    Text("Testar no cursor atual")
+                    Text(DesktopStrings.btnTestHoverCursor)
                 }
             }
         }
 
         // --- Motor de Reconhecimento ---
         item {
-            SettingCard(title = "Motor de reconhecimento") {
+            SettingCard(title = DesktopStrings.sectionEngine) {
                 Text(
-                    text = "Escolha como o texto em japonês será reconhecido da imagem.",
+                    text = DesktopStrings.engineSubtitle,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -930,8 +907,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.AUTO,
-                    title = "Automático (Usa Ordem de Prioridades)",
-                    description = "Tenta motores em ordem de prioridade (Google Lens, Manga-OCR offline).",
+                    title = DesktopStrings.engineAuto,
+                    description = DesktopStrings.engineAutoDesc,
                     onClick = {
                         engineChoice = DesktopEngineChoice.AUTO
                         settings.engine = DesktopEngineChoice.AUTO
@@ -940,8 +917,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.MANGA_OCR,
-                    title = "Somente Manga-OCR (offline)",
-                    description = "Usa o motor de inteligência artificial offline especializado em texto vertical e mangás.",
+                    title = DesktopStrings.engineMangaOcr,
+                    description = DesktopStrings.engineMangaOcrDesc,
                     onClick = {
                         engineChoice = DesktopEngineChoice.MANGA_OCR
                         settings.engine = DesktopEngineChoice.MANGA_OCR
@@ -950,8 +927,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.LENS,
-                    title = "Somente Google Lens (online)",
-                    description = "Usa o motor online do Google Lens. Exige conexão ativa com a internet.",
+                    title = DesktopStrings.engineLens,
+                    description = DesktopStrings.engineLensDesc,
                     onClick = {
                         engineChoice = DesktopEngineChoice.LENS
                         settings.engine = DesktopEngineChoice.LENS
@@ -963,12 +940,12 @@ fun SettingsContent(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Prioridade dos Motores no modo Automático / Fallback:",
+                    text = DesktopStrings.enginePriorityTitle,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
                 Text(
-                    text = "Defina a ordem de preferência dos motores de reconhecimento.",
+                    text = DesktopStrings.enginePriorityDesc,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -1009,7 +986,7 @@ fun SettingsContent(
                                         modifier = Modifier.height(30.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                     ) {
-                                        Text("▲ Subir", fontSize = 11.sp)
+                                        Text(DesktopStrings.btnMoveUp, fontSize = 11.sp)
                                     }
                                 }
                                 if (index < enginePriority.size - 1) {
@@ -1025,7 +1002,7 @@ fun SettingsContent(
                                         modifier = Modifier.height(30.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                     ) {
-                                        Text("▼ Descer", fontSize = 11.sp)
+                                        Text(DesktopStrings.btnMoveDown, fontSize = 11.sp)
                                     }
                                 }
                             }
@@ -1037,11 +1014,11 @@ fun SettingsContent(
 
         // --- Comportamento do OCR e Resultado ---
         item {
-            SettingCard(title = "Comportamento do OCR e resultado") {
+            SettingCard(title = DesktopStrings.sectionBehaviour) {
                 SettingCheckboxItem(
                     checked = autoCopy,
-                    title = "Copiar automaticamente ao reconhecer",
-                    description = "Envia o texto reconhecido diretamente para a área de transferência do sistema.",
+                    title = DesktopStrings.autoCopy,
+                    description = DesktopStrings.autoCopyDesc,
                     onCheckedChange = {
                         autoCopy = it
                         settings.autoCopy = it
@@ -1050,8 +1027,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = showSegments,
-                    title = "Listar o texto linha por linha",
-                    description = "Exibe os segmentos e blocos de texto reconhecidos separadamente no painel.",
+                    title = DesktopStrings.showSegments,
+                    description = DesktopStrings.showSegmentsDesc,
                     onCheckedChange = {
                         showSegments = it
                         settings.showSegments = it
@@ -1060,8 +1037,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = upscaleSmall,
-                    title = "Ampliar recortes pequenos",
-                    description = "Redimensiona automaticamente imagens recortadas pequenas para melhorar o reconhecimento de letras miúdas.",
+                    title = DesktopStrings.upscaleSmall,
+                    description = DesktopStrings.upscaleSmallDesc,
                     onCheckedChange = {
                         upscaleSmall = it
                         settings.upscaleSmall = it
@@ -1070,8 +1047,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = showImage,
-                    title = "Mostrar imagem capturada ao lado do texto",
-                    description = "Exibe o recorte da imagem original no painel de resultado para comparação visual.",
+                    title = DesktopStrings.showImage,
+                    description = DesktopStrings.showImageDesc,
                     onCheckedChange = {
                         showImage = it
                         settings.showImage = it
@@ -1080,8 +1057,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = furiganaInParentheses,
-                    title = "Manter furigana original entre parênteses",
-                    description = "Preserva a leitura que o mangá imprime ao lado do kanji no formato 職員（しょくいん）.",
+                    title = DesktopStrings.furiganaParentheses,
+                    description = DesktopStrings.furiganaParenthesesDesc,
                     onCheckedChange = {
                         furiganaInParentheses = it
                         settings.furiganaInParentheses = it
@@ -1090,8 +1067,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = showFurigana,
-                    title = "Gerar furigana do dicionário no painel",
-                    description = "Exibe acima ou ao lado dos kanjis reconhecidos as leituras fornecidas pelos dicionários.",
+                    title = DesktopStrings.showFurigana,
+                    description = DesktopStrings.showFuriganaDesc,
                     onCheckedChange = {
                         showFurigana = it
                         settings.showFurigana = it
@@ -1100,7 +1077,7 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Leituras dos kanjis no seletor da página:",
+                    text = DesktopStrings.pickerReadingTitle,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
@@ -1108,8 +1085,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = pickerReading == DesktopPickerReadingMode.OFF,
-                    title = "Desativado",
-                    description = "Não exibe leituras sobre a imagem na tela de seleção.",
+                    title = DesktopStrings.pickerReadingOff,
+                    description = DesktopStrings.pickerReadingOffDesc,
                     onClick = {
                         pickerReading = DesktopPickerReadingMode.OFF
                         settings.pickerReading = DesktopPickerReadingMode.OFF
@@ -1118,8 +1095,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = pickerReading == DesktopPickerReadingMode.RUBY,
-                    title = "Rubi sobre o texto",
-                    description = "Desenha o furigana em fonte pequena diretamente acima de cada kanji.",
+                    title = DesktopStrings.pickerReadingRuby,
+                    description = DesktopStrings.pickerReadingRubyDesc,
                     onClick = {
                         pickerReading = DesktopPickerReadingMode.RUBY
                         settings.pickerReading = DesktopPickerReadingMode.RUBY
@@ -1128,8 +1105,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = pickerReading == DesktopPickerReadingMode.LABEL,
-                    title = "Faixa indicativa legível",
-                    description = "Exibe uma faixa de texto destacada ao lado dos balões de fala.",
+                    title = DesktopStrings.pickerReadingLabel,
+                    description = DesktopStrings.pickerReadingLabelDesc,
                     onClick = {
                         pickerReading = DesktopPickerReadingMode.LABEL
                         settings.pickerReading = DesktopPickerReadingMode.LABEL
@@ -1140,11 +1117,11 @@ fun SettingsContent(
 
         // --- Dicionários e Localização da Pasta ---
         item {
-            SettingCard(title = "Dicionários de Japonês e Pasta de Dados") {
+            SettingCard(title = DesktopStrings.sectionDicts) {
                 SettingCheckboxItem(
                     checked = dictionaryLookup,
-                    title = "Consultar dicionários instalados",
-                    description = "Busca automaticamente o texto reconhecido nos dicionários ativados.",
+                    title = DesktopStrings.dictionaryLookup,
+                    description = DesktopStrings.dictionaryLookupDesc,
                     onCheckedChange = {
                         dictionaryLookup = it
                         settings.dictionaryLookup = it
@@ -1153,12 +1130,12 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Dicionário Padrão de Filtro:",
+                    text = DesktopStrings.defaultDictFilter,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
                 Text(
-                    text = "Selecione um dicionário específico para limitar as buscas ou escolha 'Todos'.",
+                    text = DesktopStrings.defaultDictFilterDesc,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -1171,7 +1148,7 @@ fun SettingsContent(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text(if (dictionaryFilter.isBlank()) "🌐 Todos os Dicionários" else "📖 $dictionaryFilter")
+                        Text(if (dictionaryFilter.isBlank()) DesktopStrings.allDictionaries else "📖 $dictionaryFilter")
                     }
                     DropdownMenu(
                         expanded = expandedFilter,
@@ -1182,7 +1159,7 @@ fun SettingsContent(
                             settings.dictionaryFilter = ""
                             expandedFilter = false
                         }) {
-                            Text("🌐 Todos os Dicionários")
+                            Text(DesktopStrings.allDictionaries)
                         }
                         installedDictTitles.forEach { title ->
                             DropdownMenuItem(onClick = {
@@ -1198,7 +1175,7 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    text = "Localização da Pasta de Dicionários:",
+                    text = DesktopStrings.dictFolderLocation,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
@@ -1231,7 +1208,7 @@ fun SettingsContent(
                             },
                             colors = ButtonDefaults.buttonColors(backgroundColor = palette.button, contentColor = palette.onButton)
                         ) {
-                            Text("Alterar Pasta...")
+                            Text(DesktopStrings.btnChangeFolder)
                         }
 
                         OutlinedButton(
@@ -1242,7 +1219,7 @@ fun SettingsContent(
                             },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                         ) {
-                            Text("Restaurar Padrão")
+                            Text(DesktopStrings.btnRestoreDefaultFolder)
                         }
                     }
                 }
@@ -1261,14 +1238,14 @@ fun SettingsContent(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (installedDictCount == 0)
-                                    "Nenhum dicionário encontrado na pasta atual"
+                                    DesktopStrings.dictSummaryNone
                                 else
-                                    "$installedDictCount dicionário(s) encontrado(s) na pasta atual",
+                                    DesktopStrings.dictSummaryCount(installedDictCount),
                                 style = MaterialTheme.typography.body2,
                                 color = if (installedDictCount == 0) palette.danger else MaterialTheme.colors.onSurface
                             )
                             Text(
-                                text = "Arquivos .yabai ou subpastas de dicionário.",
+                                text = DesktopStrings.dictSummaryNote,
                                 style = MaterialTheme.typography.caption,
                                 color = MaterialTheme.colors.secondary
                             )
@@ -1282,7 +1259,7 @@ fun SettingsContent(
                                     contentColor = MaterialTheme.colors.onSurface
                                 )
                             ) {
-                                Text("Gerenciar")
+                                Text(DesktopStrings.btnManageDicts)
                             }
                         }
                     }
@@ -1290,8 +1267,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = dictionaryKeepLastSearch,
-                    title = "Manter última busca no dicionário",
-                    description = "Ao abrir a janela de busca rápida, preenche o campo com o último termo pesquisado.",
+                    title = DesktopStrings.keepLastSearch,
+                    description = DesktopStrings.keepLastSearchDesc,
                     onCheckedChange = {
                         dictionaryKeepLastSearch = it
                         settings.dictionaryKeepLastSearch = it
@@ -1300,8 +1277,8 @@ fun SettingsContent(
 
                 SettingCheckboxItem(
                     checked = stripSearchReadings,
-                    title = "Ignorar leituras entre parênteses na consulta",
-                    description = "Remove trechos em kana entre parênteses ao pesquisar (de 「職員（しょくいん）」 busca 「職員」).",
+                    title = DesktopStrings.stripSearchReadings,
+                    description = DesktopStrings.stripSearchReadingsDesc,
                     onCheckedChange = {
                         stripSearchReadings = it
                         settings.stripSearchReadings = it
@@ -1310,7 +1287,7 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Verificação de atualizações dos dicionários:",
+                    text = DesktopStrings.dictUpdateInterval,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
@@ -1323,10 +1300,10 @@ fun SettingsContent(
                     DesktopUpdateInterval.entries.forEach { interval ->
                         val isSelected = dictionaryUpdateInterval == interval
                         val label = when (interval) {
-                            DesktopUpdateInterval.OFF -> "Desativado"
-                            DesktopUpdateInterval.DAILY -> "Diariamente"
-                            DesktopUpdateInterval.WEEKLY -> "Semanalmente"
-                            DesktopUpdateInterval.MONTHLY -> "Mensalmente"
+                            DesktopUpdateInterval.OFF -> DesktopStrings.updateOff
+                            DesktopUpdateInterval.DAILY -> DesktopStrings.updateDaily
+                            DesktopUpdateInterval.WEEKLY -> DesktopStrings.updateWeekly
+                            DesktopUpdateInterval.MONTHLY -> DesktopStrings.updateMonthly
                         }
                         OutlinedButton(
                             onClick = {
@@ -1353,11 +1330,11 @@ fun SettingsContent(
 
         // --- Tradução ---
         item {
-            SettingCard(title = "Tradução de Frases") {
+            SettingCard(title = DesktopStrings.sectionTranslation) {
                 SettingCheckboxItem(
                     checked = translateSentence,
-                    title = "Traduzir a frase reconhecida",
-                    description = "Traduz automaticamente o texto completo reconhecido usando o modelo offline.",
+                    title = DesktopStrings.translateSentence,
+                    description = DesktopStrings.translateSentenceDesc,
                     onCheckedChange = {
                         translateSentence = it
                         settings.translateSentence = it
@@ -1366,7 +1343,7 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Idioma de destino da tradução:",
+                    text = DesktopStrings.translateTarget,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
@@ -1400,11 +1377,11 @@ fun SettingsContent(
 
         // --- Perguntar a uma IA ---
         item {
-            SettingCard(title = "Perguntar a uma IA") {
+            SettingCard(title = DesktopStrings.sectionAi) {
                 SettingCheckboxItem(
                     checked = showAiButton,
-                    title = "Exibir o botão «Perguntar à IA» no painel de resultado",
-                    description = "Disponibiliza um atalho no resultado do OCR para enviar a frase diretamente a um serviço de Inteligência Artificial no navegador.",
+                    title = DesktopStrings.showAiButton,
+                    description = DesktopStrings.showAiButtonDesc,
                     onCheckedChange = {
                         showAiButton = it
                         settings.showAiButton = it
@@ -1413,7 +1390,7 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "Provedor / Serviço de IA:",
+                    text = DesktopStrings.aiProvider,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
@@ -1490,12 +1467,12 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    text = "Prompt / Pergunta inicial enviada à IA:",
+                    text = DesktopStrings.aiPrompt,
                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colors.onSurface
                 )
                 Text(
-                    text = "A instrução colocada antes do texto em japonês recortado.",
+                    text = DesktopStrings.aiPromptDesc,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -1525,7 +1502,7 @@ fun SettingsContent(
             var updateStatusText by remember { mutableStateOf<String?>(null) }
             val coroutineScope = rememberCoroutineScope()
 
-            SettingCard(title = "Sobre o Yabai OCR e Atualizações do Aplicativo") {
+            SettingCard(title = DesktopStrings.sectionAbout) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1533,12 +1510,12 @@ fun SettingsContent(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Versão Instalada: v${DesktopAppUpdateChecker.getCurrentVersion()}",
+                            text = "${DesktopStrings.installedVersion} v${DesktopAppUpdateChecker.getCurrentVersion()}",
                             style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colors.onSurface
                         )
                         Text(
-                            text = "Yabai OCR Desktop — Leitor OCR de Japonês com Dicionários Offline",
+                            text = DesktopStrings.aboutSubtitle,
                             style = MaterialTheme.typography.caption,
                             color = MaterialTheme.colors.secondary
                         )
@@ -1550,16 +1527,16 @@ fun SettingsContent(
                         enabled = !isCheckingUpdate,
                         onClick = {
                             isCheckingUpdate = true
-                            updateStatusText = "Verificando lançamentos no GitHub..."
+                            updateStatusText = DesktopStrings.checkingUpdates
                             coroutineScope.launch(Dispatchers.IO) {
                                 val info = DesktopAppUpdateChecker.checkForAppUpdate()
                                 withContext(Dispatchers.Main) {
                                     isCheckingUpdate = false
                                     updateInfo = info
                                     if (info == null) {
-                                        updateStatusText = "Não foi possível conectar ao GitHub para verificar atualizações."
+                                        updateStatusText = DesktopStrings.updateConnectError
                                     } else if (!info.hasUpdate) {
-                                        updateStatusText = "Você já está usando a versão mais recente (${info.currentVersion})."
+                                        updateStatusText = DesktopStrings.upToDateMessage(info.currentVersion)
                                     } else {
                                         updateStatusText = null
                                     }
@@ -1571,7 +1548,7 @@ fun SettingsContent(
                             contentColor = MaterialTheme.colors.onPrimary
                         )
                     ) {
-                        Text(if (isCheckingUpdate) "Verificando..." else "🔄 Verificar Atualizações")
+                        Text(if (isCheckingUpdate) "Verificando..." else DesktopStrings.btnCheckUpdates)
                     }
                 }
 
@@ -1586,13 +1563,13 @@ fun SettingsContent(
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
-                                text = "✨ Nova versão do aplicativo disponível: v${updateInfo?.latestVersion}",
+                                text = DesktopStrings.updateAvailableMessage(updateInfo?.latestVersion.orEmpty()),
                                 style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold),
                                 color = palette.success
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Uma versão mais recente do Yabai OCR foi lançada no GitHub.",
+                                text = DesktopStrings.updateGeneralNotice,
                                 style = MaterialTheme.typography.caption,
                                 color = MaterialTheme.colors.onSurface
                             )
@@ -1607,7 +1584,7 @@ fun SettingsContent(
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
                             ) {
-                                Text(if (updateInfo?.downloadUrl != null) "⬇️ Baixar Atualização" else "🌐 Baixar Atualização no GitHub")
+                                Text(if (updateInfo?.downloadUrl != null) DesktopStrings.btnDownloadUpdate else "🌐 Baixar Atualização no GitHub")
                             }
                         }
                     }
@@ -1631,7 +1608,7 @@ fun SettingsWindow(
 ) {
     Window(
         onCloseRequest = onClose,
-        title = "Yabai OCR - Ajustes e Configurações",
+        title = DesktopStrings.settingsWindowTitle,
         state = WindowState(width = 680.dp, height = 820.dp)
     ) {
         LaunchedEffect(Unit) {
