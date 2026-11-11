@@ -44,7 +44,9 @@ internal interface PortalGlobalShortcutsDbus : DBusInterface {
 
     class Activated(
         objectPath: String,
-        val sessionHandle: String,
+        // The portal declares `session_handle` as `o` (object path). Declaring it as String makes
+        // dbus-java reject the signal constructor and the Activated callback is never delivered.
+        val sessionHandle: DBusPath,
         val shortcutId: String,
         val timestamp: UInt64,
         val options: Map<String, Variant<*>>,
@@ -181,6 +183,20 @@ internal fun portalRequests(bindings: List<HotkeyBinding>): List<PortalShortcutR
     }
 
 /**
+ * Reads `session_handle` from the `CreateSession` response.
+ *
+ * The portal returns it as a D-Bus object path (`o`), which dbus-java materialises as [DBusPath],
+ * not as String. Accepting both keeps old fake transports and future portal versions working while
+ * still failing visibly when the key is absent.
+ */
+internal fun portalSessionHandle(results: Map<String, Variant<*>>): String? =
+    when (val value = results["session_handle"]?.value) {
+        is String -> value
+        is DBusPath -> value.path
+        else -> null
+    }
+
+/**
  * Real D-Bus transport. Every portal method returns a *request* object; the outcome arrives later
  * as `org.freedesktop.portal.Request.Response`. The futures below bridge that to blocking calls.
  */
@@ -224,7 +240,7 @@ internal class DbusPortalShortcutsTransport : PortalShortcutsTransport {
             lastError = "CreateSession recusado (código ${response.code})"
             return@runCatching null
         }
-        (response.results["session_handle"]?.value as? String).also {
+        portalSessionHandle(response.results).also {
             if (it == null) lastError = "CreateSession não devolveu session_handle"
         }
     }.getOrElse { error ->

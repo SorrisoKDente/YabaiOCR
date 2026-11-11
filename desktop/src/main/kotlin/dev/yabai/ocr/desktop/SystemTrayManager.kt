@@ -19,9 +19,27 @@ internal class SystemTrayManager(
 ) {
     private var trayIcon: TrayIcon? = null
     private var nativeHoverItem: MenuItem? = null
+    private var statusNotifier: StatusNotifierTray? = null
+    private var activeTrayMenu: JPopupMenu? = null
 
     /** Returns true only when the icon was really added to the system tray. */
     fun setup(): Boolean {
+        // KDE Wayland does not deliver XEmbed clicks to AWT (the tray icon is visible but inert).
+        // Publish the standard StatusNotifierItem instead; ContextMenu(x,y) opens the same Swing
+        // menu, so right-click keeps working. X11 and Windows keep the historical AWT path.
+        if (trayBackendFor(DesktopPlatform.family, DesktopPlatform.session) == TrayBackend.SNI) {
+            val notifier = StatusNotifierTray(
+                onActivate = { SwingUtilities.invokeLater { onFullScreenCaptureRequested() } },
+                onSecondaryActivate = { SwingUtilities.invokeLater { onRegionCaptureRequested() } },
+                onContextMenu = { x, y -> showCustomTrayMenu(Point(x, y)) },
+            )
+            if (notifier.start()) {
+                statusNotifier = notifier
+                return true
+            }
+            println("StatusNotifierItem indisponível: ${notifier.lastError}")
+        }
+
         if (!SystemTray.isSupported()) {
             println("SystemTray não é suportado no sistema.")
             return false
@@ -101,11 +119,16 @@ internal class SystemTrayManager(
 
     private fun showCustomTrayMenu(anchor: Point?) {
         SwingUtilities.invokeLater {
+            // A second click on the SNI icon must replace the previous menu instead of leaving an
+            // orphan popup that no click can dismiss.
+            activeTrayMenu?.isVisible = false
+
             val popup = JPopupMenu().apply {
                 background = Color(0x12, 0x14, 0x1A)
                 border = BorderFactory.createLineBorder(Color(0x2E, 0x33, 0x44), 1)
                 isOpaque = true
             }
+            activeTrayMenu = popup
 
             val panel = JPanel()
             panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
@@ -191,7 +214,8 @@ internal class SystemTrayManager(
             val anchorPoint = anchor ?: trayMenuFallbackAnchor(workArea)
             val position = placeTrayMenu(anchorPoint, winWidth, winHeight, workArea)
 
-            // Temporary dark invisible invoker dialog
+            // Temporary dark invoker dialog. It stays 1x1 under the popup, but it must be focusable
+            // and focused: on Wayland the JDK dismisses the popup on the invoker's focus loss only.
             val invoker = JDialog().apply {
                 isUndecorated = true
                 isAlwaysOnTop = true
@@ -199,20 +223,26 @@ internal class SystemTrayManager(
                 location = position
                 contentPane.background = Color(0x12, 0x14, 0x1A)
                 background = Color(0x12, 0x14, 0x1A)
-                isVisible = true
             }
 
             popup.addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
                 override fun popupMenuWillBecomeVisible(e: javax.swing.event.PopupMenuEvent?) {}
                 override fun popupMenuWillBecomeInvisible(e: javax.swing.event.PopupMenuEvent?) {
+                    if (activeTrayMenu === popup) activeTrayMenu = null
                     invoker.dispose()
                 }
                 override fun popupMenuCanceled(e: javax.swing.event.PopupMenuEvent?) {
+                    if (activeTrayMenu === popup) activeTrayMenu = null
                     invoker.dispose()
                 }
             })
 
-            popup.show(invoker, 0, 0)
+            showTrayMenuInvoker(
+                invoker = JDialogTrayMenuInvoker(invoker),
+                showPopup = { popup.show(invoker, 0, 0) },
+                isMenuVisible = { popup.isVisible },
+                closeMenu = { popup.isVisible = false },
+            )
         }
     }
 
@@ -231,6 +261,7 @@ internal class SystemTrayManager(
     /** Updates the tooltip of the tray icon, which is the only always-visible hover feedback. */
     fun setStatus(message: String) {
         val text = message.trim()
+        statusNotifier?.updateStatus(text)
         SwingUtilities.invokeLater {
             trayIcon?.toolTip = if (text.isEmpty()) {
                 "Yabai OCR Desktop"
@@ -241,6 +272,8 @@ internal class SystemTrayManager(
     }
 
     fun remove() {
+        statusNotifier?.stop()
+        statusNotifier = null
         trayIcon?.let {
             SystemTray.getSystemTray().remove(it)
         }

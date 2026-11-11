@@ -4236,3 +4236,182 @@ instalação do `.desktop` só podem ser vistos numa sessão KDE Wayland/Steam D
 host Windows usado aqui. `:desktop:createDistributable` foi refeito (verde). Windows foi verificado
 pela suíte (214) e nenhum processo ficou aberto. O hash de `~/.yabai_ocr/settings.properties` foi
 conferido antes/depois da suíte e não mudou.
+
+### D35 — Primeiro E2E no Steam Deck: D-Bus, atalhos do portal, bandeja e AppImage `[x]` (09/11/2026)
+
+Primeira execução do pacote Linux no **Desktop Mode** (KDE Plasma + Wayland) do Steam Deck. Cinco
+sintomas: ícone da bandeja quase invisível, clique direito sem menu, `packageAppImage` sem gerar
+`.AppImage`, hover com “Não foi possível publicar o serviço D-Bus dev.yabai.Ocr” e atalhos gravados
+que não disparavam nada.
+
+**Causa raiz.**
+
+1. **Runtime sem `jdk.net`.** O `jlink` do Compose montava o runtime só com `java.base`,
+   `java.desktop`, `java.logging` e `jdk.crypto.ec`. O transporte unix-socket do `dbus-java` lê
+   `ExtendedSocketOptions.SO_PEERCRED`, que vive em `jdk.net`; sem o módulo, `YabaiDbusService`,
+   `KWinHoverBridge` e `DbusPortalShortcutsTransport` falhavam com `NoClassDefFoundError` antes de
+   publicar `dev.yabai.Ocr` ou falar com o portal. O hover e os atalhos ficavam mortos pelo mesmo
+   motivo, mas só o hover mostrava o erro.
+2. **`session_handle` lido como String.** O `CreateSession` do `GlobalShortcuts` devolve
+   `session_handle` como object path (`o`); o `dbus-java` materializa isso como `DBusPath`, e o cast
+   `as? String` devolvia `null`. A sessão do portal nunca era criada.
+3. **`Activated` tipado como String.** O sinal `Activated` também entrega `session_handle` como `o`.
+   Com o construtor declarado `String`, o `dbus-java` não encontrava um construtor compatível e
+   descartava o sinal: o atalho era registrado no portal, mas o app nunca recebia a ativação.
+4. **Menu nativo do AWT no Wayland.** O KDE Wayland não entrega o `PopupMenu` nativo anexado ao
+   `TrayIcon` quando o clique direito chega ao ícone. No X11 o caminho nativo continua correto.
+5. **`TargetFormat.AppImage` não é AppImage.** O Compose 1.7 mapeia esse alvo para
+   `jpackage --type app-image`, que produz a mesma pasta do `createDistributable`. O usuário precisava
+   rodar `desktop/build/distributions/main/app/yabai-ocr/bin/yabai-ocr`.
+6. **Ícone branco sobre fundo claro.** O PNG anterior era um glifo branco com transparência; no painel
+   claro do Plasma ele sumia.
+
+**O que mudou.**
+
+- `desktop/build.gradle.kts`: `modules("jdk.net")` no runtime empacotado; tarefa
+  `packageLinuxAppImage`, que chama `desktop/package/linux/build-appimage.sh`; `.tar.gz` portátil
+  criado por `packagePortableTarGz`.
+- `desktop/package/linux/build-appimage.sh`: monta `YabaiOCR.AppDir` (`opt/`, `AppRun`, `.desktop` e
+  ícone) e chama `appimagetool` com `--no-appstream`. Sem `appimagetool`, o `.tar.gz` é a alternativa.
+- `PortalGlobalShortcuts.kt`: `Activated.sessionHandle` é `DBusPath`; `portalSessionHandle` aceita
+  `DBusPath` (e String por compatibilidade) e devolve o caminho; erros de `CreateSession` e
+  `BindShortcuts` vão para `lastError` e para a linha de status.
+- `TrayMenu.kt` + `SystemTrayManager.kt`: Linux Wayland usa `CUSTOM`; X11 e Windows mantêm o caminho
+  anterior. O menu aceita `anchor: Point?`, cai para `trayMenuFallbackAnchor` e abre no canto inferior
+  direito da área útil quando não há ponteiro global. No Linux só o botão direito abre o menu.
+- `ic_scan_linux.png`: ícone azul opaco com glifo branco, legível em painel claro e escuro.
+- `gradle.properties`: removido o `org.gradle.java.home` absoluto do Windows; o build usa `JAVA_HOME`.
+- `gradlew` e `build-appimage.sh` voltam a ter bit de execução no Git.
+
+**Testes.** `:desktop:test` passou de **222 para 224** (2 novos em `PortalGlobalShortcutsTest`, além
+dos 8 casos de Linux/D-Bus/bandeja/ícone que já estavam no commit anterior). Suíte verde no Deck:
+224 testes, 0 falhas, 0 erros.
+
+**Mutações provadas** (restauração com hash conferido; no Linux, o mesmo procedimento do
+`mutation-proof.ps1`):
+
+| mutação | teste que acusou |
+| --- | --- |
+| remover `modules("jdk.net")` do runtime | `NativeRuntimeModulesTest > the packaged runtime declares jdk net for the dbus unix socket` |
+| `YabaiDbusService` engole o motivo da falha | `YabaiDbusServiceTest > a transport failure keeps the reason for the status line` |
+| Wayland volta a usar o menu nativo | `TrayMenuTest > linux wayland uses the custom menu because the native popup is not delivered` |
+| remover o botão direito do menu customizado | `TrayMenuTest > linux opens the custom menu on the right button only` |
+| âncora de fallback vai para a esquerda | `TrayMenuPlacementTest > without a global pointer the menu falls back to the bottom-right corner` |
+| ícone volta a ser branco/translúcido | `IconResourceTest > the linux icon stays visible on light and dark trays` |
+| `session_handle` só aceita String | `PortalGlobalShortcutsTest > create session reads the object path the portal returns` |
+| `Activated.sessionHandle` volta a String | `PortalGlobalShortcutsTest > the activated signal declares the session handle as an object path` |
+
+**Evidência no Deck.** O build foi refeito no SteamOS com JDK 21:
+`lib/runtime/release` lista
+`java.base java.datatransfer java.xml java.prefs java.desktop java.logging jdk.crypto.ec jdk.net`;
+`packagePortableTarGz` gerou 66 MB e `packageLinuxAppImage` gerou 63 MB
+(`Yabai_OCR-1.0.0-x86_64.AppImage`), ambos com o runtime acima. O hash de
+`~/.yabai_ocr/settings.properties` foi conferido antes/depois da suíte e não mudou. A validação
+visual (bandeja, menu, captura, hover e atalhos) é feita no Desktop Mode com o roteiro
+`~/Downloads/yabai-e2e.sh`, que tira screenshots e coleta `busctl`/KWin/portal.
+
+**Limitações.** O agente roda dentro do Flatpak do OpenCode, sem o XWayland nem o barramento da
+sessão do host; por isso ele valida build, runtime, suíte e D-Bus de unidade, mas a confirmação
+visual e o `GlobalShortcuts` real dependem do roteiro acima no Konsole. A captura pelo portal continua
+sujeita ao token/restore do JDK e ao diálogo do KDE; no KDE Wayland esse caminho foi substituído pelo
+portal `Screenshot` na D37.
+
+### D36 — Bandeja nativa `StatusNotifierItem` no KDE Wayland `[x]` (09/11/2026)
+
+O ícone aparecia no painel do Plasma, mas o clique direito não abria menu e o esquerdo não iniciava a
+captura no Desktop Mode.
+
+**Causa raiz.** `java.awt.TrayIcon` ainda publica um ícone XEmbed. O KDE Wayland não entrega os
+eventos de clique do `xembedsniproxy` ao processo Java (KDE bug 498824), então o `TrayIcon` ficava
+visível e inerte. O caminho AWT continua correto em X11 e Windows.
+
+**O que mudou.**
+
+- `StatusNotifierTray.kt`: publica `org.kde.StatusNotifierItem` em `/StatusNotifierItem`, pede o nome
+  `org.kde.StatusNotifierItem-<pid>-1` e registra no `org.kde.StatusNotifierWatcher`.
+- `Activate(x,y)` dispara a captura de tela inteira, `SecondaryActivate(x,y)` a captura de área e
+  `ContextMenu(x,y)` abre o mesmo menu Swing na posição informada pelo Plasma.
+- `IconPixmap` é ARGB32 em ordem de rede, gerado a partir do ícone do app; `ToolTip` expõe o status
+  atual; `ItemIsMenu=false` deixa o host apenas encaminhar o clique.
+- `SystemTrayManager.kt`: em Linux Wayland usa SNI; em X11/Windows mantém `SystemTray`. Se o SNI
+  falhar, o AWT continua como fallback e o motivo vai para `lastError`.
+- `stop()` libera o nome e fecha a conexão; uma falha no `RegisterStatusNotifierItem` também fecha a
+  conexão para não deixar um nome invisível preso até o processo morrer.
+
+**Testes.** `StatusNotifierTrayTest` cobre seleção SNI × AWT, nome do barramento, callbacks, pixels
+ARGB32, tooltip, identidade e o tipo concreto `a(iiay)` do `IconPixmap`; `StatusNotifierDbusSmokeTest`
+registra o objeto num watcher real e confere as propriedades. A suíte desktop ficou verde.
+
+**Mutações provadas.**
+
+| mutação | teste que acusou |
+| --- | --- |
+| Linux Wayland volta ao backend AWT | `StatusNotifierTrayTest > linux wayland publishes a status notifier item` |
+| `IconPixmap` volta a `List` sem tipo explícito | `StatusNotifierTrayTest > the icon pixmap property declares the concrete struct array type` |
+| pixels saem em RGBA em vez de ARGB32 | `StatusNotifierTrayTest > the icon is argb32 in network byte order` |
+| `ContextMenu` não encaminha as coordenadas | `StatusNotifierTrayTest > activate and context menu reach the app callbacks` |
+
+**Limitação.** O teste D-Bus é pulado quando o barramento da sessão recusa nomes privados (sandbox do
+agente); a confirmação visual no painel do Plasma depende do roteiro no Deck.
+
+### D37 — Menu fecha ao clicar fora e captura KDE sem repetir permissão `[x]` (10/11/2026)
+
+Depois da D36, o menu abria no clique direito, mas continuava na tela até o usuário escolher uma
+opção. A captura no KDE Wayland também voltava a pedir a tela a cada uso.
+
+**Causa raiz.**
+
+1. **Invólucro do menu sem foco.** O menu Swing era anexado a um `JDialog` 1×1 invisível e **não
+   focável**. No Wayland o JDK só fecha o popup quando o invólucro perde foco (JDK-8307529); como ele
+   nunca recebia foco, clicar fora não gerava evento e o menu ficava órfão.
+2. **ScreenCast com token inválido no KDE.** O JDK 21.0.13 valida o *restore token* do portal como
+   UUID (`g_uuid_string_is_valid` em `screencast_portal.c`), mas o KDE devolve um token base64
+   (`O0ci...=`). O token nunca é aceito, então cada captura abria uma sessão nova e o KDE voltava a
+   pedir a escolha da tela (JDK-8396405).
+
+**O que mudou.**
+
+- `TrayMenuInvoker.kt`: o invólucro do menu passa a ser focável, com `autoRequestFocus`, recebe foco
+  depois de o popup aparecer e fecha o menu no próprio evento de perda de foco. O handler só fecha se
+  o popup ainda estiver visível, para não fechar duas vezes.
+- `SystemTrayManager.kt`: um segundo clique substitui o menu anterior; o menu ativo é limpo quando o
+  popup fica invisível ou é cancelado.
+- `PortalScreenshotCapture.kt`: no KDE Wayland a captura usa
+  `org.freedesktop.portal.Screenshot` com `interactive=false`. O portal devolve um PNG do workspace;
+  o app recorta o monitor principal ou a região pedida, respeitando offset e escala nativa, e apaga
+  o arquivo depois de ler.
+- `PlatformServices.kt`: KDE Wayland usa o portal `Screenshot`; GNOME/outros Wayland mantêm
+  `ScreencastScreenCapture`; Windows/X11 mantêm `RobotScreenCapture`.
+- A permissão do `Screenshot` é separada do token do JDK: o KDE pergunta uma vez
+  **«Permitir que aplicativos tirem capturas de tela?»**, grava a resposta no portal e as capturas
+  seguintes, inclusive hover, são silenciosas. Rejeitar vira estado `DENIED`, não crash.
+
+**Por que não usar outras rotas.**
+
+- `ScreenCast` do JDK no KDE: token inválido (JDK-8396405) e diálogo de tela repetido.
+- `org.kde.KWin.ScreenShot2` direto: exige `X-KDE-DBUS-Restricted-Interfaces` no `.desktop` e pode ser
+  negado a um AppImage.
+- `RemoteDesktop` pré-autorizado: pede permissões de controle remoto e notificações que o app não usa.
+- Patch no JDK/nativo ou reescrita do token: frágil e sem teste sustentável.
+
+**Testes.** `PortalScreenshotCaptureTest` cobre as opções não interativas, recorte do monitor, escala
+nativa, offset de monitor negativo, negação, portal ausente e remoção do PNG. `TrayMenuInvokerTest` cobre foco, fechamento uma
+única vez e evento atrasado. `ScreenCaptureBackendTest` cobre a escolha KDE × outros Wayland ×
+Windows/X11. Suíte desktop: **249 testes, 0 falhas, 2 pulados** no sandbox (teste GUI sem display e
+smoke D-Bus com barramento filtrado).
+
+**Mutações provadas.**
+
+| mutação | teste que acusou |
+| --- | --- |
+| invólucro do menu deixa de ser focável | `TrayMenuInvokerTest > the invoker becomes focusable and focused before the menu can dismiss` |
+| KDE Wayland volta ao ScreenCast | `ScreenCaptureBackendTest > kde wayland uses the screenshot portal instead of the JDK screencast` |
+| recorte do portal ignora o offset do monitor | `PortalScreenshotCaptureTest > virtual screen offset is removed before cropping` |
+| captura do portal volta a ser interativa | `PortalScreenshotCaptureTest > screenshot request is non interactive so KDE stores the permission once` |
+
+**Limitações.** O agente roda dentro do Flatpak do OpenCode, sem `DISPLAY`/XWayland e sem o
+barramento do host; a prova visual do menu e do diálogo único de permissão depende de
+`~/Downloads/yabai-e2e.sh` no Konsole do Deck. O portal `Screenshot` captura o workspace inteiro; em
+layout multi-monitor com escalas diferentes o recorte usa a escala média e ainda precisa de validação
+no host. A primeira captura pode bloquear enquanto o diálogo está aberto, porque a chamada ainda roda
+na thread da ação.

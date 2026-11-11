@@ -1,9 +1,0 @@
-Manifest-Version: 1.0
-Created-By: Maven JAR Plugin 3.4.2
-Build-Jdk-Spec: 21
-Implementation-Title: dbus-java-core
-Implementation-Version: 5.1.1
-Build-Time: 2025-03-14T10:18:08+01:00
-Git-Author: David M <maniac@case-of.org>
-Git-Revision: d6b59ff
-

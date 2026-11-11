@@ -1,7 +1,10 @@
 package dev.yabai.ocr.desktop
 
+import org.freedesktop.dbus.DBusPath
+import org.freedesktop.dbus.types.Variant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,6 +48,30 @@ class PortalGlobalShortcutsTest {
         hover = "Ctrl + Shift + H",
         hoverCycle = "Ctrl + Shift + X",
     )
+
+    @Test
+    fun `create session reads the object path the portal returns`() {
+        val requestResults = mapOf(
+            "session_handle" to Variant(DBusPath("/org/freedesktop/portal/desktop/session/1/yabai_ocr_1")),
+        )
+
+        assertEquals(
+            "/org/freedesktop/portal/desktop/session/1/yabai_ocr_1",
+            portalSessionHandle(requestResults),
+        )
+        assertNull(portalSessionHandle(emptyMap()))
+    }
+
+    @Test
+    fun `the activated signal declares the session handle as an object path`() {
+        // KWin/portals send Activated with `o` for session_handle. dbus-java only builds the signal
+        // when the constructor parameter is DBusPath; a String here silently drops every activation.
+        val parameters = PortalGlobalShortcutsDbus.Activated::class.java.constructors
+            .single()
+            .parameterTypes
+
+        assertEquals(DBusPath::class.java, parameters[1])
+    }
 
     @Test
     fun `starting creates a session and binds every shortcut with its xdg trigger`() {

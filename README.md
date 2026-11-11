@@ -737,27 +737,37 @@ Notas de implementação que valem saber antes de mexer:
 
 ---
 
-## Versão Desktop (Windows)
+## Versão Desktop (Windows e Linux)
 
 O módulo `:desktop` lê japonês na tela do PC — navegador, leitor de mangá, PDF, jogo — sem tirar print
-nem abrir outra janela. Rode com:
+nem abrir outra janela. No Windows, rode com:
 
 ```powershell
 gradlew :desktop:run
 ```
 
-> A versão desktop é feita para Windows. O plano de portabilidade para Linux — com **suporte completo
-> no Wayland** (captura, atalhos, hover e bandeja) e o **Steam Deck** como alvo principal — está em
-> [LINUX.md](LINUX.md). A base Linux (P1), a captura Wayland (P2), os atalhos globais pelo portal
-> (P3), o hover pelo KWin (P4) e o polimento Linux (P5) já estão no código: detecção de sessão/desktop,
-> autostart XDG, ícone PNG, build condicional AppImage/`.deb`, `dbusScreencast` no KDE Wayland, estados
-> de permissão do portal, pickers em fullscreen, `GlobalShortcuts` com status na tela de Ajustes,
-> serviço D-Bus `dev.yabai.Ocr`, script KWin com `keepAbove`, fallback dos atalhos quando o portal não
-> responde, menu de bandeja nativo, “Integrar ao sistema” (atalho + ícone em `$XDG_DATA_HOME`) e update
-> checker que baixa o asset do SO. O empacotamento Linux, a bandeja nativa, a captura e o hover ainda
-> precisam ser validados numa sessão Linux/Steam Deck real.
+> A versão desktop também roda no **Linux**, com o **Steam Deck** como alvo principal. No SteamOS use
+> o **Desktop Mode** (KDE Plasma + Wayland); o Game Mode é melhor esforço. O suporte cobre captura
+> pelo portal `Screenshot` do KDE (com permissão persistente), atalhos globais pelo `GlobalShortcuts`,
+> hover pelo script do KWin, bandeja
+> StatusNotifier, autostart XDG, ícone PNG, integração em `$XDG_DATA_HOME`, atualização por asset do
+> SO e empacotamento em `.tar.gz`, `.deb` e `.AppImage` de arquivo único. O plano, as limitações e o
+> checklist de aceite estão em [LINUX.md](LINUX.md); a instalação no Deck está em
+> [STEAMOS.md](STEAMOS.md).
 >
-> Passo a passo de requisitos e instalação no Deck: [STEAMOS.md](STEAMOS.md).
+> No Linux, o build usa o `JAVA_HOME` do sistema (JDK 21) e os comandos são:
+>
+> ```bash
+> export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+> export PATH="$JAVA_HOME/bin:$PATH"
+> ./gradlew :desktop:test
+> ./gradlew :desktop:packagePortableTarGz          # .tar.gz autocontido
+> ./gradlew :desktop:packageLinuxAppImage          # .AppImage (requer appimagetool)
+> ```
+>
+> No KDE Wayland a bandeja é um **StatusNotifierItem** nativo: o Plasma envia a posição do clique e o
+> app abre o mesmo menu. O clique esquerdo continua sendo a captura de tela inteira; o direito abre o
+> menu. Se a sessão não informar a posição, o menu abre no canto inferior direito da área útil.
 
 ### Aparência: tema claro e escuro
 
@@ -774,7 +784,18 @@ O menu abre **junto ao ponteiro**, como o da Steam: o canto inferior esquerdo do
 do cursor e ele cresce para cima e para a direita. Se não couber à direita, ele inverte e cresce para
 a esquerda; se não couber acima, abre abaixo. O menu fica sempre dentro da área útil do monitor sob o
 cursor, fora da barra de tarefas — inclusive num segundo monitor. Clique esquerdo no ícone abre a
-captura de tela inteira; clique direito abre o menu.
+captura de tela inteira; clique direito abre o menu. No KDE Wayland o ícone é um
+**StatusNotifierItem** e o Plasma entrega o clique direito como `ContextMenu(x,y)`; o menu usa essa
+posição. Se a sessão não informar a posição, ele abre no canto inferior direito da área útil do
+monitor principal. Um clique fora do menu o fecha; ele não depende do antigo grab X11, que o
+XWayland não entrega fora das janelas X11.
+
+Na primeira captura de tela o KDE pergunta **«Permitir que aplicativos tirem capturas de tela?»**.
+Clique em **Permitir** uma vez: o portal grava a permissão e as capturas seguintes — inclusive as do
+hover — não mostram mais o diálogo. A permissão fica ligada à identidade/caminho do app: se você
+mover ou renomear o AppImage, o KDE pode pedir de novo. Isso é diferente do antigo `ScreenCast`, que
+voltava a pedir a escolha da tela por causa do bug
+[JDK-8396405](https://bugs.openjdk.org/browse/JDK-8396405).
 
 ### Iniciar com o Windows
 
@@ -882,7 +903,7 @@ dicionários (inclusive a chave antiga), a geometria do seletor de tela inteira 
 acerto pela menor caixa, folga presa à imagem, posição do rubi e das faixas), a posição do menu da
 bandeja (borda inferior no cursor, inversão à esquerda, work area), o contraste das cores do tema
 nos dois modos (4,5:1 para texto e rótulo de botão) e a preferência do modo de busca (palavra ou
-tradução, lembrada entre aberturas). Hoje são **214 testes**. A verificação ponta a ponta — Lens de
+tradução, lembrada entre aberturas). Hoje são **249 testes**. A verificação ponta a ponta — Lens de
 verdade, mouse parado, clique num parágrafo, cartão na tela — é feita rodando o app.
 
 ---

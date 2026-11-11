@@ -18,13 +18,40 @@ class ScreenCaptureBackendTest {
     }
 
     @Test
-    fun `linux wayland uses the screencast backend`() {
+    fun `kde wayland uses the screenshot portal instead of the JDK screencast`() {
         val robot = fake("robot")
         val screencast = fake("screencast")
+        val kdeScreenshot = fake("kde-screenshot")
+
+        assertEquals(
+            kdeScreenshot,
+            captureBackendFor(
+                family = OsFamily.LINUX,
+                session = SessionType.WAYLAND,
+                robot = robot,
+                screencast = screencast,
+                desktop = DesktopFamily.KDE,
+                kdeScreenshot = kdeScreenshot,
+            ),
+        )
+    }
+
+    @Test
+    fun `other wayland desktops keep the screencast backend`() {
+        val robot = fake("robot")
+        val screencast = fake("screencast")
+        val kdeScreenshot = fake("kde-screenshot")
 
         assertEquals(
             screencast,
-            captureBackendFor(OsFamily.LINUX, SessionType.WAYLAND, robot, screencast),
+            captureBackendFor(
+                family = OsFamily.LINUX,
+                session = SessionType.WAYLAND,
+                robot = robot,
+                screencast = screencast,
+                desktop = DesktopFamily.GNOME,
+                kdeScreenshot = kdeScreenshot,
+            ),
         )
     }
 
@@ -32,8 +59,19 @@ class ScreenCaptureBackendTest {
     fun `linux x11 and windows keep the robot backend`() {
         val robot = fake("robot")
         val screencast = fake("screencast")
+        val kdeScreenshot = fake("kde-screenshot")
 
-        assertEquals(robot, captureBackendFor(OsFamily.LINUX, SessionType.X11, robot, screencast))
+        assertEquals(
+            robot,
+            captureBackendFor(
+                OsFamily.LINUX,
+                SessionType.X11,
+                robot,
+                screencast,
+                DesktopFamily.KDE,
+                kdeScreenshot,
+            ),
+        )
         assertEquals(robot, captureBackendFor(OsFamily.WINDOWS, SessionType.UNKNOWN, robot, screencast))
         assertEquals(robot, captureBackendFor(OsFamily.MACOS, SessionType.UNKNOWN, robot, screencast))
     }

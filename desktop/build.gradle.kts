@@ -50,6 +50,10 @@ compose.desktop {
             // Without this module the jlink runtime image throws NoClassDefFoundError on Linux and the
             // D-Bus service, the KWin bridge and the portal shortcuts all silently fail.
             modules("jdk.net")
+            // dbus-java SASL calls `com.sun.security.auth.module.UnixSystem` to get the uid for
+            // EXTERNAL authentication. It lives in `jdk.security.auth`, not `java.base`, so a jlink
+            // image without it fails before the connection reaches the bus.
+            modules("jdk.security.auth")
             appResourcesRootDir.set(
                 project.file(if (isWindowsHost) "package/windows" else "package/linux")
             )

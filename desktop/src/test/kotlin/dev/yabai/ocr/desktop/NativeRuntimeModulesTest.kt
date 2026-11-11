@@ -14,17 +14,28 @@ import org.junit.Test
  */
 class NativeRuntimeModulesTest {
 
-    @Test
-    fun `the packaged runtime declares jdk net for the dbus unix socket`() {
+    private fun buildFileText(): String {
         val buildFile = sequenceOf(File("build.gradle.kts"), File("desktop/build.gradle.kts"))
             .firstOrNull { it.isFile }
             ?: error("desktop/build.gradle.kts not found from ${File(".").absolutePath}")
+        return buildFile.readText()
+    }
 
-        val text = buildFile.readText()
-
+    @Test
+    fun `the packaged runtime declares jdk net for the dbus unix socket`() {
         assertTrue(
             "nativeDistributions must include modules(\"jdk.net\")",
-            Regex("""modules\s*\(\s*"jdk\.net"\s*\)""").containsMatchIn(text),
+            Regex("""modules\s*\(\s*"jdk\.net"\s*\)""").containsMatchIn(buildFileText()),
+        )
+    }
+
+    @Test
+    fun `the packaged runtime declares jdk security auth for unix sasl`() {
+        // dbus-java's SASL EXTERNAL auth calls com.sun.security.auth.module.UnixSystem. Without
+        // jdk.security.auth the packaged app fails with NoClassDefFoundError before connecting.
+        assertTrue(
+            "nativeDistributions must include modules(\"jdk.security.auth\")",
+            Regex("""modules\s*\(\s*"jdk\.security\.auth"\s*\)""").containsMatchIn(buildFileText()),
         )
     }
 }
