@@ -171,20 +171,20 @@
     <string name="dictionary_suggestions">Sugestões</string>
     <string name="dictionary_suggestion_description">Consultar «%1$s»</string>
 
-    <string name="section_dictionary">5. Dicionários</string>
+    <string name="section_dictionary">6. Dicionários</string>
     <string name="setting_dictionary">Consultar os dicionários instalados</string>
     <string name="setting_dictionary_keep_last">Manter a última busca aberta no dicionário</string>
     <string name="dictionary_manage_button">Gerenciar dicionários</string>
     <string name="dictionary_summary_none">Nenhum dicionário instalado</string>
     <string name="dictionary_summary">%1$d instalados · %2$d ativos</string>
 
-    <string name="section_translation">6. Tradução</string>
+    <string name="section_translation">7. Tradução</string>
     <string name="setting_translate">Traduzir a frase com o modelo offline</string>
     <string name="setting_translate_target">Idioma da tradução</string>
     <string name="translate_target_pt">Português</string>
     <string name="translate_target_en">Inglês</string>
 
-    <string name="section_ai">7. Perguntar a uma IA</string>
+    <string name="section_ai">8. Perguntar a uma IA</string>
     <string name="setting_ai_button">Mostrar o botão «Perguntar à IA» no painel</string>
     <string name="setting_ai_prompt">O que perguntar, antes do texto reconhecido (deixe vazio para enviar só o texto)</string>
     <string name="setting_ai_app">App que responde</string>
@@ -275,7 +275,7 @@
     <string name="shortcut_qs_desc">Adicione o botão do Yabai OCR na barra de acesso rápido do seu celular para iniciar o OCR de qualquer lugar.</string>
 
     <string name="help_title">Explicações e Dicas</string>
-    <string name="menu_help">Ajuda e Explicações</string>
+    <string name="menu_help">Ajuda</string>
     <string name="help_tip_area_title">1. Seleção de Área vs. Tela Inteira</string>
     <string name="help_tip_area_desc">A seleção de área (recorte) oferece muito mais precisão que a captura de tela inteira. Ao selecionar apenas o balão de texto ou parágrafo que deseja ler, você evita que o OCR seja confundido por elementos externos, imagens de fundo ou anúncios da página.</string>
     <string name="help_tip_kanji_title">2. Dicas para Kanji Complexos e Furigana</string>

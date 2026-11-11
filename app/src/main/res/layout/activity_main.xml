@@ -25,7 +25,7 @@
                 android:layout_weight="1"
                 android:text="@string/hero_title"
                 android:textColor="@color/text_primary"
-                android:textSize="28sp"
+                android:textSize="22sp"
                 android:textStyle="bold" />
 
             <Button
@@ -33,7 +33,10 @@
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="4dp"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
                 android:text="🌙 Escuro"
                 android:textColor="@color/text_primary" />
 
@@ -42,6 +45,9 @@
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
                 android:text="@string/menu_help"
                 android:textColor="@color/text_primary" />
         </LinearLayout>

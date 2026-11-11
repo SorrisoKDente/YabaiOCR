@@ -17,7 +17,7 @@ dependencies {
     api(libs.gson)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
-    api(libs.onnxruntime)
+    compileOnly(libs.onnxruntime)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.core)
