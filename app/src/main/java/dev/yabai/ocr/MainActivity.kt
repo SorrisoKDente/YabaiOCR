@@ -128,6 +128,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         bindThemeSelector()
+        bindLanguageSelector()
         bindEngineSelector()
         bindBehaviourSwitches()
         bindTranslationAndDictionaries()
@@ -196,6 +197,28 @@ class MainActivity : AppCompatActivity() {
             if (settings.appTheme != newTheme) {
                 settings.appTheme = newTheme
                 updateUi()
+            }
+        }
+    }
+
+    private fun bindLanguageSelector() {
+        val langGroup = findViewById<RadioGroup>(R.id.langGroup) ?: return
+        val checkedId = when (settings.appLanguage) {
+            AppLanguageChoice.PT_BR -> R.id.langPtBr
+            AppLanguageChoice.EN_US -> R.id.langEnUs
+            AppLanguageChoice.SYSTEM -> R.id.langSystem
+        }
+        if (langGroup.checkedRadioButtonId != checkedId) {
+            langGroup.check(checkedId)
+        }
+        langGroup.setOnCheckedChangeListener { _, id ->
+            val newLang = when (id) {
+                R.id.langPtBr -> AppLanguageChoice.PT_BR
+                R.id.langEnUs -> AppLanguageChoice.EN_US
+                else -> AppLanguageChoice.SYSTEM
+            }
+            if (settings.appLanguage != newLang) {
+                settings.appLanguage = newLang
             }
         }
     }

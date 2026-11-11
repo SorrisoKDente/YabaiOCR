@@ -122,6 +122,7 @@ class DictionaryCompiler(
         val terms = BankAccumulator(File(outputDir, DictFiles.TERM_DAT))
         val kanji = BankAccumulator(File(outputDir, DictFiles.KANJI_DAT))
         var indexJson: IndexJson? = null
+        var success = false
         try {
             ZipFile(zipFile).use { zip ->
                 val names = zip.entries().asSequence().map { it.name }.toList()
@@ -161,12 +162,13 @@ class DictionaryCompiler(
                 kanjiCount = kanji.entryCount,
             )
             writeMeta(info)
+            success = true
             return info
         } finally {
             terms.close()
             kanji.close()
             // A failed import must not leave a half-built dictionary behind for the reader.
-            if (terms.entryCount == 0 && kanji.entryCount == 0) outputDir.deleteRecursively()
+            if (!success) outputDir.deleteRecursively()
         }
     }
 
@@ -224,7 +226,7 @@ class DictionaryCompiler(
 
         var entryCount = 0
             private set
-        private var written = 0
+        private var written: Long = 0L
 
         /** Concatenated UTF-8 of every key; key `i` is `keyOffsets[i] until keyOffsets[i + 1]`. */
         val keys = ByteVec(1 shl 18)
@@ -237,14 +239,25 @@ class DictionaryCompiler(
 
         fun writeBlob(score: Int, a: String, b: String, c: String, body: String, rulesFlags: Int) {
             val id = entryCount++
+            val bytes = body.toByteArray(StandardCharsets.UTF_8)
+            val bytesA = a.toByteArray(StandardCharsets.UTF_8)
+            val bytesB = b.toByteArray(StandardCharsets.UTF_8)
+            val bytesC = c.toByteArray(StandardCharsets.UTF_8)
+            val added = 4 + 2 + bytesA.size.coerceAtMost(0xFFFF) +
+                2 + bytesB.size.coerceAtMost(0xFFFF) +
+                2 + bytesC.size.coerceAtMost(0xFFFF) + bytes.size
+
+            if (written + added > Int.MAX_VALUE) {
+                throw NotADictionaryException("O dicionário excede o limite suportado de 2 GB.")
+            }
+
             written += writeInt(raw, score)
             written += writeString(raw, a)
             written += writeString(raw, b)
             written += writeString(raw, c)
-            val bytes = body.toByteArray(StandardCharsets.UTF_8)
             raw.write(bytes)
             written += bytes.size
-            offsets.add(written)
+            offsets.add(written.toInt())
             // One flag byte per *entry*: the reader indexes this by entry id, so appending it next
             // to the key instead would shift every value as soon as a word has a second reading.
             flags.add(rulesFlags.toByte())
@@ -335,7 +348,7 @@ class DictionaryCompiler(
             term,
             reading,
             mergeTags(tags, rendered.tags),
-            definition.take(MAX_DEFINITION_CHARS),
+            definition.takeClean(MAX_DEFINITION_CHARS),
             flags,
         )
         accumulator.addKey(term, id)
@@ -368,7 +381,7 @@ class DictionaryCompiler(
         if (body.isBlank()) return
 
         val id = accumulator.entryCount
-        accumulator.writeBlob(0, character, onyomi, kunyomi, body.take(MAX_DEFINITION_CHARS), 0)
+        accumulator.writeBlob(0, character, onyomi, kunyomi, body.takeClean(MAX_DEFINITION_CHARS), 0)
         accumulator.addKey(character, id)
     }
 
@@ -510,6 +523,15 @@ class DictionaryCompiler(
         const val FORMAT_VERSION = 3
 
         private const val MAX_DEFINITION_CHARS = 6000
+
+        internal fun String.takeClean(maxChars: Int): String {
+            if (length <= maxChars) return this
+            var count = maxChars
+            if (Character.isHighSurrogate(this[count - 1])) {
+                count--
+            }
+            return substring(0, count)
+        }
 
         /** Bottom-up merge sort over an index array: no boxing, no comparator objects per swap. */
         private fun sortIndices(order: IntArray, compare: (Int, Int) -> Int) {

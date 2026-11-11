@@ -97,6 +97,7 @@ internal class TranslationIndex private constructor(
 
     private var post: RandomAccessFile? = null
     private val lock = Any()
+    @Volatile private var isClosed = false
 
     val tokenCount: Int get() = keyOffsets.size - 1
 
@@ -107,12 +108,16 @@ internal class TranslationIndex private constructor(
         val from = postOffsets[slot]
         val count = postOffsets[slot + 1] - from
         if (count <= 0) return IntArray(0)
-        val out = IntArray(count)
+        val bytes = ByteArray(count * 4)
         synchronized(lock) {
+            if (isClosed) return IntArray(0)
             val file = post ?: RandomAccessFile(postFile, "r").also { post = it }
             file.seek(from.toLong() * 4)
-            for (i in 0 until count) out[i] = file.readInt()
+            file.readFully(bytes)
         }
+        val out = IntArray(count)
+        val buffer = java.nio.ByteBuffer.wrap(bytes)
+        buffer.asIntBuffer().get(out)
         return out
     }
 
@@ -147,6 +152,7 @@ internal class TranslationIndex private constructor(
 
     override fun close() {
         synchronized(lock) {
+            isClosed = true
             runCatching { post?.close() }
             post = null
         }
@@ -226,9 +232,11 @@ internal class TranslationIndex private constructor(
 
                 fun flushChunk() {
                     if (chunkSize == 0) return
-                    val order = (0 until chunkSize).sortedWith(
-                        compareBy<Int> { chunkTokens[it] }.thenBy { chunkIds[it] },
-                    )
+                    val order = IntArray(chunkSize) { it }
+                    sortIndices(order) { a, b ->
+                        val comp = chunkTokens[a].compareTo(chunkTokens[b])
+                        if (comp != 0) comp else chunkIds[a].compareTo(chunkIds[b])
+                    }
                     val run = File.createTempFile("yabai-inv-", ".run", dir)
                     DataOutputStream(BufferedOutputStream(FileOutputStream(run), 1 shl 16)).use { out ->
                         for (index in order) {
@@ -348,6 +356,35 @@ internal class TranslationIndex private constructor(
 
         private const val CHUNK_PAIRS = 150_000
         private const val PROGRESS_EVERY = 20_000
+
+        private fun sortIndices(order: IntArray, compare: (Int, Int) -> Int) {
+            val n = order.size
+            if (n < 2) return
+            var src = order
+            var dst = IntArray(n)
+            var width = 1
+            while (width < n) {
+                var i = 0
+                while (i < n) {
+                    val mid = min(i + width, n)
+                    val end = min(i + 2 * width, n)
+                    var a = i
+                    var b = mid
+                    var k = i
+                    while (a < mid && b < end) {
+                        dst[k++] = if (compare(src[a], src[b]) <= 0) src[a++] else src[b++]
+                    }
+                    while (a < mid) dst[k++] = src[a++]
+                    while (b < end) dst[k++] = src[b++]
+                    i += 2 * width
+                }
+                val swap = src
+                src = dst
+                dst = swap
+                width = width shl 1
+            }
+            if (src !== order) System.arraycopy(src, 0, order, 0, n)
+        }
 
         private fun fingerprint(dictionary: CompactDictionary): String? {
             val data = dictionary.definitionsFile() ?: return null

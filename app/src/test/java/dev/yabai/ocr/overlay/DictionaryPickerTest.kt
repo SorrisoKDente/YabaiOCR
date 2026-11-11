@@ -28,7 +28,7 @@ import org.robolectric.annotation.Config
  * business, and the panel must not pretend to know it.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "pt-rBR")
 class DictionaryPickerTest {
 
     private val context: Context get() = RuntimeEnvironment.getApplication()

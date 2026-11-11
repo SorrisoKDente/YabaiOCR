@@ -28,7 +28,12 @@ class DesktopSettings(
     private fun save() {
         runCatching {
             file.parentFile?.mkdirs()
-            file.outputStream().use { props.store(it, "Yabai OCR Desktop Settings") }
+            val tempFile = File(file.parentFile, "${file.name}.tmp")
+            java.io.BufferedOutputStream(tempFile.outputStream()).use { props.store(it, "Yabai OCR Desktop Settings") }
+            if (tempFile.exists()) {
+                if (file.exists()) file.delete()
+                tempFile.renameTo(file)
+            }
         }
     }
 

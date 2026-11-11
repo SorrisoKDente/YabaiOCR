@@ -109,8 +109,7 @@ object Romaji {
 
             // Tenta dígrafo de 3 letras (kya, sha...)
             if (i + 2 < normalized.length) {
-                val triple = normalized.substring(i, i + 3)
-                val hit3 = SYLLABLES[triple]
+                val hit3 = SYLLABLES[normalized.substring(i, i + 3)]
                 if (hit3 != null) {
                     result.append(hit3)
                     i += 3
@@ -120,8 +119,7 @@ object Romaji {
 
             // Tenta sílaba de 2 letras (shi, chi, ts, fu...)
             if (i + 1 < normalized.length) {
-                val pair = normalized.substring(i, i + 2)
-                val hit2 = SYLLABLES[pair]
+                val hit2 = SYLLABLES[normalized.substring(i, i + 2)]
                 if (hit2 != null) {
                     result.append(hit2)
                     i += 2
@@ -130,8 +128,7 @@ object Romaji {
             }
 
             // Tenta sílaba de 1 letra (a, n...)
-            val single = normalized.substring(i, i + 1)
-            val hit1 = SYLLABLES[single]
+            val hit1 = matchSyllable1(c)
             if (hit1 != null) {
                 result.append(hit1)
                 i += 1
@@ -144,5 +141,15 @@ object Romaji {
         }
 
         return result.toString()
+    }
+
+    private fun matchSyllable1(c: Char): String? = when (c) {
+        'a' -> "あ"
+        'i' -> "い"
+        'u' -> "う"
+        'e' -> "え"
+        'o' -> "お"
+        'n' -> "ん"
+        else -> null
     }
 }

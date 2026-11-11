@@ -26,7 +26,7 @@ import org.robolectric.shadows.ShadowDialog
  * came before ChatGPT. This is the regression: the same phone, the same list, one criterion.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "b+pt+BR")
 class AiAppSettingsTest {
 
     private fun resolve(label: String, packageName: String) = ResolveInfo().apply {

@@ -66,23 +66,30 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         val usable = selected(only)
         if (usable.isEmpty()) return emptyList()
 
-        // Romaji → hiragana: buscar por leitura (nihon → にほん → 日本).
         val hiragana = Romaji.toHiragana(query)
         val converted = hiragana != query
 
-        // Tenta correspondência exata como cabeça (headword) — consulta japonesa direta ou hiragana
-        // convertida de romaji.
-        exactMatch(query, 0, query.length, usable)?.let { return listOf(it) }
-        if (converted) {
-            exactMatch(hiragana, 0, hiragana.length, usable)?.let { return listOf(it) }
+        val results = LinkedHashMap<String, TokenMatch>()
+
+        fun addMatches(matches: List<TokenMatch>) {
+            for (m in matches) {
+                val key = "${m.entry.term}\u0000${m.entry.reading}\u0000${m.dictionaryTitle}"
+                if (!results.containsKey(key)) {
+                    results[key] = m
+                }
+            }
         }
 
-        // Se o romaji foi convertido e não houve cabeça igual, procura verbetes cuja leitura seja
-        // o hiragana (inclui correspondência de leitura nas sugestões) e depois cada termo sugerido.
+        addMatches(allExactMatches(query, 0, query.length, usable))
         if (converted) {
+            addMatches(allExactMatches(hiragana, 0, hiragana.length, usable))
             for (term in suggest(hiragana, maxSuggestions = maxMatches, only = only, includeReadingMatch = true)) {
-                exactMatch(term, 0, term.length, usable)?.let { return listOf(it) }
+                addMatches(allExactMatches(term, 0, query.length, usable))
             }
+        }
+
+        if (results.isNotEmpty()) {
+            return results.values.take(maxMatches)
         }
 
         return lookup(query, maxMatches, only)
@@ -205,12 +212,21 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
 
         return matches
             .sortedWith(
-                compareByDescending<TokenMatch> { it.entry.score }
+                compareByDescending<TokenMatch> { translationRelevance(it, query) }
+                    .thenByDescending { it.entry.score }
                     .thenBy { it.entry.term.length }
                     .thenBy { it.entry.reading.ifEmpty { it.entry.term } }
                     .thenBy { it.entry.term },
             )
             .take(maxMatches)
+    }
+
+    private fun translationRelevance(match: TokenMatch, query: String): Int {
+        val normQuery = TranslationTokens.normalize(query).trim()
+        val def = TranslationTokens.normalize(match.entry.definition).trim()
+        if (def == normQuery || def == "1. $normQuery" || def.startsWith("$normQuery\n") || def.startsWith("1. $normQuery\n") || def.startsWith("1. $normQuery;")) return 3
+        if (def.contains("\n$normQuery\n") || def.contains("\n1. $normQuery")) return 2
+        return 1
     }
 
     /** Sorted-array intersection; both inputs are ascending entry ids. */
@@ -405,6 +421,31 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         return null
     }
 
+    private fun allExactMatches(
+        surface: String,
+        start: Int,
+        length: Int,
+        usable: List<CompactDictionary>,
+    ): List<TokenMatch> {
+        val out = ArrayList<TokenMatch>()
+        for (dictionary in usable) {
+            val entries = dictionary.termEntries(surface, allowedFlags = 0)
+            for (entry in entries) {
+                out.add(
+                    TokenMatch(
+                        surface = surface,
+                        start = start,
+                        end = start + length,
+                        entry = entry,
+                        dictionaryTitle = dictionary.info.title,
+                        reasons = emptyList(),
+                    ),
+                )
+            }
+        }
+        return out
+    }
+
     private fun exactMatch(
         surface: String,
         start: Int,
@@ -474,7 +515,7 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         private const val CANDIDATE_FACTOR = 8
 
         /** Definition hits decoded per keystroke before [searchTranslation] settles the order. */
-        private const val TRANSLATION_SCAN_LIMIT = 20_000
+        private const val TRANSLATION_SCAN_LIMIT = 2_000
 
         fun isWordCodePoint(codePoint: Int): Boolean = when (codePoint) {
             in 0x3041..0x309F -> true // hiragana

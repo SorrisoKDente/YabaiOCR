@@ -60,6 +60,22 @@ object GlossaryRenderer {
         "reference-label",
     )
 
+    private val TAG_DATA_SET = setOf(
+        "part-of-speech-info",
+        "dialect-info",
+        "field-info",
+        "misc-info",
+        "grammar",
+        "grammar-info",
+        "part-of-speech",
+        "pos",
+        "word-class",
+        "type",
+        "sense-type",
+    )
+
+    private val TAG_CLASS_SET = setOf("tag", "grammar", "pos", "word-class")
+
     /** Blocks that are worth keeping but should not be numbered as a sense. */
     private val MARKERS = mapOf(
         "infoGlossary" to NOTE_MARK,
@@ -314,8 +330,9 @@ object GlossaryRenderer {
 
     private fun isTag(node: JsonElement): Boolean {
         val obj = node as? JsonObject ?: return false
-        return dataContent(obj) in setOf("part-of-speech-info", "dialect-info", "field-info", "misc-info") ||
-            className(obj) == "tag"
+        val data = dataContent(obj)
+        val clazz = className(obj)
+        return data in TAG_DATA_SET || clazz in TAG_CLASS_SET
     }
 
     private fun tagText(node: JsonElement): String? =

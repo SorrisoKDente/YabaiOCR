@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.core.dict.CompactDictionary
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -198,6 +199,62 @@ fun SettingsContent(
                                 darkTheme = false
                                 settings.darkTheme = false
                                 onThemeChanged(false)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // --- Idioma da Interface ---
+        item {
+            var appLang by remember { mutableStateOf(settings.appLanguage) }
+            SettingCard(title = DesktopStrings.sectionLanguage) {
+                Text(
+                    text = "Escolha o idioma de exibição da interface do aplicativo:",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SettingRadioOption(
+                        selected = appLang == DesktopLanguageChoice.SYSTEM,
+                        title = DesktopStrings.langSystem,
+                        description = "Padrão do sistema operacional.",
+                        onClick = {
+                            if (appLang != DesktopLanguageChoice.SYSTEM) {
+                                appLang = DesktopLanguageChoice.SYSTEM
+                                settings.appLanguage = DesktopLanguageChoice.SYSTEM
+                                DesktopStrings.updateLanguage(DesktopLanguageChoice.SYSTEM)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    SettingRadioOption(
+                        selected = appLang == DesktopLanguageChoice.PT_BR,
+                        title = DesktopStrings.langPtBr,
+                        description = "Interface em Português (Brasil).",
+                        onClick = {
+                            if (appLang != DesktopLanguageChoice.PT_BR) {
+                                appLang = DesktopLanguageChoice.PT_BR
+                                settings.appLanguage = DesktopLanguageChoice.PT_BR
+                                DesktopStrings.updateLanguage(DesktopLanguageChoice.PT_BR)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    SettingRadioOption(
+                        selected = appLang == DesktopLanguageChoice.EN_US,
+                        title = DesktopStrings.langEnUs,
+                        description = "Interface in English.",
+                        onClick = {
+                            if (appLang != DesktopLanguageChoice.EN_US) {
+                                appLang = DesktopLanguageChoice.EN_US
+                                settings.appLanguage = DesktopLanguageChoice.EN_US
+                                DesktopStrings.updateLanguage(DesktopLanguageChoice.EN_US)
                             }
                         },
                         modifier = Modifier.weight(1f)

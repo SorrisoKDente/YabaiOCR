@@ -288,6 +288,55 @@
                 android:textSize="14sp" />
         </RadioGroup>
 
+        <!-- Language -->
+        <TextView
+            style="@style/SectionHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/section_language" />
+
+        <RadioGroup
+            android:id="@+id/langGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_panel"
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:saveEnabled="false">
+
+            <RadioButton
+                android:id="@+id/langSystem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="@string/lang_system"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/langPtBr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="@string/lang_pt_br"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <RadioButton
+                android:id="@+id/langEnUs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="@string/lang_en_us"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+        </RadioGroup>
+
         <!-- 4. Engine -->
         <TextView
             style="@style/SectionHeader"

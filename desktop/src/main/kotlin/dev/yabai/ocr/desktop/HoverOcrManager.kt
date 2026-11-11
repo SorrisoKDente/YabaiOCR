@@ -137,7 +137,7 @@ internal class HoverOcrManager(
         return if (dir.isDirectory) {
             dir.listFiles()
                 ?.filter { it.extension == "yabai" || it.isDirectory }
-                ?.mapNotNull { file -> runCatching { CompactDictionary.open(file)?.info?.title }.getOrNull() }
+                ?.mapNotNull { file -> runCatching { CompactDictionary.open(file)?.use { it.info.title } }.getOrNull() }
                 .orEmpty()
         } else emptyList()
     }
