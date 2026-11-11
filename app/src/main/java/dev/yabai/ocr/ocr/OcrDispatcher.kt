@@ -56,7 +56,6 @@ class OcrDispatcher(
             when (choice) {
                 EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                 EngineChoice.LENS -> recognizeWithLens(bitmap)
-                EngineChoice.UNLIMITED_OCR -> recognizeWithUnlimitedOcr(bitmap)
                 EngineChoice.AUTO -> recognizeAuto(bitmap)
             }
         }
@@ -78,7 +77,6 @@ class OcrDispatcher(
         for (engineChoice in priorityList) {
             try {
                 val outcome = when (engineChoice) {
-                    EngineChoice.UNLIMITED_OCR -> recognizeWithUnlimitedOcr(bitmap)
                     EngineChoice.LENS -> recognizeWithLens(bitmap)
                     EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                     else -> null
@@ -95,10 +93,6 @@ class OcrDispatcher(
         }
 
         return offlineEngine.recognize(bitmap).copy(fallback = true, warning = lastWarning)
-    }
-
-    private suspend fun recognizeWithUnlimitedOcr(bitmap: Bitmap): OcrOutcome {
-        return offlineEngine.recognize(bitmap).copy(engineLabel = "Unlimited-OCR (Offline)")
     }
 
     private suspend fun offlineFallback(bitmap: Bitmap, warning: String?): OcrOutcome =

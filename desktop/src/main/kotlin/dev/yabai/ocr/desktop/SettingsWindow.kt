@@ -873,21 +873,11 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.AUTO,
-                    title = "Automático (Usa Ordem de Prioridades)",
-                    description = "Tenta reconhecer o texto seguindo a ordem de prioridade abaixo. Se um motor falhar ou não tiver rede, passa para o próximo.",
+                    title = "Automático (Usar Google Lens)",
+                    description = "Usa o motor do Google Lens para reconhecimento visual de texto.",
                     onClick = {
                         engineChoice = DesktopEngineChoice.AUTO
                         settings.engine = DesktopEngineChoice.AUTO
-                    }
-                )
-
-                SettingRadioOption(
-                    selected = engineChoice == DesktopEngineChoice.UNLIMITED_OCR,
-                    title = "Somente Unlimited-OCR (offline)",
-                    description = "Usa o motor de inteligência artificial offline embutido, especializado em texto horizontal e vertical de mangás.",
-                    onClick = {
-                        engineChoice = DesktopEngineChoice.UNLIMITED_OCR
-                        settings.engine = DesktopEngineChoice.UNLIMITED_OCR
                     }
                 )
 
@@ -901,16 +891,6 @@ fun SettingsContent(
                     }
                 )
 
-                SettingRadioOption(
-                    selected = engineChoice == DesktopEngineChoice.MLKIT,
-                    title = "Somente ML Kit (offline)",
-                    description = "Usa o motor de OCR básico offline.",
-                    onClick = {
-                        engineChoice = DesktopEngineChoice.MLKIT
-                        settings.engine = DesktopEngineChoice.MLKIT
-                    }
-                )
-
                 Spacer(modifier = Modifier.height(14.dp))
                 Divider(color = palette.fieldBorder)
                 Spacer(modifier = Modifier.height(12.dp))
@@ -921,7 +901,7 @@ fun SettingsContent(
                     color = MaterialTheme.colors.onSurface
                 )
                 Text(
-                    text = "Defina qual motor deve ser tentado primeiro, segundo e terceiro.",
+                    text = "Defina a ordem de preferência dos motores de reconhecimento.",
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -929,9 +909,7 @@ fun SettingsContent(
 
                 enginePriority.forEachIndexed { index, choice ->
                     val label = when (choice) {
-                        DesktopEngineChoice.UNLIMITED_OCR -> "Unlimited-OCR (Offline - Alta precisão em mangás)"
                         DesktopEngineChoice.LENS -> "Google Lens (Online)"
-                        DesktopEngineChoice.MLKIT -> "ML Kit (Offline)"
                         else -> choice.name
                     }
                     Card(

@@ -15,6 +15,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
@@ -201,20 +202,92 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindEngineSelector() {
         val group = findViewById<RadioGroup>(R.id.engineGroup)
+        val container = findViewById<View>(R.id.enginePriorityContainer)
+
+        fun updatePriorityVisibility() {
+            container?.visibility = if (settings.engine == EngineChoice.AUTO) View.VISIBLE else View.GONE
+            if (settings.engine == EngineChoice.AUTO) {
+                renderEnginePriorityList()
+            }
+        }
+
         val checked = when (settings.engine) {
-            EngineChoice.UNLIMITED_OCR -> R.id.engineUnlimitedOcr
             EngineChoice.LENS -> R.id.engineLens
             EngineChoice.MLKIT -> R.id.engineMlKit
             EngineChoice.AUTO -> R.id.engineAuto
         }
         group.check(checked)
+        updatePriorityVisibility()
+
         group.setOnCheckedChangeListener { _, id ->
             settings.engine = when (id) {
-                R.id.engineUnlimitedOcr -> EngineChoice.UNLIMITED_OCR
                 R.id.engineLens -> EngineChoice.LENS
                 R.id.engineMlKit -> EngineChoice.MLKIT
                 else -> EngineChoice.AUTO
             }
+            updatePriorityVisibility()
+        }
+    }
+
+    private fun renderEnginePriorityList() {
+        val priorityListLayout = findViewById<LinearLayout>(R.id.priorityListLayout) ?: return
+        priorityListLayout.removeAllViews()
+
+        val list = settings.enginePriorityList
+        list.forEachIndexed { index, choice ->
+            val label = when (choice) {
+                EngineChoice.LENS -> getString(R.string.engine_label_lens)
+                EngineChoice.MLKIT -> getString(R.string.engine_label_mlkit)
+                else -> choice.name
+            }
+
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 8, 0, 8)
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+
+            val textView = TextView(this).apply {
+                text = "${index + 1}º  $label"
+                setTextColor(getColor(R.color.text_primary))
+                textSize = 13f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            row.addView(textView)
+
+            if (index > 0) {
+                val upBtn = Button(this, null, android.R.attr.buttonStyleSmall).apply {
+                    text = getString(R.string.btn_priority_up)
+                    textSize = 11f
+                    setOnClickListener {
+                        val current = settings.enginePriorityList.toMutableList()
+                        val tmp = current[index]
+                        current[index] = current[index - 1]
+                        current[index - 1] = tmp
+                        settings.enginePriorityList = current
+                        renderEnginePriorityList()
+                    }
+                }
+                row.addView(upBtn)
+            }
+
+            if (index < list.size - 1) {
+                val downBtn = Button(this, null, android.R.attr.buttonStyleSmall).apply {
+                    text = getString(R.string.btn_priority_down)
+                    textSize = 11f
+                    setOnClickListener {
+                        val current = settings.enginePriorityList.toMutableList()
+                        val tmp = current[index]
+                        current[index] = current[index + 1]
+                        current[index + 1] = tmp
+                        settings.enginePriorityList = current
+                        renderEnginePriorityList()
+                    }
+                }
+                row.addView(downBtn)
+            }
+
+            priorityListLayout.addView(row)
         }
     }
 

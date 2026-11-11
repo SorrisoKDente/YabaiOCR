@@ -4,7 +4,7 @@ import java.io.File
 import java.net.URLEncoder
 import java.util.Properties
 
-enum class DesktopEngineChoice { AUTO, LENS, MLKIT, UNLIMITED_OCR }
+enum class DesktopEngineChoice { AUTO, LENS }
 enum class DesktopPickerReadingMode { OFF, RUBY, LABEL }
 enum class DesktopUpdateInterval(val days: Long) {
     OFF(0),
@@ -60,15 +60,13 @@ class DesktopSettings(
     var engine: DesktopEngineChoice
         get() = when (props.getProperty("engine", "AUTO")) {
             "LENS" -> DesktopEngineChoice.LENS
-            "MLKIT" -> DesktopEngineChoice.MLKIT
-            "UNLIMITED_OCR" -> DesktopEngineChoice.UNLIMITED_OCR
             else -> DesktopEngineChoice.AUTO
         }
         set(value) { props.setProperty("engine", value.name); save() }
 
     var enginePriorityList: List<DesktopEngineChoice>
         get() {
-            val raw = props.getProperty("engine_priority", "UNLIMITED_OCR,LENS,MLKIT")
+            val raw = props.getProperty("engine_priority", "LENS")
             return parseEnginePriority(raw)
         }
         set(value) {
@@ -81,7 +79,7 @@ class DesktopSettings(
             runCatching { DesktopEngineChoice.valueOf(name.trim()) }.getOrNull()
         }.filter { it != DesktopEngineChoice.AUTO }.distinct()
 
-        val missing = listOf(DesktopEngineChoice.UNLIMITED_OCR, DesktopEngineChoice.LENS, DesktopEngineChoice.MLKIT) - parsed.toSet()
+        val missing = listOf(DesktopEngineChoice.LENS) - parsed.toSet()
         return parsed + missing
     }
 

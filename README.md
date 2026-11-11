@@ -597,10 +597,9 @@ coluna primeiro; os retângulos que ele mesmo devolve são a única coisa que sa
 O motor offline também reporta o texto vertical **uma coluna por bloco**: um balão de duas colunas
 chegava como duas caixas separadas na tela de trechos, uma frase cortada em duas. O `core` junta as
 colunas que estão lado a lado na mesma faixa, com vão menor que um caractere — só colunas verticais;
-texto horizontal e balões empilhados no mesmo painel continuam como o motor os reportou. A opção
-**«Unlimited-OCR»** do Android usa esse mesmo motor offline; o que ela muda é o rótulo. Nenhuma das
+texto horizontal e balões empilhados no mesmo painel continuam como o motor os reportou. Nenhuma das
 duas coisas inventa o texto que o motor não leu: em mangá estilizado, o Lens continua sendo quem lê
-mais.
+mais. A antiga opção redundante «Unlimited-OCR» foi removida do app e do desktop, mantendo a escolha direta entre Google Lens e ML Kit (offline no Android), além da reordenação da prioridade de fallback no modo Automático.
 
 Além disso, a imagem vai com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`) e o
 idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1600.
