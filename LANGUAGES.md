@@ -1,206 +1,235 @@
-# LANGUAGES.md — Tradução da interface (localização da UI)
+# LANGUAGES.md — Plano e Guia de Localização da Interface (UI)
 
-Esse documento é o plano de localização da interface do Yabai OCR, não de OCR/dicionário/leitura de
-sinais japoneses. O app já nasce pensado para japonês e, por enquanto, essa não é uma tarefa de
-“acessibilidade a mais idiomas” no sentido de OCR multilingue: a interface é só o que vamos mudar.
+Este documento estabelece o plano detalhado e o guia técnico de implementação para a internacionalização e localização da interface do **Yabai OCR**, tomando o **Inglês (en-US)** como primeiro idioma adicional além do **Português (pt-BR)** nativo.
 
-## O que esse documento vai e não vai
+---
 
-- Vai: explicar o que é preciso fazer para traduzir a interface para outros idiomas (começando por
-  inglês, que é o primeiro candidato real), com o escopo detectado no código e com cruzamento com o
-  que já foi feito no port Linux (`LINUX.md`).
-- Não vai (aqui): detalhar como adicionar OCR, leitura ou dicionário de outro idioma via OCR/Lens/MlKit
-  ou dicionários do Yomitan. Isso é “futuro, se fizer sentido”. Se chegar a ser feito, ele tem seu
-  próprio rascunho/hoje disperso; não estou documentando linha a linha de OCR/dicionário neste arquivo.
+## 1. Separação de Conceitos (Fundamental)
 
-## Dois “idiomas”: não confundir
+Antes de qualquer implementação, é indispensável manter separados os dois eixos de idioma do aplicativo:
 
-Antes de qualquer coisa, separar dois eixos diferentes:
+1. **Idioma do OCR, Dicionário e Leitura (Núcleo do Produto):**
+   - **Fixo em Japonês (`ja`)**. O aplicativo é um leitor de japonês com OCR.
+   - O reconhecimento (Google Lens, Manga-OCR e ML Kit) opera em modo japonês.
+   - A segmentação de texto, busca de verbetes, conjugações (deinflector), furigana e kanji dependem dos dicionários de japonês (JMdict, Jitendex, KANJIDIC, etc.).
+   - *Traduzir a interface do app para inglês não altera o idioma das mídias lidas nem o funcionamento dos dicionários de japonês.*
 
-1. **Idioma do texto reconhecido (OCR + lookup + dicionário).**
-   Por padrão o app lê japonês. Até o momento ela depende de:
-   - OCR/Lens configurado para `ja`;
-   - lookup/dicionários feitos para japonês (jmdict, jitendex, JMnedict, surasura, wikcionário-ja-*,
-     etc.);
-   - normalizações e fuzzy/detalhes de blocos que presumem leitura de japonês.
+2. **Idioma da Interface do Usuário (UI):**
+   - O idioma em que menus, botões, títulos de janelas, mensagens de erro, caixas de diálogo, notificações e textos de configuração são exibidos.
+   - É o escopo exclusivo deste documento.
 
-   Isso é o núcleo de produto. Traduzir a interface não muda isso. O app continua lendo japonês e
-   consultando dicionários de japonês.
+---
 
-2. **Idioma da interface (UI).**
-   O que o usuário vê: títulos de janelas, labels, botões, mensagens, placeholders, erros, diálogos.
-   Essa é a peça que se traduz.
+## 2. Configuração de Idioma da UI (`AppLanguageChoice`)
 
-Atenção: não confundir “traduzir a interface para inglês” com “ler inglês via OCR/dicionário”. São
-coisas diferentes e eu não misturo. Se no futuro quiser que o app reconheça ou consulte outro idioma,
-isso é outro trabalho, com seu próprio escopo (OCR/Lens para outro idioma, outro dicionário e provavelmente
-outras fontes), e não se resume a trocar strings.
+Para permitir que o usuário escolha o idioma da interface ou respeite o sistema operacional, será adicionada a seguinte configuração em ambos os módulos (`:app` e `:desktop`):
 
-## Por que começar por inglês
+```kotlin
+enum class AppLanguageChoice {
+    SYSTEM, // Detecta o idioma do SO (padrão)
+    PT_BR,  // Força Português (Brasil)
+    EN_US,  // Força Inglês
+}
+```
 
-- Inglês é o idioma natural de referência para um app voltado a estudantes de japonês.
-- Onde a interface tem vocabulário bom em português, a versão inglesa costuma ser a mais útil como
-  ponto inicial se o objetivo for ampliar quem usa.
-- Se o objetivo for só “traduzir a interface”, inglês é um caso concreto e mensurável.
+- **Chave de preferência:** `app_language` em `AppSettings` (Android) e `settings.properties` (`app_language` no Desktop).
+- **Idioma Padrão:** `SYSTEM` — se o sistema estiver em inglês (ou qualquer idioma diferente de pt-BR), a UI adota inglês; se estiver em português, adota pt-BR.
+- **Independência:** O idioma da UI é configurado separadamente do idioma de destino da tradução de frases (`translateTarget`: `pt` ou `en`).
 
-Não está decidido que inglês seja o único idioma futuro. Se quiser começar por outro, o plano é o
-mesmo; só troca o idioma alvo. Neste momento, inglês é o primeiro exemplo concreto.
+---
 
-## O que vai ser alterado para uma interface em outro idioma
+## 3. Módulo Android (`:app`) — Mapeamento e Implementação
 
-A UI está espalhada em dois mundos distintos: **desktop (Kotlin/JVM + Compose)** e **Android
-(Kotlin + strings.xml)**. Cada um precisa de seu próprio trabalho, e eles não se importam automaticamente
-um ao outro.
+O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values/strings.xml`).
 
-### 1) Inventário e agrupamento da interface
+### 3.1. Criação do Arquivo de Recursos em Inglês
+- **Caminho:** `app/src/main/res/values-en/strings.xml`
+- **Conteúdo:** Tradução de todas as chaves declaradas em `app/src/main/res/values/strings.xml` (~290 chaves).
 
-Antes de traduzir, a primeira passo prático é saber o que existe e onde está. Na raiz do projeto eu
-detectei dois grandes grupos:
+#### Mapeamento por Categoria de Recursos:
+1. **Cabeçalho e Permissões (`1. Permissões` / `1. Permissions`):**
+   - `hero_title` ("Yabai OCR")
+   - `hero_subtitle` ("Read Japanese in any app...")
+   - `permission_overlay`, `permission_notifications`, `permission_grant`, `permission_remove`, diálogos de confirmação de remoção de permissão.
+2. **Atalhos Rápidos e Tema (`2. Atalhos` / `3. Tema`):**
+   - `section_shortcuts` ("2. Quick Shortcuts"), `section_theme` ("3. App Theme"), `theme_dark` ("Dark"), `theme_light` ("Light"), `theme_system` ("System").
+3. **Motores de Reconhecimento (`4. Motor` / `4. OCR Engine`):**
+   - `section_engine` ("4. Recognition Engine"), `engine_auto`, `engine_manga_ocr`, `engine_lens`, `engine_mlkit`, descrições e botões de prioridade (`btn_priority_up`, `btn_priority_down`).
+4. **Comportamento (`5. Comportamento` / `5. Behaviour`):**
+   - `section_behaviour` ("5. Behaviour"), `setting_auto_copy`, `setting_show_segments`, `setting_pick_text`, `setting_bubble_on_edge`, `setting_upscale`, `setting_show_image`, `setting_furigana`, `setting_furigana_readings`, `setting_picker_reading`, `picker_reading_ruby`, `picker_reading_label`.
+5. **Dicionários e Tradução (`6. Dicionários` / `7. Tradução`):**
+   - `section_dictionary` ("6. Dictionaries"), `section_translation` ("7. Translation"), `dictionary_manage_button`, `translate_target_pt`, `translate_target_en`.
+6. **Perguntar à IA (`8. IA` / `8. Ask AI`):**
+   - `section_ai` ("8. Ask an AI"), `setting_ai_button`, `setting_ai_prompt`, `setting_ai_app`, `ai_note`.
+7. **Overlay e Painéis Flutuantes:**
+   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`).
+   - Painel de resultado (`result_title`, `result_retry_offline`, `result_copy_original`, `result_copy_translation`, `result_repick`, `result_image`, `result_ask_ai`, `result_translation_label`, `result_dictionary_label`, `result_kanji_label`).
+   - Tela de leitura de kanji (`kanji_hint`, `kanji_on`, `kanji_kun`, `kanji_parts`, `kanji_dictionary_missing`).
+8. **Notificação de Serviço Foreground:**
+   - `notification_channel_name`, `notification_title`, `notification_text`, `notification_pause`, `notification_resume`, `notification_stop`.
+9. **Gerenciador de Dicionários e Atualizações:**
+   - `dictionary_title`, `dictionary_installed_section`, `dictionary_available_section`, `dictionary_import_section`, mensagens de progresso de download e conversão, verificador de atualizações, créditos e licenças.
+10. **Tela de Ajuda (`HelpActivity`):**
+    - `help_title` ("Help & Tips"), `menu_help` ("Help"), `help_tip_area_*`, `help_tip_kanji_*`, `help_tip_engines_*`, `help_tip_behaviours_*`, `help_tip_dicts_*`, `help_tip_ai_*`, `help_tip_translation_*`.
 
-- **Mobile**: strings em XML de recursos (`app/src/main/res/values/strings.xml` e, se forem criados,
-  namespaces `values-<lang>/strings.xml`).
-- **Desktop**: texto do sistema e da UI em Kotlin dentro de `desktop/src/main/kotlin/dev/yabai/ocr/desktop/`.
+### 3.2. Extração de Strings Hardcoded no Kotlin (`:app`)
+As seguintes strings escritas diretamente no código Kotlin devem ser extraídas para `strings.xml`:
+- `DictionaryActivity.kt`:
+  - `"Créditos e Licenças"` → `@string/dictionary_legal_credits_header`
+  - `"outro download em andamento"` → `@string/dictionary_error_busy`
+  - `"não foi possível abrir o arquivo"` → `@string/dictionary_error_open_file`
+- `DictionaryRepository.kt`:
+  - `"Montando índice…"` → `@string/dictionary_building_index`
+- `DictionaryUpdates.kt`:
+  - `"o catálogo não informou a revisão"` → `@string/dictionary_update_err_no_revision`
+  - `"o catálogo não informou de onde baixar"` → `@string/dictionary_update_err_no_url`
+  - `"o servidor não informou uma versão comparável"` → `@string/dictionary_update_err_no_comparable_version`
+- `ResultOverlay.kt`:
+  - A tabela de tradução de conjugações do Yomichan (linhas 1927–1962: `"polite"` → `"polido"`, `"past"` → `"passado"`) já é originalmente escrita em termos em inglês pelo Yomichan. Quando a UI do app estiver em inglês (`EN_US`), a conversão para português deve ser ignorada, exibindo diretamente o termo em inglês retornado pelo deinflector.
 
-Eu não confiei em números exatos depois dos problemas de sintaxe/timeout no terminal, mas a leitura
-feita por arquivo deu um inventário razoável para descrever escopo. O documento vai se basear nele.
+---
 
-Cuidado: “quantos caracteres” ou “quantas strings” não é a mesma coisa que “o que traduzir”. Muitos
-trechos são técnicos, ids, URLs, pequenos separadores, ids de atalho, placeholders de formatação, textos
-de log, textos de recursos, ou textos que servem de chave que não devem virar string traduzida literalmente.
-O inventário deve distinguir essas categorias.
+## 4. Módulo Desktop (`:desktop`) — Mapeamento e Arquitetura
 
-### 2) Desktop: identificar o que é UI e o que é não-UI
+No módulo Desktop, os textos da interface estão gravados diretamente no código Kotlin das janelas Compose Desktop e Swing.
 
-No desktop, o texto está muito misturado. Parte é interface, parte é configuração/internals, parte é
-recursos tecnicos. Para traduzir com segurança, preciso separar, em ordem, o que importa:
+### 4.1. Arquitetura de Localização no Desktop (`DesktopI18n`)
+Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de strings, será criado um objeto gerenciador de localização no Desktop:
 
-- Textos que aparecem para o usuário (labels, botões, títulos, mensagens, tooltips).
-- Textos que aparecem em diálogos/janelas, inclusive os que são relativamente estáticos (ex.: título da
-  janela, labels do seletor de tela, labels dos dicionários, labels do catálogo).
-- Mensagens de erro/pending para o usuário.
-- Placeholders de formatação e expressões interpoladas, que não se traduzem em si, mas que determinam
-  a forma como a string será montada.
-- Textos que são ids ou constantes técnicas (`"en"`, `"pt"`, `"ja"`, nomes de extensão, nomes de
-  variáveis de ambiente, nomes de arquivos, caminhos, nomes de provedor) e que, em geral, não devem
-  ser traduzidos.
-- Texto que pode ser só log/debug e não precisa de localização imediatamente.
+- **Local:** `desktop/src/main/kotlin/dev/yabai/ocr/desktop/i18n/DesktopStrings.kt`
+- **Mecanismo:**
+  ```kotlin
+  object DesktopStrings {
+      var language: AppLanguageChoice = AppLanguageChoice.SYSTEM
 
-Um trabalho de interface aqui não é só “traduzir tudo que tem aspas”. É preciso reestruturar as
-strings reais em um esquema de localização, ou pelo menos em constantes/arquivo de recurso, separando
-a exibição da lógica.
+      val title: String get() = when (effectiveLanguage) {
+          AppLanguageChoice.EN_US -> "Yabai OCR - Settings"
+          else -> "Yabai OCR - Ajustes e Configurações"
+      }
+      // ... propriedades delegadas para cada tela
+  }
+  ```
 
-### 3) Mobile: já segue o padrão Android de recursos
+### 4.2. Mapeamento Completo de Telas e Textos do Desktop
 
-O mobile já usa um arquivo de recursos (`strings.xml`), o que é a base correta para localização. A
-mudança para outro idioma, quando feita, segue o caminho idiomático do Android:
+#### 1. `SettingsWindow.kt` (Janela de Ajustes e Configurações)
+- **Título da Janela:** `"Yabai OCR - Ajustes e Configurações"` → `"Yabai OCR - Settings"`
+- **Aparência e Tema:**
+  - `"Aparência e Tema"` → `"Appearance & Theme"`
+  - `"Tema Escuro 🌙"` → `"Dark Theme 🌙"`
+  - `"Tema Claro ☀️"` → `"Light Theme ☀️"`
+- **Atalhos Globais de Teclado:**
+  - `"Atalhos Globais de Teclado"` → `"Global Keyboard Shortcuts"`
+  - `"Atalho da Captura da Tela Inteira (OCR):"` → `"Full Screen Capture Shortcut (OCR):"`
+  - `"Atalho do Recorte de Área (OCR):"` → `"Region Selection Shortcut (OCR):"`
+  - `"Atalho de Busca Rápida de Dicionário:"` → `"Quick Dictionary Search Shortcut:"`
+  - `"Atalho de Ligar/Desligar Modo Hover:"` → `"Toggle Hover Mode Shortcut:"`
+  - `"Atalho para Alternar Dicionário no Hover:"` → `"Cycle Hover Dictionary Shortcut:"`
+  - Botões: `"Capturar"` → `"Capture"`, `"Padrão"` → `"Default"`, `"Aguardando..."` → `"Press keys..."`
+- **Inicialização e Comportamento da Janela:**
+  - `"Inicialização e Comportamento da Janela"` → `"Startup & Window Behaviour"`
+  - `"Iniciar na bandeja ao ligar o computador"` → `"Start minimized in tray on system boot"`
+  - `"Manter na bandeja ao fechar a janela"` → `"Keep running in tray when closing window"`
+- **Modo Hover:**
+  - `"Modo Hover — leitura em tempo real (Estilo Yomitan)"` → `"Hover Mode — Real-time Reading (Yomitan Style)"`
+  - Status: `"🟢 Ativo — pare o mouse sobre um texto japonês."` → `"🟢 Active — hover over Japanese text."`
+  - `"⚪ Inativo — ative para traduzir só passando o mouse."` → `"⚪ Inactive — enable to translate on hover."`
+  - `"Dicionário Padrão do Modo Hover:"` → `"Default Hover Dictionary:"`
+  - Botão: `"Testar no cursor atual"` → `"Test at current cursor"`
+- **Motor de Reconhecimento:**
+  - `"Motor de reconhecimento"` → `"Recognition Engine"`
+  - `"Automático (Usa Ordem de Prioridades)"` → `"Automatic (Use Priority Order)"`
+  - `"Somente Manga-OCR (offline)"` → `"Manga-OCR Only (offline)"`
+  - `"Somente Google Lens (online)"` → `"Google Lens Only (online)"`
+  - Prioridades: `"Prioridade dos Motores no modo Automático / Fallback:"` → `"Engine Fallback Priority Order:"`
+  - Botões de reordenação: `"▲ Subir"` → `"▲ Up"`, `"▼ Descer"` → `"▼ Down"`
+- **Comportamento do OCR e Resultado:**
+  - `"Comportamento do OCR e resultado"` → `"OCR & Result Behaviour"`
+  - `"Copiar automaticamente ao reconhecer"` → `"Copy automatically after recognition"`
+  - `"Listar o texto linha por linha"` → `"List text line by line"`
+  - `"Ampliar recortes pequenos"` → `"Upscale small image crops"`
+  - `"Mostrar imagem capturada ao lado do texto"` → `"Show captured image next to text"`
+  - `"Manter furigana original entre parênteses"` → `"Keep original printed furigana in parentheses"`
+  - `"Gerar furigana do dicionário no painel"` → `"Generate dictionary furigana in panel"`
+  - Leituras no seletor: `"Leituras dos kanjis no seletor da página:"` → `"Kanji readings on page picker:"`, `"Desativado"` → `"Disabled"`, `"Rubi sobre o texto"` → `"Ruby above text"`, `"Faixa indicativa legível"` → `"Legible side label"`
+- **Dicionários e Pasta de Dados:**
+  - `"Dicionários de Japonês e Pasta de Dados"` → `"Japanese Dictionaries & Data Folder"`
+  - `"Consultar dicionários instalados"` → `"Lookup installed dictionaries"`
+  - `"Dicionário Padrão de Filtro:"` → `"Default Dictionary Filter:"`
+  - `"Localização da Pasta de Dicionários:"` → `"Dictionary Folder Location:"`
+  - Botões: `"Alterar Pasta..."` → `"Change Folder..."`, `"Restaurar Padrão"` → `"Restore Default"`, `"Gerenciar"` → `"Manage"`
+  - `"Manter última busca no dicionário"` → `"Keep last dictionary query"`
+  - `"Ignorar leituras entre parênteses na consulta"` → `"Strip parentheses readings in search"`
+  - Verificação automática: `"Verificação de atualizações dos dicionários:"` → `"Automatic dictionary update check:"`, `"Desativado"` → `"Disabled"`, `"Diariamente"` → `"Daily"`, `"Semanalmente"` → `"Weekly"`, `"Mensalmente"` → `"Monthly"`
+- **Tradução:**
+  - `"Tradução de Frases"` → `"Sentence Translation"`
+  - `"Traduzir a frase reconhecida"` → `"Translate recognized sentence"`
+  - `"Idioma de destino da tradução:"` → `"Translation target language:"`
+- **Perguntar a uma IA:**
+  - `"Perguntar a uma IA"` → `"Ask an AI"`
+  - `"Exibir o botão «Perguntar à IA» no painel de resultado"` → `"Show 'Ask AI' button in result panel"`
+  - `"Provedor / Serviço de IA:"` → `"AI Provider / Service:"`
+  - `"Prompt / Pergunta inicial enviada à IA:"` → `"Initial AI Prompt:"`
+- **Sobre e Atualizações:**
+  - `"Sobre o Yabai OCR e Atualizações do Aplicativo"` → `"About Yabai OCR & App Updates"`
+  - `"Versão Instalada:"` → `"Installed Version:"`
+  - Botões: `"🔄 Verificar Atualizações"` → `"🔄 Check for Updates"`, `"⬇️ Baixar Atualização"` → `"⬇️ Download Update"`
 
-- manter o idioma base;
-- criar recursos por idioma (`values-en`, `values-pt`, etc.) conforme necessário.
+#### 2. `DictionaryManagerWindow.kt` (Gerenciador de Dicionários Desktop)
+- **Título da Janela:** `"Gerenciador de Dicionários"` → `"Dictionary Manager"`
+- **Cabeçalhos:** `"Pesquisar nos Dicionários"` → `"Search Dictionaries"`, `"Dicionários Locais e Atualizações"` → `"Local Dictionaries & Updates"`, `"Dicionários Recomendados"` → `"Recommended Dictionaries"`
+- **Alternadores de busca:** `"🔄 Tradução"` → `"🔄 Definition Search"`, `"🔤 Palavra"` → `"🔤 Headword Search"`
+- **Ações:** `"Escolher arquivo .zip"` → `"Choose .zip file"`, `"🔄 Verificar Atualizações"` → `"🔄 Check for Updates"`, `"🔄 Atualizar"` → `"🔄 Update"`, `"Remover"` → `"Remove"`, `"Ativo"` → `"Active"`, `"Desativado"` → `"Disabled"`
+- **Créditos legais:** `"▸ Ver créditos legais e licenças dos dicionários"` → `"▸ View legal credits and dictionary licenses"`
 
-O ponto de atenção aqui é:
+#### 3. `ResultWindow.kt` (Painel Flutuante de Resultado Desktop)
+- **Título:** `"Texto reconhecido"` → `"Recognized Text"`
+- **Botões e Ações:** `"Copiar original"` → `"Copy Original"`, `"Copiar tradução"` → `"Copy Translation"`, `"Perguntar à IA"` → `"Ask AI"`, `"Imagem"` → `"Image"`, `"Recortar à mão"` → `"Manual Crop"`, `"Tentar offline"` → `"Try Offline"`, `"Fechar"` → `"Close"`
+- **Avisos de Status:** `"Lens indisponível"` → `"Lens unavailable"`, `"Pesquisando..."` → `"Searching..."`, `"Traduzindo..."` → `"Translating..."`
 
-- strings não extraídas para o arquivo de recursos (literal no Kotlin) precisam ser tratadas;
-- mensagens que dependem de interpolação podem precisar de novas keys ou de posições/ordens diferentes
-  em outro idioma;
-- qualquer texto misturado no layout/tema/overlay, se houver, precisa ser checado.
+#### 4. `QuickDictWindow.kt` (Busca Rápida de Dicionário Desktop)
+- **Título da Janela:** `"Busca Rápida de Dicionário"` → `"Quick Dictionary Search"`
+- **Dicas:** `"Pesquisar palavra, kanji ou leitura…"` → `"Search word, kanji, or reading..."`
+- **Modos:** `"🔤 Palavra"` → `"🔤 Headword"`, `"🔄 Tradução"` → `"🔄 Definition"`
 
-O XML de origem já é chamado de `strings.xml` e está em português (BR). Enfim, a estrutura de localização
-móvel é mais direta que a do desktop, mas ainda exige revisão do que está inline e do que já está
-centralizado.
+#### 5. `TrayMenu.kt` (Menu da Bandeja do Sistema)
+- `"🖥️ Capturar Tela Inteira (OCR)"` → `"🖥️ Full Screen Capture (OCR)"`
+- `"✂️ Capturar Área (OCR)"` → `"✂️ Select Region (OCR)"`
+- `"🔍 Busca Rápida de Dicionário"` → `"🔍 Quick Dictionary Search"`
+- `"⚙️ Ajustes e Configurações"` → `"⚙️ Settings & Options"`
+- `"📖 Gerenciar Dicionários"` → `"📖 Manage Dictionaries"`
+- `"💬 Modo Hover [Ativo/Inativo]"` → `"💬 Hover Mode [Active/Inactive]"`
+- `"✕ Sair do Yabai OCR"` → `"✕ Exit Yabai OCR"`
 
-### 4) Temas, cores, ícones e textos constitutivos
+#### 6. `HoverTooltipWindow.kt`, `SegmentPickerWindow.kt`, `RegionSelectionWindow.kt`
+- Tooltip do Hover: `"🌐 Todos os Dicionários"` → `"🌐 All Dictionaries"`, `"Sem verbete"` → `"No match found"`
+- Telas de Seleção: `"Toque num trecho para copiar ou traduzir"` → `"Click a segment to copy or translate"`, `"Arraste para selecionar a área"` → `"Drag to select a region"`, `"Cancelar"` → `"Cancel"`, `"Reconhecer"` → `"Recognize"`, `"Texto todo"` → `"All text"`.
 
-Alguns textos não são “labels” simples: vêm de temas, de regras visuais, ou de dados que são parte
-do catálogo/dicionário. Ex.: nomes dos dicionários no catálogo, descrições, atribuições, tags de idioma
-dos dicionários, labels de tamanho, labels de status de atualização.
+---
 
-Esses textos podem ser UI, mas podem ter conteúdo ligado a dados (catálogo de dicionários) e não
-apenas ao display. Traduzir interface é, em parte, traduzir o que vem “parado” no app, mas precisa
-definir onde fica a responsabilidade: se um nome de dicionário forma parte do catálogo ou se é só
-display interno.
+## 5. Roteiro Passo a Passo de Execução
 
-### 5) Atalhos, chaves de configuração e textos de log
+1. **Etapa 1: Módulo Mobile (`:app`)**
+   - Criar `app/src/main/res/values-en/strings.xml` com a tradução completa de todas as chaves.
+   - Extrair strings hardcoded no Kotlin de `:app` para `strings.xml`.
+   - Adicionar o seletor de idioma de UI (`AppLanguageChoice`) nas configurações e aplicar a troca dinâmica de locale (`AppCompatDelegate.setApplicationLocales`).
 
-Atalhos e chaves de configuração aparecem na UI, mas também vivem em `settings.properties` e em código
-de configuração. Aqui a distinção importante:
+2. **Etapa 2: Módulo Desktop (`:desktop`)**
+   - Criar o objeto de localização `DesktopStrings.kt` unificando todas as propriedades de texto de UI do Desktop.
+   - Adicionar a propriedade `appLanguage` em `DesktopSettings`.
+   - Substituir os textos literais em português nas janelas Compose Desktop/Swing por referências às propriedades de `DesktopStrings`.
 
-- O que o usuário vê sobre o atalho pode ser traduzido.
-- O código interno que manipula/fecha o atalho não deve ser confundido com texto de interface.
-- Logs e mensagens de console podem ou não precisar de localização; dependendo do objetivo, um log em
-  inglês pode ser mais útil. Não estou generalizando: entram no inventário e se decidem.
+3. **Etapa 3: Validação e Testes**
+   - Executar os testes unitários da suíte desktop (`.\gradlew.bat :desktop:test`) e mobile (`.\gradlew.bat :app:testDebugUnitTest`).
+   - Validar o layout visual no Android e no Desktop para garantir que os textos em inglês cabem nos botões e painéis sem quebras de linha ou sobreposições.
 
-## O plano passo a passo para inglês
+---
 
-A ordem prática, pelo menos para o primeiro idioma, é:
+## 6. O que NÃO Deve Ser Traduzido (Invariantes Técnicas)
 
-1. **Escolher escopo real.** Decidir o que vai ser traduzido e o que não vai. Por padrão sugiro
-   começar pela interface principal (menus, janelas de ajuste/busca/hover/resultado/gerenciador de
-   dicionários, mensagens de erro e sucesso, labels dos dicionários). Depois eventualmente cobrir mais.
-
-2. **Far o inventário por plataforma.** Desktop e mobile separados, com lista de arquivos de origem. O
-   importante é saber quais textos são candidatos reais e quais não são.
-
-3. **Separar UI de informação técnica.** Identificar ids, URLs, nomes de extensão, nomes de arquivos,
-   nomes de provedor, keys de configuração etc. e não tratá-los como strings comuns.
-
-4. **Escolher o mecanismo de localização para cada plataforma.**
-   - Mobile: Android resource strings por idioma (já existe estrutura base).
-   - Desktop: aqui o caminho mais seguro é trazer as strings de UI para um lugar centralizado ou para
-     recursos estruturados por idioma, e não deixar todo texto espalhado nos literais. Isso é mais
-     chato, mas faz a tradução não virar um espaguete.
-
-5. **Preparar o idioma alvo.**
-   - Para inglês: traduzir com atenção a termos já em português, para não trocar o que já é bom sem
-     necessidade e sem perder clareza.
-   - Para qualquer outro: mesmo processo, só outro idioma.
-
-6. **Preservar exatidão e não corrigir o que não é UI.** Tags, leituras, nomes de dicionários etc. não
-   são texto solto; se forem traduzidos no display, que seja com critério explicado. Se não fizerem
-   sentido, não traduzir.
-
-7. **Teste/visualizar.** Aqui a janela de ajustes e as janelas de OCR/resultado/dicionário/teste de
-   atalhos são os lugares reais de conferência.
-
-8. **Documentar o que ficou de fora** e por quê, para que a próxima iteração (outros idiomas, mais
-   strings, catálogo, etc.) saiba o que está pendente.
-
-## Riscos e armadilhas documentadas
-
-- Traduzir textos que são ids/chaves/urls/constantes de código é um risco real de quebra.
-- Misturar OCR/dicionário com tradução da interface gera confusão de escopo. Separar deixou tudo mais
-  claro.
-- Traduzir como “trocar string” pode quebrar interpolação, pluralização, orientação de texto.
-
-Não sendo a interface, seguir os riscos que já conheço do app (em especial: nunca “corrigir” texto
-reconhecido sem ser o comportamento pedido e testado; UI em pt-BR quando for display; comentários do
-código em inglês).
-
-## LINUX.md: impacto sobre o port Linux
-
-`LINUX.md` documenta um port Linux feito pelo projeto. Posso cruzar com ele e dizer se ele precisa de
-ajuste relacionado a interface. No momento, LINUX.md parece estar separado do que é “traduzir a interface”;
-no entanto, quando for traduzir o desktop, vale revisar:
-
-- labels/mentions de Linux que aparecem na interface desktop (se houver);
-- textos técnicos de instalação/entrada/sessão que estejam relacionados;
-- se o Linux então tiver suas próprias strings de UI (ou parte delas) fora do estado atual.
-
-Se algo relevante aparecer em LINUX.md sobre a interface em si, eu trago aqui como nota ou atualizo este
-documento para deixar isso explícito na seção de impacto.
-
-## Futuro, se for útil
-
-- Outros idiomas de interface (além de inglês), se fizer sentido.
-- OCR/dicionário para outro idioma de origem: não objeto deste documento; se for feito, será outro plano
-  e não o de localização da interface.
-
-## Limitações deste documento
-
-- É um plano, não implementação. Não vou codificar a tradução aqui.
-- Inventário e contagens baseados em leitura de arquivos, não em teste de UI executável.
-- Números exatos de strings podem variar se outro arquivos forem encontrados ou se houver limpeza/organização;
-  para fins do plano, o importante é separar UI de não-UI e separar desktop de mobile.
-
-Se quiser que eu avance para a etapa concreta (inventário lista por arquivo, seleção de strings, ou
-começar a preparar o idioma alvo), me avise. Se quiser focar primeiro em um dos dois: interface de
-desktop, ou interface mobile, posso particionar.
+As seguintes constantes e valores técnicos **não** devem ser alterados nem traduzidos:
+- Identificadores de configuração e chaves de preferences (ex.: `"engine"`, `"auto_copy"`, `"global_hotkey"`, `"picker_reading"`).
+- Tags BCP-47 de idioma do modelo de OCR ou tradução (ex.: `"ja"`, `"pt"`, `"en"`).
+- Identificadores de dicionários e IDs de catálogo (ex.: `"jmdict"`, `"jitendex"`, `"jmnedict"`, `"kanjidic_english"`).
+- URLs de serviços, pacotes Android (ex.: `"com.openai.chatgpt"`), esquemas DBus do Linux e comandos de sistema.
+- Comentários no código-fonte (que permanecem em inglês como padrão estabelecido no repositório).
