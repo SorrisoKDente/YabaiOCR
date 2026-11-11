@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
+
 /**
  * Where the global shortcuts come from.
  *
@@ -18,16 +20,16 @@ internal fun hotkeyBackendKindFor(
 }
 
 internal fun hotkeyBackendLabel(kind: HotkeyBackendKind): String = when (kind) {
-    HotkeyBackendKind.JNATIVEHOOK -> "Atalhos globais ativos (JNativeHook)."
-    HotkeyBackendKind.PORTAL -> "Atalhos globais pelo portal do sistema."
-    HotkeyBackendKind.UNAVAILABLE -> "Atalhos globais indisponíveis nesta sessão. Use o menu da bandeja."
+    HotkeyBackendKind.JNATIVEHOOK -> DesktopStrings.hotkeyBackendActiveStatus
+    HotkeyBackendKind.PORTAL -> DesktopStrings.hotkeyBackendPortalStatus
+    HotkeyBackendKind.UNAVAILABLE -> DesktopStrings.hotkeyBackendUnavailableStatus
 }
 
 internal fun hotkeyBackendFailureMessage(kind: HotkeyBackendKind): String = when (kind) {
     HotkeyBackendKind.PORTAL ->
-        "O portal de atalhos do sistema não respondeu. Use o menu da bandeja ou configure pelo sistema."
+        DesktopStrings.hotkeyPortalFailureMessage
     HotkeyBackendKind.JNATIVEHOOK ->
-        "Não foi possível instalar o gancho global de teclado. Use o menu da bandeja."
+        DesktopStrings.hotkeyJNativeHookFailureMessage
     HotkeyBackendKind.UNAVAILABLE -> hotkeyBackendLabel(HotkeyBackendKind.UNAVAILABLE)
 }
 
@@ -136,7 +138,7 @@ internal class HotkeyService(
         statusMessage = if (detail == null) {
             hotkeyBackendFailureMessage(kind)
         } else {
-            "${hotkeyBackendFailureMessage(kind)} Detalhe: $detail."
+            "${hotkeyBackendFailureMessage(kind)} ${if (DesktopStrings.isEnglish) "Detail:" else "Detalhe:"} $detail."
         }
         return false
     }

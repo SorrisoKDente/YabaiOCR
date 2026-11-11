@@ -18,6 +18,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.*
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import kotlinx.coroutines.Dispatchers
@@ -89,10 +90,10 @@ fun QuickDictWindow(onClose: () -> Unit) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
             results = withContext(Dispatchers.Default) {
                 if (translationMode) {
-                    status = "Preparando o índice de tradução… (só na primeira vez)"
+                    status = DesktopStrings.dictIndexPreparing
                     val found = current.searchTranslation(query, only = onlySet) { progress ->
                         if (progress.building) {
-                            status = "Preparando o índice de tradução… ${(progress.fraction * 100).toInt()}%"
+                            status = "${DesktopStrings.dictIndexPreparing} ${(progress.fraction * 100).toInt()}%"
                         }
                     }
                     status = ""
@@ -110,7 +111,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
 
     Window(
         onCloseRequest = onClose,
-        title = "Yabai OCR - Busca Rápida",
+        title = DesktopStrings.quickDictTitle,
         state = windowState
     ) {
         LaunchedEffect(Unit) {
@@ -126,7 +127,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Busca Rápida", style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
+                        Text(DesktopStrings.quickDictShortTitle, style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
 
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -140,7 +141,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                             ) {
                                 Text(
-                                    if (translationMode) "🔄 Tradução" else "🔤 Palavra",
+                                    if (translationMode) DesktopStrings.searchTypeTranslation else DesktopStrings.searchTypeWord,
                                     fontSize = 10.sp
                                 )
                             }
@@ -151,7 +152,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                     onClick = { expandedFilter = true },
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                                 ) {
-                                    Text(if (selectedFilter.isBlank()) "🌐 Todos" else "📖 $selectedFilter", fontSize = 10.sp)
+                                    Text(if (selectedFilter.isBlank()) DesktopStrings.allDictsLabel else "📖 $selectedFilter", fontSize = 10.sp)
                                 }
                                 DropdownMenu(
                                     expanded = expandedFilter,
@@ -161,7 +162,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                         selectedFilter = ""
                                         expandedFilter = false
                                     }) {
-                                        Text("🌐 Todos os Dicionários")
+                                        Text(DesktopStrings.allDictionaries)
                                     }
                                     installedDictTitles.forEach { title ->
                                         DropdownMenuItem(onClick = {
@@ -188,8 +189,8 @@ fun QuickDictWindow(onClose: () -> Unit) {
                             onValueChange = { query = it },
                             label = {
                                 Text(
-                                    if (translationMode) "Pesquisar pelo sentido (ex.: espada)"
-                                    else "Pesquisar palavra, kanji ou leitura..."
+                                    if (translationMode) DesktopStrings.searchPlaceholderDefinition
+                                    else DesktopStrings.searchPlaceholderExtended
                                 )
                             },
                             modifier = Modifier.weight(1f),
@@ -209,7 +210,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                     contentColor = MaterialTheme.colors.onSurface
                                 )
                             ) {
-                                Text("❌ Apagar", fontSize = 11.sp)
+                                Text(DesktopStrings.btnClear, fontSize = 11.sp)
                             }
                         } else {
                             Button(
@@ -227,7 +228,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
                                     contentColor = MaterialTheme.colors.onSurface
                                 )
                             ) {
-                                Text("📋 Colar", fontSize = 11.sp)
+                                Text(DesktopStrings.btnPaste, fontSize = 11.sp)
                             }
                         }
                     }
@@ -267,7 +268,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
 
                     if (engine == null) {
                         Text(
-                            "Nenhum dicionário encontrado na pasta de dados.\nAdicione arquivos .yabai para consultar.",
+                            DesktopStrings.noDictsWarning,
                             color = MaterialTheme.colors.error,
                             style = MaterialTheme.typography.caption
                         )

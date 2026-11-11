@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.core.dict.*
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,11 +56,11 @@ fun DictionaryManagerContent(
                             contentColor = MaterialTheme.colors.onSurface
                         )
                     ) {
-                        Text("◀ Voltar ao Menu Anterior", fontWeight = FontWeight.SemiBold)
+                        Text(DesktopStrings.btnBackToPrevious, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(
-                        text = "Gerenciador de Dicionários",
+                        text = DesktopStrings.dictManagerTitle,
                         style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colors.onSurface
                     )
@@ -76,17 +77,17 @@ fun DictionaryManagerContent(
             Tab(
                 selected = selectedTab == 0,
                 onClick = { selectedTab = 0 },
-                text = { Text("🔍 Consultar Dicionários", fontWeight = FontWeight.SemiBold) }
+                text = { Text(DesktopStrings.tabQueryDicts, fontWeight = FontWeight.SemiBold) }
             )
             Tab(
                 selected = selectedTab == 1,
                 onClick = { selectedTab = 1 },
-                text = { Text("📚 Dicionários Instalados", fontWeight = FontWeight.SemiBold) }
+                text = { Text(DesktopStrings.tabInstalledDicts, fontWeight = FontWeight.SemiBold) }
             )
             Tab(
                 selected = selectedTab == 2,
                 onClick = { selectedTab = 2 },
-                text = { Text("🌐 Catálogo de Downloads", fontWeight = FontWeight.SemiBold) }
+                text = { Text(DesktopStrings.tabDownloadCatalog, fontWeight = FontWeight.SemiBold) }
             )
         }
 
@@ -107,7 +108,7 @@ fun DictionaryManagerWindow(
 ) {
     Window(
         onCloseRequest = onClose,
-        title = "Yabai OCR - Gerenciador de Dicionários",
+        title = "Yabai OCR - ${DesktopStrings.dictManagerTitle}",
         state = WindowState(width = 860.dp, height = 700.dp)
     ) {
         LaunchedEffect(Unit) {
@@ -176,10 +177,10 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
             results = withContext(Dispatchers.Default) {
                 if (translationMode) {
-                    status = "Preparando o índice de tradução… (só na primeira vez)"
+                    status = DesktopStrings.dictIndexPreparing
                     val found = current.searchTranslation(query, only = onlySet) { progress ->
                         if (progress.building) {
-                            status = "Preparando o índice de tradução… ${(progress.fraction * 100).toInt()}%"
+                            status = "${DesktopStrings.dictIndexPreparing} ${(progress.fraction * 100).toInt()}%"
                         }
                     }
                     status = ""
@@ -201,7 +202,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Pesquisar nos Dicionários", style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
+            Text(DesktopStrings.searchDictsHeader, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -214,7 +215,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                 ) {
-                    Text(if (translationMode) "🔄 Tradução" else "🔤 Palavra", fontSize = 11.sp)
+                    Text(if (translationMode) DesktopStrings.searchTypeTranslation else DesktopStrings.searchTypeWord, fontSize = 11.sp)
                 }
 
                 var expandedFilter by remember { mutableStateOf(false) }
@@ -223,7 +224,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                         onClick = { expandedFilter = true },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                     ) {
-                        Text(if (selectedFilter.isBlank()) "🌐 Todos os Dicionários" else "📖 $selectedFilter", fontSize = 11.sp)
+                        Text(if (selectedFilter.isBlank()) DesktopStrings.allDictionaries else "📖 $selectedFilter", fontSize = 11.sp)
                     }
                     DropdownMenu(
                         expanded = expandedFilter,
@@ -233,7 +234,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                             selectedFilter = ""
                             expandedFilter = false
                         }) {
-                            Text("🌐 Todos os Dicionários")
+                            Text(DesktopStrings.allDictionaries)
                         }
                         installedDictTitles.forEach { title ->
                             DropdownMenuItem(onClick = {
@@ -260,8 +261,8 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                 onValueChange = { query = it },
                 label = {
                     Text(
-                        if (translationMode) "Pesquisar pelo sentido da tradução (ex.: espada)"
-                        else "Pesquisar palavra, kanji ou leitura (hiragana/romaji)..."
+                        if (translationMode) DesktopStrings.searchPlaceholderDefinition
+                        else DesktopStrings.searchPlaceholderExtended
                     )
                 },
                 modifier = Modifier.weight(1f),
@@ -281,7 +282,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                         contentColor = MaterialTheme.colors.onPrimary
                     )
                 ) {
-                    Text("❌ Apagar", fontSize = 11.sp)
+                    Text(DesktopStrings.btnClear, fontSize = 11.sp)
                 }
             } else {
                 Button(
@@ -299,7 +300,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                         contentColor = MaterialTheme.colors.onPrimary
                     )
                 ) {
-                    Text("📋 Colar", fontSize = 11.sp)
+                    Text(DesktopStrings.btnPaste, fontSize = 11.sp)
                 }
             }
         }
@@ -344,10 +345,10 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Nenhum dicionário disponível", style = MaterialTheme.typography.subtitle1, color = yabaiPalette().danger)
+                    Text(DesktopStrings.dictSummaryNone, style = MaterialTheme.typography.subtitle1, color = yabaiPalette().danger)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Coloque arquivos de dicionário (.yabai) na pasta ${dictDir.absolutePath} para realizar consultas.",
+                        "${DesktopStrings.dictFolderLocation} ${dictDir.absolutePath}",
                         color = MaterialTheme.colors.onSurface,
                         style = MaterialTheme.typography.body2
                     )
@@ -412,8 +413,8 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Dicionários Locais e Atualizações", style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
-                Text("Pasta de dados: ${dictDir.absolutePath}", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
+                Text(DesktopStrings.localDictsHeader, style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
+                Text("${DesktopStrings.dictFolderLocation} ${dictDir.absolutePath}", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -489,9 +490,9 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                 updateAvailableMap = available
                                 remoteRevisionMap = remotes
                                 val count = available.values.count { it }
-                                checkMessage = "Verificação concluída. $count ${if (count == 1) "atualização disponível" else "atualizações disponíveis"}."
+                                checkMessage = DesktopStrings.checkCompletedMessage(count)
                             } catch (e: Exception) {
-                                updateError = e.message ?: "Erro ao verificar atualizações."
+                                updateError = e.message ?: DesktopStrings.checkUpdatesError
                             } finally {
                                 checkingUpdates = false
                             }
@@ -503,23 +504,25 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         contentColor = MaterialTheme.colors.onSurface
                     )
                 ) {
-                    Text(if (checkingUpdates) "Verificando..." else "🔄 Verificar Atualizações")
+                    Text(if (checkingUpdates) DesktopStrings.checkingStatus else DesktopStrings.btnCheckUpdates)
                 }
 
                 Button(
                     onClick = {
                         val chooser = JFileChooser()
-                        chooser.dialogTitle = "Selecionar arquivo de dicionário (.yabai ou .zip)"
-                        chooser.fileFilter = FileNameExtensionFilter("Dicionários Yabai / Yomitan (.yabai, .zip)", "yabai", "zip")
+                        chooser.dialogTitle = DesktopStrings.selectDictFileDialogTitle
+                        chooser.fileFilter = FileNameExtensionFilter(DesktopStrings.selectDictFileFilterName, "yabai", "zip")
                         val result = chooser.showOpenDialog(null)
                         if (result == JFileChooser.APPROVE_OPTION) {
                             val selected = chooser.selectedFile
                             if (!dictDir.exists()) dictDir.mkdirs()
                             if (selected.extension.lowercase() == "zip") {
                                 val targetDir = File(dictDir, "${selected.nameWithoutExtension}.yabai")
-                                runCatching {
+                                try {
                                     val compiler = DictionaryCompiler(selected, targetDir, selected.nameWithoutExtension)
                                     compiler.compile()
+                                } catch (e: Exception) {
+                                    updateError = e.message ?: DesktopStrings.updateDictError
                                 }
                             } else {
                                 val dest = File(dictDir, selected.name)
@@ -530,7 +533,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                     },
                     colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
                 ) {
-                    Text("➕ Importar")
+                    Text(DesktopStrings.btnImport)
                 }
 
                 OutlinedButton(
@@ -540,7 +543,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
                 ) {
-                    Text("📁 Pasta")
+                    Text(DesktopStrings.btnFolder)
                 }
             }
         }
@@ -554,7 +557,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Status da Verificação", style = MaterialTheme.typography.subtitle2, color = yabaiPalette().success)
+                    Text(DesktopStrings.verificationStatusHeader, style = MaterialTheme.typography.subtitle2, color = yabaiPalette().success)
                     Text(checkMessage.orEmpty(), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                 }
             }
@@ -568,7 +571,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Erro na Atualização", style = MaterialTheme.typography.subtitle2, color = yabaiPalette().danger)
+                    Text(DesktopStrings.updateErrorHeader, style = MaterialTheme.typography.subtitle2, color = yabaiPalette().danger)
                     Text(updateError.orEmpty(), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                 }
             }
@@ -601,7 +604,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                             updateAvailableMap = emptyMap()
                             refreshFiles()
                         } catch (e: Exception) {
-                            updateError = e.message ?: "Erro ao atualizar todos os dicionários."
+                            updateError = e.message ?: DesktopStrings.updateAllDictsError
                         } finally {
                             updatingId = null
                         }
@@ -610,7 +613,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("🔄 Atualizar Todos os Dicionários Disponíveis")
+                Text(DesktopStrings.btnUpdateAllDicts)
             }
             Spacer(modifier = Modifier.height(10.dp))
         }
@@ -628,13 +631,13 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
                             Text(
-                                "Nenhum dicionário instalado no momento.",
+                                DesktopStrings.noDictsInstalled,
                                 style = MaterialTheme.typography.subtitle1,
                                 color = MaterialTheme.colors.onSurface
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                "Você pode importar arquivos .yabai ou .zip existentes usando o botão acima, ou navegar pela aba 'Catálogo de Downloads' para baixar os dicionários recomendados.",
+                                DesktopStrings.noDictsInstalledDesc,
                                 style = MaterialTheme.typography.body2,
                                 color = MaterialTheme.colors.secondary
                             )
@@ -669,15 +672,15 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(title, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
                                     Spacer(modifier = Modifier.height(2.dp))
-                                    val revStr = if (revision.isNotBlank()) " • Atual: $revision" else ""
+                                    val revStr = if (revision.isNotBlank()) DesktopStrings.revisionCurrentLabel(revision) else ""
                                     val remoteRev = remoteRevisionMap[file.name]
-                                    val updateText = if (hasUpdate && remoteRev != null && remoteRev != "Disponível") {
-                                        " • ✨ Nova: $remoteRev"
+                                    val updateText = if (hasUpdate && remoteRev != null && remoteRev != DesktopStrings.available) {
+                                        DesktopStrings.revisionNewNotice(remoteRev)
                                     } else if (hasUpdate) {
-                                        " • ✨ Atualização disponível"
+                                        DesktopStrings.updateAvailableNotice
                                     } else ""
                                     Text(
-                                        "Arquivo: ${file.name} • Tamanho: $sizeMb$revStr$updateText",
+                                        DesktopStrings.fileInfoLabel(file.name, sizeMb, revStr, updateText),
                                         style = MaterialTheme.typography.caption,
                                         color = if (updateText.isNotBlank()) yabaiPalette().success else MaterialTheme.colors.secondary
                                     )
@@ -695,7 +698,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                         },
                                         colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colors.primary)
                                     )
-                                    Text(if (isDisabled) "Desativado" else "Ativo", style = MaterialTheme.typography.caption, color = if (isDisabled) yabaiPalette().danger else yabaiPalette().success)
+                                    Text(if (isDisabled) DesktopStrings.disabled else DesktopStrings.active, style = MaterialTheme.typography.caption, color = if (isDisabled) yabaiPalette().danger else yabaiPalette().success)
 
                                     Spacer(modifier = Modifier.width(4.dp))
 
@@ -755,7 +758,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                                             refreshFiles()
                                                         }
                                                     } catch (e: Exception) {
-                                                        updateError = e.message ?: "Erro ao atualizar o dicionário."
+                                                        updateError = e.message ?: DesktopStrings.updateDictError
                                                     } finally {
                                                         updatingId = null
                                                     }
@@ -764,7 +767,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             enabled = !isUpdating,
                                             colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
                                         ) {
-                                            Text(if (isUpdating) "Atualizando..." else "🔄 Atualizar")
+                                            Text(if (isUpdating) DesktopStrings.updatingStatus else DesktopStrings.btnUpdate)
                                         }
                                     }
 
@@ -778,7 +781,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                         },
                                         colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().dangerContainer, contentColor = yabaiPalette().danger)
                                     ) {
-                                        Text("Remover")
+                                        Text(DesktopStrings.remove)
                                     }
                                 }
                             }
@@ -832,13 +835,13 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
     ) {
         item {
             Text(
-                "Dicionários Recomendados",
+                DesktopStrings.recommendedDictsHeader,
                 style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colors.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "Baixe e instale dicionários diretamente no aplicativo sem sair. Eles serão salvos e ativados na pasta de dados: ${dictDir.absolutePath}",
+                "${DesktopStrings.recommendedDictsSubtitle} ${dictDir.absolutePath}",
                 style = MaterialTheme.typography.body2,
                 color = MaterialTheme.colors.secondary
             )
@@ -853,7 +856,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Erro no Download", style = MaterialTheme.typography.subtitle2, color = yabaiPalette().danger)
+                        Text(DesktopStrings.downloadErrorHeader, style = MaterialTheme.typography.subtitle2, color = yabaiPalette().danger)
                         Text(downloadError.orEmpty(), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
                     }
                 }
@@ -897,7 +900,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(entry.description, style = MaterialTheme.typography.body2, color = MaterialTheme.colors.secondary)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Fonte: ${entry.attribution}", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
+                    Text("${DesktopStrings.sourceLabel}${entry.attribution}", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
 
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -917,7 +920,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "✓ Instalado",
+                                text = "✓ ${DesktopStrings.statusInstalled}",
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                 style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
                                 color = yabaiPalette().success
@@ -940,7 +943,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                                         )
                                         onInstalledChanged()
                                     } catch (e: Exception) {
-                                        downloadError = e.message ?: "Erro ao baixar o dicionário."
+                                        downloadError = e.message ?: DesktopStrings.downloadDictError
                                     } finally {
                                         downloadingId = null
                                     }
@@ -948,7 +951,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                             },
                             colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
                         ) {
-                            Text("⬇️ Baixar e Instalar no App")
+                            Text(DesktopStrings.btnDownloadAndInstall)
                         }
                     }
                 }
@@ -971,24 +974,24 @@ private fun downloadAndInstallDictionary(
 
     // 1. Resolve URL if indexUrl
     val url: String = entry.url ?: entry.indexUrl?.let { indexUrl ->
-        onProgress("Consultando informações do catálogo...", 0.05f)
+        onProgress(DesktopStrings.catalogInfoConsulting, 0.05f)
         val req = Request.Builder().url(indexUrl).build()
         client.newCall(req).execute().use { resp ->
             val jsonText = resp.body?.string().orEmpty()
             val obj = com.google.gson.JsonParser.parseString(jsonText).asJsonObject
             obj.get("downloadUrl")?.asString
         }
-    } ?: throw Exception("URL de download não encontrada para ${entry.name}")
+    } ?: throw Exception(DesktopStrings.downloadUrlNotFound(entry.name))
 
     // 2. Download zip file to temp
     val tempZip = File(dictDir, "temp_${entry.id}.zip")
     val request = Request.Builder().url(url).build()
 
-    onProgress("Iniciando download de ${entry.sizeLabel}...", 0.1f)
+    onProgress(DesktopStrings.downloadStartNotice(entry.sizeLabel), 0.1f)
 
     client.newCall(request).execute().use { response ->
-        if (!response.isSuccessful) throw Exception("Servidor respondeu HTTP ${response.code}")
-        val body = response.body ?: throw Exception("Download vazio do servidor")
+        if (!response.isSuccessful) throw Exception(DesktopStrings.serverHttpResponseError(response.code))
+        val body = response.body ?: throw Exception(DesktopStrings.emptyDownloadError)
         val totalBytes = body.contentLength()
 
         body.byteStream().use { inputStream ->
@@ -1003,10 +1006,10 @@ private fun downloadAndInstallDictionary(
                         val fraction = 0.1f + (bytesRead.toFloat() / totalBytes) * 0.7f
                         val mbRead = "%.1f".format(bytesRead.toDouble() / (1024 * 1024))
                         val mbTotal = "%.1f".format(totalBytes.toDouble() / (1024 * 1024))
-                        onProgress("Baixando: $mbRead MB / $mbTotal MB (${(fraction * 100).toInt()}%)", fraction)
+                        onProgress(DesktopStrings.downloadingProgress(mbRead, mbTotal, (fraction * 100).toInt()), fraction)
                     } else {
                         val mbRead = "%.1f".format(bytesRead.toDouble() / (1024 * 1024))
-                        onProgress("Baixando: $mbRead MB...", 0.5f)
+                        onProgress(DesktopStrings.downloadingProgressNoTotal(mbRead), 0.5f)
                     }
                     bytesCount = inputStream.read(buffer)
                 }
@@ -1015,7 +1018,7 @@ private fun downloadAndInstallDictionary(
     }
 
     // 3. Compile zip into .yabai dictionary
-    onProgress("Compilando e indexando dicionário...", 0.85f)
+    onProgress(DesktopStrings.compilingDictNotice, 0.85f)
     val targetYabaiDir = File(dictDir, "${entry.id}.yabai")
     // The picker's cached engine may still hold the old blobs open; without this the delete below
     // is a no-op on Windows and the compile would write into the previous version's files.
@@ -1039,7 +1042,7 @@ private fun downloadAndInstallDictionary(
 
     // 4. Cleanup
     tempZip.delete()
-    onProgress("Instalação concluída com sucesso!", 1.0f)
+    onProgress(DesktopStrings.installSuccessNotice, 1.0f)
 }
 
 @Composable
@@ -1115,7 +1118,7 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (expanded) "▾ Ocultar créditos legais e licenças dos dicionários" else "▸ Ver créditos legais e licenças dos dicionários",
+                    text = if (expanded) DesktopStrings.legalCreditsToggleOpen else DesktopStrings.legalCreditsToggleClosed,
                     style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
                     color = yabaiPalette().chipText
                 )
@@ -1125,7 +1128,7 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
                 Spacer(modifier = Modifier.height(12.dp))
                 if (installedFiles.isEmpty()) {
                     Text(
-                        "Nenhum dicionário instalado para exibir créditos e licenças.",
+                        DesktopStrings.noDictsForCredits,
                         style = MaterialTheme.typography.body2,
                         color = MaterialTheme.colors.secondary
                     )
@@ -1144,21 +1147,21 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
                         Column(modifier = Modifier.padding(vertical = 6.dp)) {
                             Text("• $title", style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
                             if (!author.isNullOrBlank()) {
-                                Text("  Autor / Origem: $author", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
+                                Text(DesktopStrings.creditAuthor(author), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
                             if (!description.isNullOrBlank()) {
-                                Text("  Descrição: $description", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
+                                Text(DesktopStrings.creditDescription(description), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
-                            Text("  Atribuição / Licença: $attribution", style = MaterialTheme.typography.caption, color = yabaiPalette().success)
+                            Text(DesktopStrings.creditAttribution(attribution), style = MaterialTheme.typography.caption, color = yabaiPalette().success)
                             if (!revision.isNullOrBlank()) {
-                                Text("  Revisão / Versão: $revision", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
+                                Text(DesktopStrings.creditRevision(revision), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
                             if (termCount > 0 || kanjiCount > 0) {
                                 val countStr = buildList {
-                                    if (termCount > 0) add("$termCount termos")
-                                    if (kanjiCount > 0) add("$kanjiCount kanjis")
+                                    if (termCount > 0) add(DesktopStrings.termsCount(termCount))
+                                    if (kanjiCount > 0) add(DesktopStrings.kanjiCount(kanjiCount))
                                 }.joinToString(" • ")
-                                Text("  Entradas: $countStr", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
+                                Text(DesktopStrings.creditEntries(countStr), style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -1168,7 +1171,7 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Termos gerais: Os dados de vocabulário e kanjis derivam de projetos abertos como JMdict, KANJIDIC, Wikcionário e Jitendex sob licença Creative Commons (CC BY-SA).",
+                    DesktopStrings.generalLicenseNotice,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
@@ -1239,7 +1242,7 @@ private fun formatRemoteLabel(lastModified: String?, etag: String?): String {
     if (!etag.isNullOrBlank()) {
         return etag.trim('"')
     }
-    return lastModified ?: "Disponível"
+    return lastModified ?: DesktopStrings.available
 }
 
 private fun extractVersionFromUrl(urlStr: String): String? {

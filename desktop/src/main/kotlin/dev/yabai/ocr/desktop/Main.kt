@@ -33,7 +33,7 @@ class HoverStateHolder(defaultFilter: String = "") {
     var point by mutableStateOf<Point?>(null)
     var activeFilter by mutableStateOf(defaultFilter)
     var active by mutableStateOf(false)
-    var status by mutableStateOf("Modo Hover desativado — ative para traduzir passando o mouse.")
+    var status by mutableStateOf(DesktopStrings.hoverStatusInactivePrefix)
 }
 
 /** A full-screen capture plus the screen rectangle it came from. */
@@ -109,7 +109,7 @@ fun main(args: Array<String>) {
             hoverState.point = null
             hoverState.status = hoverBackendFailure ?: when (hoverBackendKind) {
                 HoverBackendKind.UNSUPPORTED -> hoverBackendLabel(HoverBackendKind.UNSUPPORTED)
-                else -> "Hover indisponível: o bridge do KWin não está ativo."
+                else -> DesktopStrings.hoverKwinBridgeUnavailable
             }
             return
         }
@@ -143,7 +143,7 @@ fun main(args: Array<String>) {
         } catch (e: ScreenCaptureException) {
             captureNotice = e.message
         } catch (e: Exception) {
-            captureNotice = "Não foi possível capturar a tela: ${e.message ?: e::class.simpleName}"
+            captureNotice = DesktopStrings.captureScreenError(e.message ?: e::class.simpleName.orEmpty())
         }
     }
 
@@ -157,7 +157,7 @@ fun main(args: Array<String>) {
         } catch (e: ScreenCaptureException) {
             captureNotice = e.message
         } catch (e: Exception) {
-            captureNotice = "Não foi possível capturar a tela: ${e.message ?: e::class.simpleName}"
+            captureNotice = DesktopStrings.captureScreenError(e.message ?: e::class.simpleName.orEmpty())
         }
     }
 
@@ -294,7 +294,7 @@ fun main(args: Array<String>) {
     var linuxIntegrationStatus by remember {
         mutableStateOf(
             if (linuxIntegration?.desktopFile?.isFile == true) {
-                "Atalho já instalado para este usuário."
+                DesktopStrings.linuxIntegrationAlreadyInstalled
             } else {
                 ""
             }
@@ -303,9 +303,9 @@ fun main(args: Array<String>) {
     val installLinuxIntegration: (() -> Unit)? = linuxIntegration?.let { integration ->
         {
             linuxIntegrationStatus = if (integration.install()) {
-                "Atalho e ícone instalados no menu de aplicativos."
+                DesktopStrings.linuxIntegrationInstalledSuccess
             } else {
-                "Não foi possível instalar o atalho. Rode o Yabai OCR a partir do AppImage ou de um executável instalado."
+                DesktopStrings.linuxIntegrationInstalledError
             }
         }
     }
@@ -396,9 +396,9 @@ fun main(args: Array<String>) {
     if (showMainWindow) {
         val windowState = rememberWindowState(width = 820.dp, height = 750.dp)
         val title = if (mainScreen == MainScreen.SETTINGS) {
-            "Yabai OCR - Ajustes e Configurações"
+            DesktopStrings.settingsWindowTitle
         } else {
-            "Yabai OCR - Gerenciador de Dicionários"
+            "Yabai OCR - ${DesktopStrings.dictManagerTitle}"
         }
         Window(
             onCloseRequest = {
@@ -418,14 +418,14 @@ fun main(args: Array<String>) {
                     // 1. Check for Desktop App updates on GitHub
                     val appUpdate = DesktopAppUpdateChecker.checkForAppUpdate()
                     if (appUpdate?.hasUpdate == true) {
-                        trayManager.setStatus("✨ Nova versão v${appUpdate.latestVersion} disponível!")
+                        trayManager.setStatus(DesktopStrings.appVersionNotice(appUpdate.latestVersion))
                     }
 
                     // 2. Periodic background check for dictionary updates
                     if (DesktopDictionaryUpdateChecker.shouldCheck(settings)) {
                         val dictResult = DesktopDictionaryUpdateChecker.checkUpdates(settings)
                         if (dictResult.updatesAvailableCount > 0) {
-                            trayManager.setStatus("📚 ${dictResult.updatesAvailableCount} atualização(ões) de dicionário disponível(is)")
+                            trayManager.setStatus(DesktopStrings.dictUpdatesCountNotice(dictResult.updatesAvailableCount))
                         }
                     }
                 }
