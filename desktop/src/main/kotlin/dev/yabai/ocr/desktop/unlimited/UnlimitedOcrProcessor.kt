@@ -1,4 +1,4 @@
-package dev.yabai.ocr.unlimited
+package dev.yabai.ocr.desktop.unlimited
 
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
