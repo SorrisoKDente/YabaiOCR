@@ -56,6 +56,7 @@ class OcrDispatcher(
             when (choice) {
                 EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                 EngineChoice.LENS -> recognizeWithLens(bitmap)
+                EngineChoice.UNLIMITED_OCR -> recognizeWithUnlimitedOcr(bitmap)
                 EngineChoice.AUTO -> recognizeAuto(bitmap)
             }
         }
@@ -71,18 +72,33 @@ class OcrDispatcher(
     // --- internals -----------------------------------------------------------------------------
 
     private suspend fun recognizeAuto(bitmap: Bitmap): OcrOutcome {
-        val outcome = try {
-            recognizeWithLens(bitmap)
-        } catch (t: Throwable) {
-            Log.w(TAG, "Lens failed, falling back to ML Kit", t)
-            return offlineFallback(bitmap, warning = rateLimitWarning(t))
+        val priorityList = settings.enginePriorityList
+        var lastWarning: String? = null
+
+        for (engineChoice in priorityList) {
+            try {
+                val outcome = when (engineChoice) {
+                    EngineChoice.UNLIMITED_OCR -> recognizeWithUnlimitedOcr(bitmap)
+                    EngineChoice.LENS -> recognizeWithLens(bitmap)
+                    EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
+                    else -> null
+                }
+                if (outcome != null && outcome.text.isNotBlank()) {
+                    return outcome
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Engine $engineChoice failed in AUTO mode", t)
+                if (engineChoice == EngineChoice.LENS) {
+                    lastWarning = rateLimitWarning(t)
+                }
+            }
         }
 
-        return if (outcome.text.isNotBlank()) {
-            outcome
-        } else {
-            offlineFallback(bitmap, warning = null)
-        }
+        return offlineEngine.recognize(bitmap).copy(fallback = true, warning = lastWarning)
+    }
+
+    private suspend fun recognizeWithUnlimitedOcr(bitmap: Bitmap): OcrOutcome {
+        return offlineEngine.recognize(bitmap).copy(engineLabel = "Unlimited-OCR (Offline)")
     }
 
     private suspend fun offlineFallback(bitmap: Bitmap, warning: String?): OcrOutcome =

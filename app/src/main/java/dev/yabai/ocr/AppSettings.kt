@@ -8,7 +8,7 @@ import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.core.dict.DictionaryQuery
 import dev.yabai.ocr.overlay.PickerReadingMode
 
-enum class EngineChoice { AUTO, LENS, MLKIT }
+enum class EngineChoice { AUTO, LENS, MLKIT, UNLIMITED_OCR }
 enum class AppThemeChoice { SYSTEM, LIGHT, DARK }
 
 /**
@@ -35,9 +35,26 @@ class AppSettings(context: Context) {
         get() = when (prefs.getString(KEY_ENGINE, null)) {
             EngineChoice.LENS.name -> EngineChoice.LENS
             EngineChoice.MLKIT.name -> EngineChoice.MLKIT
+            EngineChoice.UNLIMITED_OCR.name -> EngineChoice.UNLIMITED_OCR
             else -> EngineChoice.AUTO
         }
         set(value) = prefs.edit { putString(KEY_ENGINE, value.name) }
+
+    var enginePriorityList: List<EngineChoice>
+        get() {
+            val raw = prefs.getString(KEY_ENGINE_PRIORITY, null) ?: "UNLIMITED_OCR,LENS,MLKIT"
+            return parseEnginePriority(raw)
+        }
+        set(value) = prefs.edit { putString(KEY_ENGINE_PRIORITY, value.joinToString(",")) }
+
+    fun parseEnginePriority(raw: String): List<EngineChoice> {
+        val parsed = raw.split(",").mapNotNull { name ->
+            runCatching { EngineChoice.valueOf(name.trim()) }.getOrNull()
+        }.filter { it != EngineChoice.AUTO }.distinct()
+
+        val missing = listOf(EngineChoice.UNLIMITED_OCR, EngineChoice.LENS, EngineChoice.MLKIT) - parsed.toSet()
+        return parsed + missing
+    }
 
     var autoCopy: Boolean
         get() = prefs.getBoolean(KEY_AUTO_COPY, true)
@@ -328,6 +345,7 @@ class AppSettings(context: Context) {
         const val DEFAULT_MAX_DIMENSION = 1600
 
         private const val KEY_ENGINE = "engine"
+        private const val KEY_ENGINE_PRIORITY = "engine_priority"
         private const val KEY_APP_THEME = "app_theme"
         private const val KEY_AUTO_COPY = "auto_copy"
         private const val KEY_SHOW_SEGMENTS = "show_segments"

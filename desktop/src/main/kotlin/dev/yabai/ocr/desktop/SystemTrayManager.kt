@@ -54,11 +54,9 @@ internal class SystemTrayManager(
             if (menuKind == TrayMenuKind.CUSTOM) {
                 addMouseListener(object : MouseAdapter() {
                     override fun mouseReleased(e: MouseEvent) {
-                        if (!trayMenuOpensOn(e.button, e.isPopupTrigger, showMenuOnLeftClick)) return
-                        // On Wayland AWT runs through XWayland and may or may not report a global
-                        // pointer; when it does not, the menu opens in the work-area corner instead
-                        // of using the icon-relative event coordinates, which are not screen ones.
-                        showCustomTrayMenu(MouseInfo.getPointerInfo()?.location)
+                        if (trayMenuOpensOn(e.button, e.isPopupTrigger, showMenuOnLeftClick)) {
+                            showCustomTrayMenu(MouseInfo.getPointerInfo()?.location ?: Point(e.x, e.y))
+                        }
                     }
                 })
             }
@@ -223,6 +221,7 @@ internal class SystemTrayManager(
                 location = position
                 contentPane.background = Color(0x12, 0x14, 0x1A)
                 background = Color(0x12, 0x14, 0x1A)
+                isVisible = true
             }
 
             popup.addPopupMenuListener(object : javax.swing.event.PopupMenuListener {
@@ -237,12 +236,16 @@ internal class SystemTrayManager(
                 }
             })
 
-            showTrayMenuInvoker(
-                invoker = JDialogTrayMenuInvoker(invoker),
-                showPopup = { popup.show(invoker, 0, 0) },
-                isMenuVisible = { popup.isVisible },
-                closeMenu = { popup.isVisible = false },
-            )
+            if (DesktopPlatform.session == SessionType.WAYLAND) {
+                showTrayMenuInvoker(
+                    invoker = JDialogTrayMenuInvoker(invoker),
+                    showPopup = { popup.show(invoker, 0, 0) },
+                    isMenuVisible = { popup.isVisible },
+                    closeMenu = { popup.isVisible = false },
+                )
+            } else {
+                popup.show(invoker, 0, 0)
+            }
         }
     }
 

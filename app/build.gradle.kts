@@ -122,6 +122,8 @@ dependencies {
     // On-device translation once the language model has been fetched (offline from then on).
     implementation(libs.mlkit.translate)
 
+    implementation(libs.onnxruntime.android)
+
     implementation(libs.okhttp)
 
     // Periodic dictionary-update checks that survive reboots and follow the network constraint.

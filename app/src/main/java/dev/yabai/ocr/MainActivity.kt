@@ -202,6 +202,7 @@ class MainActivity : AppCompatActivity() {
     private fun bindEngineSelector() {
         val group = findViewById<RadioGroup>(R.id.engineGroup)
         val checked = when (settings.engine) {
+            EngineChoice.UNLIMITED_OCR -> R.id.engineUnlimitedOcr
             EngineChoice.LENS -> R.id.engineLens
             EngineChoice.MLKIT -> R.id.engineMlKit
             EngineChoice.AUTO -> R.id.engineAuto
@@ -209,6 +210,7 @@ class MainActivity : AppCompatActivity() {
         group.check(checked)
         group.setOnCheckedChangeListener { _, id ->
             settings.engine = when (id) {
+                R.id.engineUnlimitedOcr -> EngineChoice.UNLIMITED_OCR
                 R.id.engineLens -> EngineChoice.LENS
                 R.id.engineMlKit -> EngineChoice.MLKIT
                 else -> EngineChoice.AUTO

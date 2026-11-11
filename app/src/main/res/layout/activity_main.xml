@@ -319,6 +319,24 @@
                 android:textSize="12sp" />
 
             <RadioButton
+                android:id="@+id/engineUnlimitedOcr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp"
+                android:text="@string/engine_unlimited_ocr"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="34dp"
+                android:layout_marginBottom="8dp"
+                android:text="@string/engine_unlimited_ocr_desc"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <RadioButton
                 android:id="@+id/engineLens"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

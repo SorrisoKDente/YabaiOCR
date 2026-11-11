@@ -74,6 +74,7 @@ fun SettingsContent(
     }
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
+    var enginePriority by remember { mutableStateOf(settings.enginePriorityList) }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var closeToTray by remember { mutableStateOf(settings.closeToTray) }
@@ -872,8 +873,8 @@ fun SettingsContent(
 
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.AUTO,
-                    title = "Automático — Google Lens com ML Kit de reserva",
-                    description = "Usa o Google Lens online (suporta texto vertical de mangá e kanjis complexos). Sem internet, altera automaticamente para o ML Kit.",
+                    title = "Automático (Usa Ordem de Prioridades)",
+                    description = "Tenta reconhecer o texto seguindo a ordem de prioridade abaixo. Se um motor falhar ou não tiver rede, passa para o próximo.",
                     onClick = {
                         engineChoice = DesktopEngineChoice.AUTO
                         settings.engine = DesktopEngineChoice.AUTO
@@ -881,9 +882,19 @@ fun SettingsContent(
                 )
 
                 SettingRadioOption(
+                    selected = engineChoice == DesktopEngineChoice.UNLIMITED_OCR,
+                    title = "Somente Unlimited-OCR (offline)",
+                    description = "Usa o motor de inteligência artificial offline embutido, especializado em texto horizontal e vertical de mangás.",
+                    onClick = {
+                        engineChoice = DesktopEngineChoice.UNLIMITED_OCR
+                        settings.engine = DesktopEngineChoice.UNLIMITED_OCR
+                    }
+                )
+
+                SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.LENS,
-                    title = "Somente Google Lens",
-                    description = "Usa sempre o motor online do Google Lens. Exige conexão ativa com a internet.",
+                    title = "Somente Google Lens (online)",
+                    description = "Usa o motor online do Google Lens. Exige conexão ativa com a internet.",
                     onClick = {
                         engineChoice = DesktopEngineChoice.LENS
                         settings.engine = DesktopEngineChoice.LENS
@@ -893,12 +904,88 @@ fun SettingsContent(
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.MLKIT,
                     title = "Somente ML Kit (offline)",
-                    description = "Usa o motor de OCR offline embutido. Funciona sem internet, mas pode ter menor precisão em fontes estilizadas.",
+                    description = "Usa o motor de OCR básico offline.",
                     onClick = {
                         engineChoice = DesktopEngineChoice.MLKIT
                         settings.engine = DesktopEngineChoice.MLKIT
                     }
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Divider(color = palette.fieldBorder)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Prioridade dos Motores no modo Automático / Fallback:",
+                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colors.onSurface
+                )
+                Text(
+                    text = "Defina qual motor deve ser tentado primeiro, segundo e terceiro.",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                enginePriority.forEachIndexed { index, choice ->
+                    val label = when (choice) {
+                        DesktopEngineChoice.UNLIMITED_OCR -> "Unlimited-OCR (Offline - Alta precisão em mangás)"
+                        DesktopEngineChoice.LENS -> "Google Lens (Online)"
+                        DesktopEngineChoice.MLKIT -> "ML Kit (Offline)"
+                        else -> choice.name
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        backgroundColor = palette.field,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${index + 1}º  $label",
+                                style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colors.onSurface
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (index > 0) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val list = enginePriority.toMutableList()
+                                            val tmp = list[index]
+                                            list[index] = list[index - 1]
+                                            list[index - 1] = tmp
+                                            enginePriority = list
+                                            settings.enginePriorityList = list
+                                        },
+                                        modifier = Modifier.height(30.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                    ) {
+                                        Text("▲ Subir", fontSize = 11.sp)
+                                    }
+                                }
+                                if (index < enginePriority.size - 1) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val list = enginePriority.toMutableList()
+                                            val tmp = list[index]
+                                            list[index] = list[index + 1]
+                                            list[index + 1] = tmp
+                                            enginePriority = list
+                                            settings.enginePriorityList = list
+                                        },
+                                        modifier = Modifier.height(30.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                    ) {
+                                        Text("▼ Descer", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

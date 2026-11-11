@@ -31,12 +31,14 @@
     <string name="permission_remove_notifications_message">Sem ela, o aviso de que o OCR está ativo some — e o sistema pode encerrar a captura. Você pode conceder de novo quando quiser.</string>
     <string name="permission_remove_confirm">Remover</string>
 
-    <string name="engine_auto">Automático — Lens com ML Kit de reserva</string>
-    <string name="engine_auto_desc">Usa o Google Lens (mais preciso) e cai para o ML Kit offline se não houver internet.</string>
-    <string name="engine_lens">Somente Google Lens</string>
-    <string name="engine_lens_desc">Precisão máxima, exige internet.</string>
+    <string name="engine_auto">Automático (Usa Ordem de Prioridades)</string>
+    <string name="engine_auto_desc">Tenta motores em ordem de prioridade. Se falhar ou não tiver rede, passa para o próximo.</string>
+    <string name="engine_unlimited_ocr">Somente Unlimited-OCR (offline)</string>
+    <string name="engine_unlimited_ocr_desc">IA offline especializada em mangás (texto horizontal e vertical).</string>
+    <string name="engine_lens">Somente Google Lens (online)</string>
+    <string name="engine_lens_desc">Precisão máxima online, exige internet.</string>
     <string name="engine_mlkit">Somente ML Kit (offline)</string>
-    <string name="engine_mlkit_desc">Funciona sem internet. Bom em texto impresso, perde em mangá/vertical.</string>
+    <string name="engine_mlkit_desc">Funciona sem internet. Bom em texto impresso básico.</string>
 
     <string name="setting_auto_copy">Copiar automaticamente ao reconhecer</string>
     <string name="setting_show_segments">Listar o texto linha por linha</string>
