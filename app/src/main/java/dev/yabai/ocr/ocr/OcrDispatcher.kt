@@ -7,6 +7,8 @@ import dev.yabai.ocr.EngineChoice
 import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.core.lens.FuriganaMode
 import dev.yabai.ocr.core.lens.LensException
+import dev.yabai.ocr.core.ppocr.PPOcrEngine
+import dev.yabai.ocr.core.ppocr.PPOcrModelStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -56,7 +58,7 @@ class OcrDispatcher(
             when (choice) {
                 EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                 EngineChoice.LENS -> recognizeWithLens(bitmap)
-                EngineChoice.MANGA_OCR -> recognizeWithMangaOcr(bitmap)
+                EngineChoice.PP_OCR -> recognizeWithPpOcr(bitmap)
                 EngineChoice.AUTO -> recognizeAuto(bitmap)
             }
         }
@@ -66,6 +68,8 @@ class OcrDispatcher(
         lensEngine?.close()
         lensEngine = null
         lensKey = null
+        runCatching { ppOcrEngineInstance?.close() }
+        ppOcrEngineInstance = null
         if (offlineLazy.isInitialized()) offlineEngine.close()
     }
 
@@ -79,9 +83,9 @@ class OcrDispatcher(
             try {
                 val outcome = when (engineChoice) {
                     EngineChoice.LENS -> recognizeWithLens(bitmap)
-                    EngineChoice.MANGA_OCR -> {
-                        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
-                        if (store.isAvailable()) recognizeWithMangaOcr(bitmap) else null
+                    EngineChoice.PP_OCR -> {
+                        val store = PPOcrModelStore(settings.ppOcrDir)
+                        if (store.isAvailable()) recognizeWithPpOcr(bitmap) else null
                     }
                     EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                     else -> null
@@ -100,16 +104,16 @@ class OcrDispatcher(
         return offlineEngine.recognize(bitmap).copy(fallback = true, warning = lastWarning)
     }
 
-    private suspend fun recognizeWithMangaOcr(bitmap: Bitmap): OcrOutcome {
-        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
+    private suspend fun recognizeWithPpOcr(bitmap: Bitmap): OcrOutcome {
+        val store = PPOcrModelStore(settings.ppOcrDir)
         if (!store.isAvailable()) {
             return OcrOutcome(
                 text = "",
                 lines = emptyList(),
-                engineLabel = "Manga-OCR (Offline)",
+                engineLabel = PP_OCR_LABEL,
                 language = "ja",
                 elapsedMs = 0,
-                warning = "Modelos do Manga-OCR não instalados.",
+                warning = "Modelos do PP-OCRv6 não instalados.",
             )
         }
 
@@ -119,7 +123,7 @@ class OcrDispatcher(
             return OcrOutcome(
                 text = "",
                 lines = emptyList(),
-                engineLabel = "Manga-OCR (Offline)",
+                engineLabel = PP_OCR_LABEL,
                 language = "ja",
                 elapsedMs = 0,
             )
@@ -129,19 +133,19 @@ class OcrDispatcher(
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
         val result = runCatching {
-            val engine = mangaEngine() ?: throw IllegalStateException("Não foi possível carregar as sessões ONNX do Manga-OCR.")
+            val engine = ppOcrEngine() ?: throw IllegalStateException("Não foi possível carregar as sessões ONNX do PP-OCRv6.")
             engine.recognizePixels(pixels, width, height)
         }
 
         val outcome = result.getOrElse { t ->
-            Log.e(TAG, "Error in Manga-OCR recognition", t)
+            Log.e(TAG, "Error in PP-OCR recognition", t)
             return OcrOutcome(
                 text = "",
                 lines = emptyList(),
-                engineLabel = "Manga-OCR (Offline)",
+                engineLabel = PP_OCR_LABEL,
                 language = "ja",
                 elapsedMs = 0,
-                warning = "Falha no Manga-OCR: ${t.message ?: t.javaClass.simpleName}",
+                warning = "Falha no PP-OCRv6: ${t.message ?: t.javaClass.simpleName}",
             )
         }
 
@@ -162,7 +166,7 @@ class OcrDispatcher(
         return OcrOutcome(
             text = outcome.text,
             lines = outcome.lines,
-            engineLabel = "Manga-OCR (Offline)",
+            engineLabel = PP_OCR_LABEL,
             language = "ja",
             elapsedMs = outcome.elapsedMs,
             blocks = blocks,
@@ -170,16 +174,16 @@ class OcrDispatcher(
     }
 
     @Volatile
-    private var mangaCoreEngine: dev.yabai.ocr.core.manga.MangaOcrCoreEngine? = null
+    private var ppOcrEngineInstance: PPOcrEngine? = null
 
     @Synchronized
-    private fun mangaEngine(): dev.yabai.ocr.core.manga.MangaOcrCoreEngine? {
-        mangaCoreEngine?.let { return it }
-        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
+    private fun ppOcrEngine(): PPOcrEngine? {
+        ppOcrEngineInstance?.let { return it }
+        val store = PPOcrModelStore(settings.ppOcrDir)
         if (!store.isAvailable()) return null
         return runCatching {
-            dev.yabai.ocr.core.manga.MangaOcrCoreEngine(store.detectorFile, store.recognizerFile, store.vocabFile).also {
-                mangaCoreEngine = it
+            PPOcrEngine(store.detectorFile, store.recognizerFile, store.dictionaryFile).also {
+                ppOcrEngineInstance = it
             }
         }.getOrNull()
     }
@@ -238,6 +242,7 @@ class OcrDispatcher(
 
     companion object {
         private const val TAG = "OcrDispatcher"
+        private const val PP_OCR_LABEL = "PP-OCRv6 (Offline)"
         private const val HTTP_TOO_MANY_REQUESTS = 429
         private const val HTTP_FORBIDDEN = 403
     }

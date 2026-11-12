@@ -54,7 +54,7 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 2. **Atalhos Rápidos e Tema (`2. Atalhos` / `3. Tema`):**
    - `section_shortcuts` ("2. Quick Shortcuts"), `section_theme` ("3. App Theme"), `theme_dark` ("Dark"), `theme_light` ("Light"), `theme_system` ("System").
 3. **Motores de Reconhecimento (`4. Motor` / `4. OCR Engine`):**
-   - `section_engine` ("4. Recognition Engine"), `engine_auto`, `engine_manga_ocr`, `engine_lens`, `engine_mlkit`, `engine_manga_ocr_experimental` (aviso vermelho de motor experimental), descrições e botões de prioridade (`btn_priority_up`, `btn_priority_down`).
+       - `section_engine` ("4. Recognition Engine"), `engine_auto`, `engine_pp_ocr`, `engine_lens`, `engine_mlkit`, `engine_pp_ocr_desc`, `pp_ocr_download`/`pp_ocr_downloading`/`pp_ocr_downloaded`/`pp_ocr_not_installed`/`pp_ocr_download_failed` (modelos do motor offline), descrições e botões de prioridade (`btn_priority_up`, `btn_priority_down`).
 4. **Comportamento (`5. Comportamento` / `5. Behaviour`):**
    - `section_behaviour` ("5. Behaviour"), `setting_auto_copy`, `setting_show_segments`, `setting_pick_text`, `setting_bubble_on_edge`, `setting_upscale`, `setting_show_image`, `setting_furigana`, `setting_furigana_readings`, `setting_picker_reading`, `picker_reading_ruby`, `picker_reading_label`.
 5. **Dicionários e Tradução (`6. Dicionários` / `7. Tradução`):**

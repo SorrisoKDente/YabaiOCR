@@ -8,7 +8,7 @@ import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.core.dict.DictionaryQuery
 import dev.yabai.ocr.overlay.PickerReadingMode
 
-enum class EngineChoice { AUTO, LENS, MANGA_OCR, MLKIT }
+enum class EngineChoice { AUTO, LENS, PP_OCR, MLKIT }
 enum class AppThemeChoice { SYSTEM, LIGHT, DARK }
 enum class AppLanguageChoice { SYSTEM, PT_BR, EN_US }
 
@@ -30,21 +30,24 @@ enum class UpdateInterval(val days: Long) {
 class AppSettings(context: Context) {
 
     val appContext: Context = context.applicationContext
-    val mangaOcrDir: java.io.File get() = java.io.File(appContext.filesDir, "manga_ocr")
+    /** Where the PP-OCRv6 files live: detector, recogniser and the 19,053-symbol dictionary. */
+    val ppOcrDir: java.io.File get() = java.io.File(appContext.filesDir, "ppocr_v6")
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     var engine: EngineChoice
         get() = when (prefs.getString(KEY_ENGINE, null)) {
             EngineChoice.LENS.name -> EngineChoice.LENS
-            EngineChoice.MANGA_OCR.name -> EngineChoice.MANGA_OCR
+            EngineChoice.PP_OCR.name -> EngineChoice.PP_OCR
             EngineChoice.MLKIT.name -> EngineChoice.MLKIT
+            // "MANGA_OCR" from before the migration names an engine that no longer exists; AUTO is
+            // the only honest reading of a preference the app cannot honour.
             else -> EngineChoice.AUTO
         }
         set(value) = prefs.edit { putString(KEY_ENGINE, value.name) }
 
     var enginePriorityList: List<EngineChoice>
         get() {
-            val raw = prefs.getString(KEY_ENGINE_PRIORITY, null) ?: "LENS,MANGA_OCR,MLKIT"
+            val raw = prefs.getString(KEY_ENGINE_PRIORITY, null) ?: "LENS,PP_OCR,MLKIT"
             return parseEnginePriority(raw)
         }
         set(value) = prefs.edit { putString(KEY_ENGINE_PRIORITY, value.joinToString(",")) }
@@ -54,7 +57,7 @@ class AppSettings(context: Context) {
             runCatching { EngineChoice.valueOf(name.trim()) }.getOrNull()
         }.filter { it != EngineChoice.AUTO }.distinct()
 
-        val missing = listOf(EngineChoice.LENS, EngineChoice.MANGA_OCR, EngineChoice.MLKIT) - parsed.toSet()
+        val missing = listOf(EngineChoice.LENS, EngineChoice.PP_OCR, EngineChoice.MLKIT) - parsed.toSet()
         return parsed + missing
     }
 

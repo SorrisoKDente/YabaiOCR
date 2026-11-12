@@ -41,9 +41,8 @@
 
     <string name="engine_auto">Automático (Usa Ordem de Prioridades)</string>
     <string name="engine_auto_desc">Tenta motores em ordem de prioridade. Se falhar ou não tiver rede, passa para o próximo.</string>
-    <string name="engine_manga_ocr">Somente Manga-OCR (offline)</string>
-    <string name="engine_manga_ocr_desc">IA offline especializada em mangás e texto vertical.</string>
-    <string name="engine_manga_ocr_experimental">Experimental: precisão e velocidade baixas. Pode ser removido numa versão futura.</string>
+    <string name="engine_pp_ocr">Somente PP-OCRv6 (offline)</string>
+    <string name="engine_pp_ocr_desc">Detecta os balões e lê as linhas em uma passada. Reconhece texto vertical e horizontal.</string>
     <string name="engine_lens">Somente Google Lens (online)</string>
     <string name="engine_lens_desc">Precisão máxima online, exige internet.</string>
     <string name="engine_mlkit">Somente ML Kit (offline)</string>
@@ -51,13 +50,13 @@
     <string name="engine_priority_title">Prioridade dos motores no modo Automático:</string>
     <string name="engine_priority_desc">Defina qual motor será tentado primeiro e qual servirá de alternativa (fallback).</string>
     <string name="engine_label_lens">Google Lens (Online)</string>
-    <string name="engine_label_manga_ocr">Manga-OCR (Offline)</string>
+    <string name="engine_label_pp_ocr">PP-OCRv6 (Offline)</string>
     <string name="engine_label_mlkit">ML Kit (Offline)</string>
-    <string name="manga_ocr_download">Baixar modelos do Manga-OCR (~45 MB)</string>
-    <string name="manga_ocr_downloading">Baixando %1$s… %2$s</string>
-    <string name="manga_ocr_downloaded">Modelos do Manga-OCR instalados</string>
-    <string name="manga_ocr_not_installed">Modelos do Manga-OCR não instalados.</string>
-    <string name="manga_ocr_download_failed">Falha ao baixar modelos: %1$s</string>
+    <string name="pp_ocr_download">Baixar modelos do PP-OCRv6 (~23 MB)</string>
+    <string name="pp_ocr_downloading">Baixando %1$s… %2$s</string>
+    <string name="pp_ocr_downloaded">Modelos do PP-OCRv6 instalados</string>
+    <string name="pp_ocr_not_installed">Modelos do PP-OCRv6 não instalados.</string>
+    <string name="pp_ocr_download_failed">Falha ao baixar modelos: %1$s</string>
     <string name="btn_priority_up">▲ Subir</string>
     <string name="btn_priority_down">▼ Descer</string>
 

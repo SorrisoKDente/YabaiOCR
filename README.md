@@ -138,7 +138,7 @@ Detalhes úteis:
   impressas: `職員（しょくいん）さん`.
 - Os kanji cuja leitura **não** está impressa ganham uma: o dicionário já conhece a leitura e o painel
   escreve-a **no próprio texto reconhecido**, ao lado dos caracteres (`聞（き）いた`).
-- A **tela inteira sempre para na tela de trechos**, mesmo quando o motor reconheceu um bloco só: é assim no Lens e no ML Kit, e é o que o Manga-OCR precisa para você escolher o balão em vez de receber a página inteira. Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
+- A **tela inteira sempre para na tela de trechos**, mesmo quando o motor reconheceu um bloco só: é assim no Lens e no ML Kit, e é o que o PP-OCRv6 precisa para você escolher o balão em vez de receber a página inteira. Desligue **Escolher o trecho da tela** nos ajustes se preferir que a tela inteira vá direto para o
   painel.
 
 ---
@@ -597,7 +597,7 @@ coluna primeiro; os retângulos que ele mesmo devolve são a única coisa que sa
 O motor offline também reporta o texto vertical **uma coluna por bloco**: um balão de duas colunas
 chegava como duas caixas separadas na tela de trechos, uma frase cortada em duas. O `core` junta as
 colunas que estão lado a lado na mesma faixa, com vão menor que um caractere — só colunas verticais;
-texto horizontal e balões empilhados no mesmo painel continuam como o motor os reportou. O motor offline **Manga-OCR** (Comic-Text-Detector + ViT Transformer via ONNX Runtime) é **experimental**: a precisão ainda é baixa e ele é lento (uma passada do encoder por caractere, ~0,1 s por letra no desktop), e o app avisa isso em **vermelho** na própria opção dos ajustes. Pode sair numa versão futura. Ele lê texto vertical e estilizado de mangás, e pode ser selecionado diretamente ou configurado na lista de prioridades do modo Automático no **Android**. No desktop ele foi substituído pelo **PP-OCRv6_manga** (ver a seção de motores da versão Desktop): o Manga-OCR saiu de lá porque o modelo menor lê melhor e em uma passada só. Ele não lê a página de uma vez: o Comic-Text-Detector acha os balões (cada um numa caixa, vertical ou horizontal, com o texto em 0..1 e 1024×1024) e o decodificador do transformer gera a frase **token por token**, alimentando cada resposta de volta no modelo até o fim da linha — por isso a tela de trechos mostra **um balão por caixa**, e não a tela inteira como um bloco só.
+texto horizontal e balões empilhados no mesmo painel continuam como o motor os reportou. O motor offline **PP-OCRv6_manga** (detector DB + leitor CTC via ONNX Runtime, ~23 MB) substituiu o **Manga-OCR** no Android e no desktop. Ele é rápido e preciso para o tamanho: acha os balões num mapa de probabilidade (lado maior 960) e lê cada linha **numa passada só**, com o dicionário de 19.053 símbolos — por isso a tela de trechos mostra **um balão por caixa**, e não a tela inteira como um bloco só. Lê texto vertical (a coluna é girada um quarto de volta antes da leitura) e horizontal, e pode ser selecionado diretamente ou configurado na lista de prioridades do modo Automático. Os modelos são baixados pela opção **Somente PP-OCRv6 (offline)** nos ajustes (~23 MB) e ficam na pasta privada do app.
 
 Além disso, a imagem vai com o lado maior em **1600 px** (`AppSettings.DEFAULT_MAX_DIMENSION`) e o
 idioma anunciado é `ja` — uma tela de 1080×2400 viaja, portanto, como 720×1600.

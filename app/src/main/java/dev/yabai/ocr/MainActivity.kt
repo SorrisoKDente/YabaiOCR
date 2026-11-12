@@ -30,6 +30,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
+import dev.yabai.ocr.core.ppocr.PPOcrModelStore
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.DictionaryUpdateScheduler
 import dev.yabai.ocr.overlay.PickerReadingMode
@@ -148,7 +150,7 @@ class MainActivity : AppCompatActivity() {
         refreshPermissions()
         refreshRunningState()
         refreshDictionarySummary()
-        updateMangaOcrDownloadUi()
+        updatePpOcrDownloadUi()
         refreshAiApp()
         handler.removeCallbacks(statusPoll)
         handler.postDelayed(statusPoll, 1000L)
@@ -251,49 +253,49 @@ class MainActivity : AppCompatActivity() {
 
         val checked = when (settings.engine) {
             EngineChoice.LENS -> R.id.engineLens
-            EngineChoice.MANGA_OCR -> R.id.engineMangaOcr
+            EngineChoice.PP_OCR -> R.id.enginePpOcr
             EngineChoice.MLKIT -> R.id.engineMlKit
             EngineChoice.AUTO -> R.id.engineAuto
         }
         group.check(checked)
         updatePriorityVisibility()
-        updateMangaOcrDownloadUi()
+        updatePpOcrDownloadUi()
 
         group.setOnCheckedChangeListener { _, id ->
             settings.engine = when (id) {
                 R.id.engineLens -> EngineChoice.LENS
-                R.id.engineMangaOcr -> EngineChoice.MANGA_OCR
+                R.id.enginePpOcr -> EngineChoice.PP_OCR
                 R.id.engineMlKit -> EngineChoice.MLKIT
                 else -> EngineChoice.AUTO
             }
             updatePriorityVisibility()
-            updateMangaOcrDownloadUi()
+            updatePpOcrDownloadUi()
         }
     }
 
     private var downloadJob: kotlinx.coroutines.Job? = null
 
-    private fun updateMangaOcrDownloadUi() {
-        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
-        val btnDownload = findViewById<Button>(R.id.btnDownloadMangaOcr)
-        val txtStatus = findViewById<TextView>(R.id.txtMangaOcrStatus)
+    private fun updatePpOcrDownloadUi() {
+        val store = PPOcrModelStore(settings.ppOcrDir)
+        val btnDownload = findViewById<Button>(R.id.btnDownloadPpOcr)
+        val txtStatus = findViewById<TextView>(R.id.txtPpOcrStatus)
         if (btnDownload == null || txtStatus == null) return
 
         val available = store.isAvailable()
         if (available) {
             btnDownload.visibility = View.GONE
             txtStatus.visibility = View.VISIBLE
-            txtStatus.text = getString(R.string.manga_ocr_downloaded)
-        } else if (settings.engine == EngineChoice.MANGA_OCR) {
+            txtStatus.text = getString(R.string.pp_ocr_downloaded)
+        } else if (settings.engine == EngineChoice.PP_OCR) {
             btnDownload.visibility = View.VISIBLE
             txtStatus.visibility = View.VISIBLE
             btnDownload.isEnabled = downloadJob?.isActive != true
-            btnDownload.text = getString(R.string.manga_ocr_download)
-            if (downloadJob?.isActive != true && (txtStatus.text.isNullOrEmpty() || txtStatus.text == getString(R.string.manga_ocr_downloaded))) {
-                txtStatus.text = getString(R.string.manga_ocr_not_installed)
+            btnDownload.text = getString(R.string.pp_ocr_download)
+            if (downloadJob?.isActive != true && (txtStatus.text.isNullOrEmpty() || txtStatus.text == getString(R.string.pp_ocr_downloaded))) {
+                txtStatus.text = getString(R.string.pp_ocr_not_installed)
             }
             btnDownload.setOnClickListener {
-                startMangaOcrDownload(btnDownload, txtStatus)
+                startPpOcrDownload(btnDownload, txtStatus)
             }
         } else {
             btnDownload.visibility = View.GONE
@@ -301,32 +303,32 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startMangaOcrDownload(btnDownload: Button, txtStatus: TextView) {
+    private fun startPpOcrDownload(btnDownload: Button, txtStatus: TextView) {
         if (downloadJob?.isActive == true) return
         btnDownload.isEnabled = false
-        txtStatus.text = getString(R.string.manga_ocr_downloading, "", "0%")
+        txtStatus.text = getString(R.string.pp_ocr_downloading, "", "0%")
 
-        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
-        val downloader = dev.yabai.ocr.ocr.MangaOcrDownloader(store)
+        val store = PPOcrModelStore(settings.ppOcrDir)
+        val downloader = PPOcrModelDownloader(store)
 
         downloadJob = lifecycleScope.launch(Dispatchers.IO) {
             val result = runCatching {
                 downloader.downloadModels { label, read, total ->
                     val percent = if (total > 0) "${(read * 100 / total)}%" else "${read / 1024 / 1024} MB"
                     withContext(Dispatchers.Main) {
-                        txtStatus.text = getString(R.string.manga_ocr_downloading, label, percent)
+                        txtStatus.text = getString(R.string.pp_ocr_downloading, label, percent)
                     }
                 }
             }
             withContext(Dispatchers.Main) {
                 result.onSuccess {
-                    Toast.makeText(this@MainActivity, R.string.manga_ocr_downloaded, Toast.LENGTH_SHORT).show()
-                    updateMangaOcrDownloadUi()
+                    Toast.makeText(this@MainActivity, R.string.pp_ocr_downloaded, Toast.LENGTH_SHORT).show()
+                    updatePpOcrDownloadUi()
                 }.onFailure { t ->
                     btnDownload.isEnabled = true
                     val msg = t.message ?: "Erro desconhecido"
-                    txtStatus.text = getString(R.string.manga_ocr_download_failed, msg)
-                    Toast.makeText(this@MainActivity, getString(R.string.manga_ocr_download_failed, msg), Toast.LENGTH_LONG).show()
+                    txtStatus.text = getString(R.string.pp_ocr_download_failed, msg)
+                    Toast.makeText(this@MainActivity, getString(R.string.pp_ocr_download_failed, msg), Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -340,7 +342,7 @@ class MainActivity : AppCompatActivity() {
         list.forEachIndexed { index, choice ->
             val label = when (choice) {
                 EngineChoice.LENS -> getString(R.string.engine_label_lens)
-                EngineChoice.MANGA_OCR -> getString(R.string.engine_label_manga_ocr)
+                EngineChoice.PP_OCR -> getString(R.string.engine_label_pp_ocr)
                 EngineChoice.MLKIT -> getString(R.string.engine_label_mlkit)
                 else -> choice.name
             }

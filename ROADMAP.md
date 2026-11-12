@@ -4552,6 +4552,48 @@ saía `F2ーと上判れこ` na coluna vertical.
 visual do rótulo do motor depende de abrir o app. O download em si não foi exercitado contra a rede
 (arquivos colocados via `curl` na pasta de modelos).
 
+### D40 — PP-OCRv6_manga no Android, e o Manga-OCR sai do app  `[x]` (12/11/2026)
+
+**Relato.** «Agora me ajude a fazer o mesmo na versão mobile».
+
+**Causa raiz.** O app Android ainda oferecia o **Manga-OCR** como motor offline: 213 MB de modelo,
+uma passada do decoder por caractere e o aviso vermelho de «experimental» na própria opção. O motor
+`PPOcrEngine` que o desktop passou a usar já estava no `:core` (JVM puro), então a migração é de
+ligação — não de modelo novo.
+
+**Correção.**
+
+- `EngineChoice.MANGA_OCR` → `PP_OCR`; `AppSettings.ppOcrDir` = `files/ppocr_v6`; a lista de
+  prioridade padrão é `LENS,PP_OCR,MLKIT`; um `engine=MANGA_OCR` gravado antes cai em `AUTO`.
+- `OcrDispatcher`: o ramo offline passou a usar `PPOcrEngine` (detector + CTC), com a sessão em cache
+  e fechada em `close()`; no `AUTO` o motor só entra quando os três arquivos existem. `OcrBlock` e
+  `OcrPiece` continuam vindo dos blocos do core, então o seletor de balões e as leituras no overlay
+  não mudaram.
+- Download: o app passou a usar o **mesmo** `PPOcrModelDownloader` do `:core` (o downloader
+  específico do app foi apagado), com a UI em `MainActivity` renomeada para `btnDownloadPpOcr` /
+  `txtPpOcrStatus`.
+- `activity_main.xml` e `strings.xml` (pt/en): «Somente PP-OCRv6 (offline)», descrição nova, textos
+  de download com **~23 MB** (eram «~45 MB»), e o **aviso vermelho de experimental removido**.
+- README atualizado: o motor offline do Android agora é o PP-OCRv6.
+
+**Testes.** `:app` verde (Robolectric): `AppSettingsEnginePriorityTest` atualizado — prioridade
+padrão, `LENS,MANGA_OCR,MLKIT` legado virando `LENS,MLKIT,PP_OCR`, `engine=MANGA_OCR` → `AUTO`, pasta
+`ppocr_v6` — e `PpOcrDispatchTest` novo: com `engine = PP_OCR` e sem modelos, o dispatcher devolve
+`PP-OCRv6 (Offline)` com o aviso de download em vez de cair no Lens. `:core` ganhou
+`PPOcrModelDownloaderTest` (arquivos instalados não são baixados de novo; pasta incompleta não conta
+como disponível).
+
+| mutação | teste que acusa |
+| --- | --- |
+| `parseEnginePriority` desconhece `PP_OCR` | `default priority list contains LENS, PP_OCR and MLKIT` |
+| `engine` não mapeia `PP_OCR` (volta para `AUTO`) | `the engine choice survives a round trip through the preferences` |
+| ramo do dispatcher chama o Lens em vez do offline | `pp-ocr chosen without models reports the missing download` |
+
+**Limitação.** O motor em si roda com os modelos reais no JVM (`:desktop:test -Pppocr`, mesmas
+classes do `:core`); no Android a verificação foi de ligação e de preferências, não de uma captura
+no aparelho. O aviso vermelho saiu do layout — uma instalação antiga que ainda o mostra é só cache de
+build.
+
 ### D36 — Bandeja nativa `StatusNotifierItem` no KDE Wayland `[x]` (09/11/2026)
 
 O ícone aparecia no painel do Plasma, mas o clique direito não abria menu e o esquerdo não iniciava a
