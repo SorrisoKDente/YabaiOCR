@@ -10,7 +10,7 @@ Antes de qualquer implementação, é indispensável manter separados os dois ei
 
 1. **Idioma do OCR, Dicionário e Leitura (Núcleo do Produto):**
    - **Fixo em Japonês (`ja`)**. O aplicativo é um leitor de japonês com OCR.
-   - O reconhecimento (Google Lens, Manga-OCR e ML Kit) opera em modo japonês.
+   - O reconhecimento (Google Lens, PP-OCRv6 e ML Kit) opera em modo japonês.
    - A segmentação de texto, busca de verbetes, conjugações (deinflector), furigana e kanji dependem dos dicionários de japonês (JMdict, Jitendex, KANJIDIC, etc.).
    - *Traduzir a interface do app para inglês não altera o idioma das mídias lidas nem o funcionamento dos dicionários de japonês.*
 
@@ -139,7 +139,8 @@ Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de
 - **Motor de Reconhecimento:**
   - `"Motor de reconhecimento"` → `"Recognition Engine"`
   - `"Automático (Usa Ordem de Prioridades)"` → `"Automatic (Use Priority Order)"`
-  - `"Somente Manga-OCR (offline)"` → `"Manga-OCR Only (offline)"`
+  - `"Somente PP-OCRv6 (offline)"` → `"PP-OCRv6 Only (offline)"`
+  - `"Baixar modelos do PP-OCRv6 (~23 MB)"` → `"Download PP-OCRv6 models (~23 MB)"`
   - `"Somente Google Lens (online)"` → `"Google Lens Only (online)"`
   - Prioridades: `"Prioridade dos Motores no modo Automático / Fallback:"` → `"Engine Fallback Priority Order:"`
   - Botões de reordenação: `"▲ Subir"` → `"▲ Up"`, `"▼ Descer"` → `"▼ Down"`

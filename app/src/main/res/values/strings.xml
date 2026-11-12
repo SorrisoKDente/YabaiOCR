@@ -17,7 +17,6 @@
     <string name="theme_dark_option">🌙 Escuro</string>
     <string name="theme_light_option">☀️ Claro</string>
     <string name="theme_system_option">💻 Padrão do Sistema</string>
-    <string name="theme_toggle_btn">Alternar Tema</string>
 
     <string name="section_language">Idioma da Interface</string>
     <string name="lang_system">Padrão do Sistema</string>
@@ -105,7 +104,6 @@
     <string name="kanji_no_dictionary">Nenhum dicionário de kanji tem este caractere — só a leitura da frase está disponível.</string>
     <string name="kanji_dictionary_missing">Nenhum dicionário de kanji instalado. Baixe o KANJIDIC em «Dicionários» para ver as leituras e os significados dos kanji.</string>
     <string name="kanji_dictionary_disabled">O dicionário de kanji está desativado em «Dicionários». Ative-o para ver as leituras e os significados dos kanji.</string>
-    <string name="kanji_no_page">Nada legível foi reconhecido nesta tela.</string>
 
     <string name="result_title">Texto reconhecido</string>
     <string name="result_retry_offline">Tentar offline</string>
@@ -232,7 +230,6 @@
     <string name="dictionary_kanji_all">Todos os dicionários de kanji</string>
     <string name="dictionary_import_failed">Falha ao importar: %1$s</string>
     <string name="dictionary_download_failed">Falha ao baixar: %1$s</string>
-    <string name="dictionary_attribution">Fonte: %1$s</string>
     <string name="dictionary_release">Revisão %1$s</string>
     <string name="dictionary_source">Origem: %1$s</string>
     <string name="dictionary_stale_banner">Compilados por uma versão antiga do app, estes dicionários ainda mostram as definições no formato antigo: %1$s. Use «Atualizar» no dicionário baixado pela lista, ou importe de novo o que veio de um arquivo.</string>

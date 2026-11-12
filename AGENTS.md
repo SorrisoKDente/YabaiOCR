@@ -28,6 +28,7 @@ geometria entre os dois.
 | resultado/dicionários | `ResultWindow.kt`, `DesktopDictLoader.kt`, `core/.../dict/LookupEngine.kt` |
 | Android | `service/FloatingOcrService.kt`, `capture/ScreenCaptureSession.kt`, `overlay/` |
 | testes | `desktop/src/test/...`, `core/src/test/...`, `app/src/test/...` |
+| não sabe onde fica algo | `ARCHITECTURE.md` (árvore + papel de cada arquivo + fluxos) |
 
 ## Regra de ouro: precisão de OCR
 
@@ -48,7 +49,7 @@ sem que isso seja o comportamento pedido e testado.
 Windows/PowerShell, na raiz:
 
 ```powershell
-.\gradlew.bat :desktop:test --console=plain       # suíte desktop (249 testes em 10/11/2026)
+.\gradlew.bat :desktop:test --console=plain       # suíte desktop (261 testes em 12/11/2026)
 .\gradlew.bat :desktop:compileKotlin              # compilação rápida do desktop
 .\gradlew.bat :desktop:run --args="--minimized"   # app na bandeja, sem abrir Ajustes
 .\gradlew.bat :core:test                          # core (JVM puro)
@@ -63,10 +64,9 @@ Opções do `:core`:
 .\gradlew.bat :core:test -Pdicts="E:\Documentos\DicionariosJapones" # ZIPs reais do Yomitan
 ```
 
-A suíte desktop fechou em **249 testes** e o `:core` padrão (sem `-Plive`/`-Pdicts`) em **159** na
-última verificação (o app, com Robolectric, em **397**). Se os números mudarem, confirme que os testes
-novos são intencionais e atualize
-README/ROADMAP.
+A suíte desktop fechou em **261 testes**, o `:core` padrão (sem `-Plive`/`-Pdicts`) em **177** e o
+app, com Robolectric, em **411** na última verificação (12/11/2026). Se os números mudarem, confirme
+que os testes novos são intencionais e atualize ROADMAP/AGENTS.
 
 ## Teste de regressão e prova de mutação
 
@@ -112,25 +112,40 @@ nenhum teste significa que o teste não cobre a causa — reescreva o teste, nã
 
 ## Documentação
 
-- `README.md` é para quem usa: comportamento, atalhos, ajustes, comandos e limitações.
+- `README.md` é para quem usa: o que é, plataformas, atalhos, como compilar e limitações. É vitrine
+  pública — detalhe de implementação não entra aqui.
+- `ARCHITECTURE.md` é para quem mexe no código: árvore de diretórios, papel de cada arquivo, fluxos e
+  onde procurar cada tipo de mudança.
 - `ROADMAP.md` é para quem mantém: itens `B*`/`F*`/`M*`/`D*`/`I*`/`N*`/`R*`, estado `[x]`, data
   `(dd/MM/yyyy)`, causa raiz, o que mudou, testes/mutações e evidência ponta a ponta.
-- Mudou comportamento? Atualize os dois na mesma tarefa. Não deixe o README prometer algo que o
-  código não faz.
+- Mudou comportamento? Atualize README/ROADMAP na mesma tarefa. Não deixe o README prometer algo que
+  o código não faz.
 - Use a skill `yabai-docs` e o template
   `.opencode/skills/yabai-docs/references/entry-template.md`.
 
+**Estrutura mudou? Atualize o `ARCHITECTURE.md` na mesma tarefa.** Isso vale para arquivo, pasta ou
+módulo novo, removido, renomeado ou que passou a ter outro papel, e para fluxo novo (motor, captura,
+ajuste, tela). O documento é a referência de busca do projeto: se ele não bate com o código, a próxima
+mudança começa no lugar errado. As seções afetadas são a árvore (item 2), a tabela arquivo a arquivo
+do módulo (item 3), os fluxos (item 5) e a tabela «onde mexer para cada pedido».
+
 ## Skills do projeto
 
-Carregue a skill certa antes de trabalhar:
+As skills vivem em `.opencode/skills/<nome>/SKILL.md` e são carregadas sob demanda. Não existe skill
+para tarefa de rotina: se a mudança é pequena e o AGENTS já responde, trabalhe direto.
 
-| skill | quando |
+| skill | quando usar |
 | --- | --- |
-| `yabai-regression` | escrever/provar teste de regressão e mutação |
-| `yabai-desktop-e2e` | validar visualmente o app real (captura, picker, recorte, hover) |
-| `yabai-ocr-quality` | mexer em Lens, blocks, leituras, dicionários, texto japonês |
-| `yabai-docs` | atualizar README/ROADMAP com evidência |
-| `yabai-android-app` | mexer no app Android, overlays, MediaProjection, Robolectric |
+| `yabai-regression` | qualquer correção de bug ou mudança de comportamento: escrever o teste que falha sem a correção e provar a mutação |
+| `yabai-desktop-e2e` | quando o resultado só se vê rodando o app: captura, picker, recorte, hover, HiDPI, bandeja, atalhos |
+| `yabai-ocr-quality` | qualquer coisa que possa mudar o texto reconhecido: Lens, blocks, ordem de leitura, furigana, normalização CJK, dicionários, lookup |
+| `yabai-android-app` | mudanças no `:app`: overlays, `FloatingOcrService`, MediaProjection, permissões, painéis, Robolectric |
+| `yabai-docs` | fechar uma tarefa que mudou comportamento: entrada de ROADMAP no formato do projeto e ajuste do README |
+| `systematic-debugging` | bug cuja causa não é óbvia: reproduzir, reduzir, formular hipótese e testá-la antes de propor correção |
+
+**Que skill carregar.** Uma correção de comportamento normalmente pede `yabai-regression`; se ela for
+visual/desktop, também `yabai-desktop-e2e`; se mexer em texto japonês, também `yabai-ocr-quality`; e
+`yabai-docs` no fim. Skills não se substituem: cada uma cobre uma parte da definição de pronto.
 
 ## Definição de pronto
 
@@ -141,4 +156,5 @@ Carregue a skill certa antes de trabalhar:
 - [ ] E2E feito quando o comportamento é visual/desktop, com evidência numérica.
 - [ ] `settings.properties` restaurado e nenhum processo deixado aberto.
 - [ ] README/ROADMAP atualizados se o comportamento mudou.
+- [ ] `ARCHITECTURE.md` atualizado se algum arquivo, pasta, módulo ou fluxo entrou, saiu ou mudou de papel.
 - [ ] Relatório final em pt-BR, com comandos, números e limitações.

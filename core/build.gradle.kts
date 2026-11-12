@@ -35,9 +35,6 @@ tasks.withType<Test>().configureEach {
     // Folder holding real Yomitan dictionary ZIPs, for the dictionary engine tests.
     // Enable with:  gradle :core:test -Pdicts="C:\path\to\zips"
     (project.findProperty("dicts") as String?)?.let { systemProperty("yabai.dicts", it) }
-    // Folder holding the three manga-ocr ONNX files, for the end-to-end recognition test.
-    // Enable with:  gradle :core:test -Pmanga="C:\path\to\models"
-    (project.findProperty("manga") as String?)?.let { systemProperty("yabai.manga", it) }
     // Folder holding already-compiled .yabai dictionaries, for the translation index measurement.
     // Enable with:  gradle :core:test -PcompiledDicts="C:\path\to\compiled"
     (project.findProperty("compiledDicts") as String?)?.let { systemProperty("yabai.compiled", it) }

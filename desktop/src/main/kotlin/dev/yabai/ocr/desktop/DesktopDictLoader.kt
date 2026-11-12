@@ -61,6 +61,17 @@ object DesktopDictLoader {
         cachedKey = null
     }
 
+    /**
+     * Bytes a dictionary entry occupies on disk.
+     *
+     * A `.yabai` entry is a compiled dictionary: either one file or a directory holding the
+     * compiled parts. `File.length()` answers 0 for a directory, which is why the manager showed
+     * every installed dictionary as `0.0 MB`; a folder has to be walked to get the real total.
+     */
+    fun sizeBytes(entry: File): Long =
+        if (entry.isDirectory) entry.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        else entry.length()
+
     fun loadInstalledFiles(settings: DesktopSettings): List<File> {
         val dir = settings.dictDirectory()
         if (!dir.exists()) dir.mkdirs()

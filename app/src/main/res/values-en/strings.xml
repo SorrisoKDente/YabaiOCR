@@ -17,7 +17,6 @@
     <string name="theme_dark_option">🌙 Dark</string>
     <string name="theme_light_option">☀️ Light</string>
     <string name="theme_system_option">💻 System Default</string>
-    <string name="theme_toggle_btn">Toggle Theme</string>
 
     <string name="section_language">Interface Language</string>
     <string name="lang_system">System Default</string>
@@ -106,7 +105,6 @@
     <string name="kanji_no_dictionary">No kanji dictionary contains this character — sentence reading is shown.</string>
     <string name="kanji_dictionary_missing">No kanji dictionary installed. Download KANJIDIC in "Dictionaries" to view kanji readings and meanings.</string>
     <string name="kanji_dictionary_disabled">Kanji dictionary is disabled in "Dictionaries". Enable it to view kanji readings and meanings.</string>
-    <string name="kanji_no_page">No legible text was recognized on this screen.</string>
 
     <string name="result_title">Recognized Text</string>
     <string name="result_retry_offline">Try Offline</string>
@@ -233,7 +231,6 @@
     <string name="dictionary_kanji_all">All kanji dictionaries</string>
     <string name="dictionary_import_failed">Import failed: %1$s</string>
     <string name="dictionary_download_failed">Download failed: %1$s</string>
-    <string name="dictionary_attribution">Source: %1$s</string>
     <string name="dictionary_release">Revision %1$s</string>
     <string name="dictionary_source">Source: %1$s</string>
     <string name="dictionary_stale_banner">Compiled by an older app version, these dictionaries use an outdated format: %1$s. Tap "Update" or re-import to update definitions.</string>

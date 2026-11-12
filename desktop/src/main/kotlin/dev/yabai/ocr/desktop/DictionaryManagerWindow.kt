@@ -102,31 +102,6 @@ fun DictionaryManagerContent(
 }
 
 @Composable
-fun DictionaryManagerWindow(
-    initialQuery: String = "",
-    onClose: () -> Unit
-) {
-    Window(
-        onCloseRequest = onClose,
-        title = "Yabai OCR - ${DesktopStrings.dictManagerTitle}",
-        state = WindowState(width = 860.dp, height = 700.dp)
-    ) {
-        LaunchedEffect(Unit) {
-            window.iconImage = AppIconGenerator.createWindowImage(64)
-        }
-
-        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colors.background
-            ) {
-                DictionaryManagerContent(initialQuery = initialQuery)
-            }
-        }
-    }
-}
-
-@Composable
 private fun SearchTab(initialQuery: String, refreshKey: Int) {
     var query by remember { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
@@ -650,7 +625,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                     val info = dict?.info
                     val title = info?.title?.ifBlank { file.nameWithoutExtension } ?: file.nameWithoutExtension
                     val revision = info?.revision.orEmpty()
-                    val sizeMb = "%.1f MB".format(file.length().toDouble() / (1024 * 1024))
+                    val sizeMb = "%.1f MB".format(DesktopDictLoader.sizeBytes(file).toDouble() / (1024 * 1024))
                     val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
                         file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
                         file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
