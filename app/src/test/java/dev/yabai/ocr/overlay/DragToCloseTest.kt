@@ -32,7 +32,7 @@ import kotlin.math.roundToInt
  * is drawn — so what the user sees coming is what happens on release.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "pt-rBR")
 class DragToCloseTest {
 
     private val context: Context

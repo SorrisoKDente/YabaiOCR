@@ -237,7 +237,7 @@ class DictionaryActivity : AppCompatActivity() {
         availableContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         column.addView(availableContainer)
 
-        column.addView(sectionHeader("Créditos e Licenças"))
+        column.addView(sectionHeader(getString(R.string.dictionary_legal_credits_header)))
         creditsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
@@ -287,18 +287,47 @@ class DictionaryActivity : AppCompatActivity() {
             )
             return
         }
+        val isEnglish = resources.configuration.locales[0].language.equals("en", ignoreCase = true)
         for (item in items) {
             val title = item.info.title.ifBlank { item.displayName }
-            val source = item.sourceName
-            val attribution = item.info.attribution ?: "Licença Yomitan / Domínio público / EDRDG"
-            val text = "• $title\n  Origem: $source\n  Atribuição: $attribution"
-            creditsContainer.addView(
-                textLabel(text, 11f, getColor(R.color.text_secondary)).apply {
-                    setPadding(0, dp(4), 0, dp(8))
-                    setLineSpacing(dp(2).toFloat(), 1f)
-                },
-            )
+            val author = item.info.author?.takeIf { it.isNotBlank() } ?: item.sourceName
+            val description = item.info.description
+            val attribution = item.info.attribution ?: "Licença Yomitan / Domínio público / EDRDG (CC BY-SA 4.0)"
+            val revision = item.info.revision
+            val termCount = item.info.termCount
+            val kanjiCount = item.info.kanjiCount
+
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(4), 0, dp(10))
+            }
+            card.addView(textLabel("• $title", 13f, getColor(R.color.text_primary), bold = true))
+            if (author.isNotBlank()) {
+                card.addView(textLabel(getString(R.string.credit_author, author), 11f, getColor(R.color.text_secondary)))
+            }
+            if (description?.isNotBlank() == true) {
+                card.addView(textLabel(getString(R.string.credit_description, description), 11f, getColor(R.color.text_secondary)))
+            }
+            card.addView(textLabel(getString(R.string.credit_attribution, attribution), 11f, getColor(R.color.accent)))
+            if (revision.isNotBlank()) {
+                card.addView(textLabel(getString(R.string.credit_revision, revision), 11f, getColor(R.color.text_secondary)))
+            }
+            if (termCount > 0 || kanjiCount > 0) {
+                val countStr = buildList {
+                    if (termCount > 0) add(if (isEnglish) "$termCount terms" else "$termCount termos")
+                    if (kanjiCount > 0) add(if (isEnglish) "$kanjiCount kanji" else "$kanjiCount kanjis")
+                }.joinToString(" • ")
+                card.addView(textLabel(getString(R.string.credit_entries, countStr), 11f, getColor(R.color.text_secondary)))
+            }
+            creditsContainer.addView(card)
         }
+
+        creditsContainer.addView(
+            textLabel(getString(R.string.general_license_notice), 11f, getColor(R.color.text_secondary)).apply {
+                setPadding(0, dp(8), 0, 0)
+                setLineSpacing(dp(2).toFloat(), 1f)
+            }
+        )
     }
 
     /**
@@ -665,7 +694,7 @@ class DictionaryActivity : AppCompatActivity() {
                 getColor(R.color.text_secondary),
             )
             UpdateState.FAILED -> Pair(
-                getString(R.string.dictionary_update_failed, result.message),
+                getString(R.string.dictionary_update_failed, toLocalizedUpdateMessage(result.message)),
                 getColor(R.color.text_secondary),
             )
             UpdateState.MANUAL -> if (storedUpdates.checkedAt > 0) {
@@ -682,6 +711,14 @@ class DictionaryActivity : AppCompatActivity() {
         UpdateInterval.DAILY -> getString(R.string.dictionary_updates_daily)
         UpdateInterval.WEEKLY -> getString(R.string.dictionary_updates_weekly)
         UpdateInterval.MONTHLY -> getString(R.string.dictionary_updates_monthly)
+    }
+
+    private fun toLocalizedUpdateMessage(message: String): String = when (message) {
+        "o catálogo não informou a revisão" -> getString(R.string.dictionary_update_err_no_revision)
+        "o catálogo não informou de onde baixar" -> getString(R.string.dictionary_update_err_no_url)
+        "esta cópia foi instalada antes das verificações; atualize uma vez para ativá-las" -> getString(R.string.dictionary_update_err_legacy)
+        "o servidor não informou uma versão comparável" -> getString(R.string.dictionary_update_err_no_comparable_version)
+        else -> message
     }
 
     private fun chooseInterval() {
@@ -882,7 +919,7 @@ class DictionaryActivity : AppCompatActivity() {
             return
         }
         if (busy != null) {
-            toast(getString(R.string.dictionary_download_failed, "outro download em andamento"))
+            toast(getString(R.string.dictionary_download_failed, getString(R.string.dictionary_error_busy)))
             return
         }
         busy = entry.id
@@ -922,7 +959,7 @@ class DictionaryActivity : AppCompatActivity() {
         button: TextView,
     ) {
         if (busy != null || checking) {
-            toast(getString(R.string.dictionary_download_failed, "outro download em andamento"))
+            toast(getString(R.string.dictionary_download_failed, getString(R.string.dictionary_error_busy)))
             return
         }
         busy = "update-all"
@@ -978,7 +1015,7 @@ class DictionaryActivity : AppCompatActivity() {
 
     private fun importZip(uri: Uri) {
         if (busy != null) {
-            toast(getString(R.string.dictionary_import_failed, "outro download em andamento"))
+            toast(getString(R.string.dictionary_import_failed, getString(R.string.dictionary_error_busy)))
             return
         }
         busy = "import"
@@ -989,7 +1026,7 @@ class DictionaryActivity : AppCompatActivity() {
             try {
                 withContext(Dispatchers.IO) {
                     contentResolver.openInputStream(uri).use { input ->
-                        requireNotNull(input) { "não foi possível abrir o arquivo" }
+                        requireNotNull(input) { getString(R.string.dictionary_error_open_file) }
                         archive.outputStream().use { output -> input.copyTo(output) }
                     }
                 }

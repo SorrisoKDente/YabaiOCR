@@ -28,8 +28,21 @@ import java.io.File
  * with, which the user only found out because they had been told by hand.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "pt-rBR")
 class DictionaryScreenTest {
+
+    private lateinit var originalLocale: java.util.Locale
+
+    @org.junit.Before
+    fun setUp() {
+        originalLocale = java.util.Locale.getDefault()
+        java.util.Locale.setDefault(java.util.Locale.forLanguageTag("pt-BR"))
+    }
+
+    @org.junit.After
+    fun tearDown() {
+        java.util.Locale.setDefault(originalLocale)
+    }
 
     private val context: Context get() = RuntimeEnvironment.getApplication()
 

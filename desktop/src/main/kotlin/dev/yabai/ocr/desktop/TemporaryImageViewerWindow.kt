@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.window.Window
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.image.BufferedImage
 
 @Composable
@@ -24,13 +25,13 @@ fun TemporaryImageViewerWindow(
 
     Window(
         onCloseRequest = onClose,
-        title = "Yabai OCR - Visualizador Temporário (Recorte)"
+        title = DesktopStrings.tempViewerTitle
     ) {
         MaterialTheme {
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text("Recorte Selecionado (${croppedImage.width} x ${croppedImage.height} px)") }
+                        title = { Text(DesktopStrings.selectedCrop(croppedImage.width, croppedImage.height)) }
                     )
                 }
             ) { padding ->

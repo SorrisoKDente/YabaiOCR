@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -255,7 +257,7 @@ fun ResultWindow(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(color = MaterialTheme.colors.primary)
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text("Reconhecendo texto em japonês...", color = Color(0xFFA0A6B8))
+                                Text(DesktopStrings.recognizesTextProgress, color = Color(0xFFA0A6B8))
                             }
                         }
                     } else if (errorMessage != null) {
@@ -265,7 +267,7 @@ fun ResultWindow(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Falha no OCR", style = MaterialTheme.typography.subtitle1, color = Color(0xFFFFB4AB))
+                                Text(DesktopStrings.ocrFailed, style = MaterialTheme.typography.subtitle1, color = Color(0xFFFFB4AB))
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(errorMessage.orEmpty(), style = MaterialTheme.typography.body2, color = Color.White)
                             }
@@ -410,7 +412,7 @@ fun ResultWindow(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = "Verbetes e Dicionário",
+                                            text = DesktopStrings.entriesAndDictHeader,
                                             style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
                                             color = Color(0xFF5D84FF)
                                         )
@@ -421,7 +423,7 @@ fun ResultWindow(
                                                 onClick = { expandedFilter = true },
                                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                                             ) {
-                                                Text(if (selectedFilter.isBlank()) "🌐 Todos" else "📖 $selectedFilter", fontSize = 11.sp)
+                                                Text(if (selectedFilter.isBlank()) DesktopStrings.allDictsLabel else "📖 $selectedFilter", fontSize = 11.sp)
                                             }
                                             DropdownMenu(
                                                 expanded = expandedFilter,
@@ -431,7 +433,7 @@ fun ResultWindow(
                                                     selectedFilter = ""
                                                     expandedFilter = false
                                                 }) {
-                                                    Text("🌐 Todos os Dicionários")
+                                                    Text(DesktopStrings.allDictionaries)
                                                 }
                                                 installedDictTitles.forEach { title ->
                                                     DropdownMenuItem(onClick = {
@@ -450,9 +452,9 @@ fun ResultWindow(
                                     if (matches.isEmpty()) {
                                         Text(
                                             text = if (engine == null)
-                                                "Nenhum dicionário instalado na pasta (${settings.dictDirectory().absolutePath}) para consultar verbetes."
+                                                DesktopStrings.noDictsInFolder(settings.dictDirectory().absolutePath)
                                             else
-                                                "Nenhum verbete encontrado para a frase no dicionário.",
+                                                DesktopStrings.noEntriesFoundForSentence,
                                             style = MaterialTheme.typography.body2,
                                             color = Color(0xFFA0A6B8)
                                         )

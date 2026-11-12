@@ -19,7 +19,7 @@ import android.os.Build
 object AskAi {
 
     /** What is written in front of the text when the user has not changed the prompt. */
-    const val DEFAULT_PROMPT = "Traduza para português e explique: "
+    const val DEFAULT_PROMPT = "Traduza para português e explique a gramática, vocabulário e nuances desta frase em japonês:"
 
     const val MIME_TEXT = "text/plain"
 

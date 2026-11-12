@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -114,7 +116,7 @@ fun HoverTooltipWindow(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (activeFilter.isBlank()) "🌐 Todos os Dicionários" else "📖 $activeFilter",
+                            text = if (activeFilter.isBlank()) DesktopStrings.allDictionaries else "📖 $activeFilter",
                             style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
                             color = Color(0xFF5D84FF)
                         )
@@ -127,7 +129,7 @@ fun HoverTooltipWindow(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    text = "📖 Selecionar Dicionário ▾",
+                                    text = DesktopStrings.selectDictDropdown,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                     fontSize = 11.sp,
                                     color = Color.White
@@ -142,7 +144,7 @@ fun HoverTooltipWindow(
                                     expandedMenu = false
                                     onSelectDictionary("")
                                 }) {
-                                    Text("🌐 Todos os Dicionários")
+                                    Text(DesktopStrings.allDictionaries)
                                 }
                                 installedDictTitles.forEach { title ->
                                     DropdownMenuItem(onClick = {

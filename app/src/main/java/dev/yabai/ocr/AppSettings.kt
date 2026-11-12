@@ -277,7 +277,7 @@ class AppSettings(context: Context) {
      * text alone — for whoever would rather write the question once they are there.
      */
     var aiPrompt: String
-        get() = prefs.getString(KEY_AI_PROMPT, AskAi.DEFAULT_PROMPT) ?: AskAi.DEFAULT_PROMPT
+        get() = prefs.getString(KEY_AI_PROMPT, null) ?: appContext.getString(R.string.default_ai_prompt)
         set(value) = prefs.edit { putString(KEY_AI_PROMPT, value) }
 
     /**

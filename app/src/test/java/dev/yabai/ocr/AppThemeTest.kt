@@ -5,6 +5,7 @@ import android.widget.Button
 import android.widget.RadioGroup
 import androidx.appcompat.app.AppCompatDelegate
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,15 +13,29 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], qualifiers = "pt-rBR")
 class AppThemeTest {
 
     private val context: Context get() = RuntimeEnvironment.getApplication()
 
+    private lateinit var originalLocale: Locale
+
+    @Before
+    fun setUp() {
+        originalLocale = Locale.getDefault()
+        Locale.setDefault(Locale.forLanguageTag("pt-BR"))
+        context.getSharedPreferences(AppSettings.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        val settings = AppSettings(context)
+        settings.appTheme = AppThemeChoice.DARK
+        settings.applyTheme()
+    }
+
     @After
     fun tearDown() {
+        Locale.setDefault(originalLocale)
         context.getSharedPreferences(AppSettings.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
         val settings = AppSettings(context)
         settings.appTheme = AppThemeChoice.DARK
@@ -82,7 +97,8 @@ class AppThemeTest {
         assertEquals(AppThemeChoice.LIGHT, settings.appTheme)
 
         val recreatedBtn = recreatedActivity.findViewById<Button>(R.id.btnThemeToggle)
-        assertEquals("☀️ Claro", recreatedBtn.text.toString())
+        System.err.println("RECREATED BTN TEXT: '${recreatedBtn.text}' vs EXPECTED: '☀️ " + context.getString(R.string.theme_light) + "'")
+        assertEquals("☀️ " + context.getString(R.string.theme_light), recreatedBtn.text.toString())
 
         val themeGroup = recreatedActivity.findViewById<RadioGroup>(R.id.themeGroup)
         assertEquals(R.id.themeLight, themeGroup.checkedRadioButtonId)

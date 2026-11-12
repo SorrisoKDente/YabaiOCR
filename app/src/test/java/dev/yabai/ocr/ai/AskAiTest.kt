@@ -33,7 +33,7 @@ class AskAiTest {
     @Test
     fun `the question is the prompt and then the text`() {
         assertEquals(
-            "Traduza para português e explique: 職員さんに聞いた",
+            "Traduza para português e explique a gramática, vocabulário e nuances desta frase em japonês: 職員さんに聞いた",
             AskAi.request(AskAi.DEFAULT_PROMPT, "職員さんに聞いた"),
         )
     }

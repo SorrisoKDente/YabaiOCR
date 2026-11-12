@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -315,7 +317,7 @@ fun SegmentPickerWindow(
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
                             Text(
-                                text = "Não foi possível reconhecer a tela inteira",
+                                text = DesktopStrings.couldNotRecognizeFullScreen,
                                 color = Color(0xFFFFB4AB),
                                 fontWeight = FontWeight.Bold,
                             )
@@ -347,7 +349,7 @@ fun SegmentPickerWindow(
                         contentColor = Color.White,
                     ),
                 ) {
-                    Text("✂️ Recortar à mão", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                    Text("✂️ " + DesktopStrings.btnManualCrop, fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
                 OutlinedButton(
                     onClick = onDismiss,
@@ -356,7 +358,7 @@ fun SegmentPickerWindow(
                         contentColor = Color(0xFFFFB4AB),
                     ),
                 ) {
-                    Text("✕ Cancelar", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                    Text("✕ " + DesktopStrings.cancel, fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
             }
         }

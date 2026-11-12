@@ -14,6 +14,9 @@
     <string name="theme_dark">Escuro</string>
     <string name="theme_light">Claro</string>
     <string name="theme_system">Sistema</string>
+    <string name="theme_dark_option">🌙 Escuro</string>
+    <string name="theme_light_option">☀️ Claro</string>
+    <string name="theme_system_option">💻 Padrão do Sistema</string>
     <string name="theme_toggle_btn">Alternar Tema</string>
 
     <string name="section_language">Idioma da Interface</string>
@@ -273,8 +276,26 @@
         <item quantity="other">%1$d dicionários atualizados.</item>
     </plurals>
 
+    <string name="dictionary_legal_credits_header">Créditos e Licenças</string>
     <string name="dictionary_legal_credits_toggle">▸ Ver créditos legais e licenças dos dicionários</string>
     <string name="dictionary_legal_credits_toggle_open">▾ Ocultar créditos legais e licenças dos dicionários</string>
+
+    <string name="default_ai_prompt">Traduza para português e explique a gramática, vocabulário e nuances desta frase em japonês:</string>
+    <string name="dictionary_error_busy">outro download em andamento</string>
+    <string name="dictionary_error_open_file">não foi possível abrir o arquivo</string>
+    <string name="dictionary_reading_entries">Lendo verbetes… (%1$d)</string>
+    <string name="dictionary_building_index">Montando índice…</string>
+    <string name="dictionary_update_err_no_revision">o catálogo não informou a revisão</string>
+    <string name="dictionary_update_err_no_url">o catálogo não informou de onde baixar</string>
+    <string name="dictionary_update_err_legacy">esta cópia foi instalada antes das verificações; atualize uma vez para ativá-las</string>
+    <string name="dictionary_update_err_no_comparable_version">o servidor não informou uma versão comparável</string>
+
+    <string name="credit_author">Origem: %1$s</string>
+    <string name="credit_description">Descrição: %1$s</string>
+    <string name="credit_attribution">Atribuição / Licença: %1$s</string>
+    <string name="credit_revision">Revisão / Versão: %1$s</string>
+    <string name="credit_entries">Entradas: %1$s</string>
+    <string name="general_license_notice">Termos gerais: Os dados de vocabulário e kanjis derivam de projetos abertos como JMdict, KANJIDIC, Wikcionário e Jitendex sob licença Creative Commons (CC BY-SA).</string>
 
     <string name="shortcut_qs_title">Botão nas Notificações (Quick Settings)</string>
     <string name="shortcut_qs_desc">Adicione o botão do Yabai OCR na barra de acesso rápido do seu celular para iniciar o OCR de qualquer lugar.</string>

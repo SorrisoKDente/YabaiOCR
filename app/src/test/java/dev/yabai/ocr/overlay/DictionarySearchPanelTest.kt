@@ -36,7 +36,7 @@ import java.time.Duration
  * dictionary chooser keeps working — «todos» or one dictionary, as with a translation.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "pt-rBR")
 class DictionarySearchPanelTest {
 
     private val context: Context get() = RuntimeEnvironment.getApplication()

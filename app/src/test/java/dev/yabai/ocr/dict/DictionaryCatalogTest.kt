@@ -15,12 +15,31 @@ import java.net.URI
  */
 class DictionaryCatalogTest {
 
+    private lateinit var originalLocale: java.util.Locale
+
+    @org.junit.Before
+    fun setUp() {
+        originalLocale = java.util.Locale.getDefault()
+        java.util.Locale.setDefault(java.util.Locale("pt", "BR"))
+    }
+
+    @org.junit.After
+    fun tearDown() {
+        java.util.Locale.setDefault(originalLocale)
+    }
+
     @Test
     fun `every entry has an id, a language and somewhere to download from`() {
         val ids = HashSet<String>()
         for (entry in DictionaryCatalog.entries) {
             assertTrue("an entry has no id", entry.id.isNotBlank())
             assertTrue("duplicate id ${entry.id}", ids.add(entry.id))
+            assertTrue("${entry.id} has no namePt", entry.namePt.isNotBlank())
+            assertTrue("${entry.id} has no nameEn", entry.nameEn.isNotBlank())
+            assertTrue("${entry.id} has no descPt", entry.descPt.isNotBlank())
+            assertTrue("${entry.id} has no descEn", entry.descEn.isNotBlank())
+            assertTrue("${entry.id} has no attributionPt", entry.attributionPt.isNotBlank())
+            assertTrue("${entry.id} has no attributionEn", entry.attributionEn.isNotBlank())
             assertTrue("${entry.id} has no name", entry.name.isNotBlank())
             assertTrue("${entry.id} has no description", entry.description.isNotBlank())
             assertTrue("${entry.id} has no attribution", entry.attribution.isNotBlank())

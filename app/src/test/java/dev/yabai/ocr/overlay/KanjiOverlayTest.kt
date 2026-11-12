@@ -32,7 +32,7 @@ import org.robolectric.annotation.GraphicsMode
  * card is [KanjiCardTextTest]'s; this is the geometry and the gestures.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "pt-rBR")
 class KanjiOverlayTest {
 
     private val context: Context get() = RuntimeEnvironment.getApplication()

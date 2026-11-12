@@ -321,7 +321,22 @@ object DesktopStrings {
     val hoverNoTextNearCursor: String get() = if (isEnglish) "No text recognized near the cursor." else "Nenhum texto reconhecido perto do cursor."
     fun hoverNoMatchForText(text: String): String = if (isEnglish) "Text read, but no dictionary match: $text" else "Texto lido, mas sem verbete no dicionário: $text"
     fun hoverOcrFailure(detail: String): String = if (isEnglish) "OCR failure: $detail" else "Falha no OCR: $detail"
-    val defaultAiPrompt: String get() = if (isEnglish) "Analyze the Japanese sentence below, explain the grammar, kanji meanings, and translate to English:" else "Analise a frase em japonês abaixo, explique a gramática, o sentido dos kanjis e traduza para o português:"
+    val defaultAiPrompt: String get() = if (isEnglish) "Translate to English and explain the grammar, vocabulary, and nuances of this Japanese sentence:" else "Traduza para português e explique a gramática, vocabulário e nuances desta frase em japonês:"
     val translateTargetPortuguese: String get() = if (isEnglish) "Portuguese (pt)" else "Português (pt)"
     val translateTargetEnglish: String get() = if (isEnglish) "English (en)" else "Inglês (en)"
+
+    // Additional UI Strings
+    val selectDictDropdown: String get() = if (isEnglish) "📖 Select Dictionary ▾" else "📖 Selecionar Dicionário ▾"
+    val recognizesTextProgress: String get() = if (isEnglish) "Recognizing Japanese text..." else "Reconhecendo texto em japonês..."
+    val ocrFailed: String get() = if (isEnglish) "OCR Failed" else "Falha no OCR"
+    val entriesAndDictHeader: String get() = if (isEnglish) "Entries & Dictionary" else "Verbetes e Dicionário"
+    fun noDictsInFolder(path: String): String = if (isEnglish) "No dictionary installed in folder ($path) to query entries." else "Nenhum dicionário instalado na pasta ($path) para consultar verbetes."
+    val noEntriesFoundForSentence: String get() = if (isEnglish) "No dictionary entries found for sentence." else "Nenhum verbete encontrado para a frase no dicionário."
+    val couldNotRecognizeFullScreen: String get() = if (isEnglish) "Could not recognize full screen" else "Não foi possível reconhecer a tela inteira"
+    val tempViewerTitle: String get() = if (isEnglish) "Yabai OCR - Temporary Viewer (Crop)" else "Yabai OCR - Visualizador Temporário (Recorte)"
+    fun selectedCrop(w: Int, h: Int): String = if (isEnglish) "Selected Crop ($w x $h px)" else "Recorte Selecionado ($w x $h px)"
+    val regionSelectionWindowTitle: String get() = if (isEnglish) "Yabai OCR - Select Region" else "Yabai OCR - Selecionar Área"
+    val btnRecognizeOcr: String get() = if (isEnglish) "Recognize (OCR)" else "Reconhecer (OCR)"
+    val selectDictFolderDialogTitle: String get() = if (isEnglish) "Select folder to save dictionaries" else "Selecionar pasta para salvar dicionários"
+    val btnDownloadOnGithub: String get() = if (isEnglish) "🌐 Download Update on GitHub" else "🌐 Baixar Atualização no GitHub"
 }

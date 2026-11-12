@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import dev.yabai.ocr.R
 import dev.yabai.ocr.core.dict.CompactDictionary
 import dev.yabai.ocr.core.dict.DictionaryCompiler
 import dev.yabai.ocr.core.dict.DictionaryInfo
@@ -148,10 +149,10 @@ class DictionaryRepository private constructor(private val appContext: Context) 
                 progress = { phase, done, _ ->
                     when (phase) {
                         DictionaryCompiler.Phase.READING ->
-                            onProgress("Lendo verbetes… ($done)")
+                            onProgress(appContext.getString(R.string.dictionary_reading_entries, done))
 
                         DictionaryCompiler.Phase.INDEXING ->
-                            onProgress("Montando índice…")
+                            onProgress(appContext.getString(R.string.dictionary_building_index))
                     }
                 },
             )

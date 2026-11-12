@@ -953,8 +953,8 @@ fun SettingsContent(
 
                 enginePriority.forEachIndexed { index, choice ->
                     val label = when (choice) {
-                        DesktopEngineChoice.MANGA_OCR -> "Manga-OCR (Offline - IA Mangá)"
-                        DesktopEngineChoice.LENS -> "Google Lens (Online)"
+                        DesktopEngineChoice.MANGA_OCR -> if (DesktopStrings.isEnglish) "Manga-OCR (Offline - Manga AI)" else "Manga-OCR (Offline - IA Mangá)"
+                        DesktopEngineChoice.LENS -> if (DesktopStrings.isEnglish) "Google Lens (Online)" else "Google Lens (Online)"
                         else -> choice.name
                     }
                     Card(
@@ -1197,7 +1197,7 @@ fun SettingsContent(
                         Button(
                             onClick = {
                                 val chooser = JFileChooser()
-                                chooser.dialogTitle = "Selecionar pasta para salvar dicionários"
+                                chooser.dialogTitle = DesktopStrings.selectDictFolderDialogTitle
                                 chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
                                 val result = chooser.showOpenDialog(null)
                                 if (result == JFileChooser.APPROVE_OPTION) {
@@ -1584,7 +1584,7 @@ fun SettingsContent(
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
                             ) {
-                                Text(if (updateInfo?.downloadUrl != null) DesktopStrings.btnDownloadUpdate else "🌐 Baixar Atualização no GitHub")
+                                Text(if (updateInfo?.downloadUrl != null) DesktopStrings.btnDownloadUpdate else DesktopStrings.btnDownloadOnGithub)
                             }
                         }
                     }

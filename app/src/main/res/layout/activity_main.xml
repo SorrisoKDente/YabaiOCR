@@ -37,7 +37,7 @@
                 android:minWidth="0dp"
                 android:paddingStart="10dp"
                 android:paddingEnd="10dp"
-                android:text="🌙 Escuro"
+                android:text="@string/theme_dark_option"
                 android:textColor="@color/text_primary" />
 
             <Button
@@ -263,7 +263,7 @@
                 android:layout_height="wrap_content"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
-                android:text="🌙 Escuro"
+                android:text="@string/theme_dark_option"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
@@ -273,7 +273,7 @@
                 android:layout_height="wrap_content"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
-                android:text="☀️ Claro"
+                android:text="@string/theme_light_option"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
 
@@ -283,7 +283,7 @@
                 android:layout_height="wrap_content"
                 android:paddingTop="6dp"
                 android:paddingBottom="6dp"
-                android:text="💻 Padrão do Sistema"
+                android:text="@string/theme_system_option"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </RadioGroup>

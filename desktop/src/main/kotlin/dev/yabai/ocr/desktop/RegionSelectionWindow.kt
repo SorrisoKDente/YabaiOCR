@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,7 +99,7 @@ fun RegionSelectionWindow(
 
     Window(
         onCloseRequest = onDismiss,
-        title = "Yabai OCR - Selecionar Área (Lightshot)",
+        title = DesktopStrings.regionSelectionWindowTitle,
         undecorated = true,
         alwaysOnTop = true,
         focusable = true,
@@ -339,14 +341,14 @@ fun RegionSelectionWindow(
                         },
                         colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF4C78FF), contentColor = Color.White)
                     ) {
-                        Text("🔍 Reconhecer (OCR)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("🔍 " + DesktopStrings.btnRecognizeOcr, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
 
                     OutlinedButton(
                         onClick = onDismiss,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFFB4AB))
                     ) {
-                        Text("✕ Cancelar", fontSize = 13.sp)
+                        Text("✕ " + DesktopStrings.cancel, fontSize = 13.sp)
                     }
                 }
             }

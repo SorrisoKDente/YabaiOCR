@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
@@ -160,10 +161,13 @@ class MainActivity : AppCompatActivity() {
 
         fun updateUi() {
             btnThemeToggle.text = when (settings.appTheme) {
-                AppThemeChoice.DARK -> "🌙 Escuro"
-                AppThemeChoice.LIGHT -> "☀️ Claro"
-                AppThemeChoice.SYSTEM -> "💻 Sistema"
+                AppThemeChoice.DARK -> "🌙 " + getString(R.string.theme_dark)
+                AppThemeChoice.LIGHT -> "☀️ " + getString(R.string.theme_light)
+                AppThemeChoice.SYSTEM -> "💻 " + getString(R.string.theme_system)
             }
+            findViewById<RadioButton>(R.id.themeDark)?.text = getString(R.string.theme_dark_option)
+            findViewById<RadioButton>(R.id.themeLight)?.text = getString(R.string.theme_light_option)
+            findViewById<RadioButton>(R.id.themeSystem)?.text = getString(R.string.theme_system_option)
             val checkedId = when (settings.appTheme) {
                 AppThemeChoice.DARK -> R.id.themeDark
                 AppThemeChoice.LIGHT -> R.id.themeLight
@@ -423,7 +427,7 @@ class MainActivity : AppCompatActivity() {
         // The hint *is* the default prompt, from the one place that defines it: after the field is
         // cleared it is what tells whoever asks themselves «and what did it send before?».
         val prompt = findViewById<EditText>(R.id.editAiPrompt).apply {
-            hint = AskAi.DEFAULT_PROMPT
+            hint = getString(R.string.default_ai_prompt)
             setText(settings.aiPrompt)
         }
         // Written as it is typed: this is not a form with a submit button, and the panel can be used

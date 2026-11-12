@@ -26,7 +26,7 @@ import org.robolectric.annotation.Config
  * speech belongs under the headword, not inside the definition.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [34], qualifiers = "pt-rBR")
 class DefinitionPanelTest {
 
     private val context: Context get() = RuntimeEnvironment.getApplication()

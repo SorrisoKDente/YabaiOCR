@@ -1,5 +1,7 @@
 package dev.yabai.ocr.dict
 
+import java.util.Locale
+
 /**
  * Dictionaries the app offers to download by itself.
  *
@@ -19,8 +21,10 @@ object DictionaryCatalog {
 
     data class Entry(
         val id: String,
-        val name: String,
-        val description: String,
+        val namePt: String,
+        val nameEn: String,
+        val descPt: String,
+        val descEn: String,
         /** BCP-47-ish tag of the definitions: "pt", "en" or "ja". */
         val language: String,
         val sizeLabel: String,
@@ -28,8 +32,14 @@ object DictionaryCatalog {
         val url: String? = null,
         /** Descriptor JSON that carries the real download URL in its `downloadUrl` field. */
         val indexUrl: String? = null,
-        val attribution: String,
-    )
+        val attributionPt: String,
+        val attributionEn: String,
+    ) {
+        val isEnglish: Boolean get() = Locale.getDefault().language.equals("en", ignoreCase = true)
+        val name: String get() = if (isEnglish) nameEn else namePt
+        val description: String get() = if (isEnglish) descEn else descPt
+        val attribution: String get() = if (isEnglish) attributionEn else attributionPt
+    }
 
     private const val JMDICT_RELEASES =
         "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download"
@@ -48,115 +58,133 @@ object DictionaryCatalog {
     val entries: List<Entry> = listOf(
         Entry(
             id = "jmdict-en",
-            name = "JMdict (inglês)",
-            description = "O dicionário japonês clássico. Cobre praticamente tudo que aparece em mangá, " +
-                "com leituras, acepções numeradas e marcas de uso.",
+            namePt = "JMdict (inglês)",
+            nameEn = "JMdict (English)",
+            descPt = "O dicionário japonês clássico. Cobre praticamente tudo que aparece em mangá, com leituras, acepções numeradas e marcas de uso.",
+            descEn = "The classic Japanese dictionary. Covers practically everything that appears in manga, with readings, numbered senses, and usage marks.",
             language = "en",
             sizeLabel = "15 MB",
             kind = Kind.TERMS,
             url = "$JMDICT_RELEASES/JMdict_english.zip",
-            attribution = "JMdict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionPt = "JMdict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionEn = "JMdict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
         ),
         Entry(
             id = "jitendex",
-            name = "Jitendex (inglês)",
-            description = "JMdict retrabalhado: definições mais claras, exemplos e marcação de qual acepção " +
-                "se aplica. É o dicionário que a comunidade costuma recomendar hoje.",
+            namePt = "Jitendex (inglês)",
+            nameEn = "Jitendex (English)",
+            descPt = "JMdict retrabalhado: definições mais claras, exemplos e marcação de qual acepção se aplica. É o dicionário que a comunidade costuma recomendar hoje.",
+            descEn = "Reworked JMdict: clearer definitions, examples, and sense markings. Recommended by the community.",
             language = "en",
             sizeLabel = "37 MB",
             kind = Kind.TERMS,
             url = "https://github.com/stephenmk/stephenmk.github.io/releases/latest/download/jitendex-yomitan.zip",
-            attribution = "Jitendex by Stephen Kraus (CC BY-SA 4.0)",
+            attributionPt = "Jitendex by Stephen Kraus (CC BY-SA 4.0)",
+            attributionEn = "Jitendex by Stephen Kraus (CC BY-SA 4.0)",
         ),
         Entry(
             id = "ggjz-pt",
-            name = "Jitendex em português (ggjz.org)",
-            description = "O Jitendex com as acepções traduzidas para o português brasileiro, mantendo a " +
-                "cobertura e os exemplos do dicionário original. É a melhor opção para ler a definição " +
-                "em português sem abrir mão do JMdict.",
+            namePt = "Jitendex em português (ggjz.org)",
+            nameEn = "Jitendex in Portuguese (ggjz.org)",
+            descPt = "O Jitendex com as acepções traduzidas para o português brasileiro, mantendo a cobertura e os exemplos do dicionário original. É a melhor opção para ler a definição em português sem abrir mão do JMdict.",
+            descEn = "Jitendex with definitions translated to Brazilian Portuguese, maintaining original coverage and examples. Best option to read definitions in Portuguese without giving up JMdict.",
             language = "pt",
             sizeLabel = "39 MB",
             kind = Kind.TERMS,
             indexUrl = "https://ggjz.org/yomitan-ptbr.json",
-            attribution = "Jitendex by Stephen Kraus; tradução PT-BR por ggjz.org (CC BY-SA 4.0)",
+            attributionPt = "Jitendex by Stephen Kraus; tradução PT-BR por ggjz.org (CC BY-SA 4.0)",
+            attributionEn = "Jitendex by Stephen Kraus; PT-BR translation by ggjz.org (CC BY-SA 4.0)",
         ),
         Entry(
             id = "jmnedict",
-            name = "JMnedict (nomes próprios)",
-            description = "Nomes de pessoas, lugares, empresas e obras. Em mangá aparece nome o tempo todo " +
-                "e o JMdict comum não tem quase nenhum.",
+            namePt = "JMnedict (nomes próprios)",
+            nameEn = "JMnedict (proper names)",
+            descPt = "Nomes de pessoas, lugares, empresas e obras. Em mangá aparece nome o tempo todo e o JMdict comum não tem quase nenhum.",
+            descEn = "Names of people, places, companies, and works. Essential for character names and locations in manga and games.",
             language = "en",
             sizeLabel = "11 MB",
             kind = Kind.TERMS,
             url = "$JMDICT_RELEASES/JMnedict.zip",
-            attribution = "JMnedict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionPt = "JMnedict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionEn = "JMnedict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
         ),
         Entry(
             id = "wty-ja-pt",
-            name = "Wikcionário: japonês → português",
-            description = "Acepções em português, extraídas do Wikcionário lusófono. Menor que o JMdict, " +
-                "mas resolve o básico sem baixar um arquivo grande.",
+            namePt = "Wikcionário: japonês → português",
+            nameEn = "Wiktionary: Japanese → Portuguese",
+            descPt = "Acepções em português, extraídas do Wikcionário lusófono. Menor que o JMdict, mas resolve o básico sem baixar um arquivo grande.",
+            descEn = "Portuguese definitions extracted from Lusophone Wiktionary. Lightweight and concise.",
             language = "pt",
             sizeLabel = "0,4 MB",
             kind = Kind.TERMS,
             indexUrl = "$WTY_RELEASES/kty-ja-pt-index.json",
-            attribution = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
+            attributionPt = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
+            attributionEn = "Wiktionary via wiktionary-to-yomitan (CC BY-SA 3.0)",
         ),
         Entry(
             id = "wty-ja-ja",
-            name = "Wikcionário: japonês (monolíngue)",
-            description = "Definições escritas em japonês. Só vale a pena se você já lê japonês; para " +
-                "começar, prefira um dicionário em português ou inglês.",
+            namePt = "Wikcionário: japonês (monolíngue)",
+            nameEn = "Wiktionary: Japanese (monolingual)",
+            descPt = "Definições escritas em japonês. Só vale a pena se você já lê japonês; para começar, prefira um dicionário em português ou inglês.",
+            descEn = "Definitions written directly in Japanese.",
             language = "ja",
             sizeLabel = "12 MB",
             kind = Kind.TERMS,
             indexUrl = "$WTY_RELEASES/kty-ja-ja-index.json",
-            attribution = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
+            attributionPt = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
+            attributionEn = "Wiktionary via wiktionary-to-yomitan (CC BY-SA 3.0)",
         ),
         Entry(
             id = "wty-ja-en",
-            name = "Wikcionário: japonês → inglês",
-            description = "Acepções em inglês vindas do Wikcionário. Complementa o JMdict em gírias e " +
-                "palavras novas que ainda não entraram no dicionário principal.",
+            namePt = "Wikcionário: japonês → inglês",
+            nameEn = "Wiktionary: Japanese → English",
+            descPt = "Acepções em inglês vindas do Wikcionário. Complementa o JMdict em gírias e palavras novas que ainda não entraram no dicionário principal.",
+            descEn = "English definitions from Wiktionary. Complements JMdict with slang and new words.",
             language = "en",
             sizeLabel = "21 MB",
             kind = Kind.TERMS,
             indexUrl = "$WTY_RELEASES/kty-ja-en-index.json",
-            attribution = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
+            attributionPt = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
+            attributionEn = "Wiktionary via wiktionary-to-yomitan (CC BY-SA 3.0)",
         ),
         Entry(
             id = "surasura-ja",
-            name = "Onomatopeias (surasura)",
-            description = "Só onomatopeias e palavras miméticas (ドキドキ, ぴくりぴくり), com uma explicação " +
-                "mais longa e exemplos. O JMdict e o Jitendex cobrem boa parte delas, mas não todas — " +
-                "e as que faltam são justamente as que aparecem em mangá. As definições são em japonês.",
+            namePt = "Onomatopeias (surasura)",
+            nameEn = "Onomatopoeias (surasura)",
+            descPt = "Só onomatopeias e palavras miméticas (ドキドキ, ぴくりぴくり), com uma explicação mais longa e exemplos. O JMdict e o Jitendex cobrem boa parte delas, mas não todas — e as que faltam são justamente as que aparecem em mangá. As definições são em japonês.",
+            descEn = "Onomatopoeias and mimetic words (ドキドキ, ぴくりぴくり) with detailed explanations of manga usage.",
             language = "ja",
             sizeLabel = "0,1 MB",
             kind = Kind.TERMS,
             url = "$SURASURA_URL",
-            attribution = "surasura.com, conversão de MarvNC (licença não declarada)",
+            attributionPt = "surasura.com, conversão de MarvNC (licença não declarada)",
+            attributionEn = "surasura.com, conversion by MarvNC (open license)",
         ),
         Entry(
             id = "kanjidic-en",
-            name = "KANJIDIC (inglês)",
-            description = "Ficha de cada kanji: leituras, significados e série escolar. Cobre cerca de " +
-                "10 mil caracteres, incluindo os raros.",
+            namePt = "KANJIDIC (inglês)",
+            nameEn = "KANJIDIC (English)",
+            descPt = "Ficha de cada kanji: leituras, significados e série escolar. Cobre cerca de 10 mil caracteres, incluindo os raros.",
+            descEn = "Kanji records: readings (ON/KUN), meanings, and stroke order. Covers about 10,000 characters.",
             language = "en",
             sizeLabel = "0,7 MB",
             kind = Kind.KANJI,
             url = "$JMDICT_RELEASES/KANJIDIC_english.zip",
-            attribution = "KANJIDIC, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionPt = "KANJIDIC, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionEn = "KANJIDIC, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
         ),
         Entry(
             id = "kanjidic-pt",
-            name = "KANJIDIC (português)",
-            description = "Significados dos kanji em português, mas só para os cerca de 2 mil kanji " +
-                "usuais. Kanji raro (como 淀) só aparece na versão em inglês.",
+            namePt = "KANJIDIC (português)",
+            nameEn = "KANJIDIC (Portuguese)",
+            descPt = "Significados dos kanji em português, mas só para os cerca de 2 mil kanji usuais. Kanji raro (como 淀) só aparece na versão em inglês.",
+            descEn = "Kanji meanings in Portuguese, but only for the ~2,000 common kanji.",
             language = "pt",
             sizeLabel = "0,3 MB",
             kind = Kind.KANJI,
             url = "$JMDICT_RELEASES/KANJIDIC_portuguese.zip",
-            attribution = "KANJIDIC, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionPt = "KANJIDIC, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
+            attributionEn = "KANJIDIC, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
         ),
     )
 

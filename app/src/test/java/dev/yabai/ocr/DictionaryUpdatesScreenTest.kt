@@ -48,7 +48,7 @@ import java.util.zip.ZipOutputStream
  * offering a button that can only fail.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [31], qualifiers = "w320dp-h640dp-mdpi")
+@Config(sdk = [31], qualifiers = "pt-rBR")
 class DictionaryUpdatesScreenTest {
 
     private val context: Context get() = RuntimeEnvironment.getApplication()
