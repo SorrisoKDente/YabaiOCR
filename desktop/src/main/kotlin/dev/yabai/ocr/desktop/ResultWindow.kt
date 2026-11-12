@@ -48,6 +48,7 @@ fun ResultWindow(
     // The engine that actually answered, not a fixed label: with «Automático» the fallback decides.
     var engineUsed by remember { mutableStateOf<DesktopEngineChoice?>(null) }
     var matches by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
+    var lookupError by remember { mutableStateOf<String?>(null) }
     var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
     var showImageToggle by remember { mutableStateOf(settings.showImage) }
 
@@ -121,11 +122,21 @@ fun ResultWindow(
 
     // Re-run lookup when recognized text or dictionary filter changes
     LaunchedEffect(recognizedText, selectedFilter, engine) {
-        if (recognizedText.isNotBlank() && engine != null) {
+        val current = engine
+        if (recognizedText.isNotBlank() && current != null) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
-            matches = engine.lookup(recognizedText, only = onlySet)
+            // Off the UI thread and guarded: switching the dictionary maps that `.yabai` again, and a
+            // dictionary that fails here must show a notice, not kill the window's coroutine.
+            val state = withContext(Dispatchers.Default) {
+                DictLookup.run(recognizedText, onlySet) { text, only ->
+                    current.lookup(text, only = only)
+                }
+            }
+            matches = state.matches
+            lookupError = state.error
         } else {
             matches = emptyList()
+            lookupError = null
         }
     }
 
@@ -450,10 +461,21 @@ fun ResultWindow(
 
                                     Spacer(modifier = Modifier.height(8.dp))
 
-                                    if (matches.isEmpty()) {
+                                    if (lookupError != null) {
+                                        Text(
+                                            text = DesktopStrings.lookupFailed(lookupError!!),
+                                            style = MaterialTheme.typography.body2,
+                                            color = Color(0xFFE57373)
+                                        )
+                                    } else if (matches.isEmpty()) {
                                         Text(
                                             text = if (engine == null)
                                                 DesktopStrings.noDictsInFolder(settings.dictDirectory().absolutePath)
+                                            else if (selectedFilter.isNotBlank())
+                                                // The dictionary the user picked simply has no entry for
+                                                // this word; that is not an error, and the other
+                                                // dictionaries are one click away.
+                                                DesktopStrings.selectedDictHasNoEntry(selectedFilter)
                                             else
                                                 DesktopStrings.noEntriesFoundForSentence,
                                             style = MaterialTheme.typography.body2,

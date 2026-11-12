@@ -364,4 +364,12 @@ object DesktopStrings {
     val btnRecognizeOcr: String get() = if (isEnglish) "Recognize (OCR)" else "Reconhecer (OCR)"
     val selectDictFolderDialogTitle: String get() = if (isEnglish) "Select folder to save dictionaries" else "Selecionar pasta para salvar dicionários"
     val btnDownloadOnGithub: String get() = if (isEnglish) "🌐 Download Update on GitHub" else "🌐 Baixar Atualização no GitHub"
+
+    // Dictionary lookup feedback — a query can find nothing, or the dictionary itself can fail.
+    val lookupFailedGeneric: String get() = if (isEnglish) "The dictionary could not be read." else "Não foi possível ler o dicionário."
+    fun lookupFailed(detail: String): String = if (isEnglish) "Could not read the dictionary: $detail" else "Não foi possível ler o dicionário: $detail"
+    fun selectedDictHasNoEntry(title: String): String = if (isEnglish)
+        "The selected dictionary ($title) has no entry for this word. Pick «All dictionaries» to search the others."
+    else
+        "O dicionário selecionado ($title) não tem verbete para esta palavra. Escolha «Todos os dicionários» para buscar nos outros."
 }

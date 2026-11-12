@@ -55,6 +55,7 @@ fun QuickDictWindow(onClose: () -> Unit) {
     // Word (headword/reading) or translation (definition) search; see DesktopSettings.searchByTranslation.
     var translationMode by remember { mutableStateOf(settings.searchByTranslation) }
     var status by remember { mutableStateOf("") }
+    var lookupError by remember { mutableStateOf<String?>(null) }
 
     // Load dictionaries from configured dictionary directory
     val engine = remember {
@@ -80,7 +81,9 @@ fun QuickDictWindow(onClose: () -> Unit) {
         // A Latin word has no Japanese headword to suggest; «espada» must not offer エスパダ.
         if (!translationMode && engine != null && query.isNotBlank()) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
-            engine.suggest(query, only = onlySet)
+            // Composition must stay total: a suggestion from a dictionary that cannot be read simply
+            // does not appear, instead of throwing while Compose is building the window.
+            runCatching { engine.suggest(query, only = onlySet) }.getOrDefault(emptyList())
         } else emptyList()
     }
 
@@ -88,24 +91,31 @@ fun QuickDictWindow(onClose: () -> Unit) {
         val current = engine
         if (current != null && query.isNotBlank()) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
-            results = withContext(Dispatchers.Default) {
-                if (translationMode) {
-                    status = DesktopStrings.dictIndexPreparing
-                    val found = current.searchTranslation(query, only = onlySet) { progress ->
-                        if (progress.building) {
-                            status = "${DesktopStrings.dictIndexPreparing} ${(progress.fraction * 100).toInt()}%"
+            val state = withContext(Dispatchers.Default) {
+                // Guarded for the same reason as the result window: a dictionary closed or replaced
+                // mid-query would otherwise escape as a fatal Compose coroutine exception.
+                DictLookup.run(query, onlySet) { text, only ->
+                    if (translationMode) {
+                        status = DesktopStrings.dictIndexPreparing
+                        val found = current.searchTranslation(text, only = only) { progress ->
+                            if (progress.building) {
+                                status = "${DesktopStrings.dictIndexPreparing} ${(progress.fraction * 100).toInt()}%"
+                            }
                         }
+                        status = ""
+                        found
+                    } else {
+                        status = ""
+                        current.search(text, only = only)
                     }
-                    status = ""
-                    found
-                } else {
-                    status = ""
-                    current.search(query, only = onlySet)
                 }
             }
+            results = state.matches
+            lookupError = state.error
         } else {
             results = emptyList()
             status = ""
+            lookupError = null
         }
     }
 
@@ -270,6 +280,18 @@ fun QuickDictWindow(onClose: () -> Unit) {
                         Text(
                             DesktopStrings.noDictsWarning,
                             color = MaterialTheme.colors.error,
+                            style = MaterialTheme.typography.caption
+                        )
+                    } else if (lookupError != null) {
+                        Text(
+                            DesktopStrings.lookupFailed(lookupError!!),
+                            color = MaterialTheme.colors.error,
+                            style = MaterialTheme.typography.caption
+                        )
+                    } else if (results.isEmpty() && query.isNotBlank() && !translationMode && selectedFilter.isNotBlank()) {
+                        Text(
+                            DesktopStrings.selectedDictHasNoEntry(selectedFilter),
+                            color = MaterialTheme.colors.secondary,
                             style = MaterialTheme.typography.caption
                         )
                     } else {

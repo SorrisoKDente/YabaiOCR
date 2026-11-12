@@ -44,6 +44,10 @@ tasks.withType<Test>().configureEach {
 val isWindowsHost = System.getProperty("os.name").lowercase().contains("win")
 val isLinuxHost = System.getProperty("os.name").lowercase().contains("linux")
 
+// Version stamped into the packages. The release workflow passes `-PyabaiVersion=<tag without v>` so
+// an installer, a portable zip and an AppImage from the same tag all carry the same number.
+val appVersion = (project.findProperty("yabaiVersion") as String?)?.removePrefix("v") ?: "1.0.0"
+
 compose.desktop {
     application {
         mainClass = "dev.yabai.ocr.desktop.MainKt"
@@ -76,7 +80,7 @@ compose.desktop {
             )
             // Linux package names must be lowercase and space-free; the visible name stays "Yabai OCR".
             packageName = if (isWindowsHost) "Yabai OCR" else "yabai-ocr"
-            packageVersion = "1.0.0"
+            packageVersion = appVersion
             if (isWindowsHost) {
                 windows {
                     iconFile.set(project.file("src/main/resources/ic_scan_windows.ico"))
@@ -113,7 +117,7 @@ if (isWindowsHost) {
         ).firstOrNull { File(it).exists() } ?: "iscc"
 
         workingDir = project.file("package/windows")
-        commandLine = listOf(isccPath, "installer.iss")
+        commandLine = listOf(isccPath, "/DMyAppVersion=$appVersion", "installer.iss")
     }
 
     tasks.register<Zip>("packagePortableZip") {
@@ -121,7 +125,7 @@ if (isWindowsHost) {
         group = "compose desktop"
         description = "Compresses the standalone portable application folder into a zip archive."
 
-        archiveFileName.set("Yabai_OCR_Portable_1.0.0.zip")
+        archiveFileName.set("Yabai_OCR_Portable_${appVersion}.zip")
         destinationDirectory.set(layout.buildDirectory.dir("distributions/portable"))
         from(layout.buildDirectory.dir("distributions/main/app/Yabai OCR"))
     }
@@ -133,7 +137,7 @@ if (isLinuxHost) {
         group = "compose desktop"
         description = "Packs the standalone portable Linux application into a tar.gz archive."
 
-        archiveFileName.set("Yabai_OCR_Linux_x86_64_1.0.0.tar.gz")
+        archiveFileName.set("Yabai_OCR_Linux_x86_64_${appVersion}.tar.gz")
         destinationDirectory.set(layout.buildDirectory.dir("distributions/portable"))
         from(layout.buildDirectory.dir("distributions/main/app/yabai-ocr"))
         compression = Compression.GZIP
@@ -148,6 +152,7 @@ if (isLinuxHost) {
         description = "Builds a single-file .AppImage with appimagetool (requires appimagetool on PATH or APPIMAGETOOL)."
 
         workingDir = project.file("package/linux")
+        environment("YABAI_VERSION", appVersion)
         commandLine("bash", "build-appimage.sh")
     }
 }

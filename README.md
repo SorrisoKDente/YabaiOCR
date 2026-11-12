@@ -1,5 +1,7 @@
 # Yabai OCR
 
+**Português** | [English](README.en.md)
+
 Leitor de japonês com OCR para **desktop** e **Android**: selecione qualquer texto japonês na tela —
 um balão de mangá, uma legenda, um jogo — e veja na hora a leitura, o significado no dicionário e a
 tradução, sem tirar print nem abrir outra janela.
@@ -40,7 +42,8 @@ desktop e no Android), então o app continua útil sem conexão.
 .\gradlew.bat :desktop:run
 ```
 
-O app abre nos Ajustes e fica na bandeja. Atalhos padrão (todos configuráveis):
+O app abre nos Ajustes e fica na bandeja. A interface existe em **português e inglês**, escolhido nos
+Ajustes. Atalhos padrão (todos configuráveis):
 
 | atalho | ação |
 | --- | --- |
@@ -104,6 +107,9 @@ O mapa detalhado — arquivo por arquivo, fluxos e armadilhas — está em
 | [STEAMOS.md](STEAMOS.md) | instalação e uso no Steam Deck |
 | [AGENTS.md](AGENTS.md) | convenções de trabalho no repositório |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | como compilar, testar e enviar uma mudança |
+
+Os documentos públicos existem em português e em inglês (`README.en.md`, `ARCHITECTURE.en.md`,
+`CONTRIBUTING.en.md`); o `ROADMAP.md` é o histórico técnico interno, em português.
 
 ## Estado e contribuições
 

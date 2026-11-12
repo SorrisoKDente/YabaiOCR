@@ -234,3 +234,16 @@ As seguintes constantes e valores técnicos **não** devem ser alterados nem tra
 - Identificadores de dicionários e IDs de catálogo (ex.: `"jmdict"`, `"jitendex"`, `"jmnedict"`, `"kanjidic_english"`).
 - URLs de serviços, pacotes Android (ex.: `"com.openai.chatgpt"`), esquemas DBus do Linux e comandos de sistema.
 - Comentários no código-fonte (que permanecem em inglês como padrão estabelecido no repositório).
+
+### 4.2. Regra atual (12/11/2026)
+
+Toda string de interface existe em **pt-BR e en** de uma vez; o usuário escolhe o idioma nos Ajustes
+(`AppLanguageChoice`). No desktop, as duas versões vivem no mesmo `DesktopStrings` (`isEnglish`); no
+Android, cada chave existe em `values/strings.xml` (pt-BR) e `values-en/strings.xml`.
+
+Chaves novas do popup de resultado e da busca rápida (D43): `lookupFailedGeneric`,
+`lookupFailed(detail)` e `selectedDictHasNoEntry(title)`.
+
+Os documentos públicos também são bilíngues: `README.md`/`README.en.md`,
+`ARCHITECTURE.md`/`ARCHITECTURE.en.md`, `CONTRIBUTING.md`/`CONTRIBUTING.en.md`, com seletor de idioma no
+topo de cada arquivo. O `ROADMAP.md` segue só em português (histórico técnico interno).

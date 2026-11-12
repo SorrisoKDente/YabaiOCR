@@ -1,0 +1,136 @@
+name: Release
+
+# Pushing a tag like `v1.2.3` builds every artifact and attaches it to a GitHub release.
+# Nothing runs on branches: a release only exists when a tag says so.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  # `v1.2.3` -> `1.2.3`; that number is stamped into every package.
+  VERSION: ${{ github.ref_name }}
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build tests and release APK
+        run: |
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Collect artifact
+        run: |
+          mkdir -p dist
+          cp "apk-output/Yabai OCR.apk" "dist/Yabai_OCR_${VERSION#v}.apk"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*.apk
+
+  windows:
+    name: Windows setup and portable
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      # ISCC.exe comes from Chocolatey; the Gradle task finds it in Program Files.
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build distributable, installer and portable zip
+        shell: pwsh
+        run: |
+          ./gradlew :desktop:createDistributable :desktop:packageInnoSetup :desktop:packagePortableZip -PyabaiVersion=$env:VERSION --no-daemon --stacktrace
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $v = $env:VERSION -replace '^v', ''
+          Copy-Item "desktop/build/distributions/inno/Yabai_OCR_Setup.exe" "dist/Yabai_OCR_Setup_$v.exe"
+          Copy-Item "desktop/build/distributions/portable/Yabai_OCR_Portable_$v.zip" "dist/"
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  linux:
+    name: Linux AppImage and tar.gz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build distributable and tar.gz
+        run: ./gradlew :desktop:createDistributable :desktop:packagePortableTarGz -PyabaiVersion=$VERSION --no-daemon --stacktrace
+
+      # The official appimagetool AppImage needs FUSE, which the runner lacks; extracting it and
+      # calling the inner AppRun is the documented way to use it in CI.
+      - name: Get appimagetool
+        run: |
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract >/dev/null
+          echo "APPIMAGETOOL=$PWD/squashfs-root/AppRun" >> "$GITHUB_ENV"
+
+      - name: Build AppImage
+        run: APPIMAGETOOL="$PWD/squashfs-root/AppRun" ./gradlew :desktop:packageLinuxAppImage -PyabaiVersion=$VERSION --no-daemon --stacktrace
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          cp desktop/build/distributions/portable/*.tar.gz dist/
+          cp desktop/build/distributions/appimage/*.AppImage dist/
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  release:
+    name: Publish GitHub release
+    needs: [android, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lR artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Yabai OCR ${{ env.VERSION }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          generate_release_notes: true
+          files: artifacts/*

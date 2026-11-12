@@ -1,7 +1,12 @@
+; The version comes from the build: iscc /DMyAppVersion=<version> installer.iss
+#ifndef MyAppVersion
+#define MyAppVersion "1.0.0"
+#endif
+
 [Setup]
 AppId={{D7B93A8E-4F12-4C2A-9E81-2A6B4D3F5E01}}
 AppName=Yabai OCR
-AppVersion=1.0.0
+AppVersion={#MyAppVersion}
 AppPublisher=Yabai Team
 DefaultDirName={autopf}\Yabai OCR
 DefaultGroupName=Yabai OCR

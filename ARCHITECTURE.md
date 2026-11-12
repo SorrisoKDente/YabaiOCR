@@ -1,5 +1,7 @@
 # Yabai OCR — Estrutura do projeto
 
+**Português** | [English](ARCHITECTURE.en.md)
+
 Documento de referência para quem precisa **encontrar onde mexer**. Descreve os três módulos, o papel
 de cada arquivo, os fluxos principais e as armadilhas conhecidas. Para o histórico de decisões e o
 porquê de cada correção, ver [ROADMAP.md](ROADMAP.md); para o uso do app, [README.md](README.md).
@@ -59,8 +61,8 @@ Opções de teste que ligam casos reais (nenhuma roda por padrão):
 | `-PcompiledDicts="C:\compiled"` | `:core` | `.yabai` já compilados (índice de tradução) |
 | `-Pppocr="C:\home"` | `:desktop` | modelos do PP-OCR em `home/ppocr_v6` (teste ponta a ponta) |
 
-Contagens atuais: **`:core` ~190 testes**, **`:desktop` ~258**, **`:app` ~411**. Números redondos:
-confirme com a suíte antes de citá-los.
+Contagens atuais: **`:core` 177 testes**, **`:desktop` 265**, **`:app` 411**. Confirme com a suíte
+antes de citá-los.
 
 ---
 
@@ -73,9 +75,10 @@ confirme com a suíte antes de citá-los.
 ├── gradle/libs.versions.toml   # todas as dependências e versões
 ├── AGENTS.md                   # regras de trabalho no repositório
 ├── ARCHITECTURE.md             # este documento
-├── CONTRIBUTING.md             # como contribuir (compilar, testar, enviar)
+├── ARCHITECTURE.en.md          # este documento em inglês
+├── CONTRIBUTING.md / .en.md    # como contribuir (compilar, testar, enviar)
 ├── LICENSE                     # MIT
-├── README.md                   # visão geral pública
+├── README.md / README.en.md    # visão geral pública (pt/en)
 ├── ROADMAP.md                  # histórico técnico item a item (B/F/M/D/I/N/R)
 ├── LANGUAGES.md                # i18n: chaves e onde cada texto vive
 ├── LINUX.md / STEAMOS.md       # suporte a Linux e Steam Deck
@@ -368,7 +371,8 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 ## 9. Convenções e armadilhas
 
 - **Texto reconhecido é dado.** Não corrigir, completar ou "melhorar" caractere reconhecido.
-- **UI em pt-BR**, comentários de código em inglês, nomes de API em inglês.
+- **Toda string de UI existe em todos os idiomas disponíveis** (hoje pt-BR e en), e o idioma é
+  escolhido pelo usuário nos Ajustes; comentários de código e nomes de API em inglês.
 - **HiDPI:** use `createMultiResolutionScreenCapture`; desenhe 1:1 com `FilterQuality.None`;
   bounds AWT vão direto para `.dp`.
 - **Picker:** sem véu; a tela inteira sempre para no seletor quando há ao menos um bloco.
@@ -384,11 +388,11 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 
 | arquivo | para quem |
 | --- | --- |
-| [README.md](README.md) | quem quer instalar e usar |
+| [README.md](README.md) / [README.en.md](README.en.md) | quem quer instalar e usar |
 | **ARCHITECTURE.md** | quem vai mexer no código |
 | [ROADMAP.md](ROADMAP.md) | histórico técnico: causa raiz, correção, testes, evidência |
 | [LANGUAGES.md](LANGUAGES.md) | i18n: chaves, onde vivem, o que falta traduzir |
 | [LINUX.md](LINUX.md) / [STEAMOS.md](STEAMOS.md) | Linux e Steam Deck |
 | [AGENTS.md](AGENTS.md) | regras de trabalho no repositório (agentes e pessoas) |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | como compilar, testar e enviar uma mudança |
+| [CONTRIBUTING.md](CONTRIBUTING.md) / [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | como compilar, testar e enviar uma mudança |
 | [ACCESSIBILITY_SERVICE_GUIDE.md](ACCESSIBILITY_SERVICE_GUIDE.md) | serviço de acessibilidade |

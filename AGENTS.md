@@ -42,14 +42,17 @@ sem que isso seja o comportamento pedido e testado.
   adivinhar.
 - Uma mudança de prompt, de pós-processamento ou de dicionário pode alterar o texto final. Trate
   como mudança de comportamento: teste de regressão + evidência.
-- O que o usuário vê na UI é pt-BR. Comentários de código seguem o inglês já usado no repositório.
+- A interface existe em **todos os idiomas disponíveis** — hoje pt-BR e en — e o usuário escolhe o
+  idioma nos Ajustes. String nova entra nos dois de uma vez (`DesktopStrings` no desktop;
+  `values/strings.xml` + `values-en/strings.xml` no Android). Nunca uma string só em um idioma, nunca
+  texto fixo numa tela. Comentários de código seguem o inglês já usado no repositório.
 
 ## Comandos
 
 Windows/PowerShell, na raiz:
 
 ```powershell
-.\gradlew.bat :desktop:test --console=plain       # suíte desktop (261 testes em 12/11/2026)
+.\gradlew.bat :desktop:test --console=plain       # suíte desktop (265 testes em 12/11/2026)
 .\gradlew.bat :desktop:compileKotlin              # compilação rápida do desktop
 .\gradlew.bat :desktop:run --args="--minimized"   # app na bandeja, sem abrir Ajustes
 .\gradlew.bat :core:test                          # core (JVM puro)
@@ -64,7 +67,7 @@ Opções do `:core`:
 .\gradlew.bat :core:test -Pdicts="E:\Documentos\DicionariosJapones" # ZIPs reais do Yomitan
 ```
 
-A suíte desktop fechou em **261 testes**, o `:core` padrão (sem `-Plive`/`-Pdicts`) em **177** e o
+A suíte desktop fechou em **265 testes**, o `:core` padrão (sem `-Plive`/`-Pdicts`) em **177** e o
 app, com Robolectric, em **411** na última verificação (12/11/2026). Se os números mudarem, confirme
 que os testes novos são intencionais e atualize ROADMAP/AGENTS.
 
@@ -123,6 +126,10 @@ nenhum teste significa que o teste não cobre a causa — reescreva o teste, nã
 - Use a skill `yabai-docs` e o template
   `.opencode/skills/yabai-docs/references/entry-template.md`.
 
+**Documento público é bilíngue.** `README`, `ARCHITECTURE` e `CONTRIBUTING` existem em pt-BR e em
+inglês (`*.en.md`), com o seletor de idioma no topo. Mudou um, atualize o par na mesma tarefa.
+O `ROADMAP.md` é histórico técnico interno e fica só em português.
+
 **Estrutura mudou? Atualize o `ARCHITECTURE.md` na mesma tarefa.** Isso vale para arquivo, pasta ou
 módulo novo, removido, renomeado ou que passou a ter outro papel, e para fluxo novo (motor, captura,
 ajuste, tela). O documento é a referência de busca do projeto: se ele não bate com o código, a próxima
@@ -157,4 +164,5 @@ visual/desktop, também `yabai-desktop-e2e`; se mexer em texto japonês, também
 - [ ] `settings.properties` restaurado e nenhum processo deixado aberto.
 - [ ] README/ROADMAP atualizados se o comportamento mudou.
 - [ ] `ARCHITECTURE.md` atualizado se algum arquivo, pasta, módulo ou fluxo entrou, saiu ou mudou de papel.
+- [ ] Toda string nova de UI existe em pt-BR e en; documento público atualizado nas duas línguas.
 - [ ] Relatório final em pt-BR, com comandos, números e limitações.

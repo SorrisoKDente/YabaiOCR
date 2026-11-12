@@ -1,5 +1,7 @@
 # Contribuindo com o Yabai OCR
 
+**Português** | [English](CONTRIBUTING.en.md)
+
 Obrigado pelo interesse. O projeto é aberto e *pull requests* são bem-vindos.
 
 ## Antes de começar
@@ -27,9 +29,10 @@ Linux e Steam Deck: veja [LINUX.md](LINUX.md) e [STEAMOS.md](STEAMOS.md).
 - **Teste de regressão + prova de mutação:** toda correção traz um teste que falha sem a correção e
   passa com ela, e a causa raiz precisa derrubar esse teste quando reintroduzida.
 - **Menor mudança possível**, sem reformatar arquivos alheios.
-- **UI em pt-BR**, comentários de código em inglês.
+- **Toda string de UI existe em todos os idiomas disponíveis** (hoje pt-BR e en), e o idioma é
+  escolhido pelo usuário nos Ajustes. Comentários de código em inglês.
 - **Documentação na mesma tarefa:** mudou comportamento → README/ROADMAP; mudou a estrutura de
-  arquivos → ARCHITECTURE.md.
+  arquivos → ARCHITECTURE.md (nas duas línguas).
 
 ## Enviando a mudança
 

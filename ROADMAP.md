@@ -4777,3 +4777,48 @@ genéricas de repositório, sem nada específico do Yabai. Ficaram as seis que c
 `systematic-debugging`).
 
 **Resultado.** `:desktop` 263 testes, 0 falhas (261 + os 2 novos).
+
+### D43 — Exceção fatal ao trocar de dicionário, docs bilíngues e release automática por tag  `[x]` (12/11/2026)
+
+**Relato.** «Às vezes ao trocar de dicionário selecionando manualmente, aparece alguns avisos de erro
+"fatal exception..."»; «se for devido um dicionário não ter significado para aquela palavra, adicione
+no popup um aviso que aquele dicionário não tem aquele significado»; UI não deve ser só pt-BR, e sim
+«sempre nas línguas disponíveis no aplicativo»; documentos «readme, architecture, etc também em
+inglês»; e configurar Actions para gerar versão a cada tag (APK de release, portable, setup, AppImage,
+`.tar.gz`).
+
+**Causa raiz do «Fatal exception in coroutines machinery».** No `ResultWindow` o `LaunchedEffect` que
+reconsulta o dicionário quando o filtro muda (`selectedFilter`) chamava `engine.lookup(...)` **sem
+proteção e no dispatcher da UI**. Trocar de dicionário remapeia aquele `.yabai` (que é uma pasta com
+partes mapeadas em memória); se a leitura falha — dicionário em atualização, pasta movida, parte
+corrompida — a exceção sobe pelo `LaunchedEffect` e o Compose a reporta como exceção fatal da máquina
+de corrotinas, dentro do frame da animação (`Transition.animateTo`), num diálogo do sistema com texto
+irrelevante para o usuário. A busca rápida (`QuickDictWindow`) tinha o mesmo problema, e pior:
+`engine.suggest(...)` rodava **durante a composição**.
+
+**Correção.** `DictLookup.run(text, only, query)` roda a consulta, captura a falha e devolve
+`DictLookupState(matches, error)`. `ResultWindow` e `QuickDictWindow` consultam via `withContext(
+Dispatchers.Default) { DictLookup.run(...) }` e mostram o erro no lugar dos verbetes
+(`lookupFailed(detail)`), em vez de derrubar a janela; as sugestões passaram a ser `runCatching`.
+Quando o filtro escolhido simplesmente não tem verbete para aquela palavra, o popup mostra
+`selectedDictHasNoEntry(title)` — «O dicionário selecionado (X) não tem verbete para esta palavra.
+Escolha «Todos os dicionários» para buscar nos outros.» — que é o aviso pedido, sem drama de erro.
+
+**Testes e mutação.** `DictLookupTest` (2 testes): consulta que lança vira `error` preenchido e lista
+vazia; consulta boa devolve os matches e `error == null`. Mutação provada: removido o `try/catch` de
+`DictLookup.run`, `aBrokenDictionaryIsReportedInsteadOfThrown` falha; restaurado, passa.
+
+**Regras e documentos.** AGENTS: a UI passa a existir em **todas as línguas disponíveis** (pt-BR e en),
+com string nova nos dois idiomas na mesma tarefa; documentos públicos são bilíngues e o par
+(`*.en.md`) é atualizado junto (novo item na definição de pronto). Criados `README.en.md`,
+`ARCHITECTURE.en.md` e `CONTRIBUTING.en.md` com seletor de idioma no topo; `README.md`, `ARCHITECTURE.md`
+e `CONTRIBUTING.md` ganharam o seletor e a regra. `LANGUAGES.md` registra a regra atual.
+
+**Release por tag.** `.github/workflows/release.yml`: `push` de tag `v*` roda três jobs — Android
+(`:app:testDebugUnitTest` + `:app:assembleRelease` → `Yabai_OCR_<versão>.apk`), Windows
+(`createDistributable` + Inno Setup + zip portátil) e Linux (`createDistributable` + `.tar.gz` +
+AppImage via `appimagetool` extraído) — e um quarto job publica tudo numa release do GitHub. A versão
+do build vem de `-PyabaiVersion=<tag>`: `packageVersion`, nome do zip/tar e `YABAI_VERSION` do script do
+AppImage, além de `iscc /DMyAppVersion`. Sem a flag, continua `1.0.0`.
+
+**Resultado.** `:desktop` 265 testes, 0 falhas, 3 pulados (GUI e D-Bus sem sessão).
