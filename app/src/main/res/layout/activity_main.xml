@@ -386,10 +386,44 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="34dp"
-                android:layout_marginBottom="8dp"
+                android:layout_marginBottom="4dp"
                 android:text="@string/engine_manga_ocr_desc"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="34dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/engine_manga_ocr_experimental"
+                android:textColor="@color/warn"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="34dp"
+                android:layout_marginBottom="12dp"
+                android:orientation="vertical">
+
+                <Button
+                    android:id="@+id/btnDownloadMangaOcr"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/manga_ocr_download"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/txtMangaOcrStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <RadioButton
                 android:id="@+id/engineLens"

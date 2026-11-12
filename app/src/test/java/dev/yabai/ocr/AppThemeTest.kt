@@ -30,6 +30,8 @@ class AppThemeTest {
         context.getSharedPreferences(AppSettings.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
         val settings = AppSettings(context)
         settings.appTheme = AppThemeChoice.DARK
+        settings.appLanguage = AppLanguageChoice.PT_BR
+        settings.applyAppLanguage()
         settings.applyTheme()
     }
 
@@ -97,8 +99,8 @@ class AppThemeTest {
         assertEquals(AppThemeChoice.LIGHT, settings.appTheme)
 
         val recreatedBtn = recreatedActivity.findViewById<Button>(R.id.btnThemeToggle)
-        System.err.println("RECREATED BTN TEXT: '${recreatedBtn.text}' vs EXPECTED: '☀️ " + context.getString(R.string.theme_light) + "'")
-        assertEquals("☀️ " + context.getString(R.string.theme_light), recreatedBtn.text.toString())
+        System.err.println("RECREATED BTN TEXT: '${recreatedBtn.text}'")
+        assertEquals("☀️ " + recreatedActivity.getString(R.string.theme_light), recreatedBtn.text.toString())
 
         val themeGroup = recreatedActivity.findViewById<RadioGroup>(R.id.themeGroup)
         assertEquals(R.id.themeLight, themeGroup.checkedRadioButtonId)

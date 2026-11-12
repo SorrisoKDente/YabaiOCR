@@ -43,6 +43,7 @@
     <string name="engine_auto_desc">Tries engines in priority order. Falls back to the next engine on network failure or error.</string>
     <string name="engine_manga_ocr">Manga-OCR Only (offline)</string>
     <string name="engine_manga_ocr_desc">Offline AI specialized in vertical manga text and stylized fonts.</string>
+    <string name="engine_manga_ocr_experimental">Experimental: low accuracy and slow. It may be removed in a future version.</string>
     <string name="engine_lens">Google Lens Only (online)</string>
     <string name="engine_lens_desc">Maximum online precision. Requires internet connection.</string>
     <string name="engine_mlkit">ML Kit Only (offline)</string>
@@ -52,6 +53,11 @@
     <string name="engine_label_lens">Google Lens (Online)</string>
     <string name="engine_label_manga_ocr">Manga-OCR (Offline)</string>
     <string name="engine_label_mlkit">ML Kit (Offline)</string>
+    <string name="manga_ocr_download">Download Manga-OCR models (~45 MB)</string>
+    <string name="manga_ocr_downloading">Downloading %1$s… %2$s</string>
+    <string name="manga_ocr_downloaded">Manga-OCR models installed</string>
+    <string name="manga_ocr_not_installed">Manga-OCR models not installed.</string>
+    <string name="manga_ocr_download_failed">Failed to download models: %1$s</string>
     <string name="btn_priority_up">▲ Up</string>
     <string name="btn_priority_down">▼ Down</string>
 

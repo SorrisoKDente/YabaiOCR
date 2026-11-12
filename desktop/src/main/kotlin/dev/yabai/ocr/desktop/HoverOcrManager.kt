@@ -3,9 +3,6 @@ package dev.yabai.ocr.desktop
 import dev.yabai.ocr.core.dict.CompactDictionary
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.dict.TokenMatch
-import dev.yabai.ocr.core.lens.EncodedImage
-import dev.yabai.ocr.core.lens.LensClient
-import dev.yabai.ocr.core.lens.LensOptions
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.GraphicsEnvironment
@@ -70,7 +67,6 @@ internal class HoverOcrManager(
     private var lastLensResult: LensResult? = null
 
     private val robots = HashMap<Int, Robot>()
-    private var lensClient: LensClient? = null
 
     private var engine: LookupEngine? = null
     private var engineDir: String? = null
@@ -215,8 +211,6 @@ internal class HoverOcrManager(
         scope.cancel()
         runCatching { engine?.close() }
         engine = null
-        runCatching { lensClient?.close() }
-        lensClient = null
     }
 
     private fun startPolling() {
@@ -274,15 +268,7 @@ internal class HoverOcrManager(
                     return@launch
                 }
 
-                val bytes = ByteArrayOutputStream().use { out ->
-                    check(ImageIO.write(image, "png", out)) { "PNG encoder indisponível" }
-                    out.toByteArray()
-                }
-
-                val result = lens().recognize(
-                    EncodedImage(bytes, image.width, image.height),
-                    options = LensOptions(language = "ja"),
-                )
+                val result = DesktopOcr.recognize(image, DesktopSettings()).result
                 if (!isEnabled) {
                     dismiss()
                     return@launch
@@ -387,11 +373,6 @@ internal class HoverOcrManager(
             .getOrThrow()
         robots[index] = created
         return created
-    }
-
-    private fun lens(): LensClient {
-        lensClient?.let { return it }
-        return LensClient().also { lensClient = it }
     }
 
     private fun lookupEngine(settings: DesktopSettings): LookupEngine? {

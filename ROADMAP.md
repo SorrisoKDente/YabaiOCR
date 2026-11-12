@@ -3619,6 +3619,90 @@ tocada). As regras que mais doem foram conferidas por mutação:
 
 ---
 
+## 24. Ronda 45 — o Manga-OCR que não lia nada e o painel que não deixava escolher (12/11/2026)
+
+**Relato (Android, sem teste no Desktop).** «O manga-ocr não está reconhecendo nenhum texto, nem
+horizontal e nem vertical» e «após reconhecer o texto em tela cheia, ele abre automaticamente a aba de
+reconhecimento ao invés de primeiro selecionar na imagem a parte que tem texto identificado», como Lens
+e ML Kit fazem.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R44 | `[x]` | **Manga-OCR não reconhece texto nenhum** (detector e decodificador) | bug |
+| R45 | `[x]` | **Tela inteira abria o painel sem passar pela tela de trechos** | bug |
+
+### R44 — O motor que não lia nada  `[x]` (12/11/2026)
+
+O motor vive no `:core` e é o mesmo no Android e no Desktop: as duas causas valiam para os dois, o
+relato veio do celular.
+
+**Causa raiz.** Duas, as duas no contrato dos modelos ONNX, que tinha sido escrito por suposição em vez
+de seguir a exportação de referência:
+
+1. **O detector lia o output errado.** O `comic-text-detector` devolve `blk` — as caixas de texto já
+decodificadas, como `cx, cy, w, h, confiança, horizontal, vertical` no espaço 1024×1024 —, mais `seg`
+   (a máscara de pixels de texto). O código pegava `outputMap.get(0)` (o `blk`) e o tratava como mapa de
+   probabilidade: as coordenadas viravam confiança, tudo ficava acima do limiar, e o preenchimento por
+   vizinhança transformava **a página inteira numa caixa só**. A entrada ainda ia normalizada com média
+   e desvio do ImageNet, quando o modelo pede RGB em 0..1 sem média nenhuma.
+2. **O reconhecedor era chamado uma única vez.** O `manga-ocr.quant.onnx` é o encoder-decoder inteiro
+   (`image` + `token_ids` → `logits`): a primeira chamada só diz qual token começa a frase, e cada
+   chamada seguinte precisa dos tokens já lidos realimentados. Uma passada só devolvia um argmax — em
+   geral `</s>`, que decodifica para a string vazia. E o recorte ia com média/desvio do ImageNet e com
+   três canais de cor, quando o modelo lê `convert("L")` normalizado para -1..1 (média e desvio 0,5).
+
+**Correção.**
+
+- `core/.../manga/ComicTextDetector.kt`: lê `blk` pelo nome (com fallback para um mapa de canal único,
+  para outras exportações), converte centro/tamanho para a imagem original, aplica supressão por
+  sobreposição por classe e descarta duplicata exata entre classes. O limiar passou de 0,35 para 0,2
+  **medido no modelo real**: balão vertical marca ~0,9, o mesmo balão impresso na horizontal marca
+  0,20–0,25 — era metade do relato («nem horizontal»).
+- `core/.../manga/MangaOcrPreprocessor.kt`: detector em RGB/255 (sem média) e reconhecedor em escala de
+  cinza normalizada para -1..1.
+- `core/.../manga/MangaOcrCoreEngine.kt`: decode guloso de verdade (começa em `</s>`, realimenta cada
+  token, para no `</s>` ou em 80 tokens, como o autor do modelo faz) com `MangaOcrDecoding` separado do
+  `OrtSession` para o laço ser testável sem um arquivo de 118 MB.
+
+### R45 — A tela inteira que pulava a escolha  `[x]` (12/11/2026)
+
+**Causa raiz.** A condição da tela de trechos era `outcome.blocks.size > 1`. Com o detector quebrado
+todo mundo era um bloco só, então o painel abria direto — e a mesma coisa acontecia sempre que a página
+tinha um balão só. O README já prometia «uma caixa sobre cada trecho» na tela inteira: o código era o
+que estava errado.
+
+**Correção.** `overlay/PickerDecision.kt` (novo) concentra a regra — tela inteira, ajuste ligado e pelo
+menos uma caixa colocável — e `FloatingOcrService` passou a usá-la.
+
+**Testes.** `:core` 153 executados (14 novos) e 1 opt-in; `:app` 408 (5 novos). As regras que mais doem
+foram conferidas por mutação, cada uma falhando e voltando a passar ao restaurar:
+
+| mutação | teste que acusa |
+| --- | --- |
+| não realimentar o token lido no decodificador | `every answer is fed back until the model says the line ended` |
+| voltar a ler o output 0 como mapa de probabilidade | `reads a drawn page with vertical and horizontal text` (texto saiu `はは`, `立目千`, `7人一刀`) |
+| normalizar a entrada do detector com média/desvio do ImageNet | `detection input is rgb scaled to zero one without a mean` |
+| voltar o limiar da tela de trechos para «mais de um bloco» | `one recognised block still gets a box on the page` |
+
+**Ponta a ponta.** Os três arquivos reais (94,7 MB + 118 MB + 30 KB) rodados no JVM do desktop, numa
+página desenhada de 900×1400 com dois balões:
+
+- `-Pmanga` ligado: 3,4 s, caixas `714,108-754,559` → `これはテストです` e `112,874-426,930` →
+  `テストの文章です`; vertical e horizontal, texto exato.
+- o mesmo teste sem a correção do detector (output 0 como mapa): 16 caixas de um caractere, texto
+  `10 / もう / っ! / し、 / イー / … / 7人一刀` — não é leitura, é ruído.
+
+**Aviso na UI.** Depois do primeiro teste no aparelho (12/11/2026) o motor foi marcado como
+**experimental** nos ajustes: um texto em vermelho (`@color/warn`) logo abaixo da descrição diz que a
+precisão e a velocidade são baixas e que a opção pode ser removida numa versão futura — a descrição
+deixou de prometer «alta precisão». Strings `engine_manga_ocr_experimental` (pt/en).
+
+**Limitação conhecida.** O modelo baixado é o combinado, então cada token custa uma passada inteira de
+encoder: ~0,1 s por caractere no desktop. Numa página com muitos balões isso pesa no celular; dividir
+encoder/decoder (exportações separadas do mesmo modelo) é o próximo passo de desempenho. A verificação
+do caminho visual no aparelho (captura real, caixas sobre a tela, toque no balão) não foi feita aqui —
+só o motor, o JVM e os testes de Robolectric.
+
 ## Notas de ordem
 
 - B1 antes de tudo: é regressão visual e esconde um botão.
@@ -4372,6 +4456,101 @@ sessão do host; por isso ele valida build, runtime, suíte e D-Bus de unidade, 
 visual e o `GlobalShortcuts` real dependem do roteiro acima no Konsole. A captura pelo portal continua
 sujeita ao token/restore do JDK e ao diálogo do KDE; no KDE Wayland esse caminho foi substituído pelo
 portal `Screenshot` na D37.
+
+### D38 — Manga-OCR no desktop: o motor que existia e não era chamado  `[x]` (12/11/2026)
+
+**Relato.** «Testei agora na versão desktop e ele tem a opção do manga-ocr, mas não parece ter sido
+implementado.»
+
+**Causa raiz.** Os Ajustes ofereciam `AUTO`, `LENS` e `MANGA_OCR`, guardavam a escolha e a lista de
+prioridade — e nenhum dos três pontos de OCR lia a configuração: `ResultWindow`,
+`SegmentPickerWindow.scanScreen` e `HoverOcrManager.lookupAt` chamavam `LensClient().recognize(...)`
+direto. Também não havia downloader de modelos no desktop, então mesmo que alguém lesse a escolha não
+havia com o que rodar o motor.
+
+**Correção.**
+
+- `core/.../manga/MangaOcrModelDownloader.kt` (novo): os três arquivos, em `.tmp` e pulando o que já
+  existe. O Android continua com o downloader dele.
+- `desktop/.../DesktopMangaOcr.kt` (novo): sessões ONNX em cache (abrir 213 MB não pode ser por
+  captura, e o hover dispara duas vezes por segundo) e a tradução `MangaOcrOutcome` → `LensResult`
+  — balão vira bloco, coluna vira segmento —, para as janelas não precisarem saber qual motor leu.
+- `desktop/.../DesktopOcr.kt` (novo): `engineOrder` (escolha fixa roda sozinha; `AUTO` segue a
+  prioridade e para no primeiro motor que devolve texto) e `recognize`, que junta o motivo de cada
+  falha na mensagem; um motor sem texto não conta como resposta, então o `AUTO` continua offline
+  quando o Lens recusa.
+- `DesktopSettings.mangaOcrDir` (`~/.yabai_ocr/manga_ocr`) e os três pontos de OCR passando a usar
+  `DesktopOcr`. No hover, o cliente Lens em cache saiu junto.
+- Ajustes: o mesmo aviso **vermelho** de experimental do Android e um botão «Baixar modelos do
+  Manga-OCR (~213 MB)», com progresso e estado (instalado / não instalado / falha). Um download
+  fechado com sucesso derruba as sessões antigas (`DesktopMangaOcr.close()`).
+- `DesktopStrings` em pt/en e README com a seção de motores do desktop.
+
+**Testes.** `:desktop` **255** (5 novos no `DesktopOcrOrderTest` + 1 opt-in de ponta a ponta).
+
+| mutação | teste que acusa |
+| --- | --- |
+| `AUTO` ignora a lista de prioridade e usa o Lens | `automatic mode follows the priority list`, `automatic mode still has an engine when the list is empty or nonsense`, `the same engine is not tried twice` |
+
+**Ponta a ponta.** Com os modelos reais, `-Pmanga=<home>` (arquivos em `home/manga_ocr`):
+`DesktopOcr.recognize` com `engine = MANGA_OCR` leu a página desenhada de 900×1400 em **3,3 s** —
+`これはテストです` em `(714,108)-(754,559)` e `テストの文章です` em `(112,874)-(426,930)`, dois blocos,
+texto exato.
+
+**Limitação.** A janela de Ajustes e o painel de resultado não foram vistos rodando (só compilação,
+testes e o motor com os modelos reais); o download em si não foi exercitado contra a rede neste
+ambiente — os arquivos foram colocados à mão na pasta de modelos.
+
+### D39 — PP-OCRv6_manga no lugar do Manga-OCR, motor honrado em todo lugar, resultado traduzido  `[x]` (12/11/2026)
+
+**Relato.** «Migre para o PP-OCRv6_manga e remova o manga-OCR»; «quando fiz o recorte, ele informa
+que detectou pelo Lens»; «a tela de resultado ainda está com os textos hardcodados».
+
+**Causa raiz.** Três coisas distintas:
+
+1. o motor offline do desktop era o Manga-OCR — 213 MB e um passo do decoder por caractere, ~0,1 s
+   por letra — e o próprio modelo era a limitação de precisão;
+2. o rótulo «Reconhecido em 5052ms • Google Lens» era uma **string fixa** no `ResultWindow`: mesmo
+   depois de a escolha passar a valer, um recorte lido pelo motor offline continuava dizendo Lens;
+3. o `ResultWindow` ainda tinha oito textos em português escritos no código, então o app em inglês
+   mostrava «Texto Reconhecido», «Copiar», «Recortar» e «Entries & Dictionary» misturados.
+
+**Correção.**
+
+- `core/.../ppocr/` (novo): `PPOcrSpec` (960 de lado maior ou orçamento de página 3:4 para tiras,
+  limiar 0,15, caixa 0,25, unclip 1,4, altura 48), `PPOcrPreprocess` (detector com média/desvio
+  ImageNet; linha girada à esquerda e normalizada em -1..1), `PPOcrPostprocess` (componentes conexos
+  na máscara DB, confiança média, unclip, ordem de leitura direita→esquerda) e `PPOcrEngine`
+  (sessões ONNX + CTC guloso). Tudo JVM puro, sem OpenCV — o app Android pode usar o mesmo motor.
+- `PPOcrModelStore`/`PPOcrModelDownloader`: det 1,73 MB + rec 21,33 MB (FP32, para não depender de
+  kernel FP16 do runtime) + dicionário de 19.053 símbolos, em `~/.yabai_ocr/ppocr_v6`.
+- Desktop: `DesktopPPOcr` substitui `DesktopMangaOcr`; `DesktopEngineChoice.MANGA_OCR` virou
+  `PP_OCR` e um `settings.properties` antigo cai em `AUTO`; `DesktopOcr.recognize` devolve
+  `DesktopOcrAnswer(result, engine)` e os três caminhos (tela inteira, recorte, hover) usam o motor
+  escolhido.
+- Removidos: `DesktopMangaOcr.kt`, o downloader e a UI/strings do Manga-OCR no desktop, e o
+  downloader que só o desktop usava no `:core`. O Manga-OCR do Android não foi tocado.
+- `ResultWindow`: título da janela, cabeçalho, botões, rótulo do campo e «Flexão» agora vêm de
+  `DesktopStrings` (pt/en), e o motor exibido é o que respondeu de fato.
+
+**Testes.** `:core` **196** (16 novos no `PPOcrTest`), `:desktop` **261** (6 no `DesktopOcrOrderTest`,
+4 no `DesktopEngineMigrationTest`, 1 opt-in de ponta a ponta).
+
+| mutação | teste que acusa |
+| --- | --- |
+| coluna vertical girada no sentido horário (erro original) | `a vertical line is turned a quarter turn counter-clockwise` |
+| CTC sem colapso de repetição | `repeated classes collapse and blanks are dropped`, `decoding reads the best class at every step` |
+| `AUTO` ignora a lista de prioridade e usa o Lens | `automatic mode follows the priority list`, `automatic mode still has an engine when the list is empty or nonsense`, `the same engine is not tried twice` |
+
+**Ponta a ponta.** Modelos reais, `-Pppocr=<home>` (arquivos em `home/ppocr_v6`):
+`DesktopOcr.recognize` com `engine = PP_OCR` leu a página desenhada de 900×1400 em **260 ms**
+(contra **3.300 ms** do Manga-OCR na mesma página) — `これはテストです` em `(707,110)-(759,559)` e
+`テストの文章です` em `(110,880)-(421,923)`, texto exato. O giro errado foi pego aqui antes de fechar:
+saía `F2ーと上判れこ` na coluna vertical.
+
+**Limitação.** A janela de Ajustes e o painel de resultado não foram vistos rodando; a conferência
+visual do rótulo do motor depende de abrir o app. O download em si não foi exercitado contra a rede
+(arquivos colocados via `curl` na pasta de modelos).
 
 ### D36 — Bandeja nativa `StatusNotifierItem` no KDE Wayland `[x]` (09/11/2026)
 

@@ -25,6 +25,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.DictionaryUpdateScheduler
@@ -144,13 +148,20 @@ class MainActivity : AppCompatActivity() {
         refreshPermissions()
         refreshRunningState()
         refreshDictionarySummary()
+        updateMangaOcrDownloadUi()
         refreshAiApp()
+        handler.removeCallbacks(statusPoll)
         handler.postDelayed(statusPoll, 1000L)
     }
 
     override fun onPause() {
         handler.removeCallbacks(statusPoll)
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     // --- settings wiring -----------------------------------------------------------------------
@@ -246,6 +257,7 @@ class MainActivity : AppCompatActivity() {
         }
         group.check(checked)
         updatePriorityVisibility()
+        updateMangaOcrDownloadUi()
 
         group.setOnCheckedChangeListener { _, id ->
             settings.engine = when (id) {
@@ -255,6 +267,68 @@ class MainActivity : AppCompatActivity() {
                 else -> EngineChoice.AUTO
             }
             updatePriorityVisibility()
+            updateMangaOcrDownloadUi()
+        }
+    }
+
+    private var downloadJob: kotlinx.coroutines.Job? = null
+
+    private fun updateMangaOcrDownloadUi() {
+        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
+        val btnDownload = findViewById<Button>(R.id.btnDownloadMangaOcr)
+        val txtStatus = findViewById<TextView>(R.id.txtMangaOcrStatus)
+        if (btnDownload == null || txtStatus == null) return
+
+        val available = store.isAvailable()
+        if (available) {
+            btnDownload.visibility = View.GONE
+            txtStatus.visibility = View.VISIBLE
+            txtStatus.text = getString(R.string.manga_ocr_downloaded)
+        } else if (settings.engine == EngineChoice.MANGA_OCR) {
+            btnDownload.visibility = View.VISIBLE
+            txtStatus.visibility = View.VISIBLE
+            btnDownload.isEnabled = downloadJob?.isActive != true
+            btnDownload.text = getString(R.string.manga_ocr_download)
+            if (downloadJob?.isActive != true && (txtStatus.text.isNullOrEmpty() || txtStatus.text == getString(R.string.manga_ocr_downloaded))) {
+                txtStatus.text = getString(R.string.manga_ocr_not_installed)
+            }
+            btnDownload.setOnClickListener {
+                startMangaOcrDownload(btnDownload, txtStatus)
+            }
+        } else {
+            btnDownload.visibility = View.GONE
+            txtStatus.visibility = View.GONE
+        }
+    }
+
+    private fun startMangaOcrDownload(btnDownload: Button, txtStatus: TextView) {
+        if (downloadJob?.isActive == true) return
+        btnDownload.isEnabled = false
+        txtStatus.text = getString(R.string.manga_ocr_downloading, "", "0%")
+
+        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
+        val downloader = dev.yabai.ocr.ocr.MangaOcrDownloader(store)
+
+        downloadJob = lifecycleScope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                downloader.downloadModels { label, read, total ->
+                    val percent = if (total > 0) "${(read * 100 / total)}%" else "${read / 1024 / 1024} MB"
+                    withContext(Dispatchers.Main) {
+                        txtStatus.text = getString(R.string.manga_ocr_downloading, label, percent)
+                    }
+                }
+            }
+            withContext(Dispatchers.Main) {
+                result.onSuccess {
+                    Toast.makeText(this@MainActivity, R.string.manga_ocr_downloaded, Toast.LENGTH_SHORT).show()
+                    updateMangaOcrDownloadUi()
+                }.onFailure { t ->
+                    btnDownload.isEnabled = true
+                    val msg = t.message ?: "Erro desconhecido"
+                    txtStatus.text = getString(R.string.manga_ocr_download_failed, msg)
+                    Toast.makeText(this@MainActivity, getString(R.string.manga_ocr_download_failed, msg), Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 

@@ -37,9 +37,6 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.LookupEngine
-import dev.yabai.ocr.core.lens.EncodedImage
-import dev.yabai.ocr.core.lens.LensClient
-import dev.yabai.ocr.core.lens.LensOptions
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.core.lens.LensSegment
 import dev.yabai.ocr.core.lens.PixelBox
@@ -432,10 +429,8 @@ private fun scanScreen(
     engineProvider: () -> LookupEngine?,
 ): PickerScan {
     return try {
-        val baos = ByteArrayOutputStream()
-        ImageIO.write(screenImage, "png", baos)
-        val encoded = EncodedImage(baos.toByteArray(), screenImage.width, screenImage.height)
-        val result = LensClient().recognize(encoded, LensOptions(language = "ja"))
+        // The whole screen goes through the engine chosen in the settings, not always Lens.
+        val result = DesktopOcr.recognize(screenImage, DesktopSettings()).result
 
         val engine = if (result.blocks.isEmpty()) null else runCatching(engineProvider).getOrNull()
         val only = if (dictionaryFilter.isBlank()) emptySet() else setOf(dictionaryFilter)

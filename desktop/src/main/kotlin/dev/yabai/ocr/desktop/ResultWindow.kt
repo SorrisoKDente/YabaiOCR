@@ -29,9 +29,7 @@ import java.awt.Desktop
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
 import java.net.URI
-import javax.imageio.ImageIO
 
 @Composable
 fun ResultWindow(
@@ -47,6 +45,8 @@ fun ResultWindow(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var recognizedText by remember { mutableStateOf("") }
     var elapsedMs by remember { mutableStateOf(0L) }
+    // The engine that actually answered, not a fixed label: with «Automático» the fallback decides.
+    var engineUsed by remember { mutableStateOf<DesktopEngineChoice?>(null) }
     var matches by remember { mutableStateOf<List<TokenMatch>>(emptyList()) }
     var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
     var showImageToggle by remember { mutableStateOf(settings.showImage) }
@@ -92,22 +92,17 @@ fun ResultWindow(
 
         withContext(Dispatchers.IO) {
             try {
-                val baos = ByteArrayOutputStream()
-                ImageIO.write(croppedImage, "png", baos)
-                val bytes = baos.toByteArray()
-                val encodedImage = EncodedImage(bytes, croppedImage.width, croppedImage.height)
-
+                // The engine is the one chosen in the settings: this window used to call Lens
+                // directly, so «Somente Manga-OCR» was a setting nothing read.
                 val start = System.currentTimeMillis()
-                val client = LensClient()
-                val result = client.recognize(
-                    image = encodedImage,
-                    options = LensOptions(language = "ja")
-                )
+                val answer = DesktopOcr.recognize(croppedImage, settings)
                 val duration = System.currentTimeMillis() - start
+                val result = answer.result
 
                 val fullText = result.joinLines()
                 recognizedText = fullText
                 elapsedMs = duration
+                engineUsed = answer.engine
 
                 if (fullText.isNotBlank() && engine != null) {
                     val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
@@ -117,7 +112,7 @@ fun ResultWindow(
                     matches = emptyList()
                 }
             } catch (e: Exception) {
-                errorMessage = e.message ?: "Erro ao reconhecer a imagem."
+                errorMessage = e.message ?: DesktopStrings.ocrFailedGeneric
             } finally {
                 isLoading = false
             }
@@ -136,7 +131,7 @@ fun ResultWindow(
 
     Window(
         onCloseRequest = onClose,
-        title = "Yabai OCR - Resultado do Reconhecimento",
+        title = DesktopStrings.resultWindowTitle,
         state = windowState
     ) {
         LaunchedEffect(Unit) {
@@ -157,16 +152,19 @@ fun ResultWindow(
                     ) {
                         Column {
                             Text(
-                                text = "Texto Reconhecido",
+                                text = DesktopStrings.resultTitle,
                                 style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
                                 color = Color.White
                             )
                             if (!isLoading && recognizedText.isNotBlank()) {
                                 Text(
                                     text = if (initialText != null) {
-                                        "Trecho escolhido no seletor de tela"
+                                        DesktopStrings.resultFromPicker
                                     } else {
-                                        "Reconhecido em ${elapsedMs}ms • Google Lens"
+                                        DesktopStrings.resultRecognizedIn(
+                                            elapsedMs,
+                                            DesktopOcr.label(engineUsed ?: DesktopEngineChoice.AUTO),
+                                        )
                                     },
                                     style = MaterialTheme.typography.caption,
                                     color = Color(0xFF81C784)
@@ -184,7 +182,10 @@ fun ResultWindow(
                                 colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344)),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text(if (showImageToggle) "🖼️ Ocultar" else "🖼️ Imagem", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
+                                Text(
+                                    if (showImageToggle) DesktopStrings.btnHideImage else DesktopStrings.btnShowImage,
+                                    fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false
+                                )
                             }
 
                             // Copiar
@@ -199,7 +200,7 @@ fun ResultWindow(
                                 colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344)),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("📋 Copiar", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
+                                Text(DesktopStrings.btnCopyText, fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                             }
 
                             // Perguntar à IA
@@ -215,7 +216,7 @@ fun ResultWindow(
                                     colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3D6BF3)),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
-                                    Text("🤖 IA", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
+                                    Text(DesktopStrings.btnAskAiCompact, fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                                 }
                             }
 
@@ -230,7 +231,7 @@ fun ResultWindow(
                                 colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344)),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("🔍 Dicionário", fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
+                                Text(DesktopStrings.btnFullDictionary, fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                             }
 
                             // Nova Seleção
@@ -242,7 +243,7 @@ fun ResultWindow(
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("✂️ Recortar", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                                Text(DesktopStrings.btnCropAgain, fontSize = 11.sp, maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -315,7 +316,7 @@ fun ResultWindow(
                                             ) {
                                                 Column(modifier = Modifier.padding(16.dp)) {
                                                     Text(
-                                                        text = "Texto Reconhecido (edite ou selecione):",
+                                                        text = DesktopStrings.resultEditLabel,
                                                         style = MaterialTheme.typography.caption,
                                                         color = Color(0xFFA0A6B8)
                                                     )
@@ -371,7 +372,7 @@ fun ResultWindow(
                                             ) {
                                                 Column(modifier = Modifier.padding(16.dp)) {
                                                     Text(
-                                                        text = "Texto Reconhecido (edite ou selecione):",
+                                                        text = DesktopStrings.resultEditLabel,
                                                         style = MaterialTheme.typography.caption,
                                                         color = Color(0xFFA0A6B8)
                                                     )
@@ -532,7 +533,7 @@ private fun DictionaryMatchCard(match: TokenMatch) {
             if (match.reasons.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Flexão: ${match.reasons.joinToString(" → ")}",
+                    text = DesktopStrings.flexionPrefix + match.reasons.joinToString(" → "),
                     style = MaterialTheme.typography.caption,
                     color = Color(0xFFA0A6B8)
                 )

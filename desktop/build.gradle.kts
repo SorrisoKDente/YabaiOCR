@@ -32,6 +32,9 @@ dependencies {
 }
 
 tasks.withType<Test>().configureEach {
+    // Folder holding the PP-OCR files, for the desktop engine's end-to-end test.
+    // Enable with:  gradle :desktop:test -Pppocr="C:\path\to\home"  (home/ppocr_v6 holds the 3 files)
+    (project.findProperty("ppocr") as String?)?.let { systemProperty("yabai.ppocr", it) }
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = true

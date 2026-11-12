@@ -45,6 +45,7 @@ import dev.yabai.ocr.overlay.KanjiCardText
 import dev.yabai.ocr.overlay.KanjiPiece
 import dev.yabai.ocr.overlay.OverlayController
 import dev.yabai.ocr.overlay.PickerBlock
+import dev.yabai.ocr.overlay.PickerDecision
 import dev.yabai.ocr.overlay.PickerPiece
 import dev.yabai.ocr.overlay.PickerReading
 import dev.yabai.ocr.overlay.PickerReadingMode
@@ -592,10 +593,10 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 }
 
                 // A whole-screen capture gets the Lens treatment: the recognised paragraphs are drawn
-                // as boxes over the live screen and the user picks one. A region capture already is a
-                // selection, and a screen with a single paragraph has nothing to pick between, so
-                // both of those go straight to the panel.
-                if (region == null && settings.pickText && outcome.blocks.size > 1) {
+                // as boxes over the live screen and the user picks one — even when the engine found
+                // a single one, because the page is tapped and not solved for the user. A region
+                // capture already is a selection and goes straight to the panel.
+                if (PickerDecision.offersPicker(region == null, settings.pickText, outcome.blocks.size)) {
                     pendingBlocks = placeBlocks(outcome, shot)
                     if (pendingBlocks.isNotEmpty()) {
                         val mode = settings.pickerReading

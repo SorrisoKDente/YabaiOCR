@@ -32,8 +32,8 @@ class MangaOcrModelStore(
         const val RECOGNIZER_FILENAME = "manga_ocr.onnx"
         const val VOCAB_FILENAME = "vocab.txt"
 
-        const val DETECTOR_URL = "https://huggingface.co/kha-white/manga-ocr-onnx/resolve/main/comic_text_detector.onnx"
-        const val RECOGNIZER_URL = "https://huggingface.co/kha-white/manga-ocr-onnx/resolve/main/manga_ocr.onnx"
-        const val VOCAB_URL = "https://huggingface.co/kha-white/manga-ocr-onnx/resolve/main/vocab.txt"
+        const val DETECTOR_URL = "https://huggingface.co/mayocream/comic-text-detector-onnx/resolve/main/comic-text-detector.onnx"
+        const val RECOGNIZER_URL = "https://huggingface.co/dhleong/manga-ocr-android/resolve/main/manga-ocr.quant.onnx"
+        const val VOCAB_URL = "https://huggingface.co/mayocream/manga-ocr-onnx/resolve/main/vocab.txt"
     }
 }

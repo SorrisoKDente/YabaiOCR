@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.core.dict.CompactDictionary
+import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -76,6 +77,17 @@ fun SettingsContent(
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var enginePriority by remember { mutableStateOf(settings.enginePriorityList) }
+
+    // PP-OCR install state: the models are ~23 MB and are not shipped with the app.
+    val ppOcrScope = rememberCoroutineScope()
+    var ppOcrInstalled by remember { mutableStateOf(DesktopPPOcr.isInstalled(settings)) }
+    var ppOcrDownloading by remember { mutableStateOf(false) }
+    var ppOcrStatus by remember {
+        mutableStateOf(
+            if (DesktopPPOcr.isInstalled(settings)) DesktopStrings.ppOcrInstalled
+            else DesktopStrings.ppOcrNotInstalled,
+        )
+    }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var closeToTray by remember { mutableStateOf(settings.closeToTray) }
@@ -916,14 +928,61 @@ fun SettingsContent(
                 )
 
                 SettingRadioOption(
-                    selected = engineChoice == DesktopEngineChoice.MANGA_OCR,
-                    title = DesktopStrings.engineMangaOcr,
-                    description = DesktopStrings.engineMangaOcrDesc,
+                    selected = engineChoice == DesktopEngineChoice.PP_OCR,
+                    title = DesktopStrings.enginePpOcr,
+                    description = DesktopStrings.enginePpOcrDesc,
                     onClick = {
-                        engineChoice = DesktopEngineChoice.MANGA_OCR
-                        settings.engine = DesktopEngineChoice.MANGA_OCR
+                        engineChoice = DesktopEngineChoice.PP_OCR
+                        settings.engine = DesktopEngineChoice.PP_OCR
                     }
                 )
+
+                // The offline engine needs 23 MB of models that are not shipped with the app; the
+                // choice is only usable once they are on disk, so the download lives right here.
+                Row(
+                    modifier = Modifier.padding(start = 34.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (!ppOcrInstalled) {
+                        OutlinedButton(
+                            enabled = !ppOcrDownloading,
+                            onClick = {
+                                ppOcrDownloading = true
+                                ppOcrStatus = DesktopStrings.ppOcrDownloading(0)
+                                ppOcrScope.launch {
+                                    try {
+                                        PPOcrModelDownloader(DesktopPPOcr.store(settings)).downloadModels { _, read, total ->
+                                            val percent = if (total > 0) ((read * 100) / total).toInt() else 0
+                                            ppOcrStatus = DesktopStrings.ppOcrDownloading(percent)
+                                        }
+                                        // The files on disk changed: an engine built from a missing
+                                        // or partial set must not answer for them.
+                                        DesktopPPOcr.close()
+                                        ppOcrInstalled = DesktopPPOcr.isInstalled(settings)
+                                        ppOcrStatus = if (ppOcrInstalled) {
+                                            DesktopStrings.ppOcrInstalled
+                                        } else {
+                                            DesktopStrings.ppOcrNotInstalled
+                                        }
+                                    } catch (t: Throwable) {
+                                        ppOcrStatus = DesktopStrings.ppOcrDownloadFailed +
+                                            (t.message ?: t.javaClass.simpleName)
+                                    } finally {
+                                        ppOcrDownloading = false
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(DesktopStrings.ppOcrDownload)
+                        }
+                    }
+                    Text(
+                        text = ppOcrStatus,
+                        style = MaterialTheme.typography.caption,
+                        color = if (ppOcrInstalled) MaterialTheme.colors.secondary else MaterialTheme.colors.error
+                    )
+                }
 
                 SettingRadioOption(
                     selected = engineChoice == DesktopEngineChoice.LENS,
@@ -953,7 +1012,7 @@ fun SettingsContent(
 
                 enginePriority.forEachIndexed { index, choice ->
                     val label = when (choice) {
-                        DesktopEngineChoice.MANGA_OCR -> if (DesktopStrings.isEnglish) "Manga-OCR (Offline - Manga AI)" else "Manga-OCR (Offline - IA Mangá)"
+                        DesktopEngineChoice.PP_OCR -> if (DesktopStrings.isEnglish) "PP-OCRv6 (Offline - Manga AI)" else "PP-OCRv6 (Offline - IA Mangá)"
                         DesktopEngineChoice.LENS -> if (DesktopStrings.isEnglish) "Google Lens (Online)" else "Google Lens (Online)"
                         else -> choice.name
                     }

@@ -4,7 +4,7 @@ import java.io.File
 import java.net.URLEncoder
 import java.util.Properties
 
-enum class DesktopEngineChoice { AUTO, LENS, MANGA_OCR }
+enum class DesktopEngineChoice { AUTO, LENS, PP_OCR }
 enum class DesktopPickerReadingMode { OFF, RUBY, LABEL }
 enum class DesktopUpdateInterval(val days: Long) {
     OFF(0),
@@ -66,14 +66,16 @@ class DesktopSettings(
     var engine: DesktopEngineChoice
         get() = when (props.getProperty("engine", "AUTO")) {
             "LENS" -> DesktopEngineChoice.LENS
-            "MANGA_OCR" -> DesktopEngineChoice.MANGA_OCR
+            "PP_OCR" -> DesktopEngineChoice.PP_OCR
+            // A settings file from before the migration still says MANGA_OCR; that engine is gone,
+            // and AUTO is the only honest reading of a preference whose engine no longer exists.
             else -> DesktopEngineChoice.AUTO
         }
         set(value) { props.setProperty("engine", value.name); save() }
 
     var enginePriorityList: List<DesktopEngineChoice>
         get() {
-            val raw = props.getProperty("engine_priority", "LENS,MANGA_OCR")
+            val raw = props.getProperty("engine_priority", "LENS,PP_OCR")
             return parseEnginePriority(raw)
         }
         set(value) {
@@ -86,7 +88,7 @@ class DesktopSettings(
             runCatching { DesktopEngineChoice.valueOf(name.trim()) }.getOrNull()
         }.filter { it != DesktopEngineChoice.AUTO }.distinct()
 
-        val missing = listOf(DesktopEngineChoice.LENS, DesktopEngineChoice.MANGA_OCR) - parsed.toSet()
+        val missing = listOf(DesktopEngineChoice.LENS, DesktopEngineChoice.PP_OCR) - parsed.toSet()
         return parsed + missing
     }
 
@@ -205,6 +207,12 @@ class DesktopSettings(
     fun defaultDictDirectory(): File {
         return File(desktopHome, "dicts")
     }
+
+    /**
+     * Where the PP-OCRv6_manga files live: the detector, the recogniser and the 19,053-symbol
+     * dictionary, kept next to the settings and the dictionaries.
+     */
+    val ppOcrDir: File get() = File(desktopHome, "ppocr_v6")
 
     fun dictDirectory(): File {
         return File(customDictDirectoryPath)

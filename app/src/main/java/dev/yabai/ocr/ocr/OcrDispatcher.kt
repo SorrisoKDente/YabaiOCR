@@ -56,7 +56,7 @@ class OcrDispatcher(
             when (choice) {
                 EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                 EngineChoice.LENS -> recognizeWithLens(bitmap)
-                EngineChoice.MANGA_OCR -> recognizeWithMangaOcr(bitmap) ?: offlineEngine.recognize(bitmap)
+                EngineChoice.MANGA_OCR -> recognizeWithMangaOcr(bitmap)
                 EngineChoice.AUTO -> recognizeAuto(bitmap)
             }
         }
@@ -79,7 +79,10 @@ class OcrDispatcher(
             try {
                 val outcome = when (engineChoice) {
                     EngineChoice.LENS -> recognizeWithLens(bitmap)
-                    EngineChoice.MANGA_OCR -> recognizeWithMangaOcr(bitmap)
+                    EngineChoice.MANGA_OCR -> {
+                        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
+                        if (store.isAvailable()) recognizeWithMangaOcr(bitmap) else null
+                    }
                     EngineChoice.MLKIT -> offlineEngine.recognize(bitmap)
                     else -> null
                 }
@@ -97,15 +100,50 @@ class OcrDispatcher(
         return offlineEngine.recognize(bitmap).copy(fallback = true, warning = lastWarning)
     }
 
-    private suspend fun recognizeWithMangaOcr(bitmap: Bitmap): OcrOutcome? {
+    private suspend fun recognizeWithMangaOcr(bitmap: Bitmap): OcrOutcome {
+        val store = dev.yabai.ocr.core.manga.MangaOcrModelStore(settings.mangaOcrDir)
+        if (!store.isAvailable()) {
+            return OcrOutcome(
+                text = "",
+                lines = emptyList(),
+                engineLabel = "Manga-OCR (Offline)",
+                language = "ja",
+                elapsedMs = 0,
+                warning = "Modelos do Manga-OCR não instalados.",
+            )
+        }
+
         val width = bitmap.width
         val height = bitmap.height
-        if (width <= 0 || height <= 0) return null
+        if (width <= 0 || height <= 0) {
+            return OcrOutcome(
+                text = "",
+                lines = emptyList(),
+                engineLabel = "Manga-OCR (Offline)",
+                language = "ja",
+                elapsedMs = 0,
+            )
+        }
 
         val pixels = IntArray(width * height)
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        val outcome = mangaEngine()?.recognizePixels(pixels, width, height) ?: return null
+        val result = runCatching {
+            val engine = mangaEngine() ?: throw IllegalStateException("Não foi possível carregar as sessões ONNX do Manga-OCR.")
+            engine.recognizePixels(pixels, width, height)
+        }
+
+        val outcome = result.getOrElse { t ->
+            Log.e(TAG, "Error in Manga-OCR recognition", t)
+            return OcrOutcome(
+                text = "",
+                lines = emptyList(),
+                engineLabel = "Manga-OCR (Offline)",
+                language = "ja",
+                elapsedMs = 0,
+                warning = "Falha no Manga-OCR: ${t.message ?: t.javaClass.simpleName}",
+            )
+        }
 
         val blocks = outcome.blocks.map { b ->
             OcrBlock(
