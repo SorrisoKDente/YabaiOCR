@@ -49,7 +49,20 @@ val isLinuxHost = System.getProperty("os.name").lowercase().contains("linux")
 
 // Version stamped into the packages. The release workflow passes `-PyabaiVersion=<tag without v>` so
 // an installer, a portable zip and an AppImage from the same tag all carry the same number.
-val appVersion = (project.findProperty("yabaiVersion") as String?)?.removePrefix("v") ?: "1.0.0"
+val appVersion = (project.findProperty("yabaiVersion") as String?)?.trim()?.removePrefix("v")
+    ?.takeIf { it.isNotEmpty() } ?: "1.0.0"
+
+// The Windows installer accepts only `MAJOR.MINOR.BUILD` (255.255.65535) and fails configuration
+// with a trailing `$env:VERSION`-style string or a pre-release suffix. Normalising here keeps the
+// display version intact and gives a message that names the offending value.
+val installerPackageVersion: String = run {
+    val core = appVersion.substringBefore('-').substringBefore('+')
+    val parts = core.split('.')
+    require(parts.size in 1..3 && parts.all { part -> part.isNotEmpty() && part.all(Char::isDigit) }) {
+        "yabaiVersion must be MAJOR.MINOR.BUILD after the leading v (got '$appVersion')"
+    }
+    (parts + List(3 - parts.size) { "0" }).joinToString(".")
+}
 
 // The About card and the update checker must report the version that was packaged. They used to
 // print a hardcoded "1.0.0", so a build from another tag compared itself against the wrong number
@@ -102,7 +115,7 @@ compose.desktop {
             )
             // Linux package names must be lowercase and space-free; the visible name stays "Yabai OCR".
             packageName = if (isWindowsHost) "Yabai OCR" else "yabai-ocr"
-            packageVersion = appVersion
+            packageVersion = installerPackageVersion
             if (isWindowsHost) {
                 windows {
                     iconFile.set(project.file("src/main/resources/ic_scan_windows.ico"))

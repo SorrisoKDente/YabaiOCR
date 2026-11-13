@@ -2,7 +2,6 @@ package dev.yabai.ocr
 
 import android.content.Context
 import android.widget.Button
-import android.widget.RadioGroup
 import androidx.appcompat.app.AppCompatDelegate
 import org.junit.After
 import org.junit.Before
@@ -99,11 +98,15 @@ class AppThemeTest {
         assertEquals(AppThemeChoice.LIGHT, settings.appTheme)
 
         val recreatedBtn = recreatedActivity.findViewById<Button>(R.id.btnThemeToggle)
-        System.err.println("RECREATED BTN TEXT: '${recreatedBtn.text}'")
         assertEquals("☀️ " + recreatedActivity.getString(R.string.theme_light), recreatedBtn.text.toString())
 
-        val themeGroup = recreatedActivity.findViewById<RadioGroup>(R.id.themeGroup)
-        assertEquals(R.id.themeLight, themeGroup.checkedRadioButtonId)
+        // The header button is the only theme control: it names the current choice and cycles.
+        recreatedBtn.performClick()
+        assertEquals(AppThemeChoice.SYSTEM, settings.appTheme)
+        assertEquals("💻 " + recreatedActivity.getString(R.string.theme_system), recreatedBtn.text.toString())
+
+        recreatedBtn.performClick()
+        assertEquals(AppThemeChoice.DARK, settings.appTheme)
     }
 }
 

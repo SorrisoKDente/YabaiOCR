@@ -5227,3 +5227,40 @@ por inspeção estática (XML válido, strings nos dois idiomas, `R.id` existent
 num aparelho. No desktop, o fluxo completo (baixar, trocar o AppImage, reiniciar) não foi executado
 de ponta a ponta: a lógica de download e de troca está testada isoladamente, e a chamada real
 depende de um release novo com asset. Nada foi commitado.
+
+
+### D50 — CI: StackOverflowError do tema no Android e versão literal no Windows  `[x]` (13/11/2026)
+
+**Relato.** O release falhou nas duas plataformas: no Android, `AppThemeTest > toggling theme from
+button …` estourou a pilha em `LayoutInflater`; no Windows, o Gradle recusou a versão com
+`Illegal version for 'Exe': '$env:VERSION' is not a valid version`. O Linux passou.
+
+**Causa raiz.**
+1. *Android:* `AppSettings.applyTheme` chamava `AppCompatDelegate.setDefaultNightMode` e
+   `resources.updateConfiguration` **sem conferir se o valor já era aquele**. `MainActivity.onCreate`
+   chama `applyTheme`, e cada aplicação repetida faz o AppCompat reexecutar `applyDayNight` nos
+   delegates vivos, que recriam a activity — que chama `applyTheme` de novo. Em Robolectric a
+   recursão termina em `StackOverflowError` dentro do `LayoutInflater`. O teste também ainda
+   procurava `R.id.themeGroup`/`themeLight`, que a D48 removeu.
+2. *Windows:* o passo do workflow passava `-PyabaiVersion=$env:VERSION`; a variável chegou ao Gradle
+   como texto literal e o plugin do Compose validou a string como versão de MSI.
+
+**Correção.**
+- `applyTheme` só toca no delegate quando o modo muda e só reescreve `uiMode` quando a máscara atual
+  difere — o laço de recriação deixa de existir, sem mudar o comportamento de troca de tema.
+- `AppThemeTest` foi reescrito para a UI da D48: clica o botão do topo, confere texto e ciclo
+  DARK → LIGHT → SYSTEM → DARK, e que a escolha sobrevive à recriação.
+- `desktop/build.gradle.kts` normaliza a versão: tira `v`, corta sufixo de pré-release, exige
+  dígitos e completa para `MAJOR.MINOR.BUILD` (o instalador exige três partes). Valor inválido agora
+  falha com `yabaiVersion must be MAJOR.MINOR.BUILD after the leading v (got '…')`, nomeando o
+  problema em vez do erro de MSI.
+- `.github/workflows/release.yml` usa `${{ env.VERSION }}` (expandido pelo Actions) nos três jobs,
+  então o valor não depende mais do shell.
+
+**Evidência.** Configuração do desktop conferida por linha de comando: `-PyabaiVersion=v1.0.4` e
+`-PyabaiVersion=1.2` configuram (1.2 → 1.2.0); `-PyabaiVersion='$env:VERSION'` falha com a mensagem
+nova. `:desktop:test` continua verde (329). No Android, o teste atualizado é a regressão do laço —
+**não executado aqui** por falta de SDK/JDK 17, então é o primeiro item a confirmar no CI.
+
+**Limitações.** Sem Android SDK nesta máquina, nem o `StackOverflowError` nem o teste reescrito foram
+reproduzidos localmente; a correção é por análise do laço de recriação. O workflow só roda no GitHub.

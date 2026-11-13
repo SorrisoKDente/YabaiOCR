@@ -339,7 +339,13 @@ class AppSettings(context: Context) {
             AppThemeChoice.DARK -> AppCompatDelegate.MODE_NIGHT_YES
             AppThemeChoice.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
         }
-        AppCompatDelegate.setDefaultNightMode(mode)
+        // Only a real change may touch the delegate. Setting the mode already in force makes
+        // AppCompat re-run `applyDayNight` on every live delegate, and each run that sees a
+        // different configuration recreates the activity — which calls this again from `onCreate`.
+        // That loop ends in a StackOverflowError while inflating the layout (seen in CI).
+        if (AppCompatDelegate.getDefaultNightMode() != mode) {
+            AppCompatDelegate.setDefaultNightMode(mode)
+        }
         val nightMask = when (appTheme) {
             AppThemeChoice.LIGHT -> android.content.res.Configuration.UI_MODE_NIGHT_NO
             AppThemeChoice.DARK -> android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -347,9 +353,14 @@ class AppSettings(context: Context) {
         }
         if (nightMask != android.content.res.Configuration.UI_MODE_NIGHT_UNDEFINED) {
             val config = appContext.resources.configuration
-            config.uiMode = (config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or nightMask
-            @Suppress("DEPRECATION")
-            appContext.resources.updateConfiguration(config, appContext.resources.displayMetrics)
+            val currentMask = config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+            // Writing an identical configuration also triggers a configuration change.
+            if (currentMask != nightMask) {
+                config.uiMode =
+                    (config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or nightMask
+                @Suppress("DEPRECATION")
+                appContext.resources.updateConfiguration(config, appContext.resources.displayMetrics)
+            }
         }
     }
 

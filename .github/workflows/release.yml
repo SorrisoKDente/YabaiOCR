@@ -59,7 +59,9 @@ jobs:
       - name: Build distributable, installer and portable zip
         shell: pwsh
         run: |
-          ./gradlew :desktop:createDistributable :desktop:packageInnoSetup :desktop:packagePortableZip -PyabaiVersion=$env:VERSION --no-daemon --stacktrace
+          # `${{ }}` is expanded by Actions, so this does not depend on the shell reading the
+          # variable; `$env:VERSION` reached Gradle literally and broke the MSI version check.
+          ./gradlew :desktop:createDistributable :desktop:packageInnoSetup :desktop:packagePortableZip -PyabaiVersion=${{ env.VERSION }} --no-daemon --stacktrace
 
       - name: Collect artifacts
         shell: pwsh
@@ -87,7 +89,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build distributable and tar.gz
-        run: ./gradlew :desktop:createDistributable :desktop:packagePortableTarGz -PyabaiVersion=$VERSION --no-daemon --stacktrace
+        run: ./gradlew :desktop:createDistributable :desktop:packagePortableTarGz -PyabaiVersion=${{ env.VERSION }} --no-daemon --stacktrace
 
       # The official appimagetool AppImage needs FUSE, which the runner lacks; extracting it and
       # calling the inner AppRun is the documented way to use it in CI.
@@ -100,7 +102,7 @@ jobs:
           echo "APPIMAGETOOL=$PWD/squashfs-root/AppRun" >> "$GITHUB_ENV"
 
       - name: Build AppImage
-        run: APPIMAGETOOL="$PWD/squashfs-root/AppRun" ./gradlew :desktop:packageLinuxAppImage -PyabaiVersion=$VERSION --no-daemon --stacktrace
+        run: APPIMAGETOOL="$PWD/squashfs-root/AppRun" ./gradlew :desktop:packageLinuxAppImage -PyabaiVersion=${{ env.VERSION }} --no-daemon --stacktrace
 
       - name: Collect artifacts
         run: |
