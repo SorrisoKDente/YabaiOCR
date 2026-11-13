@@ -89,6 +89,14 @@ internal class KWinScreenshotCapture(
         active.captureArea(rect).also { failure = null }
     }
 
+    /**
+     * A whole monitor. The primary keeps the workspace capture it always used, because cropping the
+     * workspace is what produced this app's own pixels so far; any other monitor asks KWin for that
+     * area directly, which is the same call the region capture already makes.
+     */
+    override fun captureMonitor(bounds: Rectangle): BufferedImage =
+        if (bounds == primaryBounds()) captureScreen() else captureRegion(bounds)
+
     private fun captureWorkspace(): BufferedImage {
         val active = ensureTransport()
             ?: throw ScreenCaptureException(

@@ -4986,3 +4986,65 @@ usuário não foram manipulados); a autorização real do pacote depende de o KW
 oculta, o que o cooldown cobre mas não elimina na primeira leitura. O nome de componente do
 KGlobalAccel (`kwin`) foi confirmado no KDE 6.7.3; outro compositor/versão que use outro nome apenas
 mantém o comportamento antigo (a limpeza não encontra a ação). Nada foi commitado.
+
+### D46 — Botão de IA no SteamOS, monitor da captura e saída do botão «Dicionário»  `[x]` (13/11/2026)
+
+**Relato.** No SteamOS o botão de IA do resultado não fazia nada; o botão «Dicionário» do resultado
+não tinha uso; e a captura de tela inteira/recorte sempre usava o monitor principal, mesmo com um
+monitor externo ligado no Deck.
+
+**Causa raiz do botão de IA.** O clique chamava `Desktop.getDesktop().browse(URI.create(url))` dentro
+de `runCatching`. O peer X11 do JDK precisa de um `gio`/`xdg-open` funcional e de um contexto de
+aplicativo lançado pelo desktop; dentro do AppImage (runtime extraído em `/tmp/.mount_*`) a chamada
+falha, e a exceção era engolida — nenhuma URL aberta e nenhum aviso. O mesmo vale para a
+`ai_prompt`/provedor: a URL estava correta, quem não abria era o navegador.
+
+**Causa raiz do botão «Dicionário».** Sobrou da época em que o resultado não tinha painel de
+dicionário; hoje o painel direito já mostra os verbetes e o botão só reabria a janela de gestão com a
+frase como busca.
+
+**Causa raiz do monitor.** `ScreenCapture.screenBounds()`/`captureScreen()` são, por definição, o
+monitor primário (`defaultScreenDevice` e o recorte do workspace). Não havia preferência nem caminho
+por monitor, então um monitor externo nunca era capturado, exceto pelo hover (que usa o ponteiro).
+
+**Correção.**
+- `ExternalBrowser.kt`: `DesktopUrlOpener` tenta os lançadores do próprio desktop na ordem
+  `xdg-open`, `gio open`, `kde-open6`, `kde-open5`, `sensible-browser` (Linux) e `rundll32
+  url.dll,FileProtocolHandler` (Windows), com `Desktop.browse` como último recurso e 4 s de espera
+  por lançador. O clique roda em `Dispatchers.IO`; se nada abrir, o link vai para a área de
+  transferência e o resultado mostra um aviso (pt-BR/en).
+- `ResultWindow`: remoção do botão «Dicionário» e do parâmetro `onOpenFullDictRequested`; string
+  `btnFullDictionary` apagada dos dois idiomas.
+- `ScreenCapture`: `CaptureDisplay` (índice, rótulo do `getIDstring()`, bounds, escala),
+  `captureDisplays`, `resolveCaptureDisplay` (`PRIMARY`/`MOUSE`/`DISPLAY:<n>`, com `MOUSE` usando
+  `HoverGeometry.monitorAt`), `captureMonitor` no backend (`Robot` escolhe o `GraphicsDevice` do
+  retângulo e pede a variante nativa; KWin mantém o recorte do workspace para o principal e usa
+  `CaptureArea` para os demais; portal recorta do workspace) e `captureScreenWithRobot(bounds)`
+  com `deviceWithBounds` separado para teste.
+- `DesktopSettings.captureMonitor` (`capture_monitor`, padrão `PRIMARY`) e seção nova nos Ajustes
+  («Captura de Tela — Qual Monitor») com «Monitor principal», «Monitor onde está o ponteiro» e um
+  item por monitor conectado. `MOUSE` usa a posição do script KWin, que já chega a cada movimento do
+  ponteiro, então funciona também no Wayland.
+
+**Testes e mutações.** `:desktop:test` fechou em **316 testes, 0 falhas, 1 pulado**. Testes novos:
+`CaptureMonitorTest` (12: preferência, rótulo, backend, KWin, dispositivo) e `DesktopUrlOpenerTest`
+(6: ordem dos lançadores, URL como último argumento, fallback, Windows, falha), mais dois em
+`DesktopSettingsTest` (padrão/round-trip e valor em branco). Mutação provada e restaurada com
+SHA-256 idêntico:
+
+| mutação | teste que acusou |
+| --- | --- |
+| preferência `MOUSE` ignorada | `CaptureMonitorTest` |
+| Linux sem lançadores (só `Desktop.browse`) | `DesktopUrlOpenerTest` |
+| KWin captura o workspace em qualquer monitor | `CaptureMonitorTest` |
+
+**Evidência.** `xdg-open`, `gio` e `kde-open5` existem no host (`/usr/bin`), então a primeira tentativa
+do Linux está disponível sem depender do JDK. A suíte roda em 13/11/2026 com 316 testes.
+
+**Limitações.** O clique do botão de IA não abriu um navegador neste ambiente (não havia navegador
+gráfico para receber a URL) — o que foi verificado é a ordem dos lançadores, o último argumento e o
+aviso de falha. No Wayland a janela do seletor abre em tela cheia na tela em que o compositor a
+colocou, então escolher explicitamente outro monitor é confiável no Windows/X11 e depende do
+compositor no Wayland; o hover continua sempre no monitor do ponteiro. O hover num Windows com
+vários monitores permanece como antes (captura de região pelo dispositivo primário). Nada foi
+commitado.

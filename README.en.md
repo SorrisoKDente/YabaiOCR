@@ -53,6 +53,9 @@ chosen in Settings. Default shortcuts (all configurable):
 | `Ctrl + Shift + D` | quick dictionary lookup |
 | `Ctrl + Shift + X` | cycles the hover readings |
 
+On multi-monitor setups, Settings lets you choose which monitor the full-screen capture and the
+manual crop use: the primary one, a specific monitor, or the one under the pointer when you capture.
+
 **Android**: install the APK, grant **overlay** and **screen capture** (MediaProjection), pick an
 engine and tap start. The floating bubble triggers the capture.
 

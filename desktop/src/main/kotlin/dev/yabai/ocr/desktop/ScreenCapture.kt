@@ -3,7 +3,9 @@ package dev.yabai.ocr.desktop
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import java.awt.Dimension
+import java.awt.GraphicsDevice
 import java.awt.GraphicsEnvironment
+import java.awt.Point
 import java.awt.Rectangle
 import java.awt.Robot
 import java.awt.image.BufferedImage
@@ -46,6 +48,17 @@ internal interface ScreenCaptureBackend {
     fun screenBounds(): Rectangle
     fun captureScreen(): BufferedImage
     fun captureRegion(rect: Rectangle): BufferedImage
+
+    /**
+     * Captures exactly [bounds], the rectangle of one monitor.
+     *
+     * Backends that capture the whole workspace already crop a rectangle for the hover, so the
+     * default reuses that path; the ones bound to a single graphics device override it. Keeping the
+     * default here means a backend without monitor support still captures *something* for the
+     * monitor it was told to use, instead of silently returning the primary screen.
+     */
+    fun captureMonitor(bounds: Rectangle): BufferedImage =
+        if (bounds == screenBounds()) captureScreen() else captureRegion(bounds)
 }
 
 /**
@@ -57,6 +70,7 @@ internal object RobotScreenCapture : ScreenCaptureBackend {
     override fun screenBounds(): Rectangle = primaryScreenBounds()
     override fun captureScreen(): BufferedImage = capturePrimaryScreenWithRobot()
     override fun captureRegion(rect: Rectangle): BufferedImage = captureRegionWithRobot(rect)
+    override fun captureMonitor(bounds: Rectangle): BufferedImage = captureScreenWithRobot(bounds)
 }
 
 internal fun primaryScreenBounds(): Rectangle {
@@ -86,6 +100,132 @@ internal fun capturePrimaryScreenWithRobot(): BufferedImage {
 internal fun captureRegionWithRobot(rect: Rectangle): BufferedImage {
     val device = GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice
     return Robot(device).createScreenCapture(rect)
+}
+
+/**
+ * Captures one monitor at its native resolution.
+ *
+ * `Robot` is bound to a graphics device: asking the primary device for a rectangle that lives on
+ * another monitor returns black. The device whose bounds are [bounds] is the one to use; when the
+ * rectangle does not match any device the primary path runs, which is what every caller got before
+ * monitors could be chosen.
+ */
+internal fun captureScreenWithRobot(bounds: Rectangle): BufferedImage {
+    val device = deviceWithBounds(screens(), bounds) { runCatching { it.defaultConfiguration.bounds }.getOrNull() }
+        ?: return capturePrimaryScreenWithRobot()
+    val configuration = device.defaultConfiguration
+    val robot = Robot(device)
+    val variants = robot.createMultiResolutionScreenCapture(bounds)
+    val size = nativeCaptureSize(
+        bounds,
+        configuration.defaultTransform.scaleX,
+        configuration.defaultTransform.scaleY,
+    )
+    val native = variants.getResolutionVariant(size.width.toDouble(), size.height.toDouble())
+    return native as? BufferedImage ?: robot.createScreenCapture(bounds)
+}
+
+/**
+ * The device whose bounds are exactly [bounds].
+ *
+ * Split from the capture itself so the «no device owns this rectangle» case — which must fall back
+ * to the primary screen instead of capturing black — can be tested without a graphics device.
+ */
+internal fun <T> deviceWithBounds(
+    devices: List<T>,
+    bounds: Rectangle,
+    boundsOf: (T) -> Rectangle?,
+): T? = devices.firstOrNull { boundsOf(it) == bounds }
+
+/**
+ * One physical display, in AWT coordinates, with the label the settings window shows.
+ *
+ * [index] is the position in [captureDisplays] and is what the preference stores: the display ID
+ * string differs between X11, Wayland and Windows, and a monitor that is unplugged must not turn the
+ * stored preference into a capture of the wrong screen.
+ */
+internal data class CaptureDisplay(
+    val index: Int,
+    val label: String,
+    val bounds: Rectangle,
+    val scaleX: Double = 1.0,
+    val scaleY: Double = 1.0,
+)
+
+internal const val CAPTURE_MONITOR_PRIMARY = "PRIMARY"
+internal const val CAPTURE_MONITOR_MOUSE = "MOUSE"
+internal const val CAPTURE_MONITOR_DISPLAY_PREFIX = "DISPLAY:"
+
+internal fun captureMonitorDisplayPreference(index: Int): String =
+    "$CAPTURE_MONITOR_DISPLAY_PREFIX$index"
+
+private fun screens(): List<GraphicsDevice> =
+    GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices?.toList().orEmpty()
+
+/** Every connected display, primary first — the order the settings dropdown lists them in. */
+internal fun captureDisplays(devices: List<GraphicsDevice>): List<CaptureDisplay> =
+    devices.mapIndexed { index, device ->
+        val configuration = runCatching { device.defaultConfiguration }.getOrNull()
+        val bounds = configuration?.bounds ?: Rectangle(0, 0, 1, 1)
+        CaptureDisplay(
+            index = index,
+            label = displayLabel(device, index),
+            bounds = bounds,
+            scaleX = configuration?.defaultTransform?.scaleX ?: 1.0,
+            scaleY = configuration?.defaultTransform?.scaleY ?: 1.0,
+        )
+    }
+
+private fun displayLabel(device: GraphicsDevice, index: Int): String {
+    val id = runCatching { device.getIDstring() }.getOrNull().orEmpty().trim().trimStart('\\')
+    return id.ifBlank { "Monitor ${index + 1}" }
+}
+
+/**
+ * Text the settings dropdown shows for a stored preference.
+ *
+ * Labels arrive as arguments so this stays independent of the i18n layer and can be tested without
+ * a `DesktopStrings` initialisation.
+ */
+internal fun captureMonitorLabel(
+    preference: String,
+    displays: List<CaptureDisplay>,
+    primaryLabel: String,
+    mouseLabel: String,
+): String {
+    if (preference == CAPTURE_MONITOR_MOUSE) return mouseLabel
+    if (preference.startsWith(CAPTURE_MONITOR_DISPLAY_PREFIX)) {
+        val index = preference.removePrefix(CAPTURE_MONITOR_DISPLAY_PREFIX).toIntOrNull()
+        val display = displays.firstOrNull { it.index == index }
+        if (display != null) return "${display.label} (${display.bounds.width}×${display.bounds.height})"
+    }
+    return primaryLabel
+}
+
+/**
+ * Display the preference asks for.
+ *
+ * `PRIMARY` and an unknown index both fall back to the first display — the one AWT reports as the
+ * primary screen — so unplugging the monitor that was chosen keeps the app capturing instead of
+ * failing. `MOUSE` follows the pointer, and without a pointer position it degrades to the primary
+ * screen, which is the historical behaviour.
+ */
+internal fun resolveCaptureDisplay(
+    preference: String,
+    displays: List<CaptureDisplay>,
+    pointer: Point? = null,
+): CaptureDisplay? {
+    if (displays.isEmpty()) return null
+    if (preference == CAPTURE_MONITOR_MOUSE) {
+        val point = pointer ?: return displays.first()
+        val bounds = HoverGeometry.monitorAt(displays.map { it.bounds }, point)
+        return displays.firstOrNull { it.bounds == bounds } ?: displays.first()
+    }
+    if (preference.startsWith(CAPTURE_MONITOR_DISPLAY_PREFIX)) {
+        val index = preference.removePrefix(CAPTURE_MONITOR_DISPLAY_PREFIX).toIntOrNull()
+        return displays.firstOrNull { it.index == index } ?: displays.first()
+    }
+    return displays.first()
 }
 
 /**
@@ -174,6 +314,17 @@ internal object ScreenCapture {
     fun captureScreen(): BufferedImage = PlatformServices.capture.captureScreen()
 
     fun captureRegion(rect: Rectangle): BufferedImage = PlatformServices.capture.captureRegion(rect)
+
+    /** Connected displays, primary first. */
+    fun displays(): List<CaptureDisplay> = captureDisplays(screens())
+
+    /** Display chosen by the stored preference, or null when there is nothing to capture. */
+    fun resolveDisplay(preference: String, pointer: Point? = null): CaptureDisplay? =
+        resolveCaptureDisplay(preference, displays(), pointer)
+
+    /** Captures the whole of [display] at its native resolution. */
+    fun captureDisplay(display: CaptureDisplay): BufferedImage =
+        PlatformServices.capture.captureMonitor(display.bounds)
 
     fun captureScreenAsImageBitmap(): ImageBitmap {
         return captureScreen().toComposeImageBitmap()

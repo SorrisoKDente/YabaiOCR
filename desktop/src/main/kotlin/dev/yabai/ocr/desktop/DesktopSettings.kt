@@ -141,6 +141,18 @@ class DesktopSettings(
         get() = props.getProperty("show_furigana", "true").toBoolean()
         set(value) { props.setProperty("show_furigana", value.toString()); save() }
 
+    /**
+     * Which monitor the full-screen capture and the hand-drawn crop use.
+     *
+     * Values: `PRIMARY`, `MOUSE` or `DISPLAY:<index>`. Kept as text instead of an enum because the
+     * per-display choice names a list that changes with the machine; an index that no longer exists
+     * is resolved to the primary screen at capture time.
+     */
+    var captureMonitor: String
+        get() = props.getProperty("capture_monitor", CAPTURE_MONITOR_PRIMARY).orEmpty()
+            .ifBlank { CAPTURE_MONITOR_PRIMARY }
+        set(value) { props.setProperty("capture_monitor", value); save() }
+
     var pickerReading: DesktopPickerReadingMode
         get() = when (props.getProperty("picker_reading", "OFF")) {
             "RUBY" -> DesktopPickerReadingMode.RUBY

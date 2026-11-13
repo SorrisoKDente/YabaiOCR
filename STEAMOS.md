@@ -401,6 +401,8 @@ rm -f ~/Applications/Yabai_OCR-*.AppImage
 | bandeja não aparece | StatusNotifier ausente (Game Mode/GNOME) | abra sem `--minimized`; o app mostra a janela |
 | app “invisível” após `--minimized` | a bandeja falhou | abra sem a flag; o fallback abre a janela |
 | quadrados no lugar do japonês | fonte CJK ausente | instale `noto-fonts-cjk` (§5.4) |
+| o botão de IA do resultado não abre nada | `Desktop.browse` do JDK falha dentro do AppImage (precisa do `gio`/peer X11 do desktop) e a falha era engolida | use o build atual (D46): ele tenta `xdg-open`, `gio open`, `kde-open5` antes do AWT; se nenhum abrir, o link vai para a área de transferência e uma aviso aparece |
+| a captura sempre pega a tela errada (Steam Deck com monitor externo) | a captura usava o monitor principal | Ajustes → “Captura de Tela — Qual Monitor”: escolha um monitor ou “Monitor onde está o ponteiro”; o hover continua seguindo o ponteiro |
 | “Baixar Atualização” abre a página do release | o release não publicou AppImage | comportamento esperado; baixe manualmente |
 | atualização do SteamOS quebrou o script KWin | KWin/Plasma mudou de versão | abra o app de novo; ele reinstala o script se o conteúdo mudou |
 

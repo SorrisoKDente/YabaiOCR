@@ -23,6 +23,27 @@ class DesktopSettingsTest {
         Properties().apply { file.inputStream().use { load(it) } }
 
     @Test
+    fun `the capture monitor defaults to the primary screen and round-trips`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertEquals("PRIMARY", settings.captureMonitor)
+
+        settings.captureMonitor = "MOUSE"
+
+        assertEquals("MOUSE", DesktopSettings(file).captureMonitor)
+        assertEquals("MOUSE", read(file).getProperty("capture_monitor"))
+    }
+
+    @Test
+    fun `a blank capture monitor in the file reads as the primary screen`() {
+        val file = tempSettings()
+        write(file, "capture_monitor" to "   ")
+
+        assertEquals("PRIMARY", DesktopSettings(file).captureMonitor)
+    }
+
+    @Test
     fun `reads the legacy dictionary directory key`() {
         val file = tempSettings()
         write(file, "custom_dict_directory" to "E:\\Documentos\\DicionariosJapones")

@@ -174,7 +174,7 @@ rodam com as flags acima.
 
 | arquivo | papel |
 | --- | --- |
-| `ScreenCapture.kt` | captura primária/região via `Robot`, tamanho nativo em HiDPI |
+| `ScreenCapture.kt` | captura primária/região/monitor via `Robot`, tamanho nativo em HiDPI, lista de monitores e preferência (`PRIMARY`/`MOUSE`/`DISPLAY:n`) |
 | `PlatformServices.kt` | escolhe o backend de captura por plataforma/sessão |
 | `ScreenshotMethod.kt` | override de método (X11/Wayland/portal) por variável de ambiente |
 | `KWinScreenshotCapture.kt` | caminho principal no KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + QImage cru, fallback para o portal |
@@ -214,6 +214,7 @@ rodam com as flags acima.
 | `PortalGlobalShortcuts.kt` | atalhos globais no Wayland via portal D-Bus |
 | `XdgTrigger.kt` | atalhos por `gsettings`/XDG no Linux |
 | `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | bandeja: AWT no Windows, StatusNotifier + DBusMenu no Plasma, menu Swing fallback e posicionamento |
+| `ExternalBrowser.kt` | abre URL no navegador do usuário: lançadores do desktop (`xdg-open`, `gio open`, `kde-open*`) e `Desktop.browse` como último recurso |
 | `YabaiDbusService.kt` | serviço D-Bus próprio (hover, atalhos) |
 | `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | iniciar com o sistema e integração com o desktop |
 | `ClipboardMonitor.kt` | observa o clipboard (copiar do cartão) |
@@ -322,7 +323,7 @@ atalho → Main.kt → SegmentPickerWindow.scanScreen
 ### Captura no KDE Wayland (ScreenShot2)
 
 ```
-PlatformServices.capture
+PlatformServices.capture (monitor escolhido em Ajustes: principal, DISPLAY:n ou sob o ponteiro)
     → KdeWaylandCapture → org.kde.KWin.ScreenShot2 (CaptureArea/CaptureWorkspace)
     → entrada oculta yabai-ocr-screenshot.desktop autoriza o binário em execução
     → FD temporário + QImage RGBX8888/RGBA8888 ou ARGB32 (stride × height)

@@ -148,6 +148,13 @@ documentação do projeto e no código do OpenJDK/KDE.
   `Exec` seja o próprio `/proc/<pid>/exe`; por isso o app grava a entrada oculta
   `yabai-ocr-screenshot.desktop` a cada início (D45). Se a interface não existir, a chamada for
   recusada ou o formato for desconhecido, ele cai para o portal `Screenshot`
+
+  Em telas múltiplas, os Ajustes escolhem o monitor da captura inteira e do recorte (`PRIMARY`,
+  `MOUSE` ou `DISPLAY:<índice>`): no KWin o principal continua saindo do workspace recortado e os
+  demais saem de `CaptureArea` com o retângulo do monitor; no portal a área é recortada da imagem do
+  workspace. O hover não segue essa preferência — ele sempre usa o monitor do ponteiro. No Wayland a
+  janela de seleção abre em tela cheia na tela em que o compositor a colocou, porque posicionamento
+  absoluto é ignorado
   (`interactive=false`), que devolve um PNG do workspace e pode apresentar o diálogo do KDE. O recorte
   do monitor/região é feito pelo app nos dois caminhos.
 - **Por que não usar `Robot`/ScreenCast no KDE:** o JDK 21.0.13 valida o *restore token* como UUID
@@ -894,7 +901,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | suíte | hoje | regra |
 | --- | --- | --- |
 | `:core:test` | 177 (pulados com as flags opcionais) | não pode cair; nenhum teste Linux novo aqui |
-| `:desktop:test` | 296 (1 pulado no host KDE; 3 no sandbox) | continua verde; `StartupManagerTest` e o smoke do watcher continuam pulando fora do ambiente |
+| `:desktop:test` | 316 (1 pulado no host KDE; 3 no sandbox) | continua verde; `StartupManagerTest` e o smoke do watcher continuam pulando fora do ambiente |
 | `:app:testDebugUnitTest` | 411 | não pode mudar; nenhuma alteração em `app/` |
 
 ### 13.2 Testes novos (JVM puros, sem abrir janela nem portal)
@@ -1090,7 +1097,9 @@ silencioso no KDE, trocou o caminho principal para `KWin.ScreenShot2`, publicou 
 fez o rebind dos atalhos numa sessão nova e recarregou o fallback KWin ao editar; a suíte fechou em
 **287 testes**. Em 13/11/2026 a D45 achou a autorização do `ScreenShot2` (entrada `.desktop` com
 `X-KDE-DBUS-Restricted-Interfaces`), o formato `ARGB32` e o atalho preso no KGlobalAccel, e a suíte
-fechou em **296 testes**. A validação visual de bandeja, hover, captura e atalhos no Desktop Mode
+fechou em **296 testes**. Em 13/11/2026 a D46 trocou o `Desktop.browse` do botão de IA por lançadores do
+desktop, tirou o botão «Dicionário» do resultado e deixou escolher o monitor da captura; a suíte
+fechou em **316 testes**. A validação visual de bandeja, hover, captura e atalhos no Desktop Mode
 segue como checklist abaixo.
 
 ---
@@ -1124,7 +1133,7 @@ segue como checklist abaixo.
 
 ### 15.4 Windows (não-regressão)
 
-- [ ] `:desktop:test` continua verde (296 hoje).
+- [ ] `:desktop:test` continua verde (316 hoje).
 - [ ] `packageExe`, `packageMsi` e `packageInnoSetup` continuam funcionando.
 - [ ] Autostart pelo registro cria/remove exatamente a mesma chave.
 - [ ] Bandeja, atalhos, captura, hover, recorte e tooltip inalterados.

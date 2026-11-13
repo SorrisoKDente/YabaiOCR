@@ -53,6 +53,9 @@ Ajustes. Atalhos padrão (todos configuráveis):
 | `Ctrl + Shift + D` | busca rápida no dicionário |
 | `Ctrl + Shift + X` | alterna entre as leituras do hover |
 
+Em telas múltiplas, os Ajustes deixam escolher qual monitor a captura de tela inteira e o recorte à
+mão usam: o principal, um monitor específico ou aquele em que o ponteiro está no momento da captura.
+
 **Android**: instale o APK, conceda **sobreposição** e **captura de tela** (MediaProjection), escolha
 o motor e toque em iniciar. A bolha flutuante dispara a captura.
 

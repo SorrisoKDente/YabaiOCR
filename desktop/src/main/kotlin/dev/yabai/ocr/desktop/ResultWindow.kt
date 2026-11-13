@@ -24,12 +24,11 @@ import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.*
 import dev.yabai.ocr.core.lens.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.awt.Desktop
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.awt.image.BufferedImage
-import java.net.URI
 
 @Composable
 fun ResultWindow(
@@ -37,7 +36,6 @@ fun ResultWindow(
     initialText: String? = null,
     onClose: () -> Unit,
     onNewSelectionRequested: () -> Unit,
-    onOpenFullDictRequested: (String) -> Unit,
 ) {
     val settings = remember { DesktopSettings() }
 
@@ -51,6 +49,8 @@ fun ResultWindow(
     var lookupError by remember { mutableStateOf<String?>(null) }
     var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
     var showImageToggle by remember { mutableStateOf(settings.showImage) }
+    var aiNotice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     val windowState = rememberWindowState(width = 860.dp, height = 700.dp)
     val imageBitmap = remember { croppedImage.toComposeImageBitmap() }
@@ -219,8 +219,22 @@ fun ResultWindow(
                                 Button(
                                     onClick = {
                                         if (recognizedText.isNotBlank()) {
-                                            val url = settings.buildAiUrl(recognizedText)
-                                            runCatching { Desktop.getDesktop().browse(URI.create(url)) }
+                                            val textToAsk = recognizedText
+                                            scope.launch {
+                                                // Opening a browser can block on the launcher; the
+                                                // window must not freeze while it happens.
+                                                val opened = withContext(Dispatchers.IO) {
+                                                    DesktopUrlOpener().open(settings.buildAiUrl(textToAsk))
+                                                }
+                                                if (!opened) {
+                                                    // Keep the URL reachable instead of losing it: the
+                                                    // user can paste it in any browser.
+                                                    val selection = StringSelection(settings.buildAiUrl(textToAsk))
+                                                    Toolkit.getDefaultToolkit().systemClipboard
+                                                        .setContents(selection, selection)
+                                                }
+                                                aiNotice = if (opened) null else DesktopStrings.aiLinkOpenFailed
+                                            }
                                         }
                                     },
                                     enabled = recognizedText.isNotBlank(),
@@ -229,20 +243,6 @@ fun ResultWindow(
                                 ) {
                                     Text(DesktopStrings.btnAskAiCompact, fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                                 }
-                            }
-
-                            // Buscar no Dicionário Completo
-                            Button(
-                                onClick = {
-                                    if (recognizedText.isNotBlank()) {
-                                        onOpenFullDictRequested(recognizedText)
-                                    }
-                                },
-                                enabled = recognizedText.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E3344)),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(DesktopStrings.btnFullDictionary, fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                             }
 
                             // Nova Seleção
@@ -257,6 +257,16 @@ fun ResultWindow(
                                 Text(DesktopStrings.btnCropAgain, fontSize = 11.sp, maxLines = 1, softWrap = false)
                             }
                         }
+                    }
+
+                    val notice = aiNotice
+                    if (notice != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = notice,
+                            style = MaterialTheme.typography.caption,
+                            color = Color(0xFFE5A93C)
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))

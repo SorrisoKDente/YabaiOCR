@@ -98,6 +98,12 @@ fun SettingsContent(
     var showFurigana by remember { mutableStateOf(settings.showFurigana) }
     var pickerReading by remember { mutableStateOf(settings.pickerReading) }
 
+    var captureMonitor by remember { mutableStateOf(settings.captureMonitor) }
+    var expandedCaptureMonitor by remember { mutableStateOf(false) }
+    // Read once: the settings window is not the place to poll the compositor, and the list only
+    // changes when a monitor is plugged or unplugged.
+    val captureDisplayList = remember { ScreenCapture.displays() }
+
     var dictionaryLookup by remember { mutableStateOf(settings.dictionaryLookup) }
     var dictionaryFilter by remember { mutableStateOf(settings.dictionaryFilter) }
     var hoverDictionaryFilter by remember { mutableStateOf(settings.hoverDictionaryFilter) }
@@ -904,6 +910,77 @@ fun SettingsContent(
                 ) {
                     Text(DesktopStrings.btnTestHoverCursor)
                 }
+            }
+        }
+
+        // --- Captura de Tela: qual monitor ---
+        item {
+            SettingCard(title = DesktopStrings.sectionCapture) {
+                Text(
+                    text = DesktopStrings.captureMonitorDesc,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expandedCaptureMonitor = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
+                    ) {
+                        Text(
+                            captureMonitorLabel(
+                                preference = captureMonitor,
+                                displays = captureDisplayList,
+                                primaryLabel = DesktopStrings.captureMonitorPrimary,
+                                mouseLabel = DesktopStrings.captureMonitorMouse,
+                            )
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = expandedCaptureMonitor,
+                        onDismissRequest = { expandedCaptureMonitor = false }
+                    ) {
+                        DropdownMenuItem(onClick = {
+                            captureMonitor = CAPTURE_MONITOR_PRIMARY
+                            settings.captureMonitor = CAPTURE_MONITOR_PRIMARY
+                            expandedCaptureMonitor = false
+                        }) {
+                            Text(DesktopStrings.captureMonitorPrimary)
+                        }
+                        DropdownMenuItem(onClick = {
+                            captureMonitor = CAPTURE_MONITOR_MOUSE
+                            settings.captureMonitor = CAPTURE_MONITOR_MOUSE
+                            expandedCaptureMonitor = false
+                        }) {
+                            Text(DesktopStrings.captureMonitorMouse)
+                        }
+                        captureDisplayList.forEach { display ->
+                            val value = captureMonitorDisplayPreference(display.index)
+                            DropdownMenuItem(onClick = {
+                                captureMonitor = value
+                                settings.captureMonitor = value
+                                expandedCaptureMonitor = false
+                            }) {
+                                Text(
+                                    DesktopStrings.captureMonitorDisplay(
+                                        display.label,
+                                        display.bounds.width,
+                                        display.bounds.height,
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = DesktopStrings.captureMonitorHint,
+                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                    color = MaterialTheme.colors.secondary
+                )
             }
         }
 

@@ -139,13 +139,26 @@ fun main(args: Array<String>) {
     var captureGeneration by remember { mutableStateOf(0L) }
     var captureNotice by remember { mutableStateOf<String?>(null) }
 
+    /**
+     * Monitor the capture settings ask for.
+     *
+     * `MOUSE` needs the pointer: AWT reports it on Windows and X11, while KWin reports it through
+     * the script, so both are consulted before giving up on the primary screen.
+     */
+    fun selectedCaptureDisplay(): CaptureDisplay? =
+        ScreenCapture.resolveDisplay(
+            settings.captureMonitor,
+            pointer = kwinPointer.current() ?: AwtPointerSource().current(),
+        )
+
     // The two captures are two visible actions: the whole screen with clickable paragraphs, and
     // the hand-drawn crop. Neither hides behind a preference the user cannot see.
     fun startFullScreenCapture() {
         try {
+            val display = selectedCaptureDisplay()
             pickerCapture = CapturedScreen(
-                image = ScreenCapture.captureScreen(),
-                screenBounds = ScreenCapture.screenBounds(),
+                image = if (display != null) ScreenCapture.captureDisplay(display) else ScreenCapture.captureScreen(),
+                screenBounds = display?.bounds ?: ScreenCapture.screenBounds(),
             )
         } catch (e: ScreenCaptureException) {
             captureNotice = e.message
@@ -157,9 +170,10 @@ fun main(args: Array<String>) {
     fun startRegionCapture() {
         try {
             resultInitialText = null
+            val display = selectedCaptureDisplay()
             regionCapture = CapturedScreen(
-                image = ScreenCapture.captureScreen(),
-                screenBounds = ScreenCapture.screenBounds(),
+                image = if (display != null) ScreenCapture.captureDisplay(display) else ScreenCapture.captureScreen(),
+                screenBounds = display?.bounds ?: ScreenCapture.screenBounds(),
             )
         } catch (e: ScreenCaptureException) {
             captureNotice = e.message
@@ -387,11 +401,6 @@ fun main(args: Array<String>) {
                 },
                 onNewSelectionRequested = {
                     startRegionCapture()
-                },
-                onOpenFullDictRequested = { query ->
-                    mainDictInitialQuery = query
-                    mainScreen = MainScreen.DICTIONARIES
-                    showMainWindow = true
                 },
             )
         }
