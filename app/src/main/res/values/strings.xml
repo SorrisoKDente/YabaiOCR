@@ -338,4 +338,16 @@
     <string name="update_install_permission_title">Permitir instalação</string>
     <string name="update_install_permission_message">Para instalar a atualização baixada, o Android precisa permitir que o Yabai OCR instale aplicativos. Abra os ajustes e ligue a permissão.</string>
     <string name="update_open_settings">Abrir ajustes</string>
+
+    <!-- Support the project -->
+    <string name="section_donate">Apoiar o Projeto</string>
+    <string name="donate_body">O Yabai OCR é gratuito e sem fins lucrativos, feito por uma pessoa para estudar japonês. Se ele te ajuda, uma doação paga o tempo que ele dá — e nunca é condição para usar.</string>
+    <string name="donate_kofi">☕ Ko-fi</string>
+    <string name="donate_pix_title">Pix (Brasil):</string>
+    <string name="donate_pix_label">Pix (Brasil): %1$s</string>
+    <string name="donate_copy_pix">📋 Copiar chave Pix</string>
+    <string name="donate_pix_copied">Chave Pix copiada.</string>
+    <string name="donate_license">📜 Licença</string>
+    <string name="donate_license_title">Licença — Yabai OCR</string>
+    <string name="donate_license_missing">O arquivo de licença não foi encontrado neste build.</string>
 </resources>

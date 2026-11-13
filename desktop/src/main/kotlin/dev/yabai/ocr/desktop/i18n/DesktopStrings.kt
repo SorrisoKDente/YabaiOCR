@@ -258,6 +258,23 @@ object DesktopStrings {
     fun updateAvailableMessage(version: String): String = if (isEnglish) "✨ New app version available: v$version" else "✨ Nova versão do aplicativo disponível: v$version"
     val updateGeneralNotice: String get() = if (isEnglish) "A newer version of Yabai OCR has been released on GitHub." else "Uma versão mais recente do Yabai OCR foi lançada no GitHub."
 
+    // Supporting the project
+    val donationTitle: String get() = if (isEnglish) "Support the project" else "Apoiar o projeto"
+    val donationBody: String get() = if (isEnglish)
+        "Yabai OCR is free and non-commercial, made by one person to study Japanese. If it helps you, a donation pays for the time it takes — never a requirement to use it."
+    else
+        "O Yabai OCR é gratuito e sem fins lucrativos, feito por uma pessoa para estudar japonês. Se ele te ajuda, uma doação paga o tempo que ele dá — e nunca é condição para usar."
+    val btnKofi: String get() = if (isEnglish) "☕ Ko-fi" else "☕ Ko-fi"
+    val btnCopyPix: String get() = if (isEnglish) "📋 Copy Pix key" else "📋 Copiar chave Pix"
+    val pixLabel: String get() = if (isEnglish) "Pix (Brazil):" else "Pix (Brasil):"
+    val pixCopied: String get() = if (isEnglish) "Pix key copied." else "Chave Pix copiada."
+    val btnShowLicense: String get() = if (isEnglish) "📜 License" else "📜 Licença"
+    val licenseWindowTitle: String get() = if (isEnglish) "License — Yabai OCR" else "Licença — Yabai OCR"
+    val licenseMissing: String get() = if (isEnglish)
+        "The license file was not found in this build."
+    else
+        "O arquivo de licença não foi encontrado neste build."
+
     // Updating from inside the app
     val btnInstallUpdate: String get() = if (isEnglish) "⬇️ Download and install" else "⬇️ Baixar e instalar"
     fun updateDownloading(percent: Int?): String = when {

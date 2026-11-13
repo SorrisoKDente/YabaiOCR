@@ -59,8 +59,9 @@ jobs:
       - name: Build distributable, installer and portable zip
         shell: pwsh
         run: |
-          # `${{ }}` is expanded by Actions, so this does not depend on the shell reading the
-          # variable; `$env:VERSION` reached Gradle literally and broke the MSI version check.
+          # The Actions expression below is expanded by GitHub, so this does not depend on the
+          # shell reading the variable; the old $env form reached Gradle literally and broke the
+          # MSI version check.
           ./gradlew :desktop:createDistributable :desktop:packageInnoSetup :desktop:packagePortableZip -PyabaiVersion=${{ env.VERSION }} --no-daemon --stacktrace
 
       - name: Collect artifacts

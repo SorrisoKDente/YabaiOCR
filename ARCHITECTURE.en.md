@@ -78,7 +78,7 @@ before quoting them.
 ├── ARCHITECTURE.md             # this document (Portuguese)
 ├── ARCHITECTURE.en.md          # this document (English)
 ├── CONTRIBUTING.md / .en.md    # how to contribute
-├── LICENSE                     # MIT
+├── LICENSE                     # PolyForm Noncommercial 1.0.0
 ├── README.md / README.en.md    # public overview
 ├── ROADMAP.md                  # technical history, item by item (B/F/M/D/I/N/R)
 ├── LANGUAGES.md                # i18n: keys and where each text lives
@@ -118,6 +118,8 @@ before quoting them.
 | `PPOcrModelDownloader.kt` | download with `.tmp`, per-file resume and progress |
 
 ONNX is `compileOnly` in the core: consumers (`:desktop`, `:app`) bring the runtime.
+
+| `DonationInfo.kt` | Pix key and Ko-fi link, shared by both apps |
 
 ### `md/` — release-notes Markdown
 
@@ -177,6 +179,7 @@ flags above.
 | `SettingsWindow.kt` | the whole Settings screen (appearance, shortcuts, engine + download, dictionaries, AI) |
 | `ResultWindow.kt` | result panel: editable text, image, buttons (copy, AI, crop) |
 | `ReleaseNotesWindow.kt` | Markdown preview of the GitHub release notes, opened from Settings → About |
+| `LicenseWindow.kt` | license text bundled in the jar, opened from Settings → About |
 | `UpdateInstaller.kt` | downloads the asset with progress, swaps the running AppImage (`.old` backup), opens the installer on Windows/macOS and restarts |
 | `QuickDictWindow.kt` | quick dictionary lookup in its own window |
 | `DictionaryManagerWindow.kt` | manager content: search, installed, catalog, credits |

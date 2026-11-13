@@ -9,6 +9,11 @@ tradução, sem tirar print nem abrir outra janela.
 O reconhecimento pode ser **online** (Google Lens) ou **offline** (ML Kit no Android, PP-OCRv6 no
 desktop e no Android), então o app continua útil sem conexão.
 
+> **Gratuito e sem fins lucrativos.** O Yabai OCR é feito para quem estuda japonês — inclusive eu, que
+> escrevi o app para ler mangá enquanto estudo. O uso é livre para qualquer finalidade **não
+> comercial**; vender, cobrar pelo acesso ou embutir o app num produto pago não é permitido pela
+> licença. Não há versão paga.
+
 ---
 
 ## O que ele faz
@@ -126,6 +131,29 @@ O mapa detalhado — arquivo por arquivo, fluxos e armadilhas — está em
 Os documentos públicos existem em português e em inglês (`README.en.md`, `ARCHITECTURE.en.md`,
 `CONTRIBUTING.en.md`); o `ROADMAP.md` é o histórico técnico interno, em português.
 
+## Sugestões e Suporte
+
+Estou sempre aberto a sugestões e feedback! Por ser um projeto de aprendizado, muitas
+funcionalidades ainda não foram testadas extensivamente e podem não funcionar 100% como esperado. O
+seu feedback ao testar o app é extremamente importante para me ajudar a identificar e corrigir
+problemas.
+
+Se você tiver ideias de melhorias ou quiser reportar um erro, abra uma *issue* — se a ideia for
+enviar código, leia antes o [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Se você achar este projeto útil e quiser apoiar financeiramente o seu desenvolvimento, você pode
+doar através de:
+
+- ☕ **Ko-fi:** [ko-fi.com/yabaihonyaku](https://ko-fi.com/yabaihonyaku)
+- 💸 **Pix (Brasil):** `yabaihonyaku@gmail.com`
+
+<p align="center">
+  <img src="docs/pix-qr.png" alt="QR code do Pix" width="220">
+</p>
+
+Doe apenas se for possível para você: o app continua gratuito e completo para todo mundo, e nenhuma
+doação dá acesso a algo exclusivo.
+
 ## Estado e contribuições
 
 O projeto está em desenvolvimento ativo. Bugs e sugestões são bem-vindos pelas *issues*; antes de
@@ -134,5 +162,11 @@ mutação valem para qualquer mudança de comportamento.
 
 ## Licença
 
-[MIT](LICENSE): use, copie, modifique e redistribua livremente, inclusive em projetos comerciais,
-bastando manter o aviso de copyright. O software é fornecido sem garantias.
+[PolyForm Noncommercial 1.0.0](LICENSE): use, copie, modifique e redistribua livremente para
+**qualquer finalidade não comercial** — estudo, uso pessoal, projetos de hobby, pesquisa, escolas e
+outras organizações sem fins lucrativos. **Vender, cobrar pelo acesso ou embutir o app num produto
+pago não é permitido**; para uso comercial é preciso uma licença separada, pedida ao autor. O
+software é fornecido sem garantias.
+
+O projeto é **gratuito e sem fins lucrativos**: existe para ajudar quem estuda japonês. O texto
+completo da licença está no [LICENSE](LICENSE).

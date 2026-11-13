@@ -83,6 +83,19 @@ val generateVersionResource = tasks.register("generateVersionResource") {
 sourceSets.named("main") { resources.srcDir(versionResourceDir) }
 tasks.named("processResources") { dependsOn(generateVersionResource) }
 
+// The license has to travel with the software: PolyForm requires that whoever gets a copy also gets
+// its terms. One source of truth (the repository LICENSE) reaches two places — the jar, so the app
+// can show it in Settings → About, and the distributable folder, which every packager (Inno Setup,
+// portable zip, tar.gz, AppImage) reuses.
+val licenseResourceDir = layout.buildDirectory.dir("generated/yabai-license")
+val generateLicenseResource = tasks.register<Copy>("generateLicenseResource") {
+    from(rootProject.file("LICENSE")) { rename { "LICENSE.txt" } }
+    into(licenseResourceDir)
+}
+
+sourceSets.named("main") { resources.srcDir(licenseResourceDir) }
+tasks.named("processResources") { dependsOn(generateLicenseResource) }
+
 compose.desktop {
     application {
         mainClass = "dev.yabai.ocr.desktop.MainKt"
@@ -138,9 +151,20 @@ compose.desktop {
     }
 }
 
+// jpackage writes the app folder with a platform-specific name; the packagers below archive that
+// folder, so the license only has to be copied there once.
+val distributableAppDir = layout.buildDirectory.dir(
+    if (isWindowsHost) "distributions/main/app/Yabai OCR" else "distributions/main/app/yabai-ocr"
+)
+val copyLicenseToDistributable = tasks.register<Copy>("copyLicenseToDistributable") {
+    dependsOn("createDistributable")
+    from(rootProject.file("LICENSE"))
+    into(distributableAppDir)
+}
+
 if (isWindowsHost) {
     tasks.register<Exec>("packageInnoSetup") {
-        dependsOn("createDistributable")
+        dependsOn("createDistributable", "copyLicenseToDistributable")
         group = "compose desktop"
         description = "Packs the desktop app into an Inno Setup installer with optional desktop shortcut and launch on finish checkboxes."
 
@@ -156,7 +180,7 @@ if (isWindowsHost) {
     }
 
     tasks.register<Zip>("packagePortableZip") {
-        dependsOn("createDistributable")
+        dependsOn("createDistributable", "copyLicenseToDistributable")
         group = "compose desktop"
         description = "Compresses the standalone portable application folder into a zip archive."
 
@@ -168,7 +192,7 @@ if (isWindowsHost) {
 
 if (isLinuxHost) {
     tasks.register<Tar>("packagePortableTarGz") {
-        dependsOn("createDistributable")
+        dependsOn("createDistributable", "copyLicenseToDistributable")
         group = "compose desktop"
         description = "Packs the standalone portable Linux application into a tar.gz archive."
 
@@ -182,7 +206,7 @@ if (isLinuxHost) {
     // directory, not the single-file AppImage format. This task wraps that directory with a real
     // AppRun/desktop entry and calls appimagetool, which the user must have installed.
     tasks.register<Exec>("packageLinuxAppImage") {
-        dependsOn("createDistributable")
+        dependsOn("createDistributable", "copyLicenseToDistributable")
         group = "compose desktop"
         description = "Builds a single-file .AppImage with appimagetool (requires appimagetool on PATH or APPIMAGETOOL)."
 

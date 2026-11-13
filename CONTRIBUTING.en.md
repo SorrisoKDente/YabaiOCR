@@ -43,5 +43,9 @@ Linux and Steam Deck: see [LINUX.md](LINUX.md) and [STEAMOS.md](STEAMOS.md).
 
 ## License
 
-By contributing you agree that your contribution is distributed under the project's [MIT](LICENSE)
-license.
+By contributing you agree that your contribution is distributed under the project's
+[PolyForm Noncommercial 1.0.0](LICENSE) license.
+
+The project is free and non-commercial — it exists to help people study Japanese. Use is free for
+any noncommercial purpose; selling it is prohibited by the license. The full text is in
+[LICENSE](LICENSE).

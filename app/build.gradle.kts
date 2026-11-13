@@ -3,6 +3,14 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+// The license must travel with the app: PolyForm requires that whoever gets a copy also gets its
+// terms. The build copies the repository LICENSE into the APK assets, so the app can show it and
+// nothing has to be kept in two places.
+val generateLicenseAsset = tasks.register<Copy>("generateLicenseAsset") {
+    from(rootProject.file("LICENSE"))
+    into(layout.buildDirectory.dir("generated/license-assets"))
+}
+
 android {
     namespace = "dev.yabai.ocr"
     compileSdk = 36
@@ -61,6 +69,12 @@ android {
 
     buildFeatures {
         viewBinding = false
+    }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(layout.buildDirectory.dir("generated/license-assets"))
+        }
     }
 
     testOptions {
@@ -125,6 +139,10 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.work.testing)
+}
+
+tasks.named("preBuild") {
+    dependsOn(generateLicenseAsset)
 }
 
 val renameReleaseApk = tasks.register<Copy>("renameReleaseApk") {

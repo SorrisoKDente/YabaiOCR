@@ -9,6 +9,11 @@ without taking a screenshot or switching windows.
 Recognition can run **online** (Google Lens) or **offline** (ML Kit on Android, PP-OCRv6 on desktop
 and Android), so the app stays useful without a connection.
 
+> **Free and non-commercial.** Yabai OCR is made for people studying Japanese — including me, who
+> wrote it to read manga while learning. Use is free for any **noncommercial** purpose; selling it,
+> charging for access or bundling it into a paid product is not allowed by the license. There is no
+> paid version.
+
 ---
 
 ## What it does
@@ -123,6 +128,28 @@ The detailed map — file by file, flows and pitfalls — is in [ARCHITECTURE.en
 | [AGENTS.md](AGENTS.md) | working conventions in this repository |
 | [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | how to build, test and send a change |
 
+## Suggestions and Support
+
+I am always open to suggestions and feedback! Because this is a learning project, many features have
+not been tested extensively and may not work 100% as expected. Your feedback while testing the app
+is extremely important in helping me find and fix problems.
+
+If you have ideas for improvements or want to report a bug, open an *issue* — if the idea involves
+code, read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) first.
+
+If you find this project useful and want to support its development financially, you can donate
+through:
+
+- ☕ **Ko-fi:** [ko-fi.com/yabaihonyaku](https://ko-fi.com/yabaihonyaku)
+- 💸 **Pix (Brazil):** `yabaihonyaku@gmail.com`
+
+<p align="center">
+  <img src="docs/pix-qr.png" alt="Pix QR code" width="220">
+</p>
+
+Donate only if it is possible for you: the app stays free and complete for everyone, and no donation
+gives access to anything exclusive.
+
 ## Status and contributions
 
 The project is under active development. Bugs and suggestions are welcome through *issues*; before
@@ -131,5 +158,11 @@ apply to any behavior change.
 
 ## License
 
-[MIT](LICENSE): use, copy, modify and redistribute freely, including in commercial projects, as long
-as the copyright notice is kept. The software is provided without warranty.
+[PolyForm Noncommercial 1.0.0](LICENSE): use, copy, modify and redistribute freely for any
+**noncommercial** purpose — study, personal use, hobby projects, research, schools and other
+nonprofit organizations. **Selling it, charging for access or bundling it into a paid product is not
+allowed**; commercial use needs a separate license from the author. The software is provided
+without warranty.
+
+The project is **free and non-commercial**: it exists to help people study Japanese. The full
+license text is in [LICENSE](LICENSE).

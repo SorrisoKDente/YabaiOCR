@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -35,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.core.DonationInfo
 import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
 import dev.yabai.ocr.core.ppocr.PPOcrModelStore
 import dev.yabai.ocr.dict.DictionaryRepository
@@ -168,6 +171,7 @@ class MainActivity : AppCompatActivity() {
         bindBehaviourSwitches()
         bindTranslationAndDictionaries()
         bindAskAi()
+        bindDonation()
 
         btnStart.setOnClickListener { onStartClicked() }
         btnStop.setOnClickListener { stopService() }
@@ -295,6 +299,52 @@ class MainActivity : AppCompatActivity() {
             -1L
         }
         btnDownloadUpdate.isEnabled = false
+    }
+
+    // --- supporting the project ----------------------------------------------------------------
+
+    /**
+     * Donation controls, kept at the end of the screen.
+     *
+     * The app is free and non-commercial, so this is an offer and not a nag: Ko-fi for
+     * international support, the Pix key for Brazil, and the license that governs the build.
+     */
+    private fun bindDonation() {
+        findViewById<Button>(R.id.btnDonateKofi).setOnClickListener {
+            openInBrowser(DonationInfo.KOFI_URL)
+        }
+
+        findViewById<TextView>(R.id.pixKeyText).text =
+            getString(R.string.donate_pix_label, DonationInfo.PIX_KEY)
+
+        findViewById<Button>(R.id.btnCopyPix).setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Pix", DonationInfo.PIX_KEY))
+            toast(getString(R.string.donate_pix_copied))
+        }
+
+        findViewById<Button>(R.id.btnShowLicense).setOnClickListener { showLicenseDialog() }
+    }
+
+    private fun readLicense(): String = runCatching {
+        assets.open("LICENSE").bufferedReader().use { it.readText() }
+    }.getOrDefault(getString(R.string.donate_license_missing))
+
+    private fun showLicenseDialog() {
+        val body = TextView(this).apply {
+            textSize = 12f
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            val horizontal = (20 * resources.displayMetrics.density).toInt()
+            val vertical = (12 * resources.displayMetrics.density).toInt()
+            setPadding(horizontal, vertical, horizontal, vertical)
+            text = readLicense()
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.donate_license_title)
+            .setView(ScrollView(this).apply { addView(body) })
+            .setPositiveButton(R.string.update_close, null)
+            .show()
     }
 
     private fun registerUpdateDownloadReceiver() {

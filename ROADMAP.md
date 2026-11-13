@@ -5264,3 +5264,95 @@ nova. `:desktop:test` continua verde (329). No Android, o teste atualizado é a 
 
 **Limitações.** Sem Android SDK nesta máquina, nem o `StackOverflowError` nem o teste reescrito foram
 reproduzidos localmente; a correção é por análise do laço de recriação. O workflow só roda no GitHub.
+
+
+### D51 — Workflow inválido (expressão em comentário) e aviso de projeto gratuito  `[x]` (13/11/2026)
+
+**Relato.** Depois da D50 o `release.yml` deixou de ser aceito: `Invalid workflow file: (Line: 61,
+Col: 14): An expression was expected`. E o LICENSE/README não diziam que o projeto é gratuito e sem
+fins lucrativos.
+
+**Causa raiz.** O comentário que eu tinha escrito dentro do bloco `run: |` continha `` `${{ }}` ``.
+O GitHub varre o arquivo inteiro atrás de expressões, inclusive comentários, e o par vazio não é uma
+expressão válida — o workflow inteiro é recusado antes de rodar.
+
+**Correção.** O comentário passou a descrever a expressão sem escrevê-la. `LICENSE` ganhou a seção
+bilingue «Free, non-commercial project / Projeto gratuito e sem fins lucrativos», e `README.md`,
+`README.en.md`, `CONTRIBUTING.md` e `CONTRIBUTING.en.md` dizem o mesmo em uma frase, no começo do
+texto (README) e na seção de licença.
+
+**Evidência.** `release.yml` faz parse YAML e os três passos de empacotamento usam
+`-PyabaiVersion=${{ env.VERSION }}`; `git diff --check` limpo.
+
+**Limitações.** A validação final do workflow é a do GitHub: só o próximo push confirma. O aviso de
+«não vender» é declaração de intenção dentro de um projeto MIT — o MIT continua permitindo uso
+comercial; para tornar a restrição jurídica seria preciso trocar a licença (por exemplo PolyForm
+Noncommercial), o que não foi feito sem pedir.
+
+
+### D52 — Licença PolyForm Noncommercial 1.0.0 (uso livre, venda proibida)  `[x]` (13/11/2026)
+
+**Relato.** O projeto é gratuito e existe para quem estuda japonês. A licença MIT dizia o contrário:
+permitia uso comercial, inclusive revenda. O aviso «não é para venda» acrescentado na D51 era
+declaração de intenção, não restrição jurídica.
+
+**Causa raiz.** MIT é uma licença permissiva por definição; não existe forma de proibir venda dentro
+dela. Enquanto o `LICENSE` fosse MIT, qualquer aviso adicional seria apenas um pedido.
+
+**Correção.** `LICENSE` passou a ser **PolyForm Noncommercial 1.0.0** (texto oficial, sem alterações,
+com a linha `Required Notice: Copyright (c) 2026 Yabai OCR contributors` no topo, como a licença
+exige). Ela libera uso, cópia, modificação e redistribuição para **qualquer finalidade não
+comercial** — estudo pessoal, hobby, pesquisa, escolas, organizações sem fins lucrativos e órgãos
+públicos — e proíbe vender, cobrar pelo acesso ou embutir o software num produto pago. Uso comercial
+passa a exigir licença separada do autor.
+
+`README.md`, `README.en.md`, `CONTRIBUTING.md`, `CONTRIBUTING.en.md` e a árvore do
+`ARCHITECTURE.md`/`.en.md` foram atualizados para a licença nova, com a mesma frase nos dois idiomas.
+O `ROADMAP.md` mantém as entradas antigas (D42, D51) como histórico do que valia na época.
+
+**Evidência.** Texto conferido contra a versão oficial em texto puro do Polyform Project
+(<https://polyformproject.org/licenses/noncommercial/1.0.0>); nenhuma menção a MIT sobrou fora do
+histórico do ROADMAP (`grep -rn "MIT"`); `git diff --check` limpo. A suíte não muda: licença não tem
+código.
+
+**Limitações.** Licença é escolha do titular, não um teste automatizado: a verificação é a leitura do
+arquivo. Projetos derivados que já tenham recebido o código sob MIT continuam podendo usá-lo sob MIT
+— trocar a licença não é retroativo para quem já obteve cópia.
+
+
+### D53 — Licença dentro do app, campo de doação e suporte no README  `[x]` (13/11/2026)
+
+**Relato.** A PolyForm exige que quem recebe uma cópia receba também os termos, e os pacotes
+(AppImage, zip/tar portátil, instalador) saíam sem `LICENSE`. Além disso, faltava um lugar para quem
+quisesse apoiar o projeto: Ko-fi e Pix.
+
+**Causa raiz.** A licença existia só na raiz do repositório; nenhuma tarefa de empacotamento a
+copiava, e os apps não tinham como mostrá-la. Os dados de doação não existiam.
+
+**Correção.**
+- `desktop/build.gradle.kts`: `generateLicenseResource` copia o `LICENSE` para
+  `build/generated/yabai-license/LICENSE.txt` (entra no jar, para o app exibir) e
+  `copyLicenseToDistributable` copia o mesmo arquivo para a pasta do distributable, que é de onde
+  Inno Setup, `packagePortableZip`, `packagePortableTarGz` e o script do AppImage empacotam — uma
+  fonte de verdade, quatro pacotes cobertos.
+- `app/build.gradle.kts`: `generateLicenseAsset` copia o `LICENSE` para
+  `build/generated/license-assets`, incluído nos *assets* do APK (`preBuild` depende da tarefa).
+- Desktop: `LicenseWindow.kt` (texto em monoespaçada, rolável) aberto por «📜 Licença» na seção de
+  apoio; `DonationSection` em `SettingsWindow.kt` com Ko-fi, chave Pix e cópia para a área de
+  transferência.
+- Android: cartão «Apoiar o Projeto» no fim da tela com Ko-fi, chave Pix, «📋 Copiar chave Pix»
+  (`ClipboardManager`) e «📜 Licença» (diálogo rolável lendo `assets/LICENSE`).
+- `:core/DonationInfo.kt`: URL do Ko-fi e chave Pix num só lugar, usados pelos dois apps.
+- `README.md`/`README.en.md`: seção «Sugestões e Suporte» com Ko-fi, Pix e QR (`docs/pix-qr.png`).
+
+**Testes e mutações.** `:core:test` 194 (2 novos: chave Pix é e-mail válido, link do Ko-fi é https),
+`:desktop:test` 330 (novo `LicenseResourceTest`, que falha se o `LICENSE.txt` não estiver empacotado
+ou vier truncado). Mutações provadas com SHA-256 restaurado: chave Pix com espaço
+(`DonationInfoTest`) e licença não empacotada (`LicenseResourceTest`). Evidência de pacote: o
+`LICENSE` (4.620 bytes) está em `distributions/main/app/yabai-ocr/`, dentro do AppDir e dentro do
+jar como `LICENSE.txt`; AppImage 1.0.5 gerado.
+
+**Limitações.** `:app` continua sem compilar nesta máquina (sem Android SDK/JDK 17): layout, strings
+e `MainActivity` passaram só por inspeção estática. O QR do Pix precisa ser salvo como
+`docs/pix-qr.png` pelo autor — a imagem veio anexada na conversa, não como arquivo do repositório.
+Nada foi commitado.

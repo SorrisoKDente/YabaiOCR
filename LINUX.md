@@ -79,7 +79,7 @@ Esta é a regra que manda em todas as decisões abaixo.
    atalhos globais, captura de tela, hover, autostart pelo registro ou empacotamento `.exe`/`.msi`.
    Todo código existente de Windows é preservado atrás de uma interface, não reescrito.
 2. **Android não é tocado.** Nada em `app/` e nada em `core/` deve mudar por causa desta tarefa. A
-   suíte do app (**411 testes**) e a do core (**192**, com pulos só nas flags opcionais) continuam sendo o contrato.
+   suíte do app (**411 testes**) e a do core (**194**, com pulos só nas flags opcionais) continuam sendo o contrato.
 3. **A diferença de sistema fica atrás de uma camada de plataforma**, escolhida uma única vez no
    início do processo. Não espalhar `if (isWayland)` por vinte arquivos.
 4. **Nenhum teste existente pode ser enfraquecido** para passar no Linux. `StartupManagerTest`
@@ -901,7 +901,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | suíte | hoje | regra |
 | --- | --- | --- |
 | `:core:test` | 177 (pulados com as flags opcionais) | não pode cair; nenhum teste Linux novo aqui |
-| `:desktop:test` | 329 (1 pulado no host KDE; 3 no sandbox) | continua verde; `StartupManagerTest` e o smoke do watcher continuam pulando fora do ambiente |
+| `:desktop:test` | 330 (1 pulado no host KDE; 3 no sandbox) | continua verde; `StartupManagerTest` e o smoke do watcher continuam pulando fora do ambiente |
 | `:app:testDebugUnitTest` | 411 | não pode mudar; nenhuma alteração em `app/` |
 
 ### 13.2 Testes novos (JVM puros, sem abrir janela nem portal)
@@ -1102,7 +1102,7 @@ desktop, tirou o botão «Dicionário» do resultado e deixou escolher o monitor
 fechou em **316 testes**. Ainda em 13/11/2026 a D47 passou a tentar StatusNotifier em todo Linux (o
 GNOME do Ubuntu não desenha ícone XEmbed), mostrou o motivo nos Ajustes quando não há host, corrigiu
 a versão do build e a thread da checagem de atualizações, e destravou os botões achatados; a suíte
-fechou em **329 testes**. A validação visual de bandeja, hover, captura e atalhos no Desktop Mode
+fechou em **330 testes**. A validação visual de bandeja, hover, captura e atalhos no Desktop Mode
 segue como checklist abaixo.
 
 **Bandeja no GNOME (Ubuntu).** O app publica `org.kde.StatusNotifierItem`; o shell do GNOME só
@@ -1143,7 +1143,7 @@ quando a bandeja falha).
 
 ### 15.4 Windows (não-regressão)
 
-- [ ] `:desktop:test` continua verde (329 hoje).
+- [ ] `:desktop:test` continua verde (330 hoje).
 - [ ] `packageExe`, `packageMsi` e `packageInnoSetup` continuam funcionando.
 - [ ] Autostart pelo registro cria/remove exatamente a mesma chave.
 - [ ] Bandeja, atalhos, captura, hover, recorte e tooltip inalterados.

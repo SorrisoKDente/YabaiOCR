@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
+import dev.yabai.ocr.core.DonationInfo
 import dev.yabai.ocr.core.dict.CompactDictionary
 import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
@@ -28,6 +29,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.EventQueue
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.io.File
 import java.nio.file.Path
 import javax.swing.JFileChooser
@@ -96,6 +99,7 @@ fun SettingsContent(
     var checkUpdatesOnStart by remember { mutableStateOf(settings.checkUpdatesOnStart) }
     // Version + notes of the release the user asked to read; null closes the preview window.
     var releaseNotesPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showLicense by remember { mutableStateOf(false) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var closeToTray by remember { mutableStateOf(settings.closeToTray) }
     var showSegments by remember { mutableStateOf(settings.showSegments) }
@@ -1886,8 +1890,15 @@ fun SettingsContent(
                         color = MaterialTheme.colors.secondary
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                DonationSection(onShowLicense = { showLicense = true })
             }
         }
+    }
+
+    if (showLicense) {
+        LicenseWindow(onClose = { showLicense = false })
     }
 
     // Outside the lazy list so scrolling the card away cannot close the preview.
@@ -1925,6 +1936,91 @@ fun SettingsWindow(
         }
     }
 }
+
+    /**
+     * Where the money question is answered once, in the About card.
+     *
+     * The app is free and non-commercial, so this is an offer, not a nag: the Ko-fi page for
+     * international support, the Pix key for Brazil, and the license text that governs the build.
+     */
+    @Composable
+    private fun DonationSection(onShowLicense: () -> Unit) {
+        val palette = yabaiPalette()
+        val scope = rememberCoroutineScope()
+        var copied by remember { mutableStateOf(false) }
+        var copyFailed by remember { mutableStateOf(false) }
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = DesktopStrings.donationTitle,
+                style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colors.onSurface,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = DesktopStrings.donationBody,
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.onSurface,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                DesktopUrlOpener().open(DonationInfo.KOFI_URL)
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success),
+                ) {
+                    Text(DesktopStrings.btnKofi)
+                }
+                OutlinedButton(
+                    onClick = {
+                        val ok = runCatching {
+                            val selection = StringSelection(DonationInfo.PIX_KEY)
+                            Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, selection)
+                        }.isSuccess
+                        copied = ok
+                        copyFailed = !ok
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success),
+                ) {
+                    Text(DesktopStrings.btnCopyPix)
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = DesktopStrings.pixLabel + " " + DonationInfo.PIX_KEY,
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.onSurface,
+            )
+            if (copied) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = DesktopStrings.pixCopied,
+                    style = MaterialTheme.typography.caption,
+                    color = palette.success,
+                )
+            }
+            if (copyFailed) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = DesktopStrings.updateLinkOpenFailed,
+                    style = MaterialTheme.typography.caption,
+                    color = palette.warning,
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onShowLicense,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success),
+            ) {
+                Text(DesktopStrings.btnShowLicense)
+            }
+        }
+    }
 
 @Composable
 private fun SettingCard(
