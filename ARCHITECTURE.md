@@ -213,7 +213,7 @@ rodam com as flags acima.
 | `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal), combinação de teclas e catálogo de ações |
 | `PortalGlobalShortcuts.kt` | atalhos globais no Wayland via portal D-Bus |
 | `XdgTrigger.kt` | atalhos por `gsettings`/XDG no Linux |
-| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | bandeja: AWT no Windows, StatusNotifier + DBusMenu no Plasma, menu Swing fallback e posicionamento |
+| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | bandeja: StatusNotifier + DBusMenu em todo Linux (Plasma e GNOME com AppIndicator), AWT no Windows/macOS e como fallback, motivo da ausência em `lastFailure`, menu Swing fallback e posicionamento |
 | `ExternalBrowser.kt` | abre URL no navegador do usuário: lançadores do desktop (`xdg-open`, `gio open`, `kde-open*`) e `Desktop.browse` como último recurso |
 | `YabaiDbusService.kt` | serviço D-Bus próprio (hover, atalhos) |
 | `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | iniciar com o sistema e integração com o desktop |

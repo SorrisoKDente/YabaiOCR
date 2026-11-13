@@ -30,7 +30,7 @@ and Android), so the app stays useful without a connection.
 | platform | requirements |
 | --- | --- |
 | **Windows** 10/11 | JDK 17+ to build; there is a ready package in [`apk-output/`](apk-output) for Android |
-| **Linux** (X11 and Wayland/KDE) | JDK 17+; on Wayland/KDE capture uses `KWin.ScreenShot2` (the `Screenshot` portal is the fallback) and shortcuts use the `GlobalShortcuts` portal; on Plasma the hover reads the screen without a permission dialog — see [LINUX.md](LINUX.md) |
+| **Linux** (X11 and Wayland/KDE) | JDK 17+; on Wayland/KDE capture uses `KWin.ScreenShot2` (the `Screenshot` portal is the fallback) and shortcuts use the `GlobalShortcuts` portal; on Plasma the hover reads the screen without a permission dialog. On GNOME (Ubuntu) the tray needs the AppIndicator extension — see [LINUX.md](LINUX.md) |
 | **Steam Deck** | Desktop Mode is the target; Game Mode is best effort — see [STEAMOS.md](STEAMOS.md) |
 | **Android** 8.0+ (API 26) | `arm64-v8a` APK; overlay and screen capture need permission |
 
@@ -55,6 +55,9 @@ chosen in Settings. Default shortcuts (all configurable):
 
 On multi-monitor setups, Settings lets you choose which monitor the full-screen capture and the
 manual crop use: the primary one, a specific monitor, or the one under the pointer when you capture.
+
+The installed version is shown in **Settings → About**, next to the update check button; in packaged
+builds it comes from the build tag (`-PyabaiVersion`), not from a fixed number.
 
 **Android**: install the APK, grant **overlay** and **screen capture** (MediaProjection), pick an
 engine and tap start. The floating bubble triggers the capture.

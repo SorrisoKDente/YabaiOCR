@@ -161,7 +161,7 @@ fun ResultWindow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = DesktopStrings.resultTitle,
                                 style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),

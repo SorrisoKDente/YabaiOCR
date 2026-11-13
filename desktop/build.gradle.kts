@@ -51,6 +51,25 @@ val isLinuxHost = System.getProperty("os.name").lowercase().contains("linux")
 // an installer, a portable zip and an AppImage from the same tag all carry the same number.
 val appVersion = (project.findProperty("yabaiVersion") as String?)?.removePrefix("v") ?: "1.0.0"
 
+// The About card and the update checker must report the version that was packaged. They used to
+// print a hardcoded "1.0.0", so a build from another tag compared itself against the wrong number
+// and the update check never offered the release it was already ahead of.
+val versionResourceDir = layout.buildDirectory.dir("generated/yabai-version")
+val generateVersionResource = tasks.register("generateVersionResource") {
+    val version = appVersion
+    val outputDir = versionResourceDir
+    inputs.property("appVersion", version)
+    outputs.dir(outputDir)
+    doLast {
+        val file = outputDir.get().file("yabai-version.properties").asFile
+        file.parentFile.mkdirs()
+        file.writeText("version=$version\n")
+    }
+}
+
+sourceSets.named("main") { resources.srcDir(versionResourceDir) }
+tasks.named("processResources") { dependsOn(generateVersionResource) }
+
 compose.desktop {
     application {
         mainClass = "dev.yabai.ocr.desktop.MainKt"

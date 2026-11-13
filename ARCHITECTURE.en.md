@@ -215,7 +215,7 @@ flags above.
 | `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal), key matching and action catalog |
 | `PortalGlobalShortcuts.kt` | global shortcuts on Wayland through the D-Bus portal |
 | `XdgTrigger.kt` | `gsettings`/XDG shortcuts on Linux |
-| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | tray: AWT on Windows, StatusNotifier + DBusMenu on Plasma, Swing menu fallback and placement |
+| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | tray: StatusNotifier + DBusMenu on every Linux session (Plasma and GNOME with AppIndicator), AWT on Windows/macOS and as the fallback, missing-tray reason in `lastFailure`, Swing menu fallback and placement |
 | `ExternalBrowser.kt` | opens a URL in the user's browser: desktop launchers (`xdg-open`, `gio open`, `kde-open*`) with `Desktop.browse` as the last resort |
 | `YabaiDbusService.kt` | own D-Bus service (hover, shortcuts) |
 | `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | start with the system and desktop integration |

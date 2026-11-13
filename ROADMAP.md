@@ -5048,3 +5048,72 @@ colocou, então escolher explicitamente outro monitor é confiável no Windows/X
 compositor no Wayland; o hover continua sempre no monitor do ponteiro. O hover num Windows com
 vários monitores permanece como antes (captura de região pelo dispositivo primário). Nada foi
 commitado.
+
+
+### D47 — Bandeja no Ubuntu/GNOME, verificação de atualização que não respondia e botões achatados  `[x]` (13/11/2026)
+
+**Relato.** No Ubuntu 22.04 o ícone não aparecia na bandeja; no Windows o botão de verificar
+atualização não fazia nada; vários botões ficavam achatados ao estreitar a janela (visto no
+gerenciador de dicionários). Pedido também de auditoria de botões sem função no desktop e no Android.
+
+**Causa raiz da bandeja.** `trayBackendFor` só escolhia StatusNotifierItem em Linux **Wayland**; em
+X11 ia direto ao `SystemTray` do AWT. O GNOME 42 (Ubuntu 22.04) não desenha ícones XEmbed — o
+`tray.add` "funciona" e o ícone simplesmente não existe —, e no Wayland o AWT nem recebe clique. Como
+o `setup()` devolvia `true` quando o AWT aceitava o ícone, o app ainda acreditava ter bandeja.
+
+**Causa raiz da verificação de atualização.** Duas coisas. A versão era a constante `1.0.0`, embora
+o empacotamento use `-PyabaiVersion`: o About mostrava um número que não era o do build. E o
+resultado da checagem de dicionários era escrito em estado do Compose a partir de `Dispatchers.IO`
+(`checkMessage`, `updateAvailableMap`, progresso) — escrita de estado fora da thread da UI não agenda
+recomposição, então o botão parecia morto: o rótulo virava «Verificando…» e nada mais aparecia.
+
+**Causa raiz dos botões achatados.** Nas linhas com `Arrangement.SpaceBetween`, o texto à esquerda
+não tinha `weight`: ele reivindicava toda a largura natural e os botões ficavam com o resto, que
+encolhia até o mínimo e cortava o rótulo. Nos cabeçalhos do gerenciador de dicionários isso deixava
+«Verificar Atualizações», «Importar» e «Pasta» ilegíveis/achatados.
+
+**Correção.**
+- `trayBackendFor` tenta SNI em **todo** Linux (Plasma desenha nativo; GNOME com a extensão
+  AppIndicator lê o mesmo protocolo) e mantém o AWT como fallback quando não há watcher.
+  `SystemTrayManager.lastFailure`/`failureMessage()` registram o motivo (`NO_WATCHER`,
+  `AWT_UNSUPPORTED`, `AWT_ADD_FAILED`) e os Ajustes mostram o texto — com o caminho de ação no GNOME
+  (instalar a extensão AppIndicator) em vez de rodar invisível em silêncio.
+- `desktop/build.gradle.kts` gera `yabai-version.properties` a partir de `appVersion` e o empacota;
+  `DesktopAppUpdateChecker.resolveVersion` usa recurso → `YABAI_VERSION` → constante (ordem testada),
+  e o About e a comparação de releases passam a usar a versão real do build. O botão de download
+  passou a usar `DesktopUrlOpener` (mesma cadeia do botão de IA) e avisa quando nenhum navegador abre.
+- `DictionaryManagerWindow` escreve o estado da checagem/download na thread da UI
+  (`withContext(Dispatchers.Main)` e `onUiThread`/`SwingUtilities.invokeLater` para os callbacks de
+  progresso).
+- Layout: `weight(1f)` no texto/coluna à esquerda dos cabeçalhos do gerenciador de dicionários, no
+  cabeçalho do resultado, na linha de status do hover e na prioridade de motores; o título do verbete
+  também cede espaço ao nome do dicionário. Os botões mantêm a largura intrínseca e o texto é que
+  encolhe.
+
+**Auditoria de botões sem função.** Android: os 31 `setOnClickListener` têm corpo real (nenhum vazio)
+e todos os 10 botões declarados nos layouts são referenciados no Kotlin; nenhum botão declarado sem
+listener. Desktop: nenhum `onClick = {}`; os handlers que existiam sem efeito eram o de IA (D46), o de
+download de atualização (agora com abridor e aviso) e o de verificação de dicionários (thread). Nenhum
+botão foi removido além do «Dicionário» do resultado, já removido na D46.
+
+**Testes e mutações.** `:desktop:test` fechou em **321 testes, 0 falhas, 1 pulado**. Novos:
+`StatusNotifierTrayTest` (Linux X11/UNKNOWN agora SNI; Windows/macOS seguem AWT),
+`DesktopAppUpdateCheckerTest` (precedência recurso → ambiente → constante, três casos) e
+`UpdateUiThreadTest` (a escrita vinda de thread de trabalho chega ao EDT). Mutações provadas e
+restauradas com SHA-256 idêntico:
+
+| mutação | teste que acusou |
+| --- | --- |
+| SNI só no Wayland (AWT de novo no X11) | `StatusNotifierTrayTest` |
+| versão constante, recurso ignorado | `DesktopAppUpdateCheckerTest` |
+| `onUiThread` executa no thread de trabalho | `UpdateUiThreadTest` |
+
+**Evidência.** `-PyabaiVersion=1.0.2` gerou `yabai-version.properties` com `version=1.0.2` dentro do
+jar empacotado (`unzip -p … yabai-version.properties`) e o AppImage `Yabai_OCR-1.0.2-x86_64.AppImage`;
+a suíte fecha em 321 testes.
+
+**Limitações.** A bandeja no GNOME sem a extensão AppIndicator continua sem ícone — nenhum código do
+app pode desenhar ícone onde o shell não tem host; o que mudou é o SNI ser tentado sempre e o motivo
+aparecer nos Ajustes. O layout só foi verificado por compilação: redimensionar as janelas no Desktop
+Mode é o teste visual pendente, assim como clicar em «Verificar Atualizações» no Windows. Nada foi
+commitado.

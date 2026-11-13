@@ -296,9 +296,13 @@ fun main(args: Array<String>) {
         )
     }
     var trayReady by remember { mutableStateOf(false) }
+    // GNOME has no tray without the AppIndicator extension, and a silent failure there looks like a
+    // broken app; the reason is shown in Settings instead.
+    var trayStatus by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) {
         trayReady = trayManager.setup()
+        trayStatus = trayManager.failureMessage().orEmpty()
         // `--minimized` is only honest when the tray icon exists. Without it the only way to reach
         // the app is the window, so open it instead of running invisibly.
         if (shouldShowMainWindowOnStart(startMinimized, trayReady)) {
@@ -464,6 +468,7 @@ fun main(args: Array<String>) {
                             hoverActive = hoverState.active,
                             hoverStatus = hoverState.status,
                             hotkeyBackendStatus = hotkeyStatus,
+                            trayStatus = trayStatus,
                             linuxIntegrationStatus = linuxIntegrationStatus,
                             onInstallLinuxIntegration = installLinuxIntegration,
                             onHoverToggle = { applyHover(!hoverState.active) },

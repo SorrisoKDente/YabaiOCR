@@ -901,7 +901,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | suíte | hoje | regra |
 | --- | --- | --- |
 | `:core:test` | 177 (pulados com as flags opcionais) | não pode cair; nenhum teste Linux novo aqui |
-| `:desktop:test` | 316 (1 pulado no host KDE; 3 no sandbox) | continua verde; `StartupManagerTest` e o smoke do watcher continuam pulando fora do ambiente |
+| `:desktop:test` | 321 (1 pulado no host KDE; 3 no sandbox) | continua verde; `StartupManagerTest` e o smoke do watcher continuam pulando fora do ambiente |
 | `:app:testDebugUnitTest` | 411 | não pode mudar; nenhuma alteração em `app/` |
 
 ### 13.2 Testes novos (JVM puros, sem abrir janela nem portal)
@@ -1099,8 +1099,18 @@ fez o rebind dos atalhos numa sessão nova e recarregou o fallback KWin ao edita
 `X-KDE-DBUS-Restricted-Interfaces`), o formato `ARGB32` e o atalho preso no KGlobalAccel, e a suíte
 fechou em **296 testes**. Em 13/11/2026 a D46 trocou o `Desktop.browse` do botão de IA por lançadores do
 desktop, tirou o botão «Dicionário» do resultado e deixou escolher o monitor da captura; a suíte
-fechou em **316 testes**. A validação visual de bandeja, hover, captura e atalhos no Desktop Mode
+fechou em **316 testes**. Ainda em 13/11/2026 a D47 passou a tentar StatusNotifier em todo Linux (o
+GNOME do Ubuntu não desenha ícone XEmbed), mostrou o motivo nos Ajustes quando não há host, corrigiu
+a versão do build e a thread da checagem de atualizações, e destravou os botões achatados; a suíte
+fechou em **321 testes**. A validação visual de bandeja, hover, captura e atalhos no Desktop Mode
 segue como checklist abaixo.
+
+**Bandeja no GNOME (Ubuntu).** O app publica `org.kde.StatusNotifierItem`; o shell do GNOME só
+desenha esse ícone com uma extensão AppIndicator (a `gnome-shell-extension-appindicator` do Ubuntu, ou
+AppIndicator and KStatusNotifierItem Support no extensions.gnome.org). Sem ela não existe host para
+desenhar ícone algum: os Ajustes passam a avisar «Bandeja indisponível…» na seção de inicialização e
+o app continua usável pela janela e pelos atalhos globais (no Wayland o `--minimized` abre a janela
+quando a bandeja falha).
 
 ---
 
@@ -1133,7 +1143,7 @@ segue como checklist abaixo.
 
 ### 15.4 Windows (não-regressão)
 
-- [ ] `:desktop:test` continua verde (316 hoje).
+- [ ] `:desktop:test` continua verde (321 hoje).
 - [ ] `packageExe`, `packageMsi` e `packageInnoSetup` continuam funcionando.
 - [ ] Autostart pelo registro cria/remove exatamente a mesma chave.
 - [ ] Bandeja, atalhos, captura, hover, recorte e tooltip inalterados.

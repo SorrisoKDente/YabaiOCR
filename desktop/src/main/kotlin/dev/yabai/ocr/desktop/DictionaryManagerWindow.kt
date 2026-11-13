@@ -177,7 +177,14 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(DesktopStrings.searchDictsHeader, style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
+            // The weight keeps the title from claiming the width the buttons need: without it the
+            // four buttons beside it were squeezed into unreadable slivers when the window narrowed.
+            Text(
+                DesktopStrings.searchDictsHeader,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colors.onSurface
+            )
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -387,7 +394,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(DesktopStrings.localDictsHeader, style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colors.onSurface)
                 Text("${DesktopStrings.dictFolderLocation} ${dictDir.absolutePath}", style = MaterialTheme.typography.caption, color = MaterialTheme.colors.secondary)
             }
@@ -462,14 +469,21 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                     }
                                 }
 
-                                updateAvailableMap = available
-                                remoteRevisionMap = remotes
-                                val count = available.values.count { it }
-                                checkMessage = DesktopStrings.checkCompletedMessage(count)
+                                // Compose state is read by the UI thread: writing it from
+                                // Dispatchers.IO does not schedule a recomposition, which is why
+                                // this button looked dead on Windows.
+                                withContext(Dispatchers.Main) {
+                                    updateAvailableMap = available
+                                    remoteRevisionMap = remotes
+                                    val count = available.values.count { it }
+                                    checkMessage = DesktopStrings.checkCompletedMessage(count)
+                                }
                             } catch (e: Exception) {
-                                updateError = e.message ?: DesktopStrings.checkUpdatesError
+                                withContext(Dispatchers.Main) {
+                                    updateError = e.message ?: DesktopStrings.checkUpdatesError
+                                }
                             } finally {
-                                checkingUpdates = false
+                                withContext(Dispatchers.Main) { checkingUpdates = false }
                             }
                         }
                     },
@@ -570,18 +584,24 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                         entry = catalogEntry,
                                         dictDir = dictDir,
                                         onProgress = { text: String, fraction: Float ->
-                                            updateProgressText = text
-                                            updateProgressFraction = fraction
+                                            onUiThread {
+                                                updateProgressText = text
+                                                updateProgressFraction = fraction
+                                            }
                                         }
                                     )
                                 }
                             }
-                            updateAvailableMap = emptyMap()
-                            refreshFiles()
+                            withContext(Dispatchers.Main) {
+                                updateAvailableMap = emptyMap()
+                                refreshFiles()
+                            }
                         } catch (e: Exception) {
-                            updateError = e.message ?: DesktopStrings.updateAllDictsError
+                            withContext(Dispatchers.Main) {
+                                updateError = e.message ?: DesktopStrings.updateAllDictsError
+                            }
                         } finally {
-                            updatingId = null
+                            withContext(Dispatchers.Main) { updatingId = null }
                         }
                     }
                 },
@@ -723,19 +743,25 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                                                 entry = catalogEntry,
                                                                 dictDir = dictDir,
                                                                 onProgress = { text: String, fraction: Float ->
-                                                                    updateProgressText = text
-                                                                    updateProgressFraction = fraction
+                                                                    onUiThread {
+                                                                        updateProgressText = text
+                                                                        updateProgressFraction = fraction
+                                                                    }
                                                                 }
                                                             )
-                                                            val newMap = updateAvailableMap.toMutableMap()
-                                                            newMap[file.name] = false
-                                                            updateAvailableMap = newMap
-                                                            refreshFiles()
+                                                            withContext(Dispatchers.Main) {
+                                                                val newMap = updateAvailableMap.toMutableMap()
+                                                                newMap[file.name] = false
+                                                                updateAvailableMap = newMap
+                                                                refreshFiles()
+                                                            }
                                                         }
                                                     } catch (e: Exception) {
-                                                        updateError = e.message ?: DesktopStrings.updateDictError
+                                                        withContext(Dispatchers.Main) {
+                                                            updateError = e.message ?: DesktopStrings.updateDictError
+                                                        }
                                                     } finally {
-                                                        updatingId = null
+                                                        withContext(Dispatchers.Main) { updatingId = null }
                                                     }
                                                 }
                                             },
@@ -912,15 +938,19 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
                                             entry = entry,
                                             dictDir = dictDir,
                                             onProgress = { text, fraction ->
-                                                downloadProgressText = text
-                                                downloadProgressFraction = fraction
+                                                onUiThread {
+                                                    downloadProgressText = text
+                                                    downloadProgressFraction = fraction
+                                                }
                                             }
                                         )
-                                        onInstalledChanged()
+                                        withContext(Dispatchers.Main) { onInstalledChanged() }
                                     } catch (e: Exception) {
-                                        downloadError = e.message ?: DesktopStrings.downloadDictError
+                                        withContext(Dispatchers.Main) {
+                                            downloadError = e.message ?: DesktopStrings.downloadDictError
+                                        }
                                     } finally {
-                                        downloadingId = null
+                                        withContext(Dispatchers.Main) { downloadingId = null }
                                     }
                                 }
                             },
@@ -933,6 +963,17 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * Writes Compose state from a worker thread safely.
+ *
+ * The download callbacks are plain lambdas running on `Dispatchers.IO`, so they cannot suspend into
+ * the main dispatcher; posting to the Swing event thread is what makes the progress bar and the
+ * result messages appear.
+ */
+internal fun onUiThread(block: () -> Unit) {
+    javax.swing.SwingUtilities.invokeLater(block)
 }
 
 private fun downloadAndInstallDictionary(
@@ -1035,7 +1076,7 @@ private fun DictionarySearchCard(match: TokenMatch) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.Bottom) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = entry.term,
                         style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),

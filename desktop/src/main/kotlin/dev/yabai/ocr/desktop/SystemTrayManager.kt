@@ -6,6 +6,9 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.*
 
+/** Why the tray icon is missing, so the UI can say what to do instead of running silently. */
+internal enum class TrayFailure { NO_WATCHER, AWT_UNSUPPORTED, AWT_ADD_FAILED }
+
 internal class SystemTrayManager(
     private val onFullScreenCaptureRequested: () -> Unit,
     private val onRegionCaptureRequested: () -> Unit,
@@ -23,16 +26,29 @@ internal class SystemTrayManager(
     private var statusNotifier: StatusNotifierTray? = null
     private var activeTrayMenu: JPopupMenu? = null
 
+    /** Why there is no icon, when there is none; the Settings window shows this instead of silence. */
+    var lastFailure: TrayFailure? = null
+        private set
+
+    /** Human message for [lastFailure], or null when the icon is in the tray. */
+    fun failureMessage(): String? = when (lastFailure) {
+        TrayFailure.NO_WATCHER -> DesktopStrings.trayUnavailableNoWatcher
+        TrayFailure.AWT_UNSUPPORTED -> DesktopStrings.trayUnavailableDesktop
+        TrayFailure.AWT_ADD_FAILED -> DesktopStrings.trayAddFailed
+        null -> null
+    }
+
     /** Read by the DBusMenu thread; updated on the AWT/Compose thread. */
     @Volatile
     private var hoverActive = false
 
     /** Returns true only when the icon was really added to the system tray. */
     fun setup(): Boolean {
-        // KDE Wayland does not deliver XEmbed clicks to AWT (the tray icon is visible but inert).
+        lastFailure = null
         // Publish the standard StatusNotifierItem plus a DBusMenu; Plasma draws and dismisses the
-        // menu natively, so an outside click closes it even when no window gains focus. The old
-        // Swing menu remains the fallback for a host that does not read DBusMenu.
+        // menu natively, and on GNOME the AppIndicator extension reads the same interface. On
+        // Wayland it is also the only backend whose clicks reach the process at all. The old Swing
+        // menu remains the fallback for a host that does not read DBusMenu.
         if (trayBackendFor(DesktopPlatform.family, DesktopPlatform.session) == TrayBackend.SNI) {
             val notifier = StatusNotifierTray(
                 onActivate = { SwingUtilities.invokeLater { onFullScreenCaptureRequested() } },
@@ -44,10 +60,12 @@ internal class SystemTrayManager(
                 statusNotifier = notifier
                 return true
             }
+            lastFailure = TrayFailure.NO_WATCHER
             println("StatusNotifierItem indisponível: ${notifier.lastError}")
         }
 
         if (!SystemTray.isSupported()) {
+            lastFailure = TrayFailure.AWT_UNSUPPORTED
             println("SystemTray não é suportado no sistema.")
             return false
         }
@@ -76,8 +94,10 @@ internal class SystemTrayManager(
         return try {
             tray.add(icon)
             trayIcon = icon
+            lastFailure = null
             true
         } catch (e: Exception) {
+            lastFailure = TrayFailure.AWT_ADD_FAILED
             e.printStackTrace()
             false
         }

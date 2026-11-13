@@ -16,8 +16,16 @@ class StatusNotifierTrayTest {
     }
 
     @Test
-    fun `x11 windows and macos keep the awt tray`() {
-        assertEquals(TrayBackend.AWT, trayBackendFor(OsFamily.LINUX, SessionType.X11))
+    fun `linux x11 also tries the status notifier item first`() {
+        // GNOME (Ubuntu 22.04) draws no XEmbed icon at all: an AWT-first choice left the app with no
+        // visible tray while it believed the icon had been added. SNI is what the AppIndicator
+        // extension reads; AWT remains the fallback when no watcher answers.
+        assertEquals(TrayBackend.SNI, trayBackendFor(OsFamily.LINUX, SessionType.X11))
+        assertEquals(TrayBackend.SNI, trayBackendFor(OsFamily.LINUX, SessionType.UNKNOWN))
+    }
+
+    @Test
+    fun `windows and macos keep the awt tray`() {
         assertEquals(TrayBackend.AWT, trayBackendFor(OsFamily.WINDOWS, SessionType.UNKNOWN))
         assertEquals(TrayBackend.AWT, trayBackendFor(OsFamily.MACOS, SessionType.UNKNOWN))
     }

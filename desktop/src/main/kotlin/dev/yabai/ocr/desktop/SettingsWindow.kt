@@ -37,6 +37,7 @@ fun SettingsContent(
     hoverActive: Boolean = false,
     hoverStatus: String = "",
     hotkeyBackendStatus: String = "",
+    trayStatus: String = "",
     linuxIntegrationStatus: String = "",
     onInstallLinuxIntegration: (() -> Unit)? = null,
     onHoverToggle: () -> Unit = {},
@@ -807,6 +808,15 @@ fun SettingsContent(
                         settings.closeToTray = it
                     }
                 )
+
+                if (trayStatus.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = trayStatus,
+                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                        color = palette.warning
+                    )
+                }
             }
         }
 
@@ -824,6 +834,9 @@ fun SettingsContent(
                         } else {
                             DesktopStrings.hoverInactive
                         },
+                        // Without the weight the status text claims its whole natural width and the
+                        // button is the one that shrinks when the window narrows.
+                        modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
                         color = if (hoverActive) palette.success else MaterialTheme.colors.secondary
                     )
@@ -1105,6 +1118,7 @@ fun SettingsContent(
                         ) {
                             Text(
                                 text = "${index + 1}º  $label",
+                                modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colors.onSurface
                             )
@@ -1710,17 +1724,31 @@ fun SettingsContent(
                                 color = MaterialTheme.colors.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
+                            val downloadScope = rememberCoroutineScope()
+                            var downloadError by remember { mutableStateOf<String?>(null) }
                             OutlinedButton(
                                 onClick = {
                                     val url = updateInfo?.downloadUrl ?: updateInfo?.releaseUrl
                                         ?: "https://github.com/SorrisoKDente/yabai_ocr/releases/latest"
-                                    runCatching {
-                                        java.awt.Desktop.getDesktop().browse(java.net.URI(url))
+                                    downloadScope.launch {
+                                        // Same launcher chain as the Ask AI button: the AWT browse
+                                        // alone does nothing in a packaged app on Linux.
+                                        val opened = withContext(Dispatchers.IO) { DesktopUrlOpener().open(url) }
+                                        downloadError = if (opened) null else DesktopStrings.updateLinkOpenFailed
                                     }
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
                             ) {
                                 Text(if (updateInfo?.downloadUrl != null) DesktopStrings.btnDownloadUpdate else DesktopStrings.btnDownloadOnGithub)
+                            }
+                            val linkError = downloadError
+                            if (linkError != null) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = linkError,
+                                    style = MaterialTheme.typography.caption,
+                                    color = palette.warning
+                                )
                             }
                         }
                     }

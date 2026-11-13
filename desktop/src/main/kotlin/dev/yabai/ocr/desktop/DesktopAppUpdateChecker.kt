@@ -38,7 +38,7 @@ internal fun preferredReleaseAsset(family: OsFamily, assets: List<ReleaseAsset>)
 }
 
 object DesktopAppUpdateChecker {
-    private const val CURRENT_VERSION = "1.0.0"
+    private const val FALLBACK_VERSION = "1.0.0"
     private const val GITHUB_RELEASE_URL = "https://api.github.com/repos/SorrisoKDente/yabai_ocr/releases/latest"
 
     private val client = OkHttpClient.Builder()
@@ -46,7 +46,24 @@ object DesktopAppUpdateChecker {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    fun getCurrentVersion(): String = CURRENT_VERSION
+    /**
+     * Version the running build reports.
+     *
+     * The packaged resource wins because it is stamped by the build (`-PyabaiVersion`); the
+     * `YABAI_VERSION` environment variable is the second source (`gradle run` and the AppImage
+     * script both set it), and the constant is only the last resort for a source checkout.
+     */
+    private val packagedVersion: String by lazy {
+        val resource = runCatching {
+            DesktopAppUpdateChecker::class.java
+                .getResourceAsStream("/yabai-version.properties")
+                ?.bufferedReader()
+                ?.use { it.readText() }
+        }.getOrNull()
+        resolveVersion(resource, System.getenv("YABAI_VERSION"))
+    }
+
+    fun getCurrentVersion(): String = packagedVersion
 
     internal fun checkForAppUpdate(family: OsFamily = DesktopPlatform.family): AppUpdateInfo? {
         return try {
@@ -65,7 +82,7 @@ object DesktopAppUpdateChecker {
                 val htmlUrl = json.get("html_url")?.asString ?: "https://github.com/SorrisoKDente/yabai_ocr/releases/latest"
                 val bodyText = json.get("body")?.asString.orEmpty()
 
-                val hasUpdate = compareVersions(CURRENT_VERSION, tagName) < 0
+                val hasUpdate = compareVersions(packagedVersion, tagName) < 0
 
                 val assets = json.getAsJsonArray("assets")
                     ?.mapNotNull { element ->
@@ -79,7 +96,7 @@ object DesktopAppUpdateChecker {
                 AppUpdateInfo(
                     hasUpdate = hasUpdate,
                     latestVersion = tagName,
-                    currentVersion = CURRENT_VERSION,
+                    currentVersion = packagedVersion,
                     releaseUrl = htmlUrl,
                     releaseNotes = bodyText,
                     downloadUrl = preferredReleaseAsset(family, assets)?.downloadUrl
@@ -88,6 +105,26 @@ object DesktopAppUpdateChecker {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Version from the packaged properties text, then the environment, then the constant.
+     *
+     * Kept pure so the precedence is testable without a build or an environment.
+     */
+    internal fun resolveVersion(propertiesText: String?, environmentVersion: String?): String {
+        val fromResource = propertiesText
+            ?.lineSequence()
+            ?.firstOrNull { it.trim().startsWith("version=") }
+            ?.substringAfter('=')
+            ?.trim()
+            .orEmpty()
+        if (fromResource.isNotEmpty()) return fromResource
+
+        val fromEnvironment = environmentVersion.orEmpty().removePrefix("v").trim()
+        if (fromEnvironment.isNotEmpty()) return fromEnvironment
+
+        return FALLBACK_VERSION
     }
 
     fun compareVersions(v1: String, v2: String): Int {

@@ -27,14 +27,20 @@ internal const val SNI_WATCHER_PATH = "/StatusNotifierWatcher"
 internal fun statusNotifierBusName(pid: Long): String = "org.kde.StatusNotifierItem-$pid-1"
 
 /**
- * AWT is the fallback for every non-Wayland session. On Linux Wayland the tray must be SNI,
- * because Plasma never delivers the XEmbed click to the Java process.
+ * AWT is the fallback for every desktop without a StatusNotifier host.
  */
 internal enum class TrayBackend { AWT, SNI }
 
+/**
+ * Linux always tries the standard StatusNotifierItem first.
+ *
+ * XEmbed tray icons are gone from GNOME (Ubuntu 22.04 no longer draws them at all) and on Wayland
+ * AWT cannot even receive the click, so an AWT-first choice made the icon invisible on Ubuntu while
+ * the app believed it had a tray. SNI is what Plasma draws natively and what the AppIndicator
+ * extension reads on GNOME; the AWT path stays as the fallback for a desktop served by neither.
+ */
 internal fun trayBackendFor(family: OsFamily, session: SessionType): TrayBackend =
-    if (family == OsFamily.LINUX && session == SessionType.WAYLAND) TrayBackend.SNI
-    else TrayBackend.AWT
+    if (family == OsFamily.LINUX) TrayBackend.SNI else TrayBackend.AWT
 
 /** One `(iiay)` entry of the SNI `IconPixmap`/`ToolTip` properties. */
 internal class StatusNotifierIconPixmap(
