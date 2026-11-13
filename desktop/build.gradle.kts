@@ -25,7 +25,10 @@ dependencies {
     implementation("net.java.dev.jna:jna:5.14.0")
     implementation("net.java.dev.jna:jna-platform:5.14.0")
     implementation("com.github.hypfvieh:dbus-java-core:5.1.1")
-    implementation("com.github.hypfvieh:dbus-java-transport-native-unixsocket:5.1.1")
+    // KWin's ScreenShot2 passes the image through a Unix file descriptor. The JDK's native
+    // unix-domain transport cannot send SCM_RIGHTS, so use the junixsocket transport, which
+    // implements dbus-java's file-descriptor provider.
+    implementation("com.github.hypfvieh:dbus-java-transport-junixsocket:5.1.1")
     implementation(libs.onnxruntime)
 
     testImplementation(libs.junit)
@@ -54,9 +57,9 @@ compose.desktop {
         jvmArgs += listOf("-Dfile.encoding=UTF-8")
         nativeDistributions {
             outputBaseDir.set(layout.buildDirectory.dir("distributions"))
-            // dbus-java's native unix-socket transport reads `jdk.net:ExtendedSocketOptions.SO_PEERCRED`.
-            // Without this module the jlink runtime image throws NoClassDefFoundError on Linux and the
-            // D-Bus service, the KWin bridge and the portal shortcuts all silently fail.
+            // Keep jdk.net in the packaged image: it was required by the earlier native D-Bus
+            // transport and the Linux socket stack is shared by the D-Bus service, the KWin bridge
+            // and the portal shortcuts. The FD path itself now goes through junixsocket.
             modules("jdk.net")
             // dbus-java SASL calls `com.sun.security.auth.module.UnixSystem` to get the uid for
             // EXTERNAL authentication. It lives in `jdk.security.auth`, not `java.base`, so a jlink

@@ -87,4 +87,25 @@ class KWinIntegrationTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun `updating the fallback keeps the bridge running with the new shortcut`() {
+        val dir = Files.createTempDirectory("yabai-int").toFile()
+        val transport = FakeTransport()
+        val integration = KWinIntegration(
+            service = YabaiDbusService({ _, _ -> }, {}, { transport }),
+            bridge = KWinHoverBridge({ FakeHost() }, dir),
+            fallbackShortcuts = { emptyList() },
+        )
+
+        try {
+            assertTrue(integration.start())
+            val binding = HotkeyBinding(HotkeyIds.QUICK_DICT, "Busca rápida", "Ctrl + Shift + D")
+            assertTrue(integration.updateShortcuts(listOf(binding)))
+            assertTrue(integration.isRunning)
+            assertTrue(java.io.File(dir, "code/main.js").readText().contains("Ctrl+Shift+D"))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }

@@ -4,10 +4,13 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import org.freedesktop.dbus.DBusPath
 import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
 import org.freedesktop.dbus.exceptions.DBusException
 import org.freedesktop.dbus.interfaces.DBus
 import org.freedesktop.dbus.interfaces.Properties
+import org.freedesktop.dbus.types.UInt32
+import org.freedesktop.dbus.types.Variant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -45,12 +48,16 @@ class StatusNotifierDbusSmokeTest {
 
             val menu = AtomicReference<Pair<Int, Int>?>(null)
             val menuCalled = CountDownLatch(1)
+            val menuAction = CountDownLatch(1)
             tray = StatusNotifierTray(
                 onActivate = {},
                 onSecondaryActivate = {},
                 onContextMenu = { x, y ->
                     menu.set(x to y)
                     menuCalled.countDown()
+                },
+                menuItems = {
+                    listOf(StatusMenuItem(1, "Test action", action = { menuAction.countDown() }))
                 },
                 trayBusName = service,
                 watcherService = watcherService,
@@ -70,9 +77,16 @@ class StatusNotifierDbusSmokeTest {
                 assertEquals("Yabai OCR", all["Title"]?.value)
                 assertEquals("Active", all["Status"]?.value)
                 assertEquals(false, all["ItemIsMenu"]?.value)
+                assertEquals(SNI_MENU_PATH, (all["Menu"]?.value as DBusPath).path)
                 // KDE checks the concrete signatures; `av` would make it ignore the tray icon.
                 assertEquals("a(iiay)", all["IconPixmap"]?.sig)
                 assertEquals("(sa(iiay)ss)", all["ToolTip"]?.sig)
+
+                val dbusMenu = client.getRemoteObject(service, SNI_MENU_PATH, DbusMenuDbus::class.java)
+                val layout = dbusMenu.GetLayout(0, 1, emptyList())
+                assertEquals(1, layout.children.size)
+                dbusMenu.Event(1, "clicked", Variant(""), UInt32(0))
+                assertTrue("DBusMenu action was not delivered", menuAction.await(5, TimeUnit.SECONDS))
 
                 val item = client.getRemoteObject(service, SNI_OBJECT_PATH, StatusNotifierItemDbus::class.java)
                 item.ContextMenu(17, 29)
@@ -108,16 +122,54 @@ class StatusNotifierDbusSmokeTest {
             val dbus = probe.getRemoteObject("org.freedesktop.DBus", "/org/freedesktop/DBus", DBus::class.java)
             var owned = true
             var attempts = 0
-            while (owned && attempts < 20) {
+            // dbus-java releases the name when the connection closes, which on a busy real session
+            // bus can take longer than the few hundred milliseconds this used to allow.
+            while (owned && attempts < 100) {
                 owned = dbus.NameHasOwner(service)
                 if (owned) {
-                    Thread.sleep(25)
+                    Thread.sleep(50)
                     attempts++
                 }
             }
             assertFalse("failed start leaked the SNI bus name", owned)
         } finally {
             probe.close()
+        }
+    }
+
+    @Test
+    fun `a dbus menu marshals its layout and dispatches the clicked event on the real bus`() {
+        assumeTrue(System.getenv("DBUS_SESSION_BUS_ADDRESS") != null)
+
+        val server = DBusConnectionBuilder.forSessionBus().build()
+        val client = DBusConnectionBuilder.forSessionBus().build()
+        val clicked = CountDownLatch(1)
+        try {
+            val path = "/dev/yabai/test/DbusMenu"
+            server.exportObject(
+                path,
+                DbusMenu(path) {
+                    listOf(StatusMenuItem(1, "Test action", action = { clicked.countDown() }))
+                },
+            )
+
+            val menu = client.getRemoteObject(server.uniqueName, path, DbusMenuDbus::class.java)
+            val layout = menu.GetLayout(0, 1, emptyList())
+
+            assertEquals(UInt32(0), layout.revision)
+            assertEquals(0, layout.id)
+            assertEquals(1, layout.children.size)
+            assertEquals("(ia{sv}av)", layout.children.single().sig)
+
+            val aboutToShow = menu.AboutToShowGroup(listOf(0, 99))
+            assertEquals(listOf(0), aboutToShow.updatesNeeded)
+            assertTrue(aboutToShow.idErrors.isEmpty())
+
+            menu.Event(1, "clicked", Variant(""), UInt32(0))
+            assertTrue(clicked.await(5, TimeUnit.SECONDS))
+        } finally {
+            client.close()
+            server.close()
         }
     }
 

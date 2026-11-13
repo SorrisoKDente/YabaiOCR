@@ -112,54 +112,82 @@ internal class PortalGlobalShortcuts(
             return false
         }
 
+        val bound = bindNewSession(requests) ?: return false
+        transport = bound.transport
+        sessionHandle = bound.session
+        started = true
+        return true
+    }
+
+    override fun update(bindings: List<HotkeyBinding>): Boolean {
+        if (!started) return false
+        val previous = transport ?: return false
+        val requests = portalRequests(bindings)
+        if (requests.isEmpty()) {
+            lastError = "nenhum atalho tem combinação configurada"
+            // The old bindings no longer match the settings. Closing the session also removes the
+            // old shortcuts; leaving it alive is what made the previous combination keep firing.
+            closeSession()
+            return false
+        }
+
+        // The portal (KDE in particular) accepts only one BindShortcuts per session. A rebind is a
+        // new session; the old one stays active until the new one is confirmed, so a failed edit
+        // never leaves the app without shortcuts in the middle of the swap.
+        val bound = bindNewSession(requests)
+        if (bound == null) {
+            closeSession()
+            return false
+        }
+
+        transport = bound.transport
+        sessionHandle = bound.session
+        runCatching { previous.close() }
+        lastError = null
+        return true
+    }
+
+    override fun stop() = closeSession()
+
+    private data class BoundSession(
+        val transport: PortalShortcutsTransport,
+        val session: String,
+    )
+
+    private fun bindNewSession(requests: List<PortalShortcutRequest>): BoundSession? {
         val created = runCatching(transportFactory).getOrElse { error ->
             lastError = error.describe()
             logDbusFailure("criar o transporte do portal", error)
-            return false
+            return null
         } ?: run {
             lastError = "transporte do portal indisponível"
-            return false
+            return null
         }
         if (!created.isAvailable()) {
             lastError = "o portal org.freedesktop.portal.GlobalShortcuts não está no barramento"
             runCatching { created.close() }
-            return false
+            return null
         }
 
         val session = created.createSession()
         if (session == null) {
             lastError = created.lastError ?: "o portal não criou a sessão de atalhos"
             runCatching { created.close() }
-            return false
+            return null
         }
 
         created.setShortcutListener { callbacks.dispatch(it) }
         if (!created.bindShortcuts(session, requests)) {
             lastError = created.lastError ?: "o portal recusou registrar os atalhos"
             runCatching { created.close() }
-            return false
+            return null
         }
 
-        transport = created
-        sessionHandle = session
-        started = true
-        return true
+        lastError = null
+        return BoundSession(created, session)
     }
 
-    override fun update(bindings: List<HotkeyBinding>): Boolean {
-        val active = transport ?: return false
-        val session = sessionHandle ?: return false
-        val requests = portalRequests(bindings)
-        if (requests.isEmpty()) {
-            lastError = "nenhum atalho tem combinação configurada"
-            return false
-        }
-        return runCatching { active.bindShortcuts(session, requests) }.getOrDefault(false).also { ok ->
-            lastError = if (ok) null else active.lastError ?: "o portal recusou atualizar os atalhos"
-        }
-    }
-
-    override fun stop() {
+    private fun closeSession() {
         runCatching { transport?.close() }
         transport = null
         sessionHandle = null

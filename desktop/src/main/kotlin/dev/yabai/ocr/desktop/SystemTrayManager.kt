@@ -23,16 +23,22 @@ internal class SystemTrayManager(
     private var statusNotifier: StatusNotifierTray? = null
     private var activeTrayMenu: JPopupMenu? = null
 
+    /** Read by the DBusMenu thread; updated on the AWT/Compose thread. */
+    @Volatile
+    private var hoverActive = false
+
     /** Returns true only when the icon was really added to the system tray. */
     fun setup(): Boolean {
         // KDE Wayland does not deliver XEmbed clicks to AWT (the tray icon is visible but inert).
-        // Publish the standard StatusNotifierItem instead; ContextMenu(x,y) opens the same Swing
-        // menu, so right-click keeps working. X11 and Windows keep the historical AWT path.
+        // Publish the standard StatusNotifierItem plus a DBusMenu; Plasma draws and dismisses the
+        // menu natively, so an outside click closes it even when no window gains focus. The old
+        // Swing menu remains the fallback for a host that does not read DBusMenu.
         if (trayBackendFor(DesktopPlatform.family, DesktopPlatform.session) == TrayBackend.SNI) {
             val notifier = StatusNotifierTray(
                 onActivate = { SwingUtilities.invokeLater { onFullScreenCaptureRequested() } },
                 onSecondaryActivate = { SwingUtilities.invokeLater { onRegionCaptureRequested() } },
                 onContextMenu = { x, y -> showCustomTrayMenu(Point(x, y)) },
+                menuItems = { trayMenuItems() },
             )
             if (notifier.start()) {
                 statusNotifier = notifier
@@ -106,10 +112,23 @@ internal class SystemTrayManager(
     }
 
     private fun hoverMenuItemLabel(): String =
-        DesktopStrings.trayHover(isHoverActive())
+        DesktopStrings.trayHover(hoverActive)
+
+    private fun trayMenuItems(): List<StatusMenuItem> = listOf(
+        StatusMenuItem(1, DesktopStrings.trayFullScreen, action = onFullScreenCaptureRequested),
+        StatusMenuItem(2, DesktopStrings.trayRegion, action = onRegionCaptureRequested),
+        StatusMenuItem(3, DesktopStrings.trayQuickDict, action = onQuickDictRequested),
+        StatusMenuItem(4, hoverMenuItemLabel(), action = onHoverRequested),
+        StatusMenuItem(10, separator = true),
+        StatusMenuItem(5, DesktopStrings.trayManageDicts, action = onFullDictRequested),
+        StatusMenuItem(6, DesktopStrings.traySettings, action = onSettingsRequested),
+        StatusMenuItem(11, separator = true),
+        StatusMenuItem(7, DesktopStrings.trayExit, action = onExitRequested),
+    )
 
     /** Keeps the native menu label truthful after the hover is toggled anywhere. */
     fun updateHover(active: Boolean) {
+        hoverActive = active
         SwingUtilities.invokeLater {
             nativeHoverItem?.label = DesktopStrings.trayHover(active)
         }

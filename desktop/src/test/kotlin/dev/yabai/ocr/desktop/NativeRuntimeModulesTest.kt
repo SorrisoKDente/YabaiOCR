@@ -7,10 +7,10 @@ import org.junit.Test
 /**
  * The packaged Linux runtime is a jlink image, not the developer JDK.
  *
- * dbus-java's native unix-socket transport requires `jdk.net` (it reads
- * `ExtendedSocketOptions.SO_PEERCRED`). When the module is missing, the D-Bus service, the KWin
- * bridge and the portal shortcuts all fail with `NoClassDefFoundError` at runtime — visible only
- * on Linux and only in the packaged build. This guard keeps the module in `nativeDistributions`.
+ * dbus-java's unix-socket transport needs its jlink modules. When a module is missing, the D-Bus
+ * service, the KWin bridge and the portal shortcuts all fail with `NoClassDefFoundError` at
+ * runtime — visible only on Linux and only in the packaged build. This guard keeps the modules in
+ * `nativeDistributions`.
  */
 class NativeRuntimeModulesTest {
 

@@ -328,6 +328,69 @@ object DesktopStrings {
 
     // Lifecycle & App Main Strings
     val hoverKwinBridgeUnavailable: String get() = if (isEnglish) "Hover unavailable: KWin bridge is not active." else "Hover indisponível: o bridge do KWin não está ativo."
+    val kwinIntegrationActive: String get() = if (isEnglish) "Hover and KWin shortcuts active." else "Hover e atalhos do KWin ativos."
+    fun kwinDbusFailed(detail: String?): String = if (isEnglish) {
+        if (detail == null) "Could not publish the dev.yabai.Ocr D-Bus service."
+        else "Could not publish the dev.yabai.Ocr D-Bus service ($detail)."
+    } else {
+        if (detail == null) "Não foi possível publicar o serviço D-Bus dev.yabai.Ocr."
+        else "Não foi possível publicar o serviço D-Bus dev.yabai.Ocr ($detail)."
+    }
+    fun kwinBridgeFailed(detail: String?): String = if (isEnglish) {
+        if (detail == null) "Could not activate the KWin bridge."
+        else "Could not activate the KWin bridge ($detail)."
+    } else {
+        if (detail == null) "Não foi possível ativar o bridge do KWin."
+        else "Não foi possível ativar o bridge do KWin ($detail)."
+    }
+    fun kwinUpdateFailed(detail: String?): String = if (isEnglish) {
+        if (detail == null) "Could not update the KWin shortcuts."
+        else "Could not update the KWin shortcuts ($detail)."
+    } else {
+        if (detail == null) "Não foi possível atualizar os atalhos do KWin."
+        else "Não foi possível atualizar os atalhos do KWin ($detail)."
+    }
+    fun kwinScriptWriteFailed(detail: String): String = if (isEnglish) {
+        "Could not write the KWin script: $detail"
+    } else {
+        "Não foi possível gravar o script do KWin: $detail"
+    }
+    val kwinScriptNotWritten: String get() = if (isEnglish) "The KWin script was not written." else "O script do KWin não foi gravado."
+    val kwinCaptureNoDescriptor: String get() = if (isEnglish) {
+        "Could not obtain the file descriptor for the KWin capture."
+    } else {
+        "Não foi possível obter o descritor de arquivo da captura do KWin."
+    }
+    val kwinCaptureNoMetadata: String get() = if (isEnglish) {
+        "KWin did not return the image metadata."
+    } else {
+        "O KWin não devolveu os metadados da imagem."
+    }
+    val kwinCaptureTooLarge: String get() = if (isEnglish) {
+        "KWin returned an image that is too large."
+    } else {
+        "O KWin devolveu uma imagem grande demais."
+    }
+    fun kwinCaptureIncomplete(path: String): String = if (isEnglish) {
+        "KWin did not finish writing the capture ($path)."
+    } else {
+        "O KWin não terminou de escrever a captura ($path)."
+    }
+    fun kwinCaptureFailed(detail: String): String = if (isEnglish) {
+        "Could not capture the screen through KWin: $detail"
+    } else {
+        "Não foi possível capturar a tela pelo KWin: $detail"
+    }
+    val kwinShortcutsRejectedRestored: String get() = if (isEnglish) {
+        "KWin rejected the new shortcuts; the previous script was restored."
+    } else {
+        "O KWin recusou os novos atalhos; o script anterior foi restaurado."
+    }
+    val kwinShortcutsRejectedNotRestored: String get() = if (isEnglish) {
+        "KWin rejected the new shortcuts and the previous script could not be restored."
+    } else {
+        "O KWin recusou os novos atalhos e o script anterior não pôde ser restaurado."
+    }
     fun captureScreenError(detail: String): String = if (isEnglish) "Could not capture screen: $detail" else "Não foi possível capturar a tela: $detail"
     val linuxIntegrationAlreadyInstalled: String get() = if (isEnglish) "Shortcut already installed for this user." else "Atalho já instalado para este usuário."
     val linuxIntegrationInstalledSuccess: String get() = if (isEnglish) "Shortcut and icon installed in application menu." else "Atalho e ícone instalados no menu de aplicativos."

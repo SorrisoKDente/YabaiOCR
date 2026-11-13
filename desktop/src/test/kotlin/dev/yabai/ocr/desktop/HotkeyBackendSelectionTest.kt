@@ -10,8 +10,8 @@ class HotkeyBackendSelectionTest {
 
     private class FakeBackend(
         override val kind: HotkeyBackendKind,
-        private val starts: Boolean = true,
-        private val updates: Boolean = true,
+        var starts: Boolean = true,
+        var updates: Boolean = true,
     ) : HotkeyBackend {
         var stopped = false
         var lastBindings: List<HotkeyBinding> = emptyList()
@@ -65,7 +65,8 @@ class HotkeyBackendSelectionTest {
 
         assertTrue(labels.all { it.isNotBlank() })
         assertEquals(labels.size, labels.toSet().size)
-        assertTrue(hotkeyBackendFailureMessage(HotkeyBackendKind.PORTAL).contains("bandeja"))
+        val portalFailure = hotkeyBackendFailureMessage(HotkeyBackendKind.PORTAL).lowercase()
+        assertTrue(portalFailure.contains("bandeja") || portalFailure.contains("tray"))
         assertNotEquals(
             hotkeyBackendFailureMessage(HotkeyBackendKind.PORTAL),
             hotkeyBackendFailureMessage(HotkeyBackendKind.JNATIVEHOOK),
@@ -122,8 +123,32 @@ class HotkeyBackendSelectionTest {
         )
 
         assertFalse(updated)
+        assertEquals(HotkeyBackendKind.UNAVAILABLE, service.activeKind)
         assertEquals(hotkeyBackendFailureMessage(HotkeyBackendKind.PORTAL), service.statusMessage)
+        assertTrue(backend.stopped)
         assertEquals(HotkeyIds.FULL_SCREEN, backend.lastBindings.first().id)
+        assertEquals("Ctrl + Alt + 1", backend.lastBindings.first().configured)
+    }
+
+    @Test
+    fun `editing after a failed start retries the backend instead of updating a dead session`() {
+        val backend = FakeBackend(HotkeyBackendKind.PORTAL, starts = false)
+        val service = HotkeyService(HotkeyCallbacks(), HotkeyBackendKind.PORTAL, backend)
+        assertFalse(service.start("Ctrl + Shift + O", "Ctrl + Shift + A", "Ctrl + Shift + D", "Ctrl + Shift + H", "Ctrl + Shift + X"))
+        assertEquals(HotkeyBackendKind.UNAVAILABLE, service.activeKind)
+
+        backend.starts = true
+        val updated = service.updateHotkeys(
+            "Ctrl + Alt + 1",
+            "Ctrl + Shift + A",
+            "Ctrl + Shift + D",
+            "Ctrl + Shift + H",
+            "Ctrl + Shift + X",
+        )
+
+        assertTrue(updated)
+        assertEquals(HotkeyBackendKind.PORTAL, service.activeKind)
+        assertEquals(hotkeyBackendLabel(HotkeyBackendKind.PORTAL), service.statusMessage)
         assertEquals("Ctrl + Alt + 1", backend.lastBindings.first().configured)
     }
 

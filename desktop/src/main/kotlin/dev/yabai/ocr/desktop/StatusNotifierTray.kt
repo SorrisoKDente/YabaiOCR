@@ -3,6 +3,7 @@ package dev.yabai.ocr.desktop
 import java.awt.Image
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
+import org.freedesktop.dbus.DBusPath
 import org.freedesktop.dbus.Struct
 import org.freedesktop.dbus.annotations.DBusBoundProperty
 import org.freedesktop.dbus.annotations.DBusInterfaceName
@@ -15,8 +16,9 @@ import org.freedesktop.dbus.messages.DBusSignal
 
 // KDE/Plasma talks to modern tray icons through org.kde.StatusNotifierItem. AWT's TrayIcon is
 // still XEmbed; Plasma's xembedsniproxy loses the click events on Wayland (KDE bug 498824), so the
-// native menu never appears. This file publishes the standard SNI object and answers ContextMenu()
-// with the app's own Swing menu.
+// native menu never appears. This file publishes the standard SNI object, a com.canonical.dbusmenu
+// for the host to draw and dismiss, and keeps ContextMenu() as the fallback for hosts without
+// DBusMenu support.
 
 internal const val SNI_OBJECT_PATH = "/StatusNotifierItem"
 internal const val SNI_WATCHER_SERVICE = "org.kde.StatusNotifierWatcher"
@@ -113,6 +115,13 @@ internal interface StatusNotifierItemDbus : DBusInterface {
     @DBusBoundProperty(name = "ItemIsMenu", access = DBusProperty.Access.READ)
     fun getItemIsMenu(): Boolean
 
+    /**
+     * Let Plasma draw the context menu itself. A host that understands DBusMenu shows it natively
+     * and never calls [ContextMenu]; the old Swing path stays as the fallback for hosts that do.
+     */
+    @DBusBoundProperty(name = "Menu", access = DBusProperty.Access.READ)
+    fun getMenu(): DBusPath
+
     @DBusBoundProperty(name = "WindowId", access = DBusProperty.Access.READ)
     fun getWindowId(): Int
 
@@ -157,6 +166,8 @@ internal class StatusNotifierItem(
 
     override fun getItemIsMenu(): Boolean = false
 
+    override fun getMenu(): DBusPath = DBusPath(SNI_MENU_PATH)
+
     override fun getWindowId(): Int = 0
 
     override fun Activate(x: Int, y: Int) = onActivate()
@@ -179,6 +190,7 @@ internal class StatusNotifierTray(
     private val onActivate: () -> Unit,
     private val onSecondaryActivate: () -> Unit,
     private val onContextMenu: (Int, Int) -> Unit,
+    private val menuItems: () -> List<StatusMenuItem> = { emptyList() },
     private val trayBusName: String = statusNotifierBusName(ProcessHandle.current().pid()),
     private val watcherService: String = SNI_WATCHER_SERVICE,
 ) {
@@ -199,10 +211,11 @@ internal class StatusNotifierTray(
             return false
         }
 
+        val name = trayBusName
         return try {
-            val name = trayBusName
             created.requestBusName(name)
 
+            created.exportObject(SNI_MENU_PATH, DbusMenu(SNI_MENU_PATH, menuItems))
             val sni = StatusNotifierItem(
                 onActivate = onActivate,
                 onSecondaryActivate = onSecondaryActivate,
@@ -224,8 +237,10 @@ internal class StatusNotifierTray(
             true
         } catch (error: Throwable) {
             lastError = error.describe()
-            // The bus name was requested before the watcher call. Closing the connection releases
-            // it; otherwise a failed start leaves an invisible SNI name owned until process exit.
+            // The bus name was requested before the watcher call. Release it explicitly before
+            // closing: on a busy session bus the disconnect alone raced with the name being granted,
+            // leaving an invisible SNI name owned until process exit.
+            runCatching { created.releaseBusName(name) }
             runCatching { created.close() }
             connection = null
             registeredBusName = null

@@ -179,7 +179,8 @@ flags above.
 | `ScreenCapture.kt` | primary/region capture via `Robot`, native size on HiDPI |
 | `PlatformServices.kt` | picks the capture backend per platform/session |
 | `ScreenshotMethod.kt` | capture-method override (X11/Wayland/portal) via environment variable |
-| `PortalScreenshotCapture.kt` | KDE `Screenshot` portal (Wayland) over D-Bus |
+| `KWinScreenshotCapture.kt` | primary path on KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + raw QImage, fallback to the portal |
+| `PortalScreenshotCapture.kt` | KDE `Screenshot` portal (Wayland) over D-Bus; compatibility when ScreenShot2 is absent |
 | `SegmentPickerWindow.kt` | full-screen picker: draws the boxes and returns the chosen segment |
 | `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | box geometry, picker readings and window placement |
 | `RegionSelectionWindow.kt` | manual crop with handles (`CropHandle`) |
@@ -195,7 +196,8 @@ flags above.
 | `HoverTooltipWindow.kt` | floating card (size, position, content) |
 | `HoverCapability.kt` | is hover supported in this session? (X11/Wayland/Win) |
 | `PointerSource.kt` | pointer position source (AWT or KWin) |
-| `KWinHoverBridge.kt` / `KWinIntegration.kt` / `KWinScript.kt` | KWin script + D-Bus that delivers the pointer on Wayland |
+| `KWinHoverBridge.kt` / `KWinIntegration.kt` / `KWinScript.kt` | KWin script + D-Bus that delivers the pointer on Wayland; unloads a stale script and reapplies shortcuts |
+| `KGlobalAccel.kt` | clears the stored KGlobalAccel binding before reloading the KWin script |
 
 ### Desktop OCR
 
@@ -213,7 +215,7 @@ flags above.
 | `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal), key matching and action catalog |
 | `PortalGlobalShortcuts.kt` | global shortcuts on Wayland through the D-Bus portal |
 | `XdgTrigger.kt` | `gsettings`/XDG shortcuts on Linux |
-| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | tray: AWT on Windows, StatusNotifier on Plasma, menu and placement |
+| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | tray: AWT on Windows, StatusNotifier + DBusMenu on Plasma, Swing menu fallback and placement |
 | `YabaiDbusService.kt` | own D-Bus service (hover, shortcuts) |
 | `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | start with the system and desktop integration |
 | `ClipboardMonitor.kt` | watches the clipboard (copy from the card) |
@@ -229,8 +231,10 @@ worth knowing:
 - `DesktopOcrOrderTest` — engine order and PP-OCR result conversion.
 - `DesktopEngineMigrationTest` — old preferences (`MANGA_OCR`) fall back to `AUTO`.
 - `DesktopPPOcrEndToEndTest` — **opt-in** (`-Pppocr`), reads a drawn page with the real models.
-- `PortalGlobalShortcutsTest`, `StatusNotifierTrayTest`, `KWinScriptTest` — D-Bus/Wayland without a session.
-- `NativeRuntimeModulesTest` — the packaged runtime declares `jdk.net`.
+- `PortalGlobalShortcutsTest`, `StatusNotifierTrayTest`, `DbusMenuTest`, `KWinScreenshotCaptureTest`,
+  `KWinScriptTest` — D-Bus/Wayland without a session.
+- `NativeRuntimeModulesTest` — the packaged runtime declares `jdk.net` and `jdk.security.auth`.
+- `KWinScreenshotCaptureTest` — also checks that the only UNIX transport on the classpath supports FDs.
 - `DictLookupTest` — a failing dictionary query is reported, not thrown out of the window.
 
 ---
@@ -318,6 +322,25 @@ shortcut → Main.kt → SegmentPickerWindow.scanScreen
         → ResultWindow(segment text) → dictionary → card
 ```
 
+### KDE Wayland capture (ScreenShot2)
+
+```
+PlatformServices.capture
+    → KdeWaylandCapture → org.kde.KWin.ScreenShot2 (CaptureArea/CaptureWorkspace)
+    → hidden yabai-ocr-screenshot.desktop authorizes the running binary
+    → temporary FD + raw QImage RGBX8888/RGBA8888 or ARGB32 (stride × height)
+    → BufferedImage; if ScreenShot2 fails, PortalScreenshotCapture (fallback, retried every 10 s)
+```
+
+### Plasma tray (SNI + DBusMenu)
+
+```
+Plasma → org.kde.StatusNotifierItem (Activate/SecondaryActivate/ContextMenu)
+       → com.canonical.dbusmenu GetLayout/AboutToShow/Event
+       → SystemTrayManager builds the items (shortcuts, hover, dictionary)
+       → Event(clicked) → same action as the Swing menu
+```
+
 ### Manual crop (desktop)
 
 ```
@@ -359,10 +382,10 @@ Settings (desktop/app) → PPOcrModelDownloader → ~23 MB in ppocr_v6/
 | wrong recognized text (offline) | `core/ppocr/PPOcrPreprocess.kt` (tensor), `PPOcrPostprocess.kt` (boxes/order), `PPOcrEngine.kt` (CTC) |
 | engine order/fallback | `desktop/DesktopOcr.kt`, `app/ocr/OcrDispatcher.kt` |
 | new OCR engine | contract in `app/ocr/OcrEngine.kt`; on desktop, return `LensResult` |
-| desktop capture/picker | `ScreenCapture.kt`, `SegmentPickerWindow.kt`, `PickerBoxes.kt` |
+| desktop capture/picker | `ScreenCapture.kt`, `KWinScreenshotCapture.kt`, `SegmentPickerWindow.kt`, `PickerBoxes.kt` |
 | hover | `HoverOcrManager.kt`, `HoverGeometry.kt`, `HoverTextSelector.kt` |
 | shortcuts | `HotkeyBindings.kt`, `HotkeyMatcher.kt`, `GlobalHotkeyManager.kt` |
-| tray | `SystemTrayManager.kt`, `StatusNotifierTray.kt`, `TrayMenu*.kt` |
+| tray | `SystemTrayManager.kt`, `StatusNotifierTray.kt`, `DbusMenu.kt`, `TrayMenu*.kt` |
 | dictionaries (search/import) | `core/dict/*`, then `app/dict/*` or `desktop/DictionaryManagerWindow.kt` |
 | furigana | `core/dict/Furigana.kt`, `core/lens/FuriganaMode.kt`, `overlay/PickerReadingLayout.kt` |
 | interface texts | `desktop/i18n/DesktopStrings.kt`; `app/src/main/res/values*/strings.xml` |

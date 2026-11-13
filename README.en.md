@@ -30,7 +30,7 @@ and Android), so the app stays useful without a connection.
 | platform | requirements |
 | --- | --- |
 | **Windows** 10/11 | JDK 17+ to build; there is a ready package in [`apk-output/`](apk-output) for Android |
-| **Linux** (X11 and Wayland/KDE) | JDK 17+; the `Screenshot` and `GlobalShortcuts` portals on Wayland — see [LINUX.md](LINUX.md) |
+| **Linux** (X11 and Wayland/KDE) | JDK 17+; on Wayland/KDE capture uses `KWin.ScreenShot2` (the `Screenshot` portal is the fallback) and shortcuts use the `GlobalShortcuts` portal; on Plasma the hover reads the screen without a permission dialog — see [LINUX.md](LINUX.md) |
 | **Steam Deck** | Desktop Mode is the target; Game Mode is best effort — see [STEAMOS.md](STEAMOS.md) |
 | **Android** 8.0+ (API 26) | `arm64-v8a` APK; overlay and screen capture need permission |
 

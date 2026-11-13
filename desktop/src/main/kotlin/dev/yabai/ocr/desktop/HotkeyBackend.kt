@@ -134,12 +134,7 @@ internal class HotkeyService(
 
         runCatching { backend.stop() }
         activeKind = HotkeyBackendKind.UNAVAILABLE
-        val detail = backend.lastError?.takeIf { it.isNotBlank() }
-        statusMessage = if (detail == null) {
-            hotkeyBackendFailureMessage(kind)
-        } else {
-            "${hotkeyBackendFailureMessage(kind)} ${if (DesktopStrings.isEnglish) "Detail:" else "Detalhe:"} $detail."
-        }
+        statusMessage = hotkeyFailureStatus(kind, backend.lastError)
         return false
     }
 
@@ -151,14 +146,33 @@ internal class HotkeyService(
         hover: String,
         hoverCycle: String,
     ): Boolean {
-        val updated = backend.update(hotkeyBindings(fullScreen, region, quickDict, hover, hoverCycle))
-        if (!updated && activeKind != HotkeyBackendKind.UNAVAILABLE) {
-            statusMessage = hotkeyBackendFailureMessage(activeKind)
+        val bindings = hotkeyBindings(fullScreen, region, quickDict, hover, hoverCycle)
+        // After a failed start there is no live session to update. Retrying start is what lets an
+        // edited shortcut recover the portal without restarting the app.
+        val updated = if (activeKind == HotkeyBackendKind.UNAVAILABLE) {
+            backend.start(bindings)
+        } else {
+            backend.update(bindings)
         }
-        return updated
+        if (updated) {
+            activeKind = backend.kind
+            statusMessage = hotkeyBackendLabel(backend.kind)
+            return true
+        }
+
+        runCatching { backend.stop() }
+        activeKind = HotkeyBackendKind.UNAVAILABLE
+        statusMessage = hotkeyFailureStatus(backend.kind, backend.lastError)
+        return false
     }
 
     fun stop() = backend.stop()
+}
+
+private fun hotkeyFailureStatus(kind: HotkeyBackendKind, error: String?): String {
+    val detail = error?.takeIf { it.isNotBlank() } ?: return hotkeyBackendFailureMessage(kind)
+    val label = if (DesktopStrings.isEnglish) "Detail:" else "Detalhe:"
+    return "${hotkeyBackendFailureMessage(kind)} $label $detail."
 }
 
 internal fun createHotkeyBackend(kind: HotkeyBackendKind, callbacks: HotkeyCallbacks): HotkeyBackend =

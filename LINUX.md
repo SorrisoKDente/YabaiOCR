@@ -13,12 +13,18 @@ independente de SO; `:app` (Android) não é tocado.
 **Não muda:** Windows continua sendo a plataforma de referência; Android continua intacto.
 **Data desta revisão:** 08/11/2026.
 
+**Atualização D44 (12/11/2026):** no KDE Wayland a captura passou a usar
+`org.kde.KWin.ScreenShot2` como caminho principal (o portal `Screenshot` ficou como fallback) e o
+menu da bandeja passou a ser DBusMenu desenhado pelo Plasma (o `ContextMenu`/Swing ficou como
+fallback). Onde as seções históricas deste plano dizem “portal `Screenshot`” ou “menu Swing” como
+caminho principal, vale esta atualização. A validação visual continua dependendo de um host KDE real.
+
 **O que a P1 entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
 `Exec`, ícone PNG Linux, `YABAI_HOME`, build condicional `Deb`/`AppImage` + `packagePortableTarGz`, e
 27 testes novos. As oito mutações da P1 foram provadas.
 
 **O que a P2 entregou (histórico; no KDE Wayland a captura foi substituída pelo portal `Screenshot`
-na D37):** `ScreenshotMethod` (`awt.robot.screenshotMethod=dbusScreencast` só em Linux
+na D37 e depois pelo `ScreenShot2` na D44):** `ScreenshotMethod` (`awt.robot.screenshotMethod=dbusScreencast` só em Linux
 Wayland KDE), backend `ScreencastScreenCapture` com `CaptureAvailability`
 (`READY`/`NEEDS_PERMISSION`/`DENIED`/`UNSUPPORTED`), `ScreenCaptureException`, pickers em
 `WindowPlacement.Fullscreen` no Wayland e `CaptureNoticeWindow` para falha de captura. 15 testes novos
@@ -34,14 +40,16 @@ Hover do Wayland continua sendo P4. O fallback KWin dos atalhos também fica par
 serviço D-Bus e do script KWin que a P4 instala. Até lá, se o portal não responder, a P3 mostra
 “atalhos indisponíveis” e mantém todas as ações no menu da bandeja.
 
-**O que a P4 entregou (captura do KDE hoje é o portal `Screenshot`, ver D37):** `HoverCapability`
+**O que a P4 entregou (naquela fase a captura do KDE era o portal `Screenshot`, ver D37; a D44
+trocou o caminho principal pelo `ScreenShot2`):** `HoverCapability`
 (AWT × KWin × indisponível, com mensagem e captura screencast só no KWin),
 `PointerSource`/`KwinPointerSource` (posição do script, com dedup),
 `YabaiDbusService` (`dev.yabai.Ocr` com `Hover.CursorMoved` e `Shortcuts.ShortcutPressed`),
 `KWinHoverBridge` (instala e carrega o script em `~/.local/share/kwin/scripts/yabai-ocr` via
 `org.kde.KWin` `/Scripting`), `KWinIntegration` (D-Bus primeiro, script depois, rollback e status
 visível), `KWinScript` (metadata, script principal e bloco de atalhos de fallback),
-`HoverOcrManager` sem `MouseInfo`/poll no KWin e com captura screencast (no KDE, portal `Screenshot`), e o wiring em `Main.kt`.
+`HoverOcrManager` sem `MouseInfo`/poll no KWin e com captura screencast (no KDE, portal `Screenshot`
+naquela fase; hoje `ScreenShot2` com fallback para o portal), e o wiring em `Main.kt`.
 29 testes novos (suíte desktop em **198**); as oito mutações da P4 foram provadas.
 
 **O que a P5 entregou:** menu de bandeja nativo (`java.awt.PopupMenu`) no Linux e menu customizado
@@ -71,7 +79,7 @@ Esta é a regra que manda em todas as decisões abaixo.
    atalhos globais, captura de tela, hover, autostart pelo registro ou empacotamento `.exe`/`.msi`.
    Todo código existente de Windows é preservado atrás de uma interface, não reescrito.
 2. **Android não é tocado.** Nada em `app/` e nada em `core/` deve mudar por causa desta tarefa. A
-   suíte do app (**397 testes**) e a do core (**153**, 26 pulados) continuam sendo o contrato.
+   suíte do app (**411 testes**) e a do core (**177**, com pulos só nas flags opcionais) continuam sendo o contrato.
 3. **A diferença de sistema fica atrás de uma camada de plataforma**, escolhida uma única vez no
    início do processo. Não espalhar `if (isWayland)` por vinte arquivos.
 4. **Nenhum teste existente pode ser enfraquecido** para passar no Linux. `StartupManagerTest`
@@ -107,12 +115,12 @@ compositor. A estratégia é usar as duas únicas rotas que existem no KDE Plasm
 | --- | --- | --- | --- | --- |
 | abrir app / UI Compose | ✅ | ✅ | ✅ | GTK3 + Skia (já funciona) |
 | OCR, dicionários, tradução | ✅ | ✅ | ✅ | `:core` puro |
-| captura de tela inteira | ✅ Robot | ✅ Robot | ✅ **portal `Screenshot` do KDE** | PNG do workspace + recorte; permissão única |
+| captura de tela inteira | ✅ Robot | ✅ Robot | ✅ **`KWin.ScreenShot2`** (portal `Screenshot` como fallback) | QImage cru/FD + recorte; sem diálogo no caminho direto |
 | recorte à mão | ✅ | ✅ | ✅ | captura antes + overlay fullscreen |
 | hover (ponteiro + recorte) | ✅ | ✅ | ✅ **KWin script → D-Bus do app** | `workspace.cursorPos` |
 | atalhos globais | ✅ JNativeHook | ✅ JNativeHook | ✅ **`GlobalShortcuts` portal** (fallback KWin) | xdg-desktop-portal |
 | bandeja | ✅ AWT | ✅ AWT | ✅ **SNI (`StatusNotifierItem`)** | `org.kde.StatusNotifierWatcher` |
-| menu da bandeja | ✅ custom | ✅ nativo/custom | ✅ **`ContextMenu(x,y)` → menu Swing** | SNI, sem XEmbed |
+| menu da bandeja | ✅ custom | ✅ nativo/custom | ✅ **DBusMenu (`com.canonical.dbusmenu`)** (`ContextMenu`/Swing como fallback) | SNI, sem XEmbed |
 | autostart | registro | XDG | ✅ XDG | `~/.config/autostart` |
 | overlay always-on-top | ✅ | ✅/⚠️ | ✅/⚠️ fullscreen ou regra KWin | `WindowPlacement.Fullscreen` |
 | tooltip sem foco | ✅ | ✅ | ✅/⚠️ regra KWin `keepAbove` | script auxiliar |
@@ -130,13 +138,18 @@ roda KWin scripting e não tem bandeja.
 Estes não são detalhes internos do Yabai OCR; são as APIs que o plano usa. Confirmados na
 documentação do projeto e no código do OpenJDK/KDE.
 
-### 2.1 Captura: portal `Screenshot` no KDE, Robot/ScreenCast nos outros desktops
+### 2.1 Captura: `KWin.ScreenShot2` no KDE, Robot/ScreenCast nos outros desktops
 
-- **KDE Wayland (Steam Deck):** o app usa `org.freedesktop.portal.Screenshot` com
-  `interactive=false`. O portal captura o workspace inteiro em resolução nativa e devolve um PNG; o
-  app recorta o monitor principal ou a região pedida. A primeira chamada mostra uma única permissão
-  persistente — **«Permitir que aplicativos tirem capturas de tela?»** — e as seguintes não abrem
-  diálogo.
+- **KDE Wayland (Steam Deck):** o caminho principal é `org.kde.KWin.ScreenShot2`
+  (`CaptureWorkspace` e `CaptureArea`), que entrega um QImage cru por file descriptor sem abrir o
+  diálogo do portal. O app converte `RGBX8888`/`RGBA8888` e `ARGB32`/`ARGB32_Premultiplied` (formato
+  6, o que o Plasma 6 devolve de fato) respeitando `stride` e o tamanho nativo. O KWin só autoriza
+  quem tem `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` numa entrada `.desktop` cujo
+  `Exec` seja o próprio `/proc/<pid>/exe`; por isso o app grava a entrada oculta
+  `yabai-ocr-screenshot.desktop` a cada início (D45). Se a interface não existir, a chamada for
+  recusada ou o formato for desconhecido, ele cai para o portal `Screenshot`
+  (`interactive=false`), que devolve um PNG do workspace e pode apresentar o diálogo do KDE. O recorte
+  do monitor/região é feito pelo app nos dois caminhos.
 - **Por que não usar `Robot`/ScreenCast no KDE:** o JDK 21.0.13 valida o *restore token* como UUID
   (`g_uuid_string_is_valid` em `screencast_portal.c`), mas o token do KDE é base64
   (`O0ci...=`) e nunca é enviado. Toda captura abre uma sessão nova e volta a pedir a tela
@@ -192,9 +205,10 @@ documentação do projeto e no código do OpenJDK/KDE.
   `~/.local/share/icons` (ícone), `~/.config/autostart` (início automático) e `~/.yabai_ocr` (dados).
 - O **Game Mode** roda sobre Gamescope, sem KWin scripting e sem bandeja. Não é o alvo do suporte
   completo; o Desktop Mode é.
-- Atualizações do SteamOS trocam a versão do Plasma. A permissão de captura fica no portal e pode ser
-  revogada; o app precisa reautorizar sem crash. O script KWin precisa ser recarregado se a pasta do
-  usuário permanecer (ela permanece).
+- Atualizações do SteamOS trocam a versão do Plasma. No caminho direto a captura não depende da
+  permissão do portal; se o fallback `Screenshot` for usado, a permissão pode ser revogada e o app
+  precisa reautorizar sem crash. O script KWin precisa ser recarregado se a pasta do usuário
+  permanecer (ela permanece).
 
 ---
 
@@ -299,10 +313,11 @@ SO diretamente.
 `PlatformServices` escolhe três backends:
 
 - **Windows / Linux X11:** `RobotScreenCapture`, exatamente como antes.
-- **KDE Wayland:** `PortalScreenshotCapture`, que fala `org.freedesktop.portal.Screenshot` com
-  `interactive=false`, lê o PNG devolvido e recorta o monitor principal/região. O portal cuida da
-  autorização persistente e do KWin; o app não precisa de `X-KDE-DBUS-Restricted-Interfaces` nem de
-  um `.desktop` com caminho estável.
+- **KDE Wayland:** `KWinScreenshotCapture`, que tenta `org.kde.KWin.ScreenShot2`
+  (`CaptureWorkspace`/`CaptureArea`) e converte o QImage cru devolvido pelo FD; em falha, cai para
+  `PortalScreenshotCapture`, que fala `org.freedesktop.portal.Screenshot` com
+  `interactive=false`, lê o PNG devolvido e recorta o monitor principal/região. O caminho direto não
+  usa `X-KDE-DBUS-Restricted-Interfaces`; o portal é o fallback compatível.
 - **Outros Wayland:** `ScreencastScreenCapture` (JDK 21 ScreenCast), com
   `awt.robot.screenshotMethod=dbusScreencast` definido antes do AWT.
 
@@ -317,33 +332,35 @@ Regras:
 
 1. A propriedade precisa ser definida **antes** da primeira inicialização do Toolkit/AWT. Colocar no
    topo de `main`, antes de `application { }`.
-2. `PortalScreenshotCapture` usa o portal só no KDE; o portal sempre devolve o workspace inteiro, e o
-   recorte usa a escala entre `virtualScreenBounds()` e o PNG.
+2. `KdeWaylandCapture` prefere o `ScreenShot2`; se a interface não existir ou a chamada falhar, usa
+   `PortalScreenshotCapture`. O portal devolve o workspace inteiro, e o recorte usa a escala entre
+   `virtualScreenBounds()` e o PNG.
 3. Nada de `x11` explícito em Wayland: forçar X11 capturaria só o XWayland (janela do próprio app ou
    preto).
-4. Não usar `org.kde.KWin.ScreenShot2` direto: ele exige
-   `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` no `.desktop` e pode ser negado a um
-   AppImage. O portal é o caminho portátil e já é autorizado pelo KWin.
+4. O `ScreenShot2` é a rota direta do KWin; o portal fica como fallback para versões/ambientes em que
+   a interface não esteja disponível.
 
-### 4.2 Primeira autorização e permissão persistente
+### 4.2 Autorização: caminho direto sem diálogo, portal como fallback
 
-- No KDE Wayland, a primeira captura chama o portal `Screenshot` com `interactive=false`. O sistema
-  mostra **«Permitir que aplicativos tirem capturas de tela?»**; ao clicar em **Permitir**, o portal
-  grava a permissão e as próximas capturas (inclusive hover) são silenciosas. Não há escolha de tela.
-  A permissão é ligada à identidade/caminho do app; mover ou renomear o AppImage pode exigir nova
-  autorização.
+- No KDE Wayland, o caminho principal (`org.kde.KWin.ScreenShot2`) captura sem apresentar o diálogo
+  do portal. É a rota usada para tela inteira, recorte e hover quando a interface existe.
+- O portal `org.freedesktop.portal.Screenshot` com `interactive=false` **não é silencioso no KDE**:
+  ele pode criar/apresentar um `QuickDialog` a cada chamada. Por isso ele é apenas fallback, não a
+  rota normal. A permissão do portal é ligada à identidade/caminho do app; mover ou renomear o
+  AppImage pode exigir nova autorização.
 - A chamada pode bloquear enquanto o diálogo está aberto; o fluxo atual captura na thread da ação.
-  Se isso incomodar no primeiro uso, mover a captura para `Dispatchers.IO` numa próxima tarefa.
+  Se isso incomodar no fallback, mover a captura para `Dispatchers.IO` numa próxima tarefa.
 - No KDE, o token legado do JDK em `~/.java/robot/screencast-tokens.properties` não é usado e pode ser
   apagado. Nos outros Wayland ele continua sendo do JDK; o app **não** deve ler, copiar nem registrar.
 - `availability()` deve distinguir:
-  - `READY` — portal `Screenshot` presente ou token existente no caminho ScreenCast;
+  - `READY` — `ScreenShot2` disponível, portal `Screenshot` presente ou token existente no caminho
+    ScreenCast;
   - `NEEDS_PERMISSION` — ainda não há token (caminho ScreenCast);
   - `DENIED` — o portal recusou ou o usuário fechou o diálogo;
   - `UNSUPPORTED` — sem portal (`xdg-desktop-portal-kde` ausente) ou JDK < 21.
 - Negação não pode derrubar o app. `SecurityException`, timeout e retorno sem pixels viram
   `ScreenCaptureException`, nunca `printStackTrace` e janela vazia.
-- Se a permissão for negada, o usuário pode reautorizar no diálogo do sistema/configurações de
+- Se o fallback for negado, o usuário pode reautorizar no diálogo do sistema/configurações de
   privacidade do KDE; a UI mostra o motivo.
 
 ### 4.3 Escala, HiDPI e tamanho nativo
@@ -360,13 +377,14 @@ Regras:
 
 ### 4.4 Captura para hover
 
-O hover captura uma região pequena, mas o portal `Screenshot` devolve o workspace inteiro e o app
-recorta. Depois da primeira permissão não há diálogo; o custo é o PNG do workspace por captura.
+O hover pede `CaptureArea` ao `ScreenShot2`, então captura só a região ao redor do ponteiro, sem
+diálogo. No fallback pelo portal `Screenshot`, a chamada devolve o workspace inteiro e o app recorta;
+nesse caminho o KDE pode apresentar o `QuickDialog` a cada captura.
 
 - A mesma rota atende seletor de tela inteira, recorte e hover; não há sessão ScreenCast aberta.
-- Medir no Steam Deck: latência de uma captura e custo de CPU durante o hover. Se o PNG completo for
-  caro, a otimização precisa ser medida (cache de frame ≤ 150 ms) e não pode introduzir texto
-  desatualizado perceptível.
+- Medir no Steam Deck: latência de uma captura e custo de CPU durante o hover. Se o caminho direto
+  falhar e o fallback for caro, a otimização precisa ser medida (cache de frame ≤ 150 ms) e não pode
+  introduzir texto desatualizado perceptível.
 - O cursor **não** aparece nos pixels; a posição vem do KWin (§6).
 
 ---
@@ -578,8 +596,9 @@ estéticas.
 - KDE Plasma (Steam Deck) suporta StatusNotifier/AppIndicator nativamente. No **KDE Wayland** o app
   publica um `org.kde.StatusNotifierItem` próprio; o `TrayIcon` AWT (XEmbed) fica só para X11 e
   Windows.
-- **Menu no Wayland:** o Plasma chama `ContextMenu(x,y)` no item SNI quando o usuário clica com o
-  botão direito; o app abre o seu `JPopupMenu` nessa posição. Não depender do `PopupMenu` nativo do
+- **Menu no Wayland:** o app publica `com.canonical.dbusmenu` no caminho `SNI_MENU_PATH`; o Plasma
+  pede o layout, desenha o menu e o fecha nativamente ao clicar fora. `ContextMenu(x,y)` e o
+  `JPopupMenu` continuam como fallback para hosts sem DBusMenu. Não depender do `PopupMenu` nativo do
   AWT nem de `MouseInfo` no Wayland. Windows e X11 mantêm o caminho anterior.
 - `SystemTrayManager.setup()` deve devolver `Boolean` (se o ícone foi adicionado). Se `--minimized` e
   falhou, mostrar a janela principal.
@@ -600,7 +619,7 @@ popup nativo do AWT quando o clique direito chega ao ícone. O menu customizado 
 e o proxy do Plasma no Wayland não entrega o evento de botão ao processo Java. O app passou a
 publicar um StatusNotifierItem nativo (`StatusNotifierTray.kt`), registrado em
 `org.kde.StatusNotifierWatcher`; `Activate` faz a captura de tela inteira, `SecondaryActivate` o
-recorte e `ContextMenu(x,y)` abre o menu existente. O runtime também passou a incluir
+recorte e o DBusMenu desenha o menu no Plasma (`ContextMenu(x,y)` fica como fallback). O runtime também passou a incluir
 `jdk.security.auth` (SASL EXTERNAL usa `UnixSystem`); sem ele o D-Bus morria antes de publicar
 `dev.yabai.Ocr` e antes de falar com o portal.
 
@@ -669,7 +688,7 @@ recomendado para hover (o sandbox exige `--talk-name=org.kde.KWin` e permissões
 | recurso | Desktop Mode (Plasma/Wayland) | Game Mode (Gamescope) |
 | --- | --- | --- |
 | UI, OCR, dicionários, tradução | ✅ | ✅ (janela normal) |
-| captura via portal | ✅ | ⚠️ depende do portal da sessão Gamescope |
+| captura (ScreenShot2/portal) | ✅ | ⚠️ depende do portal da sessão Gamescope |
 | atalhos globais | ✅ portal/KWin | ❌ sem KWin |
 | hover | ✅ KWin bridge | ❌ |
 | bandeja | ✅ Plasma | ❌ |
@@ -682,14 +701,16 @@ como tal, sem prometer hover/atalhos.
 
 - **Atualizações:** Plasma pode mudar de 6.4 para 6.7. Testar os dois; não depender de API exclusiva de
   uma versão.
-- **Permissão de captura:** no KDE é a permissão persistente do portal `Screenshot`, não o token do
-  JDK. Se ela for revogada numa atualização, o app pede de novo sem crash. O token legado do JDK
+- **Permissão de captura:** no KDE o caminho direto é `ScreenShot2`; se ele falhar e o portal
+  `Screenshot` for usado, vale a permissão do portal, não o token do JDK. Se ela for revogada numa
+  atualização, o app pede de novo sem crash. O token legado do JDK
   (`~/.java/robot/screencast-tokens.properties`) não é usado nesse caminho.
 - **Script KWin:** fica em `$HOME`, então sobrevive; recarregar após atualização do Plasma se o
-  `loadScript` falhar.
-- **Sono/retomada:** no KDE, o portal `Screenshot` é uma chamada por captura; não há sessão contínua
-  para cair. Nos outros Wayland, a sessão ScreenCast pode cair; tentar de novo na próxima captura e,
-  se falhar, pedir reautorização.
+  `loadScript` falhar. Editar um atalho regrava e recarrega o script; se o KWin recusar, o script
+  anterior é restaurado.
+- **Sono/retomada:** no KDE, o `ScreenShot2` e o portal são chamadas por captura; não há sessão
+  contínua para cair. Nos outros Wayland, a sessão ScreenCast pode cair; tentar de novo na próxima
+  captura e, se falhar, pedir reautorização.
 - **Tela:** 1280×800, escala 1.0. Testar também dock com monitor externo e escala 125%/150%.
 - **Controles:** o Steam Input não interfere em atalhos de teclado. Não mapear botões do controle nesta
   fase.
@@ -703,13 +724,13 @@ como tal, sem prometer hover/atalhos.
 
 | arquivo | hoje | mudança | risco |
 | --- | --- | --- | --- |
-| `desktop/build.gradle.kts` | Exe/Msi, Inno, ZIP, Java 17 | adicionar `Deb`/`AppImage` condicionais ao host, `package/linux`, `dbus-java`, runtime JDK 21 no Linux, `jvmArgs` UTF-8 | médio |
+| `desktop/build.gradle.kts` | Exe/Msi, Inno, ZIP, Java 17 | adicionar `Deb`/`AppImage` condicionais ao host, `package/linux`, `dbus-java`, runtime JDK 21 no Linux e `jvmArgs` UTF-8 | médio |
 | `StartupManager.kt` | registro Windows | fachada + `WindowsAutostart`/`LinuxAutostart` | baixo |
 | `AppIconGenerator.kt` | `.ico` | escolher PNG no Linux; manter `.ico` no Windows | baixo |
 | `SystemTrayManager.kt` | `JPopupMenu` + `MouseInfo`; `setup(): Unit` | `PopupMenu` nativo no Linux; `setup(): Boolean`; fallback | médio |
 | `GlobalHotkeyManager.kt` | JNativeHook direto | preservado atrás de `JNativeHookHotkeys`; portal no Wayland | alto |
-| `ScreenCapture.kt` | `Robot` multi-resolução | `ScreenCaptureBackend`; portal `Screenshot` no KDE Wayland, screencast nos outros | alto |
-| `HoverOcrManager.kt` | `MouseInfo` + crop | `PointerSource` + portal `Screenshot` no KDE; sem poll no Wayland | alto |
+| `ScreenCapture.kt` | `Robot` multi-resolução | `ScreenCaptureBackend`; `KWin.ScreenShot2` com fallback para o portal no KDE Wayland, screencast nos outros | alto |
+| `HoverOcrManager.kt` | `MouseInfo` + crop | `PointerSource` + `ScreenShot2` (fallback portal) no KDE; sem poll no Wayland | alto |
 | `RegionSelectionWindow.kt` | posição/bounds + `alwaysOnTop` | fullscreen no Wayland | médio |
 | `SegmentPickerWindow.kt` | idem | fullscreen no Wayland | médio |
 | `HoverTooltipWindow.kt` | `alwaysOnTop`, transparente | regra KWin; fallback opaco | médio |
@@ -773,11 +794,15 @@ nativeDistributions {
 - `appResourcesRootDir("package/windows")` não deve vazar para o Linux.
 - Tarefas Inno/ZIP ficam dentro de `if (isWindowsHost)`.
 - Adicionar `implementation("com.github.hypfvieh:dbus-java-core:5.1.1")` e o transporte
-  `dbus-java-transport-native-unixsocket:5.1.1` (versões fixas; não usar `latest`).
-- Garantir que o runtime empacotado inclua `java.desktop`, `jdk.net` e as bibliotecas nativas do
-  `dbus-java`; o ScreenCast do JDK só é usado em Wayland não-KDE.
+  `dbus-java-transport-junixsocket:5.1.1` (versões fixas; não usar `latest`). O transporte nativo do
+  JDK (JEP 380) não passa `SCM_RIGHTS`; sem o junixsocket o FD do `org.kde.KWin.ScreenShot2` não
+  chega ao KWin e o hover cai no portal com diálogo.
+- Garantir que o runtime empacotado inclua `java.desktop`, `jdk.net`, `jdk.security.auth` e as
+  bibliotecas nativas do `junixsocket`; o ScreenCast do JDK só é usado em Wayland não-KDE.
   Testar `:desktop:createDistributable` no JDK 21 e rodar o launcher em Wayland **antes** de publicar.
-- `jvmArgs += "-Dfile.encoding=UTF-8"` para não depender do locale do SteamOS.
+- `jvmArgs += "-Dfile.encoding=UTF-8"` para não depender do locale do SteamOS. Não é necessário
+  `--add-opens`: o junixsocket lê o descritor pelo helper nativo, não por reflexão em
+  `java.io.FileDescriptor.fd`.
 
 ### 10.4 `DesktopSettings.kt`
 
@@ -852,7 +877,8 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
   `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png`.
 - Script KWin: `~/.local/share/kwin/scripts/yabai-ocr/`.
 - Token legado do ScreenCast: `~/.java/robot/screencast-tokens.properties` (do JDK; não é usado no KDE Wayland).
-- Permissão de captura do KDE: gerenciada pelo portal `Screenshot`; o app não escreve no banco.
+- Captura do KDE: `ScreenShot2` no caminho direto; quando o fallback `Screenshot` é usado, a permissão
+  é gerenciada pelo portal e o app não escreve no banco.
 - Nada de root, nada em `/usr`, nada em `/etc`.
 - E2E: `YABAI_HOME` e `XDG_CONFIG_HOME` temporários; backup e restauração de
   `~/.yabai_ocr/settings.properties` com SHA-256.
@@ -867,9 +893,9 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 
 | suíte | hoje | regra |
 | --- | --- | --- |
-| `:core:test` | 153 (26 pulados) | não pode cair; nenhum teste Linux novo aqui |
-| `:desktop:test` | 249 (2 pulados no sandbox) | continua verde; `StartupManagerTest` continua pulando fora do Windows |
-| `:app:testDebugUnitTest` | 397 | não pode mudar; nenhuma alteração em `app/` |
+| `:core:test` | 177 (pulados com as flags opcionais) | não pode cair; nenhum teste Linux novo aqui |
+| `:desktop:test` | 296 (1 pulado no host KDE; 3 no sandbox) | continua verde; `StartupManagerTest` e o smoke do watcher continuam pulando fora do ambiente |
+| `:app:testDebugUnitTest` | 411 | não pode mudar; nenhuma alteração em `app/` |
 
 ### 13.2 Testes novos (JVM puros, sem abrir janela nem portal)
 
@@ -882,7 +908,9 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | `TrayMenuTest` | Linux usa `PopupMenu` nativo em qualquer sessão; Windows mantém o menu customizado; `--minimized` sem bandeja abre a janela |
 | `LinuxSystemIntegrationTest` | grava `.desktop` + PNG em `$XDG_DATA_HOME`; executável vazio/ausente ou ícone ausente não deixam atalho quebrado |
 | `IconResourceTest` | `ic_scan_linux.png` existe e abre; `.ico` do Windows continua |
-| `ScreenCaptureBackendTest` | Windows/X11 → Robot; KDE Wayland → portal `Screenshot`; outros Wayland → screencast; mensagens distintas para cada `CaptureAvailability`; nunca `x11` no Wayland |
+| `ScreenCaptureBackendTest` | Windows/X11 → Robot; KDE Wayland → `ScreenShot2` (portal como fallback); outros Wayland → screencast; mensagens distintas para cada `CaptureAvailability`; nunca `x11` no Wayland |
+| `KWinScreenshotCaptureTest` | conversão raw `RGBX8888`/`RGBA8888` com `stride`, backend KDE escolhido, falha do direto cai no portal e não repete a tentativa |
+| `DbusMenuTest` | layout `(ia{sv}av)`, itens/estado e eventos `clicked`/`aboutToShow` |
 | `ScreenshotMethodTest` | `dbusScreencast` definido só em Linux Wayland KDE, antes do AWT; GNOME e X11 intactos |
 | `ScreencastCaptureTest` | caminho não-KDE: JDK < 21 → `UNSUPPORTED`; sem token → `NEEDS_PERMISSION`; com token → `READY`; `SecurityException` → `DENIED` lembrado; sucesso limpa a falha |
 | `PortalScreenshotCaptureTest` | recorte do monitor, escala nativa, offset de monitor negativo, negação, portal ausente e remoção do PNG devolvido |
@@ -898,7 +926,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | `XdgTriggerTest` | `Ctrl+Shift+O` → `CTRL+SHIFT+O`; `Super+Space` → `LOGO+space`; ordem dos modificadores estável; sem modificador, tecla desconhecida e string malformada → `null` |
 | `HotkeyBindingsTest` | ids estáveis (`capture-fullscreen`…), descrições pt-BR, despacho de cada id para a ação certa e descarte de `preferred_trigger` inválido |
 | `HotkeyBackendSelectionTest` | Windows/X11 → JNativeHook; Wayland → portal; falha de start degrada para indisponível; edição re-binda e expõe falha |
-| `PortalGlobalShortcutsTest` | sessão criada uma vez, bind com os cinco triggers, `Activated` chega na ação certa, portal ausente/negado não finge bind, atualização não recria sessão |
+| `PortalGlobalShortcutsTest` | sessão criada uma vez, bind com os cinco triggers, `Activated` chega na ação certa, portal ausente/negado não finge bind, edição re-binda numa sessão nova e fecha a antiga (inclusive em falha) |
 | `TranslucentBackgroundTest` | sem `PERPIXEL_TRANSLUCENT` → opaco; com → transparente |
 | `DesktopSettingsTest` | `YABAI_HOME` sobrescreve; sem a variável, comportamento antigo |
 | `UpdateAssetTest` | escolhe AppImage no Linux, `.exe` antes de `.msi` no Windows e `.dmg` no macOS; liberação sem asset do SO volta para a página do release; extensão sem diferenciar maiúsculas |
@@ -945,7 +973,19 @@ Cada linha precisa ser reintroduzida, ver o teste nomeado falhar e restaurar par
 | screencast usado também no Windows/X11 | `HoverCapabilityTest` |
 | posição repetida do ponteiro não é deduplicada | `KwinPointerSourceTest` |
 | atalho sem modificador é registrado no KWin | `KWinScriptTest` |
-| script KWin não é reescrito quando muda | `KWinScriptTest` |
+| script KWin não é reescrito quando o atalho muda | `KWinHoverBridgeTest` |
+| edição reutiliza a sessão antiga do portal em vez de criar outra | `PortalGlobalShortcutsTest` |
+| rebind recusado deixa a sessão antiga viva | `PortalGlobalShortcutsTest` |
+| edição depois de um start falho não tenta subir o portal de novo | `HotkeyBackendSelectionTest` |
+| KDE Wayland volta a usar o screencast do JDK | `ScreenCaptureBackendTest` |
+| conversão raw troca R e B (ou ignora `stride`) | `KWinScreenshotCaptureTest` |
+| falha do `ScreenShot2` não cai no portal | `KWinScreenshotCaptureTest` |
+| SNI anuncia um caminho de menu errado | `StatusNotifierTrayTest` |
+| DBusMenu serializa o layout vazio | `StatusNotifierDbusSmokeTest` |
+| `GetLayout` devolve só o struct, sem `u revision` | `DbusMenuTest` / `StatusNotifierDbusSmokeTest` |
+| DBusMenu perde os filhos do nó raiz | `DbusMenuTest` |
+| `KWinIntegration` ignora o resultado do bridge | `KWinIntegrationTest` |
+| transporte UNIX sem suporte a FD no classpath | `KWinScreenshotCaptureTest` |
 | falha do D-Bus não fecha o transporte | `YabaiDbusServiceTest` |
 | script é dado como carregado sem `isScriptLoaded` | `KWinHoverBridgeTest` |
 | KWin sobe sem o serviço D-Bus | `KWinIntegrationTest` |
@@ -967,22 +1007,25 @@ Checklist:
 1. AppImage em `~/Applications`, `chmod +x`, abre com `--minimized`; bandeja aparece; nenhuma janela
    indesejada.
 2. “Integrar ao sistema” cria `.desktop` e ícone; o app aparece no menu e abre pelo launcher.
-3. Primeira captura mostra **«Permitir que aplicativos tirem capturas de tela?»**; clicar em
-   **Permitir** uma vez; captura sai correta.
-4. Segunda captura e uma captura de hover **não** mostram o diálogo de novo (permissão persistente do
-   portal `Screenshot`). O token legado do JDK não precisa existir.
+3. Captura de tela inteira sai correta **sem** diálogo do portal (caminho `ScreenShot2`).
+4. Se o `ScreenShot2` for forçado a falhar, o fallback `Screenshot` pode mostrar o `QuickDialog` do
+   KDE; a captura ainda sai correta e o app não trava. O token legado do JDK não precisa existir.
 5. `Ctrl+Shift+O` (ou a combinação escolhida no portal) captura a tela inteira; clicar num parágrafo
    abre o resultado com o texto certo.
 6. `Ctrl+Shift+A` permite arrastar e recortar; overlay fullscreen cobre a tela; recorte 1:1.
-7. Hover liga, o ponteiro chega pelo script KWin, o tooltip aparece acima das janelas e fecha ao sair.
-8. Atalhos aparecem/configuram no diálogo do sistema; mudar a combinação no portal reflete nos Ajustes.
-9. Fechar com bandeja ativa mantém o app; desligar a bandeja (ou simular) não deixa o app invisível.
-10. Autostart cria `~/.config/autostart/yabai-ocr.desktop` com o caminho real do AppImage; desligar
+7. Hover liga, o ponteiro chega pelo script KWin, o tooltip aparece acima das janelas e fecha ao sair;
+   o hover não abre o diálogo do portal.
+8. Atalhos aparecem/configuram no diálogo do sistema; mudar a combinação nos Ajustes **sem
+   reiniciar** aplica o novo atalho e desativa o antigo.
+9. O menu da bandeja abre pelo Plasma e fecha **sempre** ao clicar fora; os itens executam as mesmas
+   ações do menu Swing.
+10. Fechar com bandeja ativa mantém o app; desligar a bandeja (ou simular) não deixa o app invisível.
+11. Autostart cria `~/.config/autostart/yabai-ocr.desktop` com o caminho real do AppImage; desligar
     apaga.
-11. Suspender/retomar: a próxima captura funciona; se pedir autorização de novo, não há crash.
-12. Escala 100% e 125%/150% com monitor externo: captura e recorte sem borrão/deslocamento.
-13. Fonte japonesa renderiza (sem caixas vazias); emoji dos rótulos aparecem.
-14. Nenhuma janela preta/travada; nenhum processo `java` residual após fechar; `settings.properties`
+12. Suspender/retomar: a próxima captura funciona; se pedir autorização de novo, não há crash.
+13. Escala 100% e 125%/150% com monitor externo: captura e recorte sem borrão/deslocamento.
+14. Fonte japonesa renderiza (sem caixas vazias); emoji dos rótulos aparecem.
+15. Nenhuma janela preta/travada; nenhum processo `java` residual após fechar; `settings.properties`
     restaurado se o E2E tocou no perfil real.
 
 Evidência: capturas de tela, versão do SteamOS/Plasma, `XDG_SESSION_TYPE`, saída de
@@ -1026,11 +1069,11 @@ Adicionar verificação de que `git diff -- app core` está vazio durante a impl
 | --- | --- | --- |
 | **P0 — inventário no Deck** | rodar o app atual em Desktop Mode; registrar o que abre/falha; medir captura, bandeja, atalhos | relatório com versões, logs e capturas; nenhum código de produção |
 | **P1 — base Linux** | `DesktopPlatform`, `PlatformServices`, autostart XDG, ícone PNG, build AppImage/`.deb`, `YABAI_HOME`, integração `.desktop` | `:desktop:test` verde nos dois SOs; AppImage abre no Deck |
-| **P2 — captura Wayland** | `screenshotMethod`, `ScreencastScreenCapture`, estados de permissão, pickers fullscreen | capturas fullscreen/recorte corretas no Deck; no KDE, permissão única do portal `Screenshot` (D37) |
+| **P2 — captura Wayland** | `screenshotMethod`, `ScreencastScreenCapture`, estados de permissão, pickers fullscreen | capturas fullscreen/recorte corretas no Deck; no KDE, `ScreenShot2` como caminho principal (D44) e portal como fallback |
 | **P3 — atalhos Wayland** | `PortalGlobalShortcuts`, conversão XDG, estado na UI, fallback KWin (P4) | atalhos disparam no Deck; diálogo do portal funciona |
 | **P4 — hover Wayland** | `YabaiDbusService`, `KWinHoverBridge`, script, regra de tooltip | hover lê a palavra sob o cursor; tooltip acima e sem foco |
 | **P5 — polimento Linux** | menu de bandeja nativo, fallback, textos, integração, update checker | checklist Desktop Mode completo |
-| **P6 — regressão e release** | E2E X11/Windows/Android, docs, assets, checksums | Windows intacto, Android 397, core 153; release publicada |
+| **P6 — regressão e release** | E2E X11/Windows/Android, docs, assets, checksums | Windows intacto, Android 411, core 177; release publicada |
 
 P1–P5 não tocam `:core`/`:app`. Se algum passo exigir mudança neles, parar e reavaliar o contrato.
 
@@ -1041,9 +1084,14 @@ e `Activated` como object path, o menu Wayland virou customizado e o empacotamen
 `packageLinuxAppImage`; a suíte foi para **224 testes**. O segundo E2E mostrou que o AWT/XEmbed não
 entrega o clique no Plasma Wayland e que o SASL também precisa de `jdk.security.auth`; a bandeja
 virou SNI e o runtime ganhou o módulo, levando a suíte a **234 testes**. Em 10/11/2026 a captura do
-KDE passou a usar o portal `Screenshot` (permissão única) e o menu da bandeja passou a receber foco,
-fechando ao clicar fora; a suíte fechou em **249 testes**. A validação visual de bandeja, hover,
-captura e atalhos no Desktop Mode segue como checklist abaixo.
+KDE passou a usar o portal `Screenshot` e o menu da bandeja passou a receber foco, fechando ao clicar
+fora; a suíte fechou em **249 testes**. Em 12/11/2026 a D44 mostrou que o portal `Screenshot` não é
+silencioso no KDE, trocou o caminho principal para `KWin.ScreenShot2`, publicou o menu como DBusMenu,
+fez o rebind dos atalhos numa sessão nova e recarregou o fallback KWin ao editar; a suíte fechou em
+**287 testes**. Em 13/11/2026 a D45 achou a autorização do `ScreenShot2` (entrada `.desktop` com
+`X-KDE-DBUS-Restricted-Interfaces`), o formato `ARGB32` e o atalho preso no KGlobalAccel, e a suíte
+fechou em **296 testes**. A validação visual de bandeja, hover, captura e atalhos no Desktop Mode
+segue como checklist abaixo.
 
 ---
 
@@ -1052,10 +1100,10 @@ captura e atalhos no Desktop Mode segue como checklist abaixo.
 ### 15.1 Steam Deck / KDE Wayland (alvo principal)
 
 - [ ] AppImage abre no Desktop Mode, em Plasma 6.4.3 e 6.7.3.
-- [ ] Captura de tela inteira, recorte à mão e hover funcionam depois de permitir a captura uma única vez no portal `Screenshot`.
+- [ ] Captura de tela inteira, recorte à mão e hover funcionam pelo `ScreenShot2` sem diálogo; se o caminho direto falhar, o fallback `Screenshot` funciona e informa o motivo.
 - [ ] Hover funciona com o ponteiro vindo do KWin; tooltip aparece acima e não rouba foco.
 - [ ] Atalhos globais funcionam pelo portal; combinação pode ser alterada e é refletida na UI.
-- [ ] Bandeja StatusNotifierItem e menu (`ContextMenu`) funcionam; ausência de bandeja não deixa o app invisível.
+- [ ] Bandeja StatusNotifierItem e menu DBusMenu funcionam e fecham ao clicar fora; ausência de bandeja não deixa o app invisível.
 - [ ] Autostart XDG cria/apaga o `.desktop` correto.
 - [ ] `.desktop` e ícone ficam em `$HOME`; nada exige root ou escrita em `/usr`.
 - [ ] Suspender/retomar e atualização simulada do Plasma não geram crash.
@@ -1076,7 +1124,7 @@ captura e atalhos no Desktop Mode segue como checklist abaixo.
 
 ### 15.4 Windows (não-regressão)
 
-- [ ] `:desktop:test` continua verde (249 hoje).
+- [ ] `:desktop:test` continua verde (296 hoje).
 - [ ] `packageExe`, `packageMsi` e `packageInnoSetup` continuam funcionando.
 - [ ] Autostart pelo registro cria/remove exatamente a mesma chave.
 - [ ] Bandeja, atalhos, captura, hover, recorte e tooltip inalterados.
@@ -1084,9 +1132,9 @@ captura e atalhos no Desktop Mode segue como checklist abaixo.
 
 ### 15.5 Android e core (não-regressão)
 
-- [ ] `:app:testDebugUnitTest` continua com 397 testes verdes.
+- [ ] `:app:testDebugUnitTest` continua com 411 testes verdes.
 - [ ] `git diff -- app/` vazio.
-- [ ] `:core:test` continua com 153 (26 pulados).
+- [ ] `:core:test` continua com 177 (pulados só com as flags opcionais).
 - [ ] Nenhuma dependência Android nova.
 
 ---
@@ -1098,7 +1146,7 @@ captura e atalhos no Desktop Mode segue como checklist abaixo.
 | JDK 21 não incluído no runtime empacotado | alto | build Linux sempre com JDK 21; testar `createDistributable` no Deck antes da release |
 | `jlink` omite `jdk.net`/nativos do `dbus-java` | alto | `NativeRuntimeModulesTest`; testar captura e hover no runtime empacotado |
 | portal nega/expira permissão | alto | estados `NEEDS_PERMISSION`/`DENIED`; reautorizar no diálogo/configurações; no KDE não há token do JDK |
-| PNG completo do `Screenshot` caro no hover | médio | medir latência no Deck; cache curto só se comprovado; reduzir taxa |
+| `ScreenShot2` indisponível e fallback do `Screenshot` caro no hover | médio | medir latência no Deck; cache curto só se comprovado; reduzir taxa |
 | script KWin não carrega (versão/atualização) | alto | verificar `isScriptLoaded`; reinstalar; fallback de mensagem |
 | portal GlobalShortcuts indisponível | médio | fallback KWin; senão, declarar indisponível |
 | app id do AppImage não bate com o `.desktop` | médio | instalar `.desktop` com nome estável `yabai-ocr.desktop`; validar no portal |

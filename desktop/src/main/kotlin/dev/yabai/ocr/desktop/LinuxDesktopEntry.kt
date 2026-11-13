@@ -33,6 +33,14 @@ internal fun autostartDesktopEntry(executable: String): String = buildString {
     appendLine("X-GNOME-Autostart-enabled=true")
 }
 
+/**
+ * KWin only lets a caller use `org.kde.KWin.ScreenShot2` when the desktop entry whose `Exec` matches
+ * the caller's binary declares this interface. Without it every capture is refused with
+ * `Error.NoAuthorized`, the app falls back to the Screenshot portal and Plasma presents a permission
+ * window per hover.
+ */
+internal const val KWIN_SCREENSHOT_INTERFACE = "org.kde.KWin.ScreenShot2"
+
 internal fun applicationDesktopEntry(executable: String): String = buildString {
     appendLine("[Desktop Entry]")
     appendLine("Type=Application")
@@ -43,6 +51,25 @@ internal fun applicationDesktopEntry(executable: String): String = buildString {
     appendLine("Terminal=false")
     appendLine("Categories=Utility;")
     appendLine("StartupNotify=true")
+    appendLine("X-KDE-DBUS-Restricted-Interfaces=$KWIN_SCREENSHOT_INTERFACE")
+}
+
+/**
+ * Hidden entry that exists only to authorize silent KWin captures.
+ *
+ * KWin compares the entry's `Exec` with `/proc/<pid>/exe`, so the executable here must be the binary
+ * actually running — for an AppImage that is the extracted runtime under `/tmp/.mount_*`, not the
+ * `.AppImage` file the user launches. That is why this entry is separate from the menu entry: the
+ * menu entry must stay usable, while this one is rewritten on every start.
+ */
+internal fun screenshotAuthorizationDesktopEntry(executable: String): String = buildString {
+    appendLine("[Desktop Entry]")
+    appendLine("Type=Application")
+    appendLine("Name=Yabai OCR (captura silenciosa)")
+    appendLine("Exec=${desktopEntryExec(executable)}")
+    appendLine("NoDisplay=true")
+    appendLine("Terminal=false")
+    appendLine("X-KDE-DBUS-Restricted-Interfaces=$KWIN_SCREENSHOT_INTERFACE")
 }
 
 /**
@@ -119,6 +146,15 @@ internal fun appImageCandidates(userHome: String): List<String> {
         ?.map { it.absolutePath }
         .orEmpty()
 }
+
+/**
+ * The binary the kernel says is running: `/proc/self/exe` is exactly what KWin's authorization check
+ * reads from `/proc/<pid>/exe`. `ProcessHandle.info().command()` is only a fallback because it
+ * reports `cmdline[0]`, which an AppImage keeps as the launcher path.
+ */
+internal fun runningExecutablePath(): String? = runCatching {
+    File("/proc/self/exe").canonicalPath
+}.getOrNull()?.takeIf { it.isNotBlank() }
 
 internal fun resolveLinuxExecutable(
     env: Map<String, String> = System.getenv(),

@@ -51,6 +51,13 @@ fun main(args: Array<String>) {
     val appSettings = DesktopSettings()
     DesktopStrings.init(appSettings)
     StartupManager.reconcileStartOnBoot(appSettings.startOnBoot)
+    // KWin refuses `org.kde.KWin.ScreenShot2` to a caller whose desktop entry does not declare the
+    // interface, and the portal fallback presents a permission window per capture. Writing the entry
+    // before the first capture is what makes hover silent; it must name the running binary, so it is
+    // refreshed on every start.
+    if (DesktopPlatform.isWayland && DesktopPlatform.isKde) {
+        LinuxSystemIntegration().ensureScreenshotAuthorization()
+    }
 
     application {
     val startMinimized = args.contains("--minimized") || args.contains("--tray")
@@ -179,6 +186,14 @@ fun main(args: Array<String>) {
     val hotkeyService = remember { HotkeyService(hotkeyCallbacks) }
     var hotkeyStatus by remember { mutableStateOf(hotkeyService.statusMessage) }
 
+    fun currentHotkeyBindings(): List<HotkeyBinding> = hotkeyBindings(
+        fullScreen = settings.globalHotkey,
+        region = settings.regionHotkey,
+        quickDict = settings.quickDictHotkey,
+        hover = settings.hoverHotkey,
+        hoverCycle = settings.hoverCycleHotkey,
+    )
+
     DisposableEffect(hotkeyService) {
         hotkeyService.start(
             settings.globalHotkey,
@@ -198,8 +213,8 @@ fun main(args: Array<String>) {
     // The effect runs after the hotkey effect, so a portal failure is already known when the script
     // is generated. Starting is all-or-nothing: no script without the service, no hover without the
     // script.
-    if (hoverBackendKind == HoverBackendKind.KWIN) {
-        val kwinIntegration = remember {
+    val kwinIntegration = remember {
+        if (hoverBackendKind == HoverBackendKind.KWIN) {
             KWinIntegration(
                 service = YabaiDbusService(
                     onCursorMoved = { x, y -> hoverOcrManager.onPointerMoved(Point(x, y)) },
@@ -208,20 +223,18 @@ fun main(args: Array<String>) {
                 bridge = KWinHoverBridge(),
                 fallbackShortcuts = {
                     if (hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE) {
-                        hotkeyBindings(
-                            fullScreen = settings.globalHotkey,
-                            region = settings.regionHotkey,
-                            quickDict = settings.quickDictHotkey,
-                            hover = settings.hoverHotkey,
-                            hoverCycle = settings.hoverCycleHotkey,
-                        )
+                        currentHotkeyBindings()
                     } else {
                         emptyList()
                     }
                 },
             )
+        } else {
+            null
         }
+    }
 
+    if (kwinIntegration != null) {
         DisposableEffect(kwinIntegration) {
             hoverBackendReady = kwinIntegration.start()
             if (!hoverBackendReady) {
@@ -464,6 +477,23 @@ fun main(args: Array<String>) {
                                     hoverCycle,
                                 )
                                 hotkeyStatus = hotkeyService.statusMessage
+
+                                // The portal and the KWin fallback are mutually exclusive. A failed
+                                // portal edit has just closed its old session, so KWin must receive
+                                // the new bindings immediately; a successful portal edit removes any
+                                // stale fallback left by an earlier failure.
+                                kwinIntegration?.let { integration ->
+                                    val fallback = if (hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE) {
+                                        hotkeyBindings(fullScreen, region, quickDict, hover, hoverCycle)
+                                    } else {
+                                        emptyList()
+                                    }
+                                    if (!integration.updateShortcuts(fallback)) {
+                                        hoverBackendReady = integration.isRunning
+                                        hoverBackendFailure = integration.statusMessage
+                                        hoverState.status = integration.statusMessage
+                                    }
+                                }
                             },
                             onManageDictionariesRequested = {
                                 mainDictInitialQuery = ""

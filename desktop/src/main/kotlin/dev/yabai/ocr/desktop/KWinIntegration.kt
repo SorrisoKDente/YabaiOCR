@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
+
 /**
  * Brings up the Wayland hover path in the right order: D-Bus object first, then the KWin script.
  *
@@ -16,33 +18,44 @@ internal class KWinIntegration(
     var statusMessage: String = ""
         private set
 
+    val isRunning: Boolean
+        get() = started && bridge.running
+
     fun start(): Boolean {
         if (started) return true
 
         if (!service.start()) {
-            val detail = service.lastError?.takeIf { it.isNotBlank() }
-            statusMessage = if (detail == null) {
-                "Não foi possível publicar o serviço D-Bus dev.yabai.Ocr."
-            } else {
-                "Não foi possível publicar o serviço D-Bus dev.yabai.Ocr ($detail)."
-            }
+            statusMessage = DesktopStrings.kwinDbusFailed(
+                service.lastError?.takeIf { it.isNotBlank() },
+            )
             return false
         }
 
         if (!bridge.start(fallbackShortcuts())) {
             service.stop()
-            val detail = bridge.lastError?.takeIf { it.isNotBlank() }
-            statusMessage = if (detail == null) {
-                "Não foi possível ativar o bridge do KWin."
-            } else {
-                "Não foi possível ativar o bridge do KWin ($detail)."
-            }
+            statusMessage = DesktopStrings.kwinBridgeFailed(
+                bridge.lastError?.takeIf { it.isNotBlank() },
+            )
             return false
         }
 
         started = true
-        statusMessage = "Hover e atalhos do KWin ativos."
+        statusMessage = DesktopStrings.kwinIntegrationActive
         return true
+    }
+
+    /** Reapplies the fallback shortcuts after the portal failed or after a shortcut edit. */
+    fun updateShortcuts(bindings: List<HotkeyBinding>): Boolean {
+        if (!started) return false
+        if (bridge.updateShortcuts(bindings)) {
+            statusMessage = DesktopStrings.kwinIntegrationActive
+            return true
+        }
+
+        statusMessage = DesktopStrings.kwinUpdateFailed(
+            bridge.lastError?.takeIf { it.isNotBlank() },
+        )
+        return false
     }
 
     fun stop() {

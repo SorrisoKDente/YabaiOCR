@@ -36,6 +36,24 @@ class LinuxDesktopEntryTest {
     }
 
     @Test
+    fun `the app entry authorizes the silent kwin capture interface`() {
+        val entry = applicationDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage")
+
+        assertTrue(
+            entry.contains("X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2"),
+        )
+    }
+
+    @Test
+    fun `the hidden authorization entry points at the running binary`() {
+        val entry = screenshotAuthorizationDesktopEntry("/tmp/.mount_Yabai/yabai-ocr")
+
+        assertTrue(entry.contains("Exec=\"/tmp/.mount_Yabai/yabai-ocr\""))
+        assertTrue(entry.contains("NoDisplay=true"))
+        assertTrue(entry.contains("X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2"))
+    }
+
+    @Test
     fun `candidate order prefers the running appimage then the jpackage path`() {
         val candidates = linuxExecutableCandidates(
             env = mapOf("APPIMAGE" to "/home/deck/Applications/Yabai.AppImage"),

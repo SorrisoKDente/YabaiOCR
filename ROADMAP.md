@@ -4231,8 +4231,8 @@ proposta pelo app e confirmada (ou trocada) pelo usuário no diálogo do sistema
   diálogo do sistema pode esperar o usuário). A sessão é criada uma vez e reaproveitada na edição.
 - `Main.kt` + `SettingsWindow.kt`: os atalhos passam pelo `HotkeyService` e a tela de Ajustes mostra
   qual backend está ativo (ou o motivo da indisponibilidade).
-- `desktop/build.gradle.kts`: dependências `dbus-java-core` e `dbus-java-transport-native-unixsocket`
-  5.1.1 (mesma biblioteca que a P4 usa para o serviço de hover).
+- `desktop/build.gradle.kts`: dependências `dbus-java-core` e um transporte UNIX 5.1.1 (mesma
+  biblioteca que a P4 usa para o serviço de hover; a D44 trocou o transporte para junixsocket).
 
 **Causa raiz.** Não havia seleção de backend: `Main` instanciava o JNativeHook direto em qualquer SO.
 No Wayland ele não falha de forma visível — apenas não recebe tecla nenhuma —, então o usuário ficava
@@ -4822,3 +4822,167 @@ do build vem de `-PyabaiVersion=<tag>`: `packageVersion`, nome do zip/tar e `YAB
 AppImage, além de `iscc /DMyAppVersion`. Sem a flag, continua `1.0.0`.
 
 **Resultado.** `:desktop` 265 testes, 0 falhas, 3 pulados (GUI e D-Bus sem sessão).
+
+### D44 — Menu da bandeja no KDE, atalhos aplicados na hora e hover sem diálogo  `[x]` (12/11/2026)
+
+**Relato.** No KDE Wayland/Steam Deck o menu da bandeja só fechava às vezes ao clicar fora; um atalho
+editado continuava disparando a combinação antiga; e o hover demorava e voltava a pedir permissão de
+tela. Windows, X11, GNOME e Android não podiam mudar.
+
+**Causa raiz do menu.** No Wayland o app publicava o `StatusNotifierItem`, mas o único menu era o
+`ContextMenu(x,y)` que abria um `JPopupMenu` Swing dentro de um invólucro cuja janela não recebe foco
+de forma confiável no Plasma. O clique fora chegava ao compositor, não ao popup Java; quando o foco
+era perdido, o menu fechava, e quando não era, ficava aberto. Não era um problema de posição: era o
+host errado desenhando/fechando o menu.
+
+**Causa raiz dos atalhos.** `PortalGlobalShortcuts.update` reutilizava a sessão/transporte já criado.
+Depois de uma falha de `start` (`UNAVAILABLE`), `HotkeyService.updateHotkeys` chamava `backend.update`
+num backend sem sessão viva; a edição era aceita na UI, mas o portal continuava com o bind antigo. O
+fallback KWin também só era escrito no início, então o script mantinha as combinações anteriores.
+
+**Causa raiz do hover.** O caminho KDE era o portal `org.freedesktop.portal.Screenshot` com
+`interactive=false`. No KDE isso **não** é silencioso: cada chamada pode criar/apresentar um
+`QuickDialog`, e o hover paga esse diálogo e o PNG do workspace inteiro a cada captura.
+
+**Correção.**
+- `DbusMenu.kt` publica `com.canonical.dbusmenu` no `SNI_MENU_PATH`: `GetLayout`,
+  `GetGroupProperties`, `GetProperty`, `Event`, `EventGroup`, `AboutToShow` e `AboutToShowGroup`.
+  O Plasma pede o layout, desenha o menu e o fecha nativamente. `ContextMenu()`/Swing continuam como
+  fallback para hosts sem DBusMenu. O layout usa wrappers `DBusSerializable` (`DbusMenuLayout`,
+  `DbusMenuAboutToShow`) em volta de payloads `Struct`, porque o dbus-java 5.1.1 não exporta campos
+  `Map`/`List` crus de struct retornado.
+- `PortalGlobalShortcuts.update` cria uma **sessão nova** e só fecha a antiga depois do bind novo.
+  Se o bind falhar, fecha a candidata e também a antiga, para não deixar atalho fantasma; se não houver
+  atalhos representáveis, fecha a sessão e devolve indisponível.
+- `HotkeyService.updateHotkeys` volta a chamar `start` quando `activeKind == UNAVAILABLE`, expõe
+  `lastError` e marca `UNAVAILABLE` em falha.
+- `KWinHoverBridge.updateShortcuts` regrava e recarrega o script quando a combinação muda; se o KWin
+  recusar, restaura o script anterior. `KWinIntegration.updateShortcuts`/`isRunning` e `Main.kt`
+  reaplicam ou limpam o fallback quando os atalhos são editados.
+- `KWinScreenshotCapture.kt` usa `org.kde.KWin.ScreenShot2` (`CaptureWorkspace` e `CaptureArea`) por
+  FD, converte o QImage cru `RGBX8888`/`RGBA8888` com `stride` e mantém o portal `Screenshot` como
+  fallback. `KdeWaylandCapture` desativa o caminho direto depois da primeira falha e passa ao portal.
+- O transporte D-Bus é `dbus-java-transport-junixsocket:5.1.1`, não o
+  `dbus-java-transport-native-unixsocket`: o transporte nativo do JDK (JEP 380) não envia
+  `SCM_RIGHTS`, então o FD do `ScreenShot2` nunca chegaria ao KWin e a captura cairia no portal com
+  diálogo. O junixsocket implementa o `ISocketProvider` com `FileDescriptorCast` nativo;
+  `KWinScreenshotCapture` usa esse caminho, sem refletir em `java.io.FileDescriptor.fd` e sem
+  `--add-opens`.
+- Mensagens novas do KWin entraram em `DesktopStrings` nos dois idiomas. README, ARCHITECTURE,
+  LINUX e STEAMOS foram reconciliados com o novo caminho.
+
+**Testes e mutações.** A suíte `:desktop:test` fechou em **287 testes, 3 pulados, 0 falhas** (JDK 21).
+As provas de mutação usaram `/tmp/opencode/mutation-proof.py`; 10 foram capturadas no script. As de
+`serialize()` vazio, do `GetLayout` sem `u revision` e a do transporte UNIX sem suporte a FD
+exigiram `--rerun-tasks` por cache incremental do Gradle, falhando então no teste/smoke indicado.
+Todas as restaurações tiveram SHA-256 igual e o teste focado voltou verde.
+
+| mutação | teste que acusou |
+| --- | --- |
+| rebind reutiliza a sessão antiga | `PortalGlobalShortcutsTest` |
+| rebind recusado deixa a sessão antiga viva | `PortalGlobalShortcutsTest` |
+| edição depois de `UNAVAILABLE` não tenta `start` | `HotkeyBackendSelectionTest` |
+| script KWin não é reescrito quando o atalho muda | `KWinHoverBridgeTest` |
+| KDE Wayland volta ao screencast | `ScreenCaptureBackendTest` |
+| conversão raw troca R/B | `KWinScreenshotCaptureTest` |
+| falha do `ScreenShot2` não cai no portal | `KWinScreenshotCaptureTest` |
+| SNI anuncia caminho de menu errado | `StatusNotifierTrayTest` |
+| DBusMenu serializa layout vazio | `StatusNotifierDbusSmokeTest` |
+| `GetLayout` devolve só o struct, sem `u revision` | `DbusMenuTest` / `StatusNotifierDbusSmokeTest` |
+| DBusMenu perde os filhos do nó raiz | `DbusMenuTest` |
+| `KWinIntegration` ignora o resultado do bridge | `KWinIntegrationTest` |
+| transporte UNIX sem suporte a FD no classpath | `KWinScreenshotCaptureTest` |
+
+**Evidência.** `:desktop:test` verde em 12/11/2026 com 287 testes; o smoke
+`StatusNotifierDbusSmokeTest` conversa com um barramento D-Bus real usando o transporte junixsocket e
+valida `layout.id`, `revision`, quantidade de filhos, a assinatura `(ia{sv}av)` e `AboutToShowGroup`
+devolvendo os dois `ai`. O teste do watcher continua pulado no sandbox porque o barramento filtrado
+recusa nomes privados de watcher; o smoke de DBusMenu usa o nome único do processo. A conversão real
+de FD foi conferida com `FileDescriptorCast.using(raf.fd).as(Integer.class)` no JDK 21 sem
+`--add-opens`: devolve `fd=6`. O provider junixsocket reporta
+`CAPABILITY_FILE_DESCRIPTORS=true`, `CAPABILITY_UNSAFE=true` e
+`isFileDescriptorPassingSupported()=true`; com o transporte nativo antigo o mesmo caminho não teria
+`SCM_RIGHTS`.
+
+**Limitações.** O sandbox Flatpak do OpenCode não vê a sessão gráfica do host nem o
+`org.kde.KWin.ScreenShot2`/portal `GlobalShortcuts` reais. A validação visual (menu fechando sempre,
+atalho novo sem reiniciar, hover sem diálogo e captura HiDPI) depende de rodar o AppImage no Desktop
+Mode e segue o roteiro de `LINUX.md` §13.4. Nada foi commitado.
+
+### D45 — Hover silencioso no KDE, atalho novo valendo na hora e script KWin obsoleto  `[x]` (13/11/2026)
+
+**Relato.** Depois de gerar um AppImage novo: o hover demorava e abria uma janela «Portal» na barra de
+tarefas a cada leitura; um atalho editado continuava sem funcionar; e, ao fechar e abrir o app, o hover
+mostrava «Could not activate the KWin bridge (o KWin bridge recusou carregar o script…)». Seleção de
+região e captura de tela inteira seguiam rápidas.
+
+**Causa raiz do hover.** O `org.kde.KWin.ScreenShot2` do KWin 6.7.3 recusa quem não está autorizado:
+`ScreenShotDBusInterface2::checkPermissions` lê `X-KDE-DBUS-Restricted-Interfaces` da entrada
+`.desktop` cujo `Exec` — canonicalizado — é igual a `/proc/<pid>/exe` (`utils/serviceutils.h`). O app
+nunca escrevia essa entrada, então toda captura direta voltava
+`org.kde.KWin.ScreenShot2.Error.NoAuthorized` e o `KdeWaylandCapture` passava ao portal `Screenshot`
+— que no KDE cria um `QuickDialog` por chamada (a janela «Portal») e devolve o workspace inteiro em
+PNG. Como o código desativava o caminho direto **para sempre** depois da primeira recusa, o hover
+ficava no portal até reiniciar. Havia ainda um segundo defeito escondido atrás do primeiro: o KWin
+responde com `format = 6` (`QImage::Format_ARGB32_Premultiplied`, bytes B,G,R,A) e o
+`kwinRawImage` só aceitava 16/17 (RGBX/RGBA), ou seja, mesmo autorizado o caminho direto falharia e
+voltaria ao portal.
+
+**Causa raiz dos atalhos.** O fallback KWin registra as combinações via `registerShortcut` dentro do
+script, e o KGlobalAccel guarda o valor que já conhece para a ação — `registerShortcut` só fornece o
+*default*. O `kglobalshortcutsrc` mostrava `yabaiOcrQuickDict=Ctrl+Shift+O,none,…` enquanto o script
+em disco já tinha `Ctrl+Shift+D`: recarregar o script não mudava o valor ativo. Além disso,
+`KWinHoverBridge.updateShortcuts` retornava cedo quando o arquivo do script já estava com o conteúdo
+desejado — exatamente o estado em que a UI mostra o atalho novo e o teclado continua no antigo.
+
+**Causa raiz do bridge.** `org.kde.kwin.Scripting.loadScript(path, pluginName)` devolve `-1` quando já
+existe um script carregado com aquele nome (medido no host: `i 1` na primeira chamada, `i -1` na
+segunda). Depois de fechar o app sem descarregar (ou de um encerramento abrupto), o script antigo
+continuava no KWin e a nova instância interpretava o `-1` como «o KWin recusou carregar o script».
+
+**Correção.**
+- `LinuxDesktopEntry`/`LinuxSystemIntegration`: a entrada visível passa a declarar
+  `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`, e o app grava no início (KDE Wayland)
+  uma entrada oculta `yabai-ocr-screenshot.desktop` cujo `Exec` é `/proc/self/exe` — o binário que o
+  KWin compara. Para o AppImage isso é o runtime extraído em `/tmp/.mount_*`, por isso a entrada é
+  reescrita a cada início e mantida separada da entrada do menu.
+- `KWinScreenshotCapture`: `rawChannelOrder` mapeia `RGB32`/`ARGB32`/`ARGB32_Premultiplied`/`BGRA8888`
+  como B,G,R,A e mantém 16/17 como R,G,B; formato desconhecido continua recusado (nunca adivinhar
+  canal). `KdeWaylandCapture` troca o desligamento permanente por um cooldown de 10 s, para o índice
+  do KWin (`KSycoca`) poder alcançar a entrada recém-gravada; uma captura direta bem-sucedida zera o
+  cooldown.
+- `KGlobalAccel.kt`: cliente D-Bus mínimo (`unregister(component, action)`) usado pelo
+  `KWinHoverBridge` para esquecer as ações `kwin/yabaiOcr*` antes de recarregar o script, o que faz o
+  reload aplicar as combinações novas. `updateShortcuts` só dispensa o reload quando não há fallback e
+  o script já está igual.
+- `KWinHoverBridge.start` descarrega um script com o mesmo nome antes de carregar; `stop` fecha também
+  a conexão do KGlobalAccel.
+
+**Testes e mutações.** `:desktop:test` fechou em **296 testes, 0 falhas, 1 pulado** no Steam Deck
+(KDE Wayland real), em três execuções seguidas. Testes novos: formato `ARGB32_Premultiplied` (6),
+retry depois do cooldown, script obsoleto descarregado, limpeza do KGlobalAccel no início e na edição,
+edição com arquivo já atual ainda recarregando, e as entradas `.desktop` (chave do KWin + entrada
+oculta). Provas de mutação, todas restauradas com SHA-256 idêntico:
+
+| mutação | teste que acusou |
+| --- | --- |
+| formato 6 decodificado como R,G,B | `KWinScreenshotCaptureTest` |
+| caminho direto desligado para sempre | `KWinScreenshotCaptureTest` |
+| script obsoleto não é descarregado | `KWinHoverBridgeTest` |
+| edição dispensada quando o arquivo já está igual | `KWinHoverBridgeTest` |
+| bindings do KGlobalAccel não são esquecidos | `KWinHoverBridgeTest` |
+
+**Evidência.** No host (Plasma 6.7.3, KWin 6.7.3): `busctl … ScreenShot2.CaptureArea` sem entrada
+autorizada devolve `Error.NoAuthorized`; com uma entrada cujo `Exec` casa com `/proc/<pid>/exe` a
+mesma chamada devolve `{'format': <uint32 6>, 'width': 100, 'height': 100, 'stride': 400}` e grava
+40 000 bytes. O transporte real do app (`DbusKWinScreenshotTransport`) capturou `200x100` em **68 ms**
+sem diálogo, com 12 cores distintas e canais na ordem certa. `kglobalshortcutsrc` tinha
+`yabaiOcrQuickDict=Ctrl+Shift+O,none,…` com o script em `Ctrl+Shift+D`; após `unregister` + reload o
+valor passou a `Ctrl+Shift+D` e `shortcut()` devolveu `0x06000044`. `loadScript` devolveu `i 1` e, na
+chamada seguinte com o mesmo nome, `i -1`.
+
+**Limitações.** O hover não foi exercitado ponta a ponta com o app rodando (a janela/ponteiro do
+usuário não foram manipulados); a autorização real do pacote depende de o KWin indexar a entrada
+oculta, o que o cooldown cobre mas não elimina na primeira leitura. O nome de componente do
+KGlobalAccel (`kwin`) foi confirmado no KDE 6.7.3; outro compositor/versão que use outro nome apenas
+mantém o comportamento antigo (a limpeza não encontra a ação). Nada foi commitado.

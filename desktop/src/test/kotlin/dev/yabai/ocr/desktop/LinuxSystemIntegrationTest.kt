@@ -96,4 +96,37 @@ class LinuxSystemIntegrationTest {
             defaultDataHome(mapOf("XDG_DATA_HOME" to "  "), "/home/deck"),
         )
     }
+
+    @Test
+    fun `screenshot authorization writes only the hidden entry for the running executable`() {
+        val dataHome = tempDir()
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { "/home/deck/Applications/Yabai.AppImage" },
+            runningExecutable = { "/tmp/.mount_Yabai/yabai-ocr" },
+            iconBytes = { byteArrayOf(1) },
+        )
+
+        assertTrue(integration.ensureScreenshotAuthorization())
+
+        val entry = integration.authorizationDesktopFile.readText()
+        assertTrue(entry.contains("Exec=\"/tmp/.mount_Yabai/yabai-ocr\""))
+        assertTrue(entry.contains("X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2"))
+        // The menu entry is a different concern and must not be created by this call.
+        assertFalse(integration.desktopFile.exists())
+    }
+
+    @Test
+    fun `screenshot authorization without a running binary writes nothing`() {
+        val dataHome = tempDir()
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { null },
+            runningExecutable = { null },
+            iconBytes = { null },
+        )
+
+        assertFalse(integration.ensureScreenshotAuthorization())
+        assertFalse(integration.authorizationDesktopFile.exists())
+    }
 }

@@ -152,10 +152,12 @@ class PortalGlobalShortcutsTest {
     }
 
     @Test
-    fun `editing a shortcut rebinds on the same session`() {
-        val transport = FakeTransport()
-        val backend = PortalGlobalShortcuts(HotkeyCallbacks(), { transport })
-        backend.start(bindings())
+    fun `editing a shortcut creates a new session and closes the old one`() {
+        val first = FakeTransport()
+        val second = FakeTransport()
+        val transports = ArrayDeque(listOf(first, second))
+        val backend = PortalGlobalShortcuts(HotkeyCallbacks(), { transports.removeFirstOrNull() })
+        assertTrue(backend.start(bindings()))
 
         val updated = backend.update(
             hotkeyBindings(
@@ -168,9 +170,36 @@ class PortalGlobalShortcutsTest {
         )
 
         assertTrue(updated)
-        assertEquals(2, transport.binds.size)
-        assertEquals("CTRL+ALT+1", transport.binds.last().second.first().preferredTrigger)
-        assertEquals(1, transport.createdSessions)
+        assertEquals(1, first.binds.size)
+        assertEquals(1, second.createdSessions)
+        assertEquals(1, second.binds.size)
+        assertEquals("CTRL+ALT+1", second.binds.single().second.first().preferredTrigger)
+        assertTrue("the old portal session must not keep the old shortcut", first.closed)
+        assertFalse(second.closed)
+    }
+
+    @Test
+    fun `a refused rebind closes the old session instead of leaving stale shortcuts`() {
+        val first = FakeTransport()
+        val refused = FakeTransport(bindResult = false)
+        val transports = ArrayDeque(listOf(first, refused))
+        val backend = PortalGlobalShortcuts(HotkeyCallbacks(), { transports.removeFirstOrNull() })
+        assertTrue(backend.start(bindings()))
+
+        val updated = backend.update(
+            hotkeyBindings(
+                fullScreen = "Ctrl + Alt + 1",
+                region = "Ctrl + Shift + A",
+                quickDict = "Ctrl + Shift + D",
+                hover = "Ctrl + Shift + H",
+                hoverCycle = "Ctrl + Shift + X",
+            ),
+        )
+
+        assertFalse(updated)
+        assertTrue("old bindings must stop firing", first.closed)
+        assertTrue("the refused candidate is cleaned up", refused.closed)
+        assertFalse(backend.update(bindings()))
     }
 
     @Test

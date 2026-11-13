@@ -21,7 +21,7 @@ completo está em [LINUX.md](LINUX.md).
 | espaço | ~1 GB para o app + dados | dicionários podem ocupar mais |
 | FUSE | `libfuse.so.2` | só é necessário se você usar o `.AppImage`; o pacote `.tar.gz` não usa FUSE |
 | portal | `xdg-desktop-portal` + `xdg-desktop-portal-kde` | captura de tela e atalhos globais |
-| PipeWire | `pipewire` + `wireplumber` | usado pelo `ScreenCast` de outros desktops; o KDE captura pelo portal `Screenshot` |
+| PipeWire | `pipewire` + `wireplumber` | usado pelo `ScreenCast` de outros desktops; o KDE captura pelo `ScreenShot2` (portal `Screenshot` como fallback) |
 | fontes | Noto CJK | o SteamOS já traz; validar com `fc-list :lang=ja` |
 | Java | **não precisa** | o runtime JDK 21 vai embutido no pacote |
 
@@ -58,13 +58,15 @@ Confira o portal, o PipeWire e o FUSE:
 ```bash
 busctl --user introspect org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \
   | grep -E 'Screenshot|GlobalShortcuts' || true
+busctl --user introspect org.kde.KWin.ScreenShot2 /org/kde/KWin/ScreenShot2 2>/dev/null || true
 
 pactl info | grep -i "server name" || true
 ldconfig -p | grep libfuse.so.2 || true
 fc-list :lang=ja | head -n 3
 ```
 
-O ideal é ver `Screenshot` e `GlobalShortcuts`, um servidor PipeWire e `libfuse.so.2`. Se algo faltar,
+O ideal é ver `ScreenShot2` (captura direta), `Screenshot` (fallback) e `GlobalShortcuts`, um servidor
+PipeWire e `libfuse.so.2`. Se algo faltar,
 veja §5.
 
 ---
@@ -128,13 +130,20 @@ chmod +x ~/Applications/yabai-ocr/bin/yabai-ocr
 ~/Applications/yabai-ocr/bin/yabai-ocr
 ```
 
-Na primeira captura de tela, o KDE pergunta **«Permitir que aplicativos tirem capturas de tela?»**.
-Clique em **Permitir** uma vez. O portal grava essa permissão (não é um *restore token* do JDK) e as
-capturas seguintes, inclusive as do hover, não abrem mais o diálogo. A permissão fica ligada à
-identidade/caminho do AppImage; se você mover ou renomear o arquivo, o KDE pode pedir de novo. Se
-você negar, o app mostra
-“permissão de captura negada”; reautorize no diálogo do sistema ou nas configurações de privacidade
-do KDE.
+No KDE Wayland a captura usa `org.kde.KWin.ScreenShot2` e não abre o diálogo do portal. Se essa
+interface não estiver disponível ou falhar, o app cai para o portal `Screenshot`; nesse fallback o
+KDE pode mostrar **«Permitir que aplicativos tirem capturas de tela?»** (um `QuickDialog` por
+chamada, não uma autorização única silenciosa). A permissão do portal fica ligada à
+identidade/caminho do AppImage; se você mover ou renomear o arquivo, o KDE pode pedir de novo. Se o
+fallback for negado, o app mostra “permissão de captura negada”; reautorize no diálogo do sistema ou
+nas configurações de privacidade do KDE.
+
+No KDE Wayland o app também grava `~/.local/share/applications/yabai-ocr-screenshot.desktop` a cada
+início. É uma entrada oculta (`NoDisplay=true`) cuja única função é autorizar
+`org.kde.KWin.ScreenShot2` para o binário que está rodando: o KWin só aceita a captura direta de quem
+tem `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` numa entrada cujo `Exec` seja o
+próprio `/proc/<pid>/exe`. Sem ela a captura cai no portal `Screenshot`, que no Plasma abre um
+diálogo de permissão (a janela «Portal») a cada chamada — e é isso que deixava o hover lento.
 
 Para testar sem misturar seus dados:
 
@@ -226,10 +235,12 @@ verifique se o backend KDE está ativo:
 ```bash
 busctl --user introspect org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \
   | grep -E 'Screenshot|GlobalShortcuts' || true
+busctl --user introspect org.kde.KWin.ScreenShot2 /org/kde/KWin/ScreenShot2 2>/dev/null || true
 ```
 
-Sem `ScreenCast`, a captura não funciona. Sem `GlobalShortcuts`, o app mostra “atalhos indisponíveis”
-e usa o fallback do KWin (no KDE) ou mantém as ações no menu da bandeja.
+Sem `ScreenShot2` (ou o portal `Screenshot` como fallback), a captura não funciona. Sem
+`GlobalShortcuts`, o app mostra “atalhos indisponíveis” e usa o fallback do KWin (no KDE) ou mantém
+as ações no menu da bandeja.
 
 ### 5.3 Fontes japonesas
 
@@ -330,7 +341,8 @@ Não prometa hover/atalhos nessa sessão.
 | --- | --- | --- |
 | `~/Applications/Yabai_OCR-*.AppImage` | executável | apague o arquivo |
 | `~/.yabai_ocr/` | ajustes, dicionários, cache | apague a pasta |
-| `~/.local/share/applications/yabai-ocr.desktop` | atalho do menu | “Integrar” ou apague |
+| `~/.local/share/applications/yabai-ocr.desktop` | atalho do menu (declara a interface do KWin) | “Integrar” ou apague |
+| `~/.local/share/applications/yabai-ocr-screenshot.desktop` | entrada oculta que autoriza o `ScreenShot2` no binário em execução | apague; o app regrava no próximo início |
 | `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png` | ícone | apague |
 | `~/.config/autostart/yabai-ocr.desktop` | início automático | desligue o toggle ou apague |
 | `~/.local/share/kwin/scripts/yabai-ocr/` | script KWin do hover | apague; o app reinstala |
@@ -349,6 +361,9 @@ rm -f ~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png
 
 # autostart
 rm -f ~/.config/autostart/yabai-ocr.desktop
+
+# entrada oculta de autorização da captura
+rm -f ~/.local/share/applications/yabai-ocr-screenshot.desktop
 
 # script do hover
 rm -rf ~/.local/share/kwin/scripts/yabai-ocr
@@ -371,14 +386,17 @@ rm -f ~/Applications/Yabai_OCR-*.AppImage
 | --- | --- | --- |
 | `Permission denied` ao abrir | AppImage sem bit de execução | `chmod +x` no arquivo |
 | `error loading libfuse.so.2` | FUSE 2 ausente | `--appimage-extract-and-run` ou instale `fuse2` (§5.4) |
-| “Não foi possível publicar o serviço D-Bus dev.yabai.Ocr” | runtime empacotado sem os módulos `jdk.net` e/ou `jdk.security.auth` (build antigo) | use o pacote atual; confira `lib/runtime/release` e garanta que ele lista `jdk.net` **e** `jdk.security.auth` |
+| “Não foi possível publicar o serviço D-Bus dev.yabai.Ocr” | runtime empacotado sem `jdk.security.auth` ou sem as bibliotecas nativas do `junixsocket` (build antigo) | use o pacote atual; confira `jdk.security.auth` em `lib/runtime/release` e os jars `junixsocket-*` em `lib/app` |
 | atalhos aparecem como ativos, mas não disparam | portal devolve `session_handle`/`Activated` como object path; build antigo lia como texto | use o pacote atual (correção D35); confira o status em Ajustes |
 | clique direito na bandeja não abre o menu | build antigo usava `TrayIcon` AWT/XEmbed; o Plasma Wayland não entrega o clique ao processo Java | use o build atual (StatusNotifierItem, correção D36); confirme `org.kde.StatusNotifierItem-<pid>-1` em `busctl --user list` |
-| menu da bandeja não fecha ao clicar fora | invólucro do menu não recebia foco no Wayland | use o build atual (correção D37); clique fora ou pressione Esc |
+| menu da bandeja não fecha ao clicar fora | build antigo desenhava o menu Swing num invólucro sem foco | use o build atual (DBusMenu, correção D44); o Plasma desenha e fecha o menu nativamente |
 | bandeja não aparece no KDE | `org.kde.StatusNotifierWatcher` ausente ou app iniciado antes do Plasma | reinicie o app no Desktop Mode; se persistir, abra sem `--minimized` e veja o log |
 | `packageAppImage` não gera `.AppImage` | o Compose 1.7 mapeia esse alvo para uma pasta | use `:desktop:packageLinuxAppImage` ou `:desktop:packagePortableTarGz` |
-| captura preta ou “permissão negada” | portal `Screenshot` ausente ou permissão negada | §5.2; confirme `XDG_SESSION_TYPE=wayland`, o backend KDE e permita a captura uma vez |
+| captura preta ou “permissão negada” | `ScreenShot2` e portal `Screenshot` indisponíveis, ou fallback negado | §5.2; confirme `XDG_SESSION_TYPE=wayland`, o backend KDE e, se o fallback for usado, permita a captura |
 | hover “indisponível” | sessão não é KDE Wayland, ou script KWin não carregou | use Desktop Mode/Plasma; veja o status nos Ajustes; confira `~/.local/share/kwin/scripts/yabai-ocr/` |
+| janela «Portal» aparece e o hover demora a cada leitura | o `ScreenShot2` recusou o app (`Error.NoAuthorized`) e a captura caiu no portal `Screenshot` | use o build atual (D45); confirme `ls ~/.local/share/applications/yabai-ocr-screenshot.desktop` e que o caminho em `Exec=` é o binário em execução (`readlink /proc/<pid>/exe`); depois de mover/renomear o AppImage, reinicie o app para regravar a entrada |
+| atalho novo (ex.: busca rápida) não dispara, o antigo continua | o KGlobalAccel mantinha a combinação anterior daquele fallback do KWin | use o build atual (D45); se persistir, rode `kbuildsycoca6` uma vez ou reinicie o app para reaplicar o fallback |
+| “o KWin bridge recusou carregar o script” ao reabrir o app | o script da execução anterior continuou carregado no KWin | use o build atual (D45), que descarrega o script obsoleto antes de carregar; se aparecer mesmo assim, reinicie a sessão do Plasma |
 | atalhos “indisponíveis” | portal `GlobalShortcuts` ausente | no KDE o fallback KWin assume; fora do KDE use a bandeja |
 | bandeja não aparece | StatusNotifier ausente (Game Mode/GNOME) | abra sem `--minimized`; o app mostra a janela |
 | app “invisível” após `--minimized` | a bandeja falhou | abra sem a flag; o fallback abre a janela |

@@ -40,11 +40,14 @@ internal interface ScreenshotPortalTransport {
 /**
  * KDE Wayland capture through `org.freedesktop.portal.Screenshot` with `interactive=false`.
  *
- * This deliberately does not use `Robot`'s ScreenCast path. JDK-8396405 makes AWT reject KDE's
- * restore token unless it looks like a UUID; the token never matches, so every capture opens a new
- * ScreenCast session and the compositor asks for the screen again. The Screenshot portal has a
- * separate, persistent `screenshot` permission: the first call asks once ("Allow Apps to Take
- * Screenshots?"), the portal stores the answer and later calls capture silently.
+ * This is the compatibility fallback behind [KdeWaylandCapture]. It deliberately does not use
+ * `Robot`'s ScreenCast path: JDK-8396405 makes AWT reject KDE's restore token unless it looks like a
+ * UUID; the token never matches, so every capture opens a new ScreenCast session and the compositor
+ * asks for the screen again.
+ *
+ * The `interactive=false` option does not make KDE capture silently: Plasma creates and presents a
+ * `QuickDialog` permission window for every call. That is why the direct ScreenShot2 path is
+ * preferred and this portal is only used when the compositor does not expose it.
  *
  * The portal always captures the whole workspace, so this backend crops the requested rectangle
  * from that image. On a single-monitor Steam Deck the crop is the whole screen.

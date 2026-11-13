@@ -10,13 +10,12 @@ internal fun captureBackendFor(
     robot: ScreenCaptureBackend,
     screencast: ScreenCaptureBackend,
     desktop: DesktopFamily = DesktopFamily.UNKNOWN,
-    kdeScreenshot: ScreenCaptureBackend = screencast,
+    kdeCapture: ScreenCaptureBackend = screencast,
 ): ScreenCaptureBackend = when {
-    // KDE has a non-interactive Screenshot portal that asks for a persistent permission once.
-    // Robot's ScreenCast path would reopen the "choose a screen" dialog on every capture because
-    // JDK-8396405 rejects KDE's non-UUID restore token.
+    // KDE's own ScreenShot2 interface is non-interactive. The Screenshot portal stays behind it as a
+    // compatibility fallback because KDE presents a permission dialog for every portal capture.
     family == OsFamily.LINUX && session == SessionType.WAYLAND &&
-        desktop == DesktopFamily.KDE -> kdeScreenshot
+        desktop == DesktopFamily.KDE -> kdeCapture
     family == OsFamily.LINUX && session == SessionType.WAYLAND -> screencast
     else -> robot
 }
@@ -35,6 +34,6 @@ internal object PlatformServices {
         robot = RobotScreenCapture,
         screencast = ScreencastScreenCapture(),
         desktop = DesktopPlatform.desktop,
-        kdeScreenshot = PortalScreenshotCapture(),
+        kdeCapture = KdeWaylandCapture(),
     )
 }

@@ -39,8 +39,7 @@ internal object KWinScript {
     internal fun fallbackShortcutBlock(bindings: List<HotkeyBinding>): String {
         val lines = bindings.mapNotNull { binding ->
             val trigger = toKWinShortcut(binding.configured) ?: return@mapNotNull null
-            val functionName = "yabaiOcr" + binding.id.split('-', '_')
-                .joinToString("") { part -> part.replaceFirstChar { it.uppercase() } }
+            val functionName = kwinShortcutActionName(binding.id)
             "registerShortcut(\"$functionName\", \"${escapeJs(binding.description)}\", " +
                 "\"$trigger\", () => notifyShortcut(\"${binding.id}\"));"
         }
@@ -86,6 +85,13 @@ internal object KWinScript {
     private fun escapeJs(text: String): String =
         text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
 }
+
+/**
+ * `KGlobalAccel` action name for a fallback shortcut. Shared with the cleanup call, otherwise the
+ * app would try to forget a name KWin never registered.
+ */
+internal fun kwinShortcutActionName(id: String): String =
+    "yabaiOcr" + id.split('-', '_').joinToString("") { part -> part.replaceFirstChar { it.uppercase() } }
 
 /**
  * Converts the stored shortcut to the QKeySequence string `registerShortcut` expects.

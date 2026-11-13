@@ -49,6 +49,19 @@ class StatusNotifierTrayTest {
     }
 
     @Test
+    fun `the item advertises a dbus menu without forcing the host to call context menu`() {
+        val item = StatusNotifierItem(
+            onActivate = {},
+            onSecondaryActivate = {},
+            onContextMenu = { _, _ -> },
+            currentStatus = { "" },
+        )
+
+        assertEquals(SNI_MENU_PATH, item.getMenu().path)
+        assertFalse(item.getItemIsMenu())
+    }
+
+    @Test
     fun `the icon is argb32 in network byte order`() {
         val image = BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB)
         image.setRGB(0, 0, 0xFFFF0000.toInt()) // opaque red

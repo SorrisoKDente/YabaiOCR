@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.io.File
 import org.freedesktop.dbus.annotations.DBusInterfaceName
 import org.freedesktop.dbus.annotations.DBusMemberName
@@ -37,8 +38,10 @@ internal interface KWinScriptHost {
 internal class KWinHoverBridge(
     private val hostFactory: () -> KWinScriptHost? = { DbusKWinScriptHost() },
     private val scriptDirectory: File = kwinScriptDirectory(),
+    private val accelFactory: () -> KGlobalAccelShortcuts? = { DbusKGlobalAccelShortcuts() },
 ) {
     private var host: KWinScriptHost? = null
+    private var accel: KGlobalAccelShortcuts? = null
 
     var running: Boolean = false
         private set
@@ -65,11 +68,20 @@ internal class KWinHoverBridge(
             return false
         }
 
+        // A previous run may have left the script loaded (crash, killed process). KWin refuses to
+        // load a second script with the same plugin name and answers -1, which the user saw as
+        // "o KWin bridge recusou carregar o script" after reopening the app. Unload it first.
+        if (runCatching { created.isLoaded(KWinScript.PLUGIN_NAME) }.getOrDefault(false)) {
+            runCatching { created.unload(KWinScript.PLUGIN_NAME) }
+        }
+
         val files = runCatching { KWinScript.install(scriptDirectory, fallbackShortcuts) }.getOrElse { error ->
-            lastError = "não foi possível gravar o script: ${error.describe()}"
+            lastError = DesktopStrings.kwinScriptWriteFailed(error.describe())
             runCatching { created.close() }
             return false
         }
+
+        forgetFallbackShortcuts(fallbackShortcuts)
 
         val script = files.firstOrNull { it.name == "main.js" }
         if (script == null || !created.loadScript(script.absolutePath, KWinScript.PLUGIN_NAME)) {
@@ -92,8 +104,91 @@ internal class KWinHoverBridge(
     fun stop() {
         runCatching { host?.unload(KWinScript.PLUGIN_NAME) }
         runCatching { host?.close() }
+        runCatching { accel?.close() }
         host = null
+        accel = null
         running = false
+    }
+
+    /**
+     * Rewrites the installed script with a new fallback-shortcut block and reloads it in KWin.
+     *
+     * KWin only reads `registerShortcut` when the script starts, so changing the fallback requires a
+     * reload. If the new script cannot start, the previous one is restored: losing the pointer bridge
+     * would also lose hover, which is worse than keeping the old shortcut until the next edit.
+     */
+    fun updateShortcuts(fallbackShortcuts: List<HotkeyBinding>): Boolean {
+        if (!running) return false
+        val active = host ?: return false
+        lastError = null
+
+        val scriptFile = File(scriptDirectory, "code/main.js")
+        val desired = KWinScript.mainScript(fallbackShortcuts)
+        // Only the "nothing to register and nothing to undo" case can skip the reload. When the user
+        // edits a shortcut, the file and KGlobalAccel may already disagree — that is exactly the
+        // state where the old combination kept firing — so the reload below always runs.
+        if (fallbackShortcuts.isEmpty() && scriptFile.isFile && scriptFile.readText() == desired) return true
+
+        val previous = scriptFile.takeIf { it.isFile }?.readText()
+        val files = runCatching { KWinScript.install(scriptDirectory, fallbackShortcuts) }.getOrElse { error ->
+            lastError = DesktopStrings.kwinScriptWriteFailed(error.describe())
+            // The old script is still loaded in KWin. Put its file back so a later reload does not
+            // pick up a half-written shortcut block.
+            previous?.let { runCatching { scriptFile.writeText(it) } }
+            return false
+        }
+        val script = files.firstOrNull { it.name == "main.js" }
+        if (script == null) {
+            lastError = DesktopStrings.kwinScriptNotWritten
+            previous?.let { runCatching { scriptFile.writeText(it) } }
+            return false
+        }
+
+        // KGlobalAccel stores the combination it already knows for an action and only the *default*
+        // comes from registerShortcut. Forgetting the action makes the reload apply the new keys.
+        forgetFallbackShortcuts(fallbackShortcuts)
+        runCatching { active.unload(KWinScript.PLUGIN_NAME) }
+        val loaded = runCatching { active.loadScript(script.absolutePath, KWinScript.PLUGIN_NAME) }.getOrDefault(false)
+        val started = loaded && runCatching { active.start() }.getOrDefault(false)
+        val runningNow = started && runCatching { active.isLoaded(KWinScript.PLUGIN_NAME) }.getOrDefault(false)
+        if (runningNow) return true
+
+        val restored = restorePrevious(active, scriptFile, previous)
+        if (!restored) {
+            running = false
+            host = null
+            runCatching { active.close() }
+        }
+        lastError = if (restored) {
+            DesktopStrings.kwinShortcutsRejectedRestored
+        } else {
+            DesktopStrings.kwinShortcutsRejectedNotRestored
+        }
+        return false
+    }
+
+    /** Drops the KWin fallback registrations so the reload can install the edited combinations. */
+    private fun forgetFallbackShortcuts(bindings: List<HotkeyBinding>) {
+        if (bindings.isEmpty()) return
+        val client = accel ?: runCatching(accelFactory).getOrNull()?.also { accel = it } ?: return
+        runCatching {
+            client.forget(KWIN_SHORTCUT_COMPONENT, bindings.map { kwinShortcutActionName(it.id) })
+        }
+    }
+
+    private fun restorePrevious(
+        active: KWinScriptHost,
+        scriptFile: File,
+        previous: String?,
+    ): Boolean {
+        if (previous == null) return false
+        return runCatching {
+            active.unload(KWinScript.PLUGIN_NAME)
+            scriptFile.writeText(previous)
+            active.loadScript(scriptFile.absolutePath, KWinScript.PLUGIN_NAME) &&
+                active.start() &&
+                active.isLoaded(KWinScript.PLUGIN_NAME)
+        }.getOrDefault(false)
     }
 }
 
