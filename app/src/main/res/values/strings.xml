@@ -5,18 +5,15 @@
     <string name="hero_title">Yabai OCR</string>
     <string name="hero_subtitle">Leia japonês em qualquer app. A bolha flutua por cima da tela, você toca, escolhe a área e o texto vai para a área de transferência.</string>
 
-    <string name="section_permissions">1. Permissões</string>
-    <string name="section_shortcuts">2. Atalhos rápidos</string>
-    <string name="section_theme">3. Tema do Aplicativo</string>
-    <string name="section_engine">4. Motor de reconhecimento</string>
-    <string name="section_behaviour">5. Comportamento</string>
+    <string name="section_permissions">Permissões</string>
+    <string name="section_shortcuts">Atalhos rápidos</string>
+    <string name="section_engine">Motor de reconhecimento</string>
+    <string name="section_behaviour">Comportamento</string>
 
     <string name="theme_dark">Escuro</string>
     <string name="theme_light">Claro</string>
     <string name="theme_system">Sistema</string>
     <string name="theme_dark_option">🌙 Escuro</string>
-    <string name="theme_light_option">☀️ Claro</string>
-    <string name="theme_system_option">💻 Padrão do Sistema</string>
 
     <string name="section_language">Idioma da Interface</string>
     <string name="lang_system">Padrão do Sistema</string>
@@ -182,20 +179,20 @@
     <string name="dictionary_suggestions">Sugestões</string>
     <string name="dictionary_suggestion_description">Consultar «%1$s»</string>
 
-    <string name="section_dictionary">6. Dicionários</string>
+    <string name="section_dictionary">Dicionários</string>
     <string name="setting_dictionary">Consultar os dicionários instalados</string>
     <string name="setting_dictionary_keep_last">Manter a última busca aberta no dicionário</string>
     <string name="dictionary_manage_button">Gerenciar dicionários</string>
     <string name="dictionary_summary_none">Nenhum dicionário instalado</string>
     <string name="dictionary_summary">%1$d instalados · %2$d ativos</string>
 
-    <string name="section_translation">7. Tradução</string>
+    <string name="section_translation">Tradução</string>
     <string name="setting_translate">Traduzir a frase com o modelo offline</string>
     <string name="setting_translate_target">Idioma da tradução</string>
     <string name="translate_target_pt">Português</string>
     <string name="translate_target_en">Inglês</string>
 
-    <string name="section_ai">8. Perguntar a uma IA</string>
+    <string name="section_ai">Perguntar a uma IA</string>
     <string name="setting_ai_button">Mostrar o botão «Perguntar à IA» no painel</string>
     <string name="setting_ai_prompt">O que perguntar, antes do texto reconhecido (deixe vazio para enviar só o texto)</string>
     <string name="setting_ai_app">App que responde</string>
@@ -318,4 +315,27 @@
     <string name="help_tip_ai_desc">Permite enviar o texto extraído junto com um prompt personalizado para qualquer aplicativo de IA instalado no seu celular (como Gemini, ChatGPT, etc.) com apenas um toque.</string>
     <string name="help_tip_translation_title">7. Tradução Offline (Aviso importante)</string>
     <string name="help_tip_translation_desc">A tradução offline realizada pelo modelo do dispositivo (ML Kit) é bastante limitada e possui grande chance de conter imprecisões ou erros contextuais, especialmente em japonês. Para maior precisão, recomenda-se consultar os verbetes detalhados no dicionário ou usar a função de Perguntar à IA / consultar outro dicionário especializado.</string>
+
+    <!-- App updates -->
+    <string name="section_updates">Atualizações</string>
+    <string name="update_version_installed">Versão instalada: %1$s</string>
+    <string name="update_version_unknown">Versão instalada: desconhecida</string>
+    <string name="update_check_button">🔄 Verificar atualizações</string>
+    <string name="update_check_on_start">Verificar atualizações ao abrir o aplicativo</string>
+    <string name="update_checking">Verificando…</string>
+    <string name="update_check_failed">Não foi possível verificar agora. Tente de novo mais tarde.</string>
+    <string name="update_available_message">Nova versão disponível: %1$s</string>
+    <string name="update_up_to_date">Você está na versão mais recente (%1$s).</string>
+    <string name="update_release_notes_button">📄 Ver notas da versão</string>
+    <string name="update_release_notes_title">Notas da versão %1$s</string>
+    <string name="update_release_notes_empty">Este release não tem notas.</string>
+    <string name="update_download_button">⬇️ Baixar e instalar</string>
+    <string name="update_link_failed">Não foi possível abrir o link.</string>
+    <string name="update_close">Fechar</string>
+    <string name="update_downloading">Baixando atualização…</string>
+    <string name="update_download_failed">Não foi possível baixar a atualização.</string>
+    <string name="update_install_opened">Instalador aberto. Siga as instruções para concluir.</string>
+    <string name="update_install_permission_title">Permitir instalação</string>
+    <string name="update_install_permission_message">Para instalar a atualização baixada, o Android precisa permitir que o Yabai OCR instale aplicativos. Abra os ajustes e ligue a permissão.</string>
+    <string name="update_open_settings">Abrir ajustes</string>
 </resources>

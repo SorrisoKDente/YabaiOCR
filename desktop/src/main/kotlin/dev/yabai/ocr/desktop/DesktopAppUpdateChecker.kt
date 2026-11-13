@@ -127,15 +127,7 @@ object DesktopAppUpdateChecker {
         return FALLBACK_VERSION
     }
 
-    fun compareVersions(v1: String, v2: String): Int {
-        val p1 = v1.split(".").mapNotNull { it.toIntOrNull() }
-        val p2 = v2.split(".").mapNotNull { it.toIntOrNull() }
-        val maxLen = maxOf(p1.size, p2.size)
-        for (i in 0 until maxLen) {
-            val num1 = p1.getOrElse(i) { 0 }
-            val num2 = p2.getOrElse(i) { 0 }
-            if (num1 != num2) return num1.compareTo(num2)
-        }
-        return 0
-    }
+    /** Shared with the Android build, so both apps agree on what «newer» means. */
+    fun compareVersions(v1: String, v2: String): Int =
+        dev.yabai.ocr.core.update.compareVersions(v1, v2)
 }

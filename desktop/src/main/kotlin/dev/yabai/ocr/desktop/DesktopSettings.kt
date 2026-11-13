@@ -97,6 +97,16 @@ class DesktopSettings(
         get() = props.getProperty("auto_copy", "true").toBoolean()
         set(value) { props.setProperty("auto_copy", value.toString()); save() }
 
+    /**
+     * Check for a new app release when the app starts.
+     *
+     * Off means the About card's button is the only way to look; the periodic dictionary update is a
+     * separate preference and keeps its own interval.
+     */
+    var checkUpdatesOnStart: Boolean
+        get() = props.getProperty("check_updates_on_start", "true").toBoolean()
+        set(value) { props.setProperty("check_updates_on_start", value.toString()); save() }
+
     var startOnBoot: Boolean
         get() = props.getProperty("start_on_boot", "false").toBoolean()
         set(value) {

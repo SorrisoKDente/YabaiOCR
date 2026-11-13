@@ -27,8 +27,11 @@ import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.awt.EventQueue
 import java.io.File
+import java.nio.file.Path
 import javax.swing.JFileChooser
+import kotlin.system.exitProcess
 
 @Composable
 fun SettingsContent(
@@ -90,6 +93,9 @@ fun SettingsContent(
         )
     }
     var autoCopy by remember { mutableStateOf(settings.autoCopy) }
+    var checkUpdatesOnStart by remember { mutableStateOf(settings.checkUpdatesOnStart) }
+    // Version + notes of the release the user asked to read; null closes the preview window.
+    var releaseNotesPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var closeToTray by remember { mutableStateOf(settings.closeToTray) }
     var showSegments by remember { mutableStateOf(settings.showSegments) }
@@ -1702,6 +1708,17 @@ fun SettingsContent(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingCheckboxItem(
+                    checked = checkUpdatesOnStart,
+                    title = DesktopStrings.checkUpdatesOnStart,
+                    description = DesktopStrings.checkUpdatesOnStartDesc,
+                    onCheckedChange = {
+                        checkUpdatesOnStart = it
+                        settings.checkUpdatesOnStart = it
+                    }
+                )
+
                 if (updateInfo?.hasUpdate == true) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Card(
@@ -1726,20 +1743,129 @@ fun SettingsContent(
                             Spacer(modifier = Modifier.height(8.dp))
                             val downloadScope = rememberCoroutineScope()
                             var downloadError by remember { mutableStateOf<String?>(null) }
+                            var isInstallingUpdate by remember { mutableStateOf(false) }
+                            var installProgress by remember { mutableStateOf<Int?>(null) }
+                            var installMessage by remember { mutableStateOf<String?>(null) }
+                            // Set once the AppImage on disk is the new build: only a restart is left.
+                            var readyToRestart by remember { mutableStateOf<Path?>(null) }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val info = updateInfo
+                                        if (info != null) {
+                                            releaseNotesPreview = info.latestVersion to info.releaseNotes
+                                        }
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
+                                ) {
+                                    Text(DesktopStrings.btnViewReleaseNotes)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             OutlinedButton(
+                                enabled = !isInstallingUpdate && readyToRestart == null,
                                 onClick = {
-                                    val url = updateInfo?.downloadUrl ?: updateInfo?.releaseUrl
-                                        ?: "https://github.com/SorrisoKDente/yabai_ocr/releases/latest"
+                                    val info = updateInfo ?: return@OutlinedButton
+                                    val url = info.downloadUrl
+                                    if (url == null) {
+                                        // No asset for this platform: the release page is all there is.
+                                        downloadScope.launch {
+                                            val opened = withContext(Dispatchers.IO) {
+                                                DesktopUrlOpener().open(info.releaseUrl)
+                                            }
+                                            downloadError =
+                                                if (opened) null else DesktopStrings.updateLinkOpenFailed
+                                        }
+                                        return@OutlinedButton
+                                    }
+
+                                    isInstallingUpdate = true
+                                    installProgress = null
+                                    installMessage = null
+                                    downloadError = null
                                     downloadScope.launch {
-                                        // Same launcher chain as the Ask AI button: the AWT browse
-                                        // alone does nothing in a packaged app on Linux.
-                                        val opened = withContext(Dispatchers.IO) { DesktopUrlOpener().open(url) }
-                                        downloadError = if (opened) null else DesktopStrings.updateLinkOpenFailed
+                                        val attempt = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                UpdateInstaller.install(
+                                                    url = url,
+                                                    family = DesktopPlatform.family,
+                                                    environment = System.getenv(),
+                                                ) { percent ->
+                                                    // Called from the download thread; Compose state
+                                                    // belongs to the UI thread.
+                                                    EventQueue.invokeLater { installProgress = percent }
+                                                }
+                                            }
+                                        }
+                                        isInstallingUpdate = false
+                                        installProgress = null
+
+                                        val outcome = attempt.getOrNull()
+                                        when {
+                                            outcome is UpdateOutcome.Replaced -> {
+                                                readyToRestart = outcome.appImage
+                                                installMessage = DesktopStrings.updateReadyRestart(info.latestVersion)
+                                            }
+
+                                            outcome is UpdateOutcome.InstallerLaunched -> {
+                                                installMessage = DesktopStrings.updateInstallerLaunched(info.latestVersion)
+                                            }
+
+                                            attempt.isFailure -> {
+                                                downloadError = DesktopStrings.updateDownloadFailed
+                                            }
+
+                                            else -> {
+                                                // An unpacked build cannot replace itself; open the
+                                                // release page instead of failing silently.
+                                                installMessage = DesktopStrings.updateManualFallback
+                                                withContext(Dispatchers.IO) {
+                                                    DesktopUrlOpener().open(info.releaseUrl)
+                                                }
+                                            }
+                                        }
                                     }
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
                             ) {
-                                Text(if (updateInfo?.downloadUrl != null) DesktopStrings.btnDownloadUpdate else DesktopStrings.btnDownloadOnGithub)
+                                Text(
+                                    when {
+                                        isInstallingUpdate -> DesktopStrings.updateDownloading(installProgress)
+                                        readyToRestart != null -> DesktopStrings.updateInstalled
+                                        updateInfo?.downloadUrl != null -> DesktopStrings.btnInstallUpdate
+                                        else -> DesktopStrings.btnDownloadOnGithub
+                                    }
+                                )
+                            }
+                            if (readyToRestart != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        val appImage = readyToRestart ?: return@Button
+                                        if (UpdateInstaller.restart(appImage)) {
+                                            // The new build is already running; this one must go.
+                                            exitProcess(0)
+                                        } else {
+                                            installMessage = DesktopStrings.updateRestartFailed
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        backgroundColor = palette.success,
+                                        // The success fill differs per theme, so the label follows it.
+                                        contentColor = if (MaterialTheme.colors.isLight) Color.White else Color.Black
+                                    )
+                                ) {
+                                    Text(DesktopStrings.btnRestartNow)
+                                }
+                            }
+                            val installNote = installMessage
+                            if (installNote != null) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = installNote,
+                                    style = MaterialTheme.typography.caption,
+                                    color = MaterialTheme.colors.onSurface
+                                )
                             }
                             val linkError = downloadError
                             if (linkError != null) {
@@ -1762,6 +1888,16 @@ fun SettingsContent(
                 }
             }
         }
+    }
+
+    // Outside the lazy list so scrolling the card away cannot close the preview.
+    val notes = releaseNotesPreview
+    if (notes != null) {
+        ReleaseNotesWindow(
+            version = notes.first,
+            notes = notes.second,
+            onClose = { releaseNotesPreview = null },
+        )
     }
 }
 

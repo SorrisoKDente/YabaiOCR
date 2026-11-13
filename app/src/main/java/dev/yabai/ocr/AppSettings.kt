@@ -292,6 +292,16 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_AI_PACKAGE, "") ?: ""
         set(value) = prefs.edit { putString(KEY_AI_PACKAGE, value) }
 
+    /**
+     * Check the GitHub release for a newer APK when the app opens.
+     *
+     * The button on the main screen always works; this only decides whether opening the app is
+     * also a reason to look. On by default, like the desktop build.
+     */
+    var checkUpdatesOnStart: Boolean
+        get() = prefs.getBoolean("check_updates_on_start", true)
+        set(value) = prefs.edit().putBoolean("check_updates_on_start", value).apply()
+
     var appTheme: AppThemeChoice
         get() = when (prefs.getString(KEY_APP_THEME, null)) {
             AppThemeChoice.LIGHT.name -> AppThemeChoice.LIGHT

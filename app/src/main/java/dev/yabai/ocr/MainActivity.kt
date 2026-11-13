@@ -2,7 +2,11 @@ package dev.yabai.ocr
 
 import android.Manifest
 import android.app.Activity
+import android.app.DownloadManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
@@ -18,6 +22,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,6 +41,11 @@ import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.DictionaryUpdateScheduler
 import dev.yabai.ocr.overlay.PickerReadingMode
 import dev.yabai.ocr.service.FloatingOcrService
+import dev.yabai.ocr.update.ApkInstall
+import dev.yabai.ocr.update.AppUpdate
+import dev.yabai.ocr.update.AppUpdateChecker
+import dev.yabai.ocr.update.markdownToSpanned
+import android.text.method.LinkMovementMethod
 import java.util.Date
 
 /**
@@ -56,6 +66,23 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnNotificationPermission: Button
 
     private lateinit var dictionarySummary: TextView
+
+    private lateinit var updateVersionText: TextView
+    private lateinit var btnCheckAppUpdate: Button
+    private lateinit var checkAppUpdatesOnStart: CheckBox
+    private lateinit var appUpdateStatus: TextView
+    private lateinit var btnReleaseNotes: Button
+    private lateinit var btnDownloadUpdate: Button
+
+    /** The release the current screen is talking about; null until a check finds a newer one. */
+    private var pendingUpdate: AppUpdate? = null
+
+    /** The automatic check runs once per launch, not on every resume of the activity. */
+    private var autoUpdateCheckDone = false
+
+    /** Id of the APK download in progress; the completion broadcast is matched against it. */
+    private var updateDownloadId: Long = -1L
+    private var updateDownloadReceiver: BroadcastReceiver? = null
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -135,6 +162,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         bindThemeSelector()
+        bindAppUpdates()
         bindLanguageSelector()
         bindEngineSelector()
         bindBehaviourSwitches()
@@ -143,6 +171,8 @@ class MainActivity : AppCompatActivity() {
 
         btnStart.setOnClickListener { onStartClicked() }
         btnStop.setOnClickListener { stopService() }
+
+        registerUpdateDownloadReceiver()
     }
 
     override fun onResume() {
@@ -154,6 +184,12 @@ class MainActivity : AppCompatActivity() {
         refreshAiApp()
         handler.removeCallbacks(statusPoll)
         handler.postDelayed(statusPoll, 1000L)
+
+        // The automatic check belongs to «opening the app», not to every resume.
+        if (!autoUpdateCheckDone && settings.checkUpdatesOnStart) {
+            autoUpdateCheckDone = true
+            checkForAppUpdate(manual = false)
+        }
     }
 
     override fun onPause() {
@@ -163,31 +199,30 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        updateDownloadReceiver?.let { receiver ->
+            runCatching { unregisterReceiver(receiver) }
+        }
+        updateDownloadReceiver = null
         super.onDestroy()
     }
 
     // --- settings wiring -----------------------------------------------------------------------
 
+    /**
+     * The theme control is the button in the header, and only it.
+     *
+     * The screen used to repeat the same three choices in a radio section further down; two places
+     * writing the same preference is one more state to keep in sync, and the button already names
+     * the current choice and cycles through them.
+     */
     private fun bindThemeSelector() {
         val btnThemeToggle = findViewById<Button>(R.id.btnThemeToggle)
-        val themeGroup = findViewById<RadioGroup>(R.id.themeGroup)
 
         fun updateUi() {
             btnThemeToggle.text = when (settings.appTheme) {
                 AppThemeChoice.DARK -> "🌙 " + getString(R.string.theme_dark)
                 AppThemeChoice.LIGHT -> "☀️ " + getString(R.string.theme_light)
                 AppThemeChoice.SYSTEM -> "💻 " + getString(R.string.theme_system)
-            }
-            findViewById<RadioButton>(R.id.themeDark)?.text = getString(R.string.theme_dark_option)
-            findViewById<RadioButton>(R.id.themeLight)?.text = getString(R.string.theme_light_option)
-            findViewById<RadioButton>(R.id.themeSystem)?.text = getString(R.string.theme_system_option)
-            val checkedId = when (settings.appTheme) {
-                AppThemeChoice.DARK -> R.id.themeDark
-                AppThemeChoice.LIGHT -> R.id.themeLight
-                AppThemeChoice.SYSTEM -> R.id.themeSystem
-            }
-            if (themeGroup.checkedRadioButtonId != checkedId) {
-                themeGroup.check(checkedId)
             }
         }
 
@@ -204,17 +239,183 @@ class MainActivity : AppCompatActivity() {
                 updateUi()
             }
         }
+    }
 
-        themeGroup.setOnCheckedChangeListener { _, id ->
-            val newTheme = when (id) {
-                R.id.themeLight -> AppThemeChoice.LIGHT
-                R.id.themeSystem -> AppThemeChoice.SYSTEM
-                else -> AppThemeChoice.DARK
+    // --- app updates ---------------------------------------------------------------------------
+
+    private fun bindAppUpdates() {
+        updateVersionText = findViewById(R.id.updateVersionText)
+        btnCheckAppUpdate = findViewById(R.id.btnCheckAppUpdate)
+        checkAppUpdatesOnStart = findViewById(R.id.checkAppUpdatesOnStart)
+        appUpdateStatus = findViewById(R.id.appUpdateStatus)
+        btnReleaseNotes = findViewById(R.id.btnReleaseNotes)
+        btnDownloadUpdate = findViewById(R.id.btnDownloadUpdate)
+
+        updateVersionText.text = getString(
+            R.string.update_version_installed,
+            AppUpdateChecker.currentVersion(),
+        )
+        checkAppUpdatesOnStart.isChecked = settings.checkUpdatesOnStart
+        checkAppUpdatesOnStart.setOnCheckedChangeListener { _, checked ->
+            settings.checkUpdatesOnStart = checked
+        }
+
+        btnCheckAppUpdate.setOnClickListener { checkForAppUpdate(manual = true) }
+        btnReleaseNotes.setOnClickListener {
+            pendingUpdate?.let { showReleaseNotes(it) }
+        }
+        btnDownloadUpdate.setOnClickListener { downloadAndInstallUpdate() }
+    }
+
+    /**
+     * Downloads the APK and, when it lands, opens the system installer.
+     *
+     * Without the «install unknown apps» allowance Android refuses the installer outright, so the
+     * user is sent to that switch first instead of watching a download end in nothing.
+     */
+    private fun downloadAndInstallUpdate() {
+        val update = pendingUpdate ?: return
+        val url = update.apkUrl
+        if (url.isNullOrBlank()) {
+            // A release without an APK can only be read, not installed.
+            openInBrowser(update.releaseUrl)
+            return
+        }
+        if (!ApkInstall.canInstall(this)) {
+            showInstallPermissionDialog()
+            return
+        }
+
+        appUpdateStatus.visibility = View.VISIBLE
+        appUpdateStatus.text = getString(R.string.update_downloading)
+        updateDownloadId = runCatching {
+            ApkInstall.downloadApk(this, url, update.latestVersion)
+        }.getOrElse { error ->
+            appUpdateStatus.text = getString(R.string.update_download_failed)
+            -1L
+        }
+        btnDownloadUpdate.isEnabled = false
+    }
+
+    private fun registerUpdateDownloadReceiver() {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
+                val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+                if (id == -1L || id != updateDownloadId) return
+                updateDownloadId = -1L
+                installDownloadedUpdate()
             }
-            if (settings.appTheme != newTheme) {
-                settings.appTheme = newTheme
-                updateUi()
+        }
+        val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+        // System broadcasts still reach a non-exported receiver; no other app needs to talk to it.
+        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        updateDownloadReceiver = receiver
+    }
+
+    private fun installDownloadedUpdate() {
+        val update = pendingUpdate ?: return
+        btnDownloadUpdate.isEnabled = true
+        val apk = ApkInstall.downloadedApk(this, update.latestVersion)
+        if (ApkInstall.install(this, apk)) {
+            appUpdateStatus.visibility = View.VISIBLE
+            appUpdateStatus.text = getString(R.string.update_install_opened)
+        } else {
+            appUpdateStatus.visibility = View.VISIBLE
+            appUpdateStatus.text = getString(R.string.update_download_failed)
+        }
+    }
+
+    private fun showInstallPermissionDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.update_install_permission_title))
+            .setMessage(getString(R.string.update_install_permission_message))
+            .setPositiveButton(R.string.update_open_settings) { _, _ -> ApkInstall.openInstallSettings(this) }
+            .setNegativeButton(R.string.update_close, null)
+            .show()
+    }
+
+    /** Silent when automatic: a failed background check must not interrupt the user. */
+    private fun checkForAppUpdate(manual: Boolean) {
+        if (manual) {
+            btnCheckAppUpdate.isEnabled = false
+            appUpdateStatus.visibility = View.VISIBLE
+            appUpdateStatus.text = getString(R.string.update_checking)
+        }
+
+        lifecycleScope.launch {
+            val update = withContext(Dispatchers.IO) { AppUpdateChecker.check() }
+            if (manual) btnCheckAppUpdate.isEnabled = true
+
+            if (update == null) {
+                if (manual) {
+                    appUpdateStatus.visibility = View.VISIBLE
+                    appUpdateStatus.text = getString(R.string.update_check_failed)
+                }
+                return@launch
             }
+
+            pendingUpdate = update.takeIf { it.hasUpdate }
+            if (update.hasUpdate) {
+                appUpdateStatus.visibility = View.VISIBLE
+                appUpdateStatus.text = getString(
+                    R.string.update_available_message,
+                    update.latestVersion,
+                )
+                btnReleaseNotes.visibility = View.VISIBLE
+                btnDownloadUpdate.visibility = View.VISIBLE
+            } else {
+                btnReleaseNotes.visibility = View.GONE
+                btnDownloadUpdate.visibility = View.GONE
+                if (manual) {
+                    appUpdateStatus.visibility = View.VISIBLE
+                    appUpdateStatus.text = getString(
+                        R.string.update_up_to_date,
+                        update.currentVersion,
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * The release notes, rendered from the release's own Markdown.
+     *
+     * The dialog scrolls because release bodies can be long; links stay tappable, which is the
+     * point of previewing instead of dumping the raw text.
+     */
+    private fun showReleaseNotes(update: AppUpdate) {
+        val body = TextView(this).apply {
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            val horizontal = (20 * resources.displayMetrics.density).toInt()
+            val vertical = (12 * resources.displayMetrics.density).toInt()
+            setPadding(horizontal, vertical, horizontal, vertical)
+            text = markdownToSpanned(
+                markdown = update.releaseNotes.ifBlank {
+                    this@MainActivity.getString(R.string.update_release_notes_empty)
+                },
+                accentColor = ContextCompat.getColor(this@MainActivity, R.color.accent),
+                secondaryColor = ContextCompat.getColor(this@MainActivity, R.color.text_secondary),
+                codeBackgroundColor = ContextCompat.getColor(this@MainActivity, R.color.text_secondary),
+            )
+            movementMethod = LinkMovementMethod.getInstance()
+        }
+
+        val scroll = ScrollView(this).apply { addView(body) }
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.update_release_notes_title, update.latestVersion))
+            .setView(scroll)
+            .setPositiveButton(R.string.update_close, null)
+            .show()
+    }
+
+    private fun openInBrowser(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (t: Throwable) {
+            toast(getString(R.string.update_link_failed))
         }
     }
 

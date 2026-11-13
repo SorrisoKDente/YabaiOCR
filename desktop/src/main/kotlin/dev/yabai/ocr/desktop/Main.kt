@@ -441,8 +441,13 @@ fun main(args: Array<String>) {
                 window.isAutoRequestFocus = false
                 window.iconImage = AppIconGenerator.createWindowImage(64)
                 withContext(Dispatchers.IO) {
-                    // 1. Check for Desktop App updates on GitHub
-                    val appUpdate = DesktopAppUpdateChecker.checkForAppUpdate()
+                    // 1. Check for Desktop App updates on GitHub — only when the user asked the app
+                    // to do it on start; otherwise the About card's button is the only trigger.
+                    val appUpdate = if (settings.checkUpdatesOnStart) {
+                        DesktopAppUpdateChecker.checkForAppUpdate()
+                    } else {
+                        null
+                    }
                     if (appUpdate?.hasUpdate == true) {
                         trayManager.setStatus(DesktopStrings.appVersionNotice(appUpdate.latestVersion))
                     }

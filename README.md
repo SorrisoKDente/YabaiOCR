@@ -57,7 +57,16 @@ Em telas múltiplas, os Ajustes deixam escolher qual monitor a captura de tela i
 mão usam: o principal, um monitor específico ou aquele em que o ponteiro está no momento da captura.
 
 A versão instalada aparece em **Ajustes → Sobre**, junto do botão de verificação de atualizações; nos
-pacotes ela vem da tag do build (`-PyabaiVersion`), não de um número fixo.
+pacotes ela vem da tag do build (`-PyabaiVersion`), não de um número fixo. Quando há versão nova, o
+botão «📄 Notas da versão» abre o Markdown publicado no release do GitHub, e a checagem ao abrir o app
+pode ser desligada no mesmo cartão.
+
+**Atualizar sem navegador.** «Baixar e instalar» baixa o próprio pacote: no AppImage o arquivo em
+execução vira `<nome>.old`, o novo toma o lugar e «Reiniciar agora» abre a versão nova; no Android o
+APK é baixado pelo `DownloadManager` e entregue ao instalador do sistema (que pede a confirmação de
+sempre, e a permissão «instalar apps desconhecidos» quando ainda não foi dada). Fora do AppImage —
+`gradle run`, distribuição descompactada — o desktop não substitui a instalação sozinho e abre a
+página do release.
 
 **Android**: instale o APK, conceda **sobreposição** e **captura de tela** (MediaProjection), escolha
 o motor e toque em iniciar. A bolha flutuante dispara a captura.

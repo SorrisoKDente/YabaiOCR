@@ -5117,3 +5117,113 @@ app pode desenhar ícone onde o shell não tem host; o que mudou é o SNI ser te
 aparecer nos Ajustes. O layout só foi verificado por compilação: redimensionar as janelas no Desktop
 Mode é o teste visual pendente, assim como clicar em «Verificar Atualizações» no Windows. Nada foi
 commitado.
+
+
+### D48 — Checagem de atualização nos dois apps, preview das notas e menu mobile reorganizado  `[x]` (13/11/2026)
+
+**Relato.** O desktop tinha o botão de verificar atualização, mas nenhum dos dois apps deixava o
+usuário escolher se quer checar ao abrir, nem mostrar as notas do release. No Android, o menu
+principal tinha seções numeradas, o tema aparecia duas vezes (botão no topo e seção de rádio) e a
+ordem das opções não era a pedida: idioma primeiro, OCR flutuante em segundo.
+
+**Causa raiz (o que faltava).** `DesktopAppUpdateChecker` devolvia `releaseNotes` (o `body` do
+release) e ninguém lia o campo; o Android não tinha verificador de atualização de app nenhum, só o de
+dicionários. E as release notes do GitHub são **Markdown**: jogá-las num `TextView`/`Text` cru
+mostraria `##`, `**` e links como texto.
+
+**Correção.**
+- `:core/md/Markdown.kt`: parser mínimo (títulos 1–6, parágrafos, listas com `-`/`*`/`+`, citações,
+  blocos cerrados, divisórias, negrito/itálico/código/link inline). O que não entende fica como
+  texto — nada é descartado, porque esconder parte das notas é pior que mostrá-la sem estilo.
+- Desktop: `ReleaseNotesWindow.kt` desenha os blocos com Compose (`LinkAnnotation` nos links) e abre
+  pelo botão «📄 Notas da versão» no cartão de atualização; `DesktopSettings.checkUpdatesOnStart`
+  (`check_updates_on_start`, padrão ligado) controla a checagem em `Main.kt`; o cartão ganhou o
+  checkbox «Verificar atualizações ao abrir o aplicativo».
+- Android: `update/AppUpdateChecker.kt` lê o último release (tag, body, asset `.apk`) e compara com
+  `BuildConfig.VERSION_NAME` pelo `:core/update/VersionCompare.kt` (compartilhado com o desktop);
+  `update/MarkdownView.kt` converte os blocos em `Spanned` (negrito, código monoespaçado,
+  `URLSpan` + `LinkMovementMethod`). `AppSettings.checkUpdatesOnStart` (padrão ligado), cartão
+  «Atualizações» novo com versão instalada, botão de checar, checkbox, status, «📄 Ver notas da
+  versão» e «⬇️ Baixar atualização». A checagem automática roda uma vez por abertura e é silenciosa
+  quando falha.
+- Menu principal Android: «Idioma da Interface» passou a ser a primeira seção e o cartão de iniciar o
+  OCR flutuante a segunda; a seção «Tema do Aplicativo» saiu (o botão do canto superior direito
+  continua sendo o único controle de tema); os números das seções (`1.`, `2.`, …) saíram dos dois
+  idiomas, e as strings da seção removida foram apagadas.
+
+**Testes e mutações.** `:core:test` 192 testes (15 novos: 11 de Markdown, incluindo notas reais, e 5
+de comparação de versões); `:desktop:test` 322 (novo caso do `checkUpdatesOnStart`), ambos verdes.
+Mutações provadas e restauradas com SHA-256 idêntico:
+
+| mutação | teste que acusou |
+| --- | --- |
+| listas deixam de ser reconhecidas no Markdown | `MarkdownTest` |
+| componente ausente da versão conta como 1 | `VersionCompareTest` |
+| checagem ao abrir desligada por padrão | `DesktopSettingsTest` |
+
+Uma mutação equivalente foi descartada: remover `substringBefore('-')` do `normalize` não muda nada,
+porque `mapNotNull { toIntOrNull() }` já descarta o componente sujo — não é teste fraco, é mutante
+equivalente.
+
+**Evidência.** `:core:test` 192/0 falhas e `:desktop:test` 322/0 falhas (1 pulado) no host;
+`-PyabaiVersion=1.0.3` gerou o AppImage com o `yabai-version.properties` correspondente.
+
+**Limitações.** O módulo `:app` **não foi compilado** nesta máquina: o projeto fixa toolchain JDK 17,
+só há JDK 21 instalado, e não existe Android SDK em `ANDROID_HOME`/`local.properties`. A parte Android
+foi validada por inspeção estática (XML bem-formado, todas as `@string` usadas presentes nos dois
+idiomas, todos os `R.id` referenciados com view correspondente) e pela lógica compartilhada testada no
+`:core`; compilar o APK e ver o preview de Markdown no aparelho continua pendente. No desktop o
+preview não foi visto renderizado: só compilação. Nada foi commitado.
+
+
+### D49 — Atualização baixada e instalada pelo próprio app  `[x]` (13/11/2026)
+
+**Relato.** O botão de atualização só abria o navegador — no desktop e no Android. Quem quisesse a
+versão nova precisava baixar o arquivo no navegador e instalar à mão.
+
+**Causa raiz (o que faltava).** `DesktopAppUpdateChecker` já expunha `downloadUrl` do asset certo por
+SO, e o Android já tinha `apkUrl`, mas nenhum dos dois baixava nada: o clique terminava em
+`DesktopUrlOpener`/`ACTION_VIEW`.
+
+**Correção.**
+- Desktop: `UpdateInstaller.kt` baixa com progresso para um `.part`, confere o tamanho e só então
+  move para o destino. Num AppImage (caminho em `APPIMAGE`) o arquivo em execução é renomeado para
+  `<nome>.old` — escrever por cima de um binário em execução dá ETXTBSY —, o novo entra no lugar,
+  recebe `+x` e o app se reinicia pelo botão «Reiniciar agora»; se o swap falhar, o antigo volta.
+  Builds que não são AppImage (por exemplo `gradle run`) e Windows/macOS não se substituem sozinhos:
+  Windows/macOS baixam e abrem o instalador, o resto abre a página do release com aviso explícito.
+- Android: `ApkInstall.kt` baixa o APK pelo `DownloadManager` (continua com a tela desligada e
+  aparece na gaveta de notificações) e entrega o arquivo ao instalador do sistema via `FileProvider`
+  (`${'$'}{applicationId}.updates`, `res/xml/update_file_paths.xml`, permissão
+  `REQUEST_INSTALL_PACKAGES`). Como o Android nunca instala sozinho, o passo final continua sendo a
+  confirmação do usuário; se a permissão «instalar apps desconhecidos» estiver desligada, o app abre
+  a tela dessa permissão em vez de baixar para nada. O recebimento do broadcast de download completo
+  é registrado com `RECEIVER_NOT_EXPORTED` e casado pelo id do download.
+
+**Testes e mutações.** `:desktop:test` 329 testes (7 novos de `UpdateInstallerTest`, incluindo
+download contra um `HttpServer` de loopback, sem rede externa), `:core:test` 192, ambos verdes. O
+primeiro par de testes **pegou um defeito real**: um download interrompido deixava o `.part` no
+disco; a limpeza passou a acontecer em qualquer falha. Mutações provadas e restauradas com SHA-256
+idêntico:
+
+| mutação | teste que acusou |
+| --- | --- |
+| swap falho não devolve o build antigo | `a failed swap puts the old build back` |
+| qualquer build Linux se declara atualizável | `only an appimage build replaces itself…` |
+| o build novo não recebe permissão de execução | `replacing keeps the old file as a backup…` |
+| download parcial fica no disco | `a truncated download is refused…` |
+
+Mutante equivalente: desligar a conferência `written != total` não quebra teste, porque o OkHttp já
+recusa um corpo menor que o `Content-Length`; a conferência fica como segunda barreira e está
+documentada como tal.
+
+**Evidência.** `:core:test` 192/0 e `:desktop:test` 329/0 (1 pulado). AppImage 1.0.4 gerado com o
+código novo (classes `UpdateInstaller` presentes no jar empacotado).
+
+**Limitações.** O `:app` continua **sem compilação nesta máquina** (toolchain JDK 17 ausente, sem
+Android SDK): `ApkInstall.kt`, o provider do manifesto e o wiring do `MainActivity` foram conferidos
+por inspeção estática (XML válido, strings nos dois idiomas, `R.id` existentes, autoridade do
+`FileProvider` igual à usada no código), mas baixar e instalar um APK de verdade só pode ser testado
+num aparelho. No desktop, o fluxo completo (baixar, trocar o AppImage, reiniciar) não foi executado
+de ponta a ponta: a lógica de download e de troca está testada isoladamente, e a chamada real
+depende de um release novo com asset. Nada foi commitado.

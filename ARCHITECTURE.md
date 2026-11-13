@@ -118,6 +118,18 @@ antes de citá-los.
 
 ONNX é `compileOnly` no core: quem consome (`:desktop`, `:app`) traz o runtime.
 
+### `md/` — Markdown das release notes
+
+| arquivo | papel |
+| --- | --- |
+| `Markdown.kt` | parser mínimo usado pelos dois apps: títulos, parágrafos, listas, citações, código, divisórias e ênfase/links inline |
+
+### `update/` — comparação de versões
+
+| arquivo | papel |
+| --- | --- |
+| `VersionCompare.kt` | `compareVersions`/`isNewerVersion`: componente ausente conta zero, `v`/`-debug`/`+build` não mudam a versão |
+
 ### `dict/` — dicionários e busca
 
 | arquivo | papel |
@@ -162,7 +174,9 @@ rodam com as flags acima.
 | `Main.kt` | ponto de entrada: janela principal, bandeja, atalhos, abre picker/recorte/resultado/dicionário |
 | `DesktopSettings.kt` | `settings.properties` em `~/.yabai_ocr`: atalhos, motor, tema, dicionários, IA, tradução |
 | `SettingsWindow.kt` | a tela de Ajustes inteira (aparência, atalhos, motor + download, dicionários, IA) |
-| `ResultWindow.kt` | painel de resultado: texto editável, imagem, botões (copiar, IA, dicionário, recortar) |
+| `ResultWindow.kt` | painel de resultado: texto editável, imagem, botões (copiar, IA, recortar) |
+| `ReleaseNotesWindow.kt` | preview em Markdown das notas do release do GitHub, aberto em Ajustes → Sobre |
+| `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
 | `QuickDictWindow.kt` | busca rápida de dicionário em janela própria |
 | `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos |
 | `DesktopTheme.kt` | paletas clara/escura, `contrastRatio`, aplicação do tema |
@@ -285,6 +299,9 @@ valem destaque:
 
 | arquivo | papel |
 | --- | --- |
+| `update/AppUpdateChecker.kt` | consulta o último release do GitHub, compara com `BuildConfig.VERSION_NAME` e devolve as notas |
+| `update/MarkdownView.kt` | desenha as notas (blocos do `:core`) num `TextView` com negrito, código e links clicáveis |
+| `update/ApkInstall.kt` | baixa o APK com `DownloadManager` e entrega ao instalador do sistema via `FileProvider` |
 | `dict/DictionaryCatalog.kt` | catálogo de dicionários disponíveis |
 | `dict/DictionaryDownloader.kt` | download/instalação de ZIP |
 | `dict/DictionaryRepository.kt` | dicionários instalados, filtro e ordem |

@@ -5,18 +5,15 @@
     <string name="hero_title">Yabai OCR</string>
     <string name="hero_subtitle">Read Japanese in any app. The bubble floats over your screen: tap it, select an area, and text goes to your clipboard.</string>
 
-    <string name="section_permissions">1. Permissions</string>
-    <string name="section_shortcuts">2. Quick Shortcuts</string>
-    <string name="section_theme">3. App Theme</string>
-    <string name="section_engine">4. Recognition Engine</string>
-    <string name="section_behaviour">5. Behaviour</string>
+    <string name="section_permissions">Permissions</string>
+    <string name="section_shortcuts">Quick Shortcuts</string>
+    <string name="section_engine">Recognition Engine</string>
+    <string name="section_behaviour">Behaviour</string>
 
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_system">System</string>
     <string name="theme_dark_option">🌙 Dark</string>
-    <string name="theme_light_option">☀️ Light</string>
-    <string name="theme_system_option">💻 System Default</string>
 
     <string name="section_language">Interface Language</string>
     <string name="lang_system">System Default</string>
@@ -183,20 +180,20 @@
     <string name="dictionary_suggestions">Suggestions</string>
     <string name="dictionary_suggestion_description">Lookup "%1$s"</string>
 
-    <string name="section_dictionary">6. Dictionaries</string>
+    <string name="section_dictionary">Dictionaries</string>
     <string name="setting_dictionary">Query installed dictionaries</string>
     <string name="setting_dictionary_keep_last">Keep last search query on reopen</string>
     <string name="dictionary_manage_button">Manage dictionaries</string>
     <string name="dictionary_summary_none">No dictionaries installed</string>
     <string name="dictionary_summary">%1$d installed · %2$d active</string>
 
-    <string name="section_translation">7. Translation</string>
+    <string name="section_translation">Translation</string>
     <string name="setting_translate">Translate sentence using offline model</string>
     <string name="setting_translate_target">Target language</string>
     <string name="translate_target_pt">Portuguese</string>
     <string name="translate_target_en">English</string>
 
-    <string name="section_ai">8. Ask an AI</string>
+    <string name="section_ai">Ask an AI</string>
     <string name="setting_ai_button">Show "Ask AI" button in result panel</string>
     <string name="setting_ai_prompt">Prompt question placed before recognized text (leave empty to send text only)</string>
     <string name="setting_ai_app">Responding app</string>
@@ -319,4 +316,27 @@
     <string name="help_tip_ai_desc">Sends extracted text along with a custom prompt to any AI app installed on your phone (such as Gemini, ChatGPT, etc.) with a single tap.</string>
     <string name="help_tip_translation_title">7. Offline Translation Notice</string>
     <string name="help_tip_translation_desc">Offline translation performed by the on-device model (ML Kit) is limited and may contain contextual inaccuracies, especially for Japanese. For higher precision, consult detailed dictionary entries or use Ask AI / external specialized tools.</string>
+
+    <!-- App updates -->
+    <string name="section_updates">Updates</string>
+    <string name="update_version_installed">Installed version: %1$s</string>
+    <string name="update_version_unknown">Installed version: unknown</string>
+    <string name="update_check_button">🔄 Check for updates</string>
+    <string name="update_check_on_start">Check for updates when the app starts</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_check_failed">Could not check right now. Try again later.</string>
+    <string name="update_available_message">New version available: %1$s</string>
+    <string name="update_up_to_date">You are on the latest version (%1$s).</string>
+    <string name="update_release_notes_button">📄 View release notes</string>
+    <string name="update_release_notes_title">Release notes for %1$s</string>
+    <string name="update_release_notes_empty">This release has no notes.</string>
+    <string name="update_download_button">⬇️ Download and install</string>
+    <string name="update_link_failed">Could not open the link.</string>
+    <string name="update_close">Close</string>
+    <string name="update_downloading">Downloading update…</string>
+    <string name="update_download_failed">Could not download the update.</string>
+    <string name="update_install_opened">Installer opened. Follow the instructions to finish.</string>
+    <string name="update_install_permission_title">Allow installation</string>
+    <string name="update_install_permission_message">To install the downloaded update, Android needs to allow Yabai OCR to install apps. Open the settings and turn the permission on.</string>
+    <string name="update_open_settings">Open settings</string>
 </resources>

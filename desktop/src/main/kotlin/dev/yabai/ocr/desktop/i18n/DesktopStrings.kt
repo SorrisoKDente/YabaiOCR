@@ -219,6 +219,11 @@ object DesktopStrings {
     val btnHideImage: String get() = if (isEnglish) "🖼️ Hide" else "🖼️ Ocultar"
     val btnCopyText: String get() = if (isEnglish) "📋 Copy" else "📋 Copiar"
     val btnAskAiCompact: String get() = if (isEnglish) "🤖 AI" else "🤖 IA"
+    val checkUpdatesOnStart: String get() = if (isEnglish) "Check for updates when the app starts" else "Verificar atualizações ao abrir o aplicativo"
+    val checkUpdatesOnStartDesc: String get() = if (isEnglish) "Looks at the latest GitHub release as soon as the app opens and tells you when there is a new version." else "Consulta o último release do GitHub assim que o app abre e avisa quando há uma versão nova."
+    val btnViewReleaseNotes: String get() = if (isEnglish) "📄 Release notes" else "📄 Notas da versão"
+    fun releaseNotesTitle(version: String): String = if (isEnglish) "Release notes — $version" else "Notas da versão — $version"
+    val releaseNotesEmpty: String get() = if (isEnglish) "This release has no notes." else "Este release não tem notas."
     val updateLinkOpenFailed: String get() = if (isEnglish) "Could not open the browser for the download link." else "Não foi possível abrir o navegador para o link de download."
     val aiLinkOpenFailed: String get() = if (isEnglish) "Could not open the browser. The link was copied to the clipboard." else "Não foi possível abrir o navegador. O link foi copiado para a área de transferência."
     val btnCropAgain: String get() = if (isEnglish) "✂️ New crop" else "✂️ Recortar"
@@ -252,6 +257,28 @@ object DesktopStrings {
     fun upToDateMessage(version: String): String = if (isEnglish) "You are already using the latest version ($version)." else "Você já está usando a versão mais recente ($version)."
     fun updateAvailableMessage(version: String): String = if (isEnglish) "✨ New app version available: v$version" else "✨ Nova versão do aplicativo disponível: v$version"
     val updateGeneralNotice: String get() = if (isEnglish) "A newer version of Yabai OCR has been released on GitHub." else "Uma versão mais recente do Yabai OCR foi lançada no GitHub."
+
+    // Updating from inside the app
+    val btnInstallUpdate: String get() = if (isEnglish) "⬇️ Download and install" else "⬇️ Baixar e instalar"
+    fun updateDownloading(percent: Int?): String = when {
+        percent == null && isEnglish -> "Downloading update…"
+        percent == null -> "Baixando atualização…"
+        isEnglish -> "Downloading update… $percent%"
+        else -> "Baixando atualização… $percent%"
+    }
+    val updateDownloadFailed: String get() = if (isEnglish) "Could not download the update. Try again or open the release page." else "Não foi possível baixar a atualização. Tente de novo ou abra a página do release."
+    fun updateReadyRestart(version: String): String = if (isEnglish)
+        "Version $version downloaded. Restart to use it."
+    else
+        "Versão $version baixada. Reinicie para usá-la."
+    val updateInstalled: String get() = if (isEnglish) "✅ Downloaded" else "✅ Baixada"
+    val btnRestartNow: String get() = if (isEnglish) "🔄 Restart now" else "🔄 Reiniciar agora"
+    val updateRestartFailed: String get() = if (isEnglish) "The update is in place, but the restart failed. Open the app again." else "A atualização está no lugar, mas não foi possível reiniciar. Abra o app de novo."
+    fun updateInstallerLaunched(version: String): String = if (isEnglish)
+        "The $version installer was downloaded and opened. Finish it and open the app again."
+    else
+        "O instalador da versão $version foi baixado e aberto. Conclua e abra o app de novo."
+    val updateManualFallback: String get() = if (isEnglish) "This build cannot update itself (it is not an AppImage). Opening the release page." else "Esta instalação não atualiza sozinha (não é um AppImage). Abrindo a página do release."
 
     val btnBackToPrevious: String get() = if (isEnglish) "◀ Back to Previous Menu" else "◀ Voltar ao Menu Anterior"
     val tabQueryDicts: String get() = if (isEnglish) "🔍 Query Dictionaries" else "🔍 Consultar Dicionários"

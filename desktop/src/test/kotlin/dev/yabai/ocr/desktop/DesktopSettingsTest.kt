@@ -23,6 +23,19 @@ class DesktopSettingsTest {
         Properties().apply { file.inputStream().use { load(it) } }
 
     @Test
+    fun `checking for updates on start is on by default and round-trips`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertTrue(settings.checkUpdatesOnStart)
+
+        settings.checkUpdatesOnStart = false
+
+        assertFalse(DesktopSettings(file).checkUpdatesOnStart)
+        assertEquals("false", read(file).getProperty("check_updates_on_start"))
+    }
+
+    @Test
     fun `the capture monitor defaults to the primary screen and round-trips`() {
         val file = tempSettings()
         val settings = DesktopSettings(file)

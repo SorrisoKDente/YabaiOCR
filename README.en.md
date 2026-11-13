@@ -57,7 +57,16 @@ On multi-monitor setups, Settings lets you choose which monitor the full-screen 
 manual crop use: the primary one, a specific monitor, or the one under the pointer when you capture.
 
 The installed version is shown in **Settings → About**, next to the update check button; in packaged
-builds it comes from the build tag (`-PyabaiVersion`), not from a fixed number.
+builds it comes from the build tag (`-PyabaiVersion`), not from a fixed number. When a release is
+newer, **📄 Release notes** renders the Markdown published with it, and the check on startup can be
+turned off in the same card.
+
+**Updating without a browser.** **Download and install** fetches the package itself: on the AppImage
+the running file becomes `<name>.old`, the new one takes its place and **Restart now** opens it; on
+Android the APK goes through `DownloadManager` and is handed to the system installer (which still
+asks for the usual confirmation, plus the «install unknown apps» permission when it was never
+given). Outside an AppImage — `gradle run`, an unpacked distribution — the desktop build does not
+replace its own installation and opens the release page instead.
 
 **Android**: install the APK, grant **overlay** and **screen capture** (MediaProjection), pick an
 engine and tap start. The floating bubble triggers the capture.
