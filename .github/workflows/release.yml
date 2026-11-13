@@ -26,7 +26,18 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > app/release.jks
+
       - name: Build tests and release APK
+        env:
+          KEYSTORE_FILE: "release.jks"
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           ./gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon --stacktrace
 
@@ -62,7 +73,7 @@ jobs:
           # The Actions expression below is expanded by GitHub, so this does not depend on the
           # shell reading the variable; the old $env form reached Gradle literally and broke the
           # MSI version check.
-          ./gradlew :desktop:createDistributable :desktop:packageInnoSetup :desktop:packagePortableZip -PyabaiVersion=${{ env.VERSION }} --no-daemon --stacktrace
+          ./gradlew :desktop:createDistributable :desktop:packageInnoSetup :desktop:packagePortableZip "-PyabaiVersion=${{ env.VERSION }}" --no-daemon --stacktrace
 
       - name: Collect artifacts
         shell: pwsh
@@ -90,7 +101,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build distributable and tar.gz
-        run: ./gradlew :desktop:createDistributable :desktop:packagePortableTarGz -PyabaiVersion=${{ env.VERSION }} --no-daemon --stacktrace
+        run: ./gradlew :desktop:createDistributable :desktop:packagePortableTarGz "-PyabaiVersion=${{ env.VERSION }}" --no-daemon --stacktrace
 
       # The official appimagetool AppImage needs FUSE, which the runner lacks; extracting it and
       # calling the inner AppRun is the documented way to use it in CI.
@@ -103,7 +114,7 @@ jobs:
           echo "APPIMAGETOOL=$PWD/squashfs-root/AppRun" >> "$GITHUB_ENV"
 
       - name: Build AppImage
-        run: APPIMAGETOOL="$PWD/squashfs-root/AppRun" ./gradlew :desktop:packageLinuxAppImage -PyabaiVersion=${{ env.VERSION }} --no-daemon --stacktrace
+        run: APPIMAGETOOL="$PWD/squashfs-root/AppRun" ./gradlew :desktop:packageLinuxAppImage "-PyabaiVersion=${{ env.VERSION }}" --no-daemon --stacktrace
 
       - name: Collect artifacts
         run: |
