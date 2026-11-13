@@ -37,10 +37,12 @@ android {
             val keystoreFile = file(keystorePath)
 
             if (keystoreFile.exists() && !System.getenv("KEYSTORE_PASSWORD").isNullOrEmpty()) {
+                val pass = System.getenv("KEYSTORE_PASSWORD")
+                val aliasPass = System.getenv("KEY_PASSWORD")
                 storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                storePassword = pass
                 keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+                keyPassword = if (aliasPass.isNullOrEmpty()) pass else aliasPass
             } else {
                 storeFile = signingConfigs.getByName("debug").storeFile
                 storePassword = signingConfigs.getByName("debug").storePassword
