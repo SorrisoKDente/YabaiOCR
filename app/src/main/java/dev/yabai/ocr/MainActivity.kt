@@ -331,13 +331,18 @@ class MainActivity : AppCompatActivity() {
     }.getOrDefault(getString(R.string.donate_license_missing))
 
     private fun showLicenseDialog() {
+        val accent = ContextCompat.getColor(this, R.color.accent)
+        val secondary = ContextCompat.getColor(this, R.color.text_secondary)
+        val codeBg = ContextCompat.getColor(this, R.color.card_bg)
+
         val body = TextView(this).apply {
             textSize = 12f
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
             val horizontal = (20 * resources.displayMetrics.density).toInt()
             val vertical = (12 * resources.displayMetrics.density).toInt()
             setPadding(horizontal, vertical, horizontal, vertical)
-            text = readLicense()
+            text = markdownToSpanned(readLicense(), accent, secondary, codeBg)
+            movementMethod = android.text.method.LinkMovementMethod.getInstance()
         }
 
         AlertDialog.Builder(this)

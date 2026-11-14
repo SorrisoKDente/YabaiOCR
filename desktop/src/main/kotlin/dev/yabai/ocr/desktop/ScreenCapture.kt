@@ -177,8 +177,12 @@ internal fun captureDisplays(devices: List<GraphicsDevice>): List<CaptureDisplay
     }
 
 private fun displayLabel(device: GraphicsDevice, index: Int): String {
-    val id = runCatching { device.getIDstring() }.getOrNull().orEmpty().trim().trimStart('\\')
-    return id.ifBlank { "Monitor ${index + 1}" }
+    val rawId = runCatching { device.getIDstring() }.getOrNull().orEmpty().trim()
+    val cleanedId = rawId
+        .replace("\\\\.\\", "")
+        .replace("\\", "")
+        .trim()
+    return cleanedId.ifBlank { "Monitor ${index + 1}" }
 }
 
 /**

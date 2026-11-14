@@ -194,7 +194,7 @@ object DesktopStrings {
     val chooseLanguageDesc: String get() = if (isEnglish) "Choose the display language for the application interface:" else "Escolha o idioma de exibição da interface do aplicativo:"
     val langSystemDesc: String get() = if (isEnglish) "Operating system default." else "Padrão do sistema operacional."
     val langPtBrDesc: String get() = if (isEnglish) "Interface in Portuguese (Brazil)." else "Interface em Português (Brasil)."
-    val langEnUsDesc: String get() = if (isEnglish) "Interface in English." else "Interface in English."
+    val langEnUsDesc: String get() = if (isEnglish) "Interface in English." else "Interface em Inglês."
     val hotkeyActiveStatusLabel: String get() = if (isEnglish) "Active global shortcuts (JNativeHook)." else "Atalhos globais ativos (JNativeHook)."
     val btnDisable: String get() = if (isEnglish) "Disable" else "Desativar"
     val btnEnable: String get() = if (isEnglish) "Enable" else "Ativar"
