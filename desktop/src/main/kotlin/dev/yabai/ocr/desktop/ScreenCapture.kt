@@ -34,8 +34,18 @@ internal fun captureAvailabilityMessage(state: CaptureAvailability): String = wh
     CaptureAvailability.DENIED ->
         "A permissão de captura foi negada. Tente de novo e autorize o diálogo do sistema."
     CaptureAvailability.UNSUPPORTED ->
-        "Captura de tela indisponível nesta sessão. É preciso JDK 21+ e um portal de tela compatível."
+        "Captura de tela indisponível nesta sessão. É preciso JDK 17.0.13+ (ou 21+) e um portal de tela compatível."
 }
+
+/**
+ * Whether this JVM has the `dbusScreencast` Robot implementation.
+ *
+ * It shipped in JDK 21 and was backported to 17.0.13 (JDK-8335485) — the line the packaged Linux
+ * build runs on. The desktop build targets Java 17 bytecode, so older lines cannot run this code at
+ * all; gating on `feature >= 21` rejected a runtime that captures the screen perfectly.
+ */
+internal fun screencastSupported(featureVersion: Int, updateVersion: Int): Boolean =
+    featureVersion >= 21 || (featureVersion == 17 && updateVersion >= 13)
 
 internal class ScreenCaptureException(
     val availability: CaptureAvailability,
@@ -252,6 +262,7 @@ internal fun screencastTokenCandidates(
 internal class ScreencastScreenCapture(
     private val tokenCandidates: List<File> = screencastTokenCandidates(),
     private val jdkFeatureVersion: Int = Runtime.version().feature(),
+    private val jdkUpdateVersion: Int = Runtime.version().update(),
     private val captureAction: () -> BufferedImage = { capturePrimaryScreenWithRobot() },
     private val regionAction: (Rectangle) -> BufferedImage = { captureRegionWithRobot(it) },
 ) : ScreenCaptureBackend {
@@ -259,8 +270,11 @@ internal class ScreencastScreenCapture(
     @Volatile
     private var failure: CaptureAvailability? = null
 
+    private val supported: Boolean
+        get() = screencastSupported(jdkFeatureVersion, jdkUpdateVersion)
+
     override fun availability(): CaptureAvailability {
-        if (jdkFeatureVersion < 21) return CaptureAvailability.UNSUPPORTED
+        if (!supported) return CaptureAvailability.UNSUPPORTED
         if (failure == CaptureAvailability.DENIED) return CaptureAvailability.DENIED
         if (tokenCandidates.none { it.isFile }) return CaptureAvailability.NEEDS_PERMISSION
         return CaptureAvailability.READY
@@ -277,7 +291,7 @@ internal class ScreencastScreenCapture(
     }
 
     private inline fun <T> guard(action: () -> T): T {
-        if (jdkFeatureVersion < 21) {
+        if (!supported) {
             throw ScreenCaptureException(
                 CaptureAvailability.UNSUPPORTED,
                 captureAvailabilityMessage(CaptureAvailability.UNSUPPORTED),

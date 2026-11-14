@@ -42,7 +42,7 @@ and Android), so the app stays useful without a connection.
 | platform | requirements |
 | --- | --- |
 | **Windows** 10/11 | JDK 17+ to build; there is a ready package in [`apk-output/`](apk-output) for Android |
-| **Linux** (X11 and Wayland/KDE) | JDK 17+; on Wayland/KDE capture uses `KWin.ScreenShot2` (the `Screenshot` portal is the fallback) and shortcuts use the `GlobalShortcuts` portal; on Plasma the hover reads the screen without a permission dialog. On GNOME (Ubuntu) the tray needs the AppIndicator extension — see [LINUX.md](docs/LINUX.md) |
+| **Linux** (X11, Wayland/KDE and Wayland/GNOME) | JDK 17+; on Wayland/KDE capture uses `KWin.ScreenShot2` (the `Screenshot` portal is the fallback) and shortcuts use the `GlobalShortcuts` portal; on Plasma the hover reads the screen without a permission dialog. On GNOME Wayland capture goes through the `ScreenCast` portal and hover uses a Shell extension the app installs itself — GNOME only reads extensions at session start, so the first use asks for one log out and back in. On GNOME the tray needs the AppIndicator extension — see [LINUX.md](docs/LINUX.md) |
 | **Steam Deck** | Desktop Mode is the target; Game Mode is best effort — see [STEAMOS.md](docs/STEAMOS.md) |
 | **Android** 8.0+ (API 26) | `arm64-v8a` APK; overlay and screen capture need permission |
 

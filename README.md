@@ -42,7 +42,7 @@ desktop e no Android), então o app continua útil sem conexão.
 | plataforma | requisitos |
 | --- | --- |
 | **Windows** 10/11 | JDK 17+ para compilar; existe pacote pronto em [`apk-output/`](apk-output) para Android |
-| **Linux** (X11 e Wayland/KDE) | JDK 17+; no Wayland/KDE a captura usa o `KWin.ScreenShot2` (portal `Screenshot` como fallback) e os atalhos usam o portal `GlobalShortcuts`; o hover no Plasma lê a tela sem diálogo de permissão. No GNOME (Ubuntu) a bandeja precisa da extensão AppIndicator — ver [LINUX.md](docs/LINUX.md) |
+| **Linux** (X11, Wayland/KDE e Wayland/GNOME) | JDK 17+; no Wayland/KDE a captura usa o `KWin.ScreenShot2` (portal `Screenshot` como fallback) e os atalhos usam o portal `GlobalShortcuts`; o hover no Plasma lê a tela sem diálogo de permissão. No Wayland do GNOME a captura passa pelo portal `ScreenCast` e o hover usa uma extensão do Shell que o app instala sozinho — ela só é lida no início da sessão, então o primeiro uso pede sair e entrar de novo. No GNOME a bandeja precisa da extensão AppIndicator — ver [LINUX.md](docs/LINUX.md) |
 | **Steam Deck** | Desktop Mode é o alvo; Game Mode é melhor esforço — ver [STEAMOS.md](docs/STEAMOS.md) |
 | **Android** 8.0+ (API 26) | APK `arm64-v8a`; overlay e captura de tela exigem permissão |
 

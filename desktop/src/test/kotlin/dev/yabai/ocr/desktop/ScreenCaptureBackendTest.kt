@@ -82,9 +82,11 @@ class ScreenCaptureBackendTest {
 
         assertTrue(messages.all { it.isNotBlank() })
         assertEquals(messages.size, messages.toSet().size)
-        assertTrue(
-            captureAvailabilityMessage(CaptureAvailability.UNSUPPORTED).contains("JDK 21"),
-        )
+        // The screencast backport landed in the update releases of the older LTS lines, so the
+        // message must name both the 17.0.13 floor and the 21 line it shipped in.
+        val unsupported = captureAvailabilityMessage(CaptureAvailability.UNSUPPORTED)
+        assertTrue(unsupported, unsupported.contains("JDK 17.0.13+"))
+        assertTrue(unsupported, unsupported.contains("21+"))
         assertNotEquals(
             captureAvailabilityMessage(CaptureAvailability.NEEDS_PERMISSION),
             captureAvailabilityMessage(CaptureAvailability.DENIED),

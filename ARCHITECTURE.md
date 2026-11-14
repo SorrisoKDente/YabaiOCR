@@ -213,9 +213,10 @@ rodam com as flags acima.
 | `HoverGeometry.kt` | recorte ao redor do ponteiro, coordenadas locais, HiDPI |
 | `HoverTextSelector.kt` | escolhe a linha/palavra sob o ponteiro e monta o hit |
 | `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo) |
-| `HoverCapability.kt` | o hover é suportado nesta sessão? (X11/Wayland/Win) |
-| `PointerSource.kt` | fonte da posição do ponteiro (AWT ou KWin) |
+| `HoverCapability.kt` | o hover é suportado nesta sessão? (X11/Wayland/Win; no Wayland decide entre ponteiro do KWin e do GNOME) |
+| `PointerSource.kt` | fonte da posição do ponteiro (AWT, script do KWin ou extensão do GNOME) |
 | `KWinHoverBridge.kt` / `KWinIntegration.kt` / `KWinScript.kt` | script KWin + D-Bus que entrega o ponteiro no Wayland; descarrega script obsoleto e reaplica atalhos |
+| `GnomeHoverBridge.kt` | instala/ativa a extensão `yabai-ocr@yabai.dev` e detecta se o Shell já a carregou (nome D-Bus próprio); mesmo contrato `CursorMoved` do KWin |
 | `KGlobalAccel.kt` | esquece o atalho guardado no KGlobalAccel antes de recarregar o script do KWin |
 
 ### OCR do desktop

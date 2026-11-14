@@ -35,11 +35,15 @@ class HoverCapabilityTest {
     }
 
     @Test
-    fun `wayland without kwin is unsupported instead of polling a dead pointer`() {
+    fun `gnome wayland uses the shell extension bridge`() {
         assertEquals(
-            HoverBackendKind.UNSUPPORTED,
+            HoverBackendKind.GNOME,
             hoverBackendKindFor(OsFamily.LINUX, SessionType.WAYLAND, DesktopFamily.GNOME),
         )
+    }
+
+    @Test
+    fun `wayland without a bridge is unsupported instead of polling a dead pointer`() {
         assertEquals(
             HoverBackendKind.UNSUPPORTED,
             hoverBackendKindFor(OsFamily.LINUX, SessionType.WAYLAND, DesktopFamily.OTHER),
@@ -57,6 +61,7 @@ class HoverCapabilityTest {
         assertTrue(labels.all { it.isNotBlank() })
         assertEquals(labels.size, labels.toSet().size)
         assertTrue(hoverBackendLabel(HoverBackendKind.UNSUPPORTED).contains("indisponível"))
+        assertTrue(hoverBackendLabel(HoverBackendKind.GNOME).contains("GNOME"))
     }
 
     @Test
@@ -66,5 +71,6 @@ class HoverCapabilityTest {
         assertNull(hoverCaptureProvider(HoverBackendKind.AWT, capture))
         assertNull(hoverCaptureProvider(HoverBackendKind.UNSUPPORTED, capture))
         assertNotNull(hoverCaptureProvider(HoverBackendKind.KWIN, capture))
+        assertNotNull("GNOME also captures through the portal, not Robot", hoverCaptureProvider(HoverBackendKind.GNOME, capture))
     }
 }

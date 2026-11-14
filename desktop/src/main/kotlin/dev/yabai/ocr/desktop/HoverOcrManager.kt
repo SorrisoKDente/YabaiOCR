@@ -89,13 +89,15 @@ internal class HoverOcrManager(
 
         if (enabled) {
             gate.reset()
-            // On KWin the pointer arrives from the D-Bus bridge; there is no global pointer to poll.
-            if (backendKind != HoverBackendKind.KWIN) startPolling()
+            // The compositor bridges push the pointer over D-Bus; there is nothing to poll.
+            if (backendKind != HoverBackendKind.KWIN && backendKind != HoverBackendKind.GNOME) startPolling()
             publishStatus(
-                if (backendKind == HoverBackendKind.KWIN) {
-                    "Modo Hover ativo (ponteiro do KWin) — pare o mouse sobre um texto japonês."
-                } else {
-                    "Modo Hover ativo — pare o mouse sobre um texto japonês."
+                when (backendKind) {
+                    HoverBackendKind.KWIN ->
+                        "Modo Hover ativo (ponteiro do KWin) — pare o mouse sobre um texto japonês."
+                    HoverBackendKind.GNOME ->
+                        "Modo Hover ativo (ponteiro do GNOME Shell) — pare o mouse sobre um texto japonês."
+                    else -> "Modo Hover ativo — pare o mouse sobre um texto japonês."
                 },
             )
             triggerAtCursor(force = true)
@@ -118,13 +120,14 @@ internal class HoverOcrManager(
     }
 
     /**
-     * Called by the KWin D-Bus bridge on every pointer move.
+     * Called by the compositor bridge (KWin script or GNOME extension) on every pointer move.
      *
-     * The script already rate-limits and [KwinPointerSource] drops repeated positions, so a resting
-     * pointer does not run OCR again. Dismissal still follows movement, like the polled path.
+     * The bridge already rate-limits and [BridgePointerSource] drops repeated positions, so a
+     * resting pointer does not run OCR again. Dismissal still follows movement, like the polled
+     * path.
      */
     fun onPointerMoved(point: Point) {
-        (pointerSource as? KwinPointerSource)?.update(point)
+        (pointerSource as? BridgePointerSource)?.update(point)
         if (isEnabled) tick(point)
     }
 

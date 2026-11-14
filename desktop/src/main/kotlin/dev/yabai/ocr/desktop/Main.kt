@@ -88,7 +88,7 @@ fun main(args: Array<String>) {
             desktop = DesktopPlatform.desktop,
         )
     }
-    val kwinPointer = remember { KwinPointerSource() }
+    val bridgePointer = remember { BridgePointerSource() }
     // AWT needs no bridge; KWin has one that can fail, and UNSUPPORTED has no pointer at all.
     var hoverBackendReady by remember { mutableStateOf(hoverBackendKind == HoverBackendKind.AWT) }
     var hoverBackendFailure by remember { mutableStateOf<String?>(null) }
@@ -108,12 +108,16 @@ fun main(args: Array<String>) {
                 hoverState.status = message
             },
             backendKind = hoverBackendKind,
-            pointerSource = if (hoverBackendKind == HoverBackendKind.KWIN) kwinPointer else AwtPointerSource(),
+            pointerSource = if (hoverBackendKind.usesCompositorBridge) bridgePointer else AwtPointerSource(),
             captureProvider = hoverCaptureProvider(hoverBackendKind) { rect ->
                 ScreenCapture.captureRegion(rect)
             },
         )
     }
+
+    // Turning hover on where the session has no global pointer used to be a silent no-op: the
+    // failure is said out loud instead, in the same notice window a failed capture uses.
+    var hoverNotice by remember { mutableStateOf<String?>(null) }
 
     fun applyHover(enabled: Boolean) {
         if (enabled && !hoverBackendReady) {
@@ -121,8 +125,14 @@ fun main(args: Array<String>) {
             hoverState.matches = emptyList()
             hoverState.point = null
             hoverState.status = hoverBackendFailure ?: when (hoverBackendKind) {
-                HoverBackendKind.UNSUPPORTED -> hoverBackendLabel(HoverBackendKind.UNSUPPORTED)
+                HoverBackendKind.UNSUPPORTED -> DesktopStrings.hoverWaylandUnsupported
                 else -> DesktopStrings.hoverKwinBridgeUnavailable
+            }
+            if (
+                hoverBackendKind == HoverBackendKind.UNSUPPORTED ||
+                hoverBackendKind == HoverBackendKind.GNOME
+            ) {
+                hoverNotice = hoverState.status
             }
             return
         }
@@ -154,7 +164,7 @@ fun main(args: Array<String>) {
     fun selectedCaptureDisplay(): CaptureDisplay? =
         ScreenCapture.resolveDisplay(
             settings.captureMonitor,
-            pointer = kwinPointer.current() ?: AwtPointerSource().current(),
+            pointer = bridgePointer.current() ?: AwtPointerSource().current(),
         )
 
     // The two captures are two visible actions: the whole screen with clickable paragraphs, and
@@ -233,13 +243,25 @@ fun main(args: Array<String>) {
     // The effect runs after the hotkey effect, so a portal failure is already known when the script
     // is generated. Starting is all-or-nothing: no script without the service, no hover without the
     // script.
+    // Both Wayland bridges deliver the pointer through the same D-Bus object.
+    val hoverDbusService = remember {
+        if (
+            hoverBackendKind == HoverBackendKind.KWIN || hoverBackendKind == HoverBackendKind.GNOME
+        ) {
+            YabaiDbusService(
+                onCursorMoved = { x, y -> hoverOcrManager.onPointerMoved(Point(x, y)) },
+                onShortcutPressed = { id -> hotkeyCallbacks.dispatch(id) },
+            )
+        } else {
+            null
+        }
+    }
+
     val kwinIntegration = remember {
-        if (hoverBackendKind == HoverBackendKind.KWIN) {
+        val service = hoverDbusService
+        if (hoverBackendKind == HoverBackendKind.KWIN && service != null) {
             KWinIntegration(
-                service = YabaiDbusService(
-                    onCursorMoved = { x, y -> hoverOcrManager.onPointerMoved(Point(x, y)) },
-                    onShortcutPressed = { id -> hotkeyCallbacks.dispatch(id) },
-                ),
+                service = service,
                 bridge = KWinHoverBridge(),
                 fallbackShortcuts = {
                     if (hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE) {
@@ -254,6 +276,11 @@ fun main(args: Array<String>) {
         }
     }
 
+    // GNOME has no scripting API like KWin's; the bundled Shell extension owns the bridge.
+    val gnomeBridge = remember {
+        if (hoverBackendKind == HoverBackendKind.GNOME) GnomeHoverBridge() else null
+    }
+
     if (kwinIntegration != null) {
         DisposableEffect(kwinIntegration) {
             hoverBackendReady = kwinIntegration.start()
@@ -264,6 +291,31 @@ fun main(args: Array<String>) {
 
             onDispose {
                 kwinIntegration.stop()
+                hoverBackendReady = false
+            }
+        }
+    }
+
+    if (gnomeBridge != null) {
+        DisposableEffect(gnomeBridge) {
+            val serviceReady = hoverDbusService?.start() == true
+            val bridgeReady = serviceReady && gnomeBridge.start()
+            hoverBackendReady = bridgeReady
+            if (bridgeReady) {
+                hoverState.status = DesktopStrings.gnomeIntegrationActive
+            } else {
+                val message = when {
+                    !serviceReady -> DesktopStrings.gnomeBridgeFailed(hoverDbusService?.lastError)
+                    gnomeBridge.needsRelogin -> DesktopStrings.gnomeBridgeInstalled
+                    else -> DesktopStrings.gnomeBridgeFailed(gnomeBridge.lastError)
+                }
+                hoverBackendFailure = message
+                hoverState.status = message
+            }
+
+            onDispose {
+                gnomeBridge.stop()
+                hoverDbusService?.stop()
                 hoverBackendReady = false
             }
         }
@@ -427,12 +479,25 @@ fun main(args: Array<String>) {
             onOpenReleaseNotes = { appUpdateNotes = updateNotice },
         )
     }
+    // The update notice is always on top, so its release notes must be too; otherwise the notes
+    // open behind the notice that asked for them.
     val notesUpdate = appUpdateNotes
     if (notesUpdate != null) {
         ReleaseNotesWindow(
             version = notesUpdate.latestVersion,
             notes = notesUpdate.releaseNotes,
             onClose = { appUpdateNotes = null },
+            alwaysOnTop = true,
+        )
+    }
+
+    val hoverMessage = hoverNotice
+    if (hoverMessage != null) {
+        CaptureNoticeWindow(
+            message = hoverMessage,
+            onDismiss = { hoverNotice = null },
+            title = DesktopStrings.hoverNoticeTitle,
+            heading = DesktopStrings.hoverNoticeHeading,
         )
     }
 

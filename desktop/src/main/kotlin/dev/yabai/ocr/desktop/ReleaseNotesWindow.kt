@@ -52,6 +52,8 @@ fun ReleaseNotesWindow(
     version: String,
     notes: String,
     onClose: () -> Unit,
+    /** The update notice is always on top; its release notes have to open above it, not behind. */
+    alwaysOnTop: Boolean = false,
 ) {
     val blocks = remember(notes) { parseMarkdown(notes) }
     val state = rememberWindowState(width = 760.dp, height = 660.dp)
@@ -60,6 +62,7 @@ fun ReleaseNotesWindow(
         onCloseRequest = onClose,
         title = DesktopStrings.releaseNotesTitle(version),
         state = state,
+        alwaysOnTop = alwaysOnTop,
     ) {
         androidx.compose.runtime.LaunchedEffect(Unit) {
             runCatching { window.iconImage = AppIconGenerator.createWindowImage(64) }

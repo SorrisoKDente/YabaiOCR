@@ -5543,3 +5543,122 @@ e o token cruzado é mais longo); linha vizinha fora do recorte (o recurso simpl
 **Testes previstos.** `HoverTextSelectorTest`: horizontal partido, vertical partido, linhas de
 blocos diferentes, token que não cruza a fronteira, furigana adjacente, caixa do destaque. Mais a
 mutações exigidas pela skill `yabai-regression`.
+
+### D57 — Ubuntu 24.04: captura recusada, avisos em 800×600 e atualização que não reabria  `[x]` (14/11/2026)
+
+**Relato.** No AppImage do Ubuntu 24.04 (Wayland/GNOME 46), três defeitos independentes:
+
+- hover, tela inteira e recorte terminavam em «Captura de tela indisponível nesta sessão. É preciso
+  JDK 21…», embora o portal de tela estivesse ativo;
+- os avisos de captura e de atualização abriam num quadro 800×600 com o texto espremido e o rodapé de
+  botões fora da tela;
+- a atualização baixava e instalava, mas o app não voltava e o arquivo trocado continuava com o nome
+  da versão antiga (`Yabai_OCR-1.0.7-…` contendo o build 1.0.8).
+
+**Causas raiz.**
+
+1. **Piso do `dbusScreencast` errado.** `ScreencastScreenCapture` recusava qualquer JVM abaixo do
+   JDK 21, mas o backend foi **backportado** para as linhas LTS antigas (JDK-8335485): 21, 17.0.13+,
+   11.0.26+ e 8u441+. O runtime empacotado no AppImage é o 17.0.21 — tinha o backend e era barrado
+   antes de tentar. É por isso que a captura por portal funciona nesta máquina quando exercitada
+   direto pelo AWT.
+2. **Tamanho de janela.** `rememberWindowState()` sem tamanho cai no padrão do toolkit (800×600). Os
+   avisos são `Column`s curtos; o de atualização ainda tinha `verticalScroll`, que não tem altura
+   intrínseca, e o `Surface` sem `fillMaxSize` deixava o conteúdo no canto. O resultado era texto
+   cortado e botões inalcançáveis — o mesmo defeito de layout do B1, agora nas janelas de aviso.
+3. **Troca do AppImage em execução.** O download era gravado **em cima** do arquivo em uso (no Linux
+   isso falha com `ETXTBSY` ou deixa o mount antigo), e o relançamento herdava `APPIMAGE`, `APPDIR`,
+   `ARGV0`, `OWD` e `LD_LIBRARY_PATH` do mount que o restart acabara de desmontar. O processo novo
+   apontava para um diretório inexistente.
+
+**Correção.**
+
+- `ScreenCapture.kt`: `screencastSupported(featureVersion, updateVersion)` — 21+ ou 17.0.13+, os dois
+  únicos casos que podem rodar este build (bytecode 17). `jdkUpdateVersion` lê o `java.version`
+  completo e a mensagem `UNSUPPORTED` passou a citar «JDK 17.0.13+ (ou 21+)».
+- `CaptureNoticeWindow` / `AppUpdateNoticeWindow`: `rememberWindowState(size = DpSize.Unspecified)`
+  + `Surface(fillMaxSize)`; o aviso de atualização perdeu o `verticalScroll`; `title`/`heading`
+  viraram parâmetros. `ReleaseNotesWindow(alwaysOnTop)` abre as notas **acima** do aviso, e as notas
+  abertas por ele usam `alwaysOnTop = true`.
+- `UpdateInstaller.kt`: `installedPath` (nome vindo do asset da release), `updateTarget` (`.update`
+  ao lado quando o nome é o do processo em execução), `replaceAppImage(running, downloaded,
+  finalPath)`, `relaunchEnvironment` sem as variáveis do runtime e `restart()` com `launch()`,
+  checagem de vida de 1,5 s e fallback `--appimage-extract-and-run` quando o relançamento não sobe.
+- `DesktopStrings`: `captureNoticeTitle`/`Heading`, `hoverNoticeTitle`/`Heading`,
+  `hoverWaylandUnsupported`, `gnomeIntegrationActive`, `gnomeBridgeInstalled`,
+  `gnomeBridgeFailed(detail)` (pt/en).
+- `Main.kt`: as notas abertas pelo aviso vão com `alwaysOnTop = true`; o aviso de hover aparece
+  quando o hover não pôde ser ligado (UNSUPPORTED ou ponte do GNOME ainda não carregada).
+
+**Testes.** `ScreencastCaptureTest` (gate 17.0.13, piso por linha, token/permissão/negação),
+`NoticeWindowLayoutTest` (as três janelas de aviso), `UpdateInstallerTest` (+3: nome do release,
+renomeação na instalação e ambiente do relançamento) e `HoverCapabilityTest` (GNOME). Suíte desktop
+em **358 testes**.
+
+**Mutações provadas.**
+
+| mutação | teste que acusou |
+| --- | --- |
+| `featureVersion == 17 -> false` (volta o piso 21) | `jdk 17 with the screencast backport captures instead of being rejected`, `the screencast starts at 17_0_13 and is unconditional from 21` |
+| `updateTarget` devolve sempre o arquivo em execução | `the update keeps the release file name, not the running one`, `installing a newer release renames the file to the new version` |
+| `relaunchEnvironment` devolve o ambiente intacto | `the relaunch does not inherit the running appimage mount` |
+| `rememberWindowState(size = DpSize.Unspecified)` removido do aviso de captura | `notice windows fit their content instead of the default 800x600 frame` |
+
+**Limitações.** A suíte prova o gate, o recorte de nomes e o ambiente do relançamento, mas não
+instala um AppImage de verdade: a troca de arquivo em uso e o relançamento só podem ser vistos com o
+build publicado. A primeira captura por portal nesta máquina levou ~72 s (o diálogo do sistema
+aparece uma vez); a segunda já é direta.
+
+### D58 — Hover no GNOME Wayland pela extensão do Shell  `[x]` (14/11/2026)
+
+**Pesquisa.** No GNOME Wayland não existe rota nativa para um app comum saber onde está o ponteiro:
+`MouseInfo`/JNativeHook só veem eventos sobre janelas X11 (XWayland) e nenhum portal expõe a posição
+(RemoteDesktop *injeta* entrada, não a lê). As saídas possíveis eram: (a) extensão do Shell que leia
+`global.get_pointer()` e entregue a posição ao app — é o que Kando e OBS fazem; (b) depender de uma
+extensão de terceiros já instalada; (c) desistir do hover no GNOME. A opção (b) não é confiável
+(nenhuma extensão publica esse dado de forma estável), então o app instala a **sua própria**
+extensão — mesma decisão de arquitetura do script KWin, e sem exigir configuração manual.
+
+**Contrato.** A extensão fala o **mesmo D-Bus** que o script do KWin, então o resto do app não sabe
+quem é a fonte:
+
+- `dev.yabai.Ocr` / `/dev/yabai/Ocr/Hover` / `dev.yabai.Ocr.Hover.CursorMoved(x, y)`, a 10 Hz,
+  com dedup do último ponto;
+- a extensão também **possui** o nome `dev.yabai.GnomePointer`; o app consulta `NameHasOwner` para
+  distinguir «instalada» de «carregada» — o GNOME 46 só lê extensões no início da sessão, então uma
+  instalação nova fica pendente até sair e entrar;
+- coordenadas: `global.get_pointer()` vem em pixels de palco; a extensão divide pela escala do
+  monitor quando o palco não está em 1:1, para o app continuar recebendo unidades lógicas como no
+  KWin.
+
+**Implementação.** `GnomeHoverBridge.kt` (novo) grava `metadata.json` + `extension.js` em
+`$XDG_DATA_HOME/gnome-shell/extensions/yabai-ocr@yabai.dev/` (só quando o conteúdo muda), chama
+`gnome-extensions enable <uuid>` e devolve três estados: pronto, «ativa, mas só depois de sair e
+entrar» ou falha com o motivo. `HoverCapability` ganhou `HoverBackendKind.GNOME` (seleção
+GNOME → GNOME, captura screencast incluída), `PointerSource` virou `BridgePointerSource` (as duas
+pontes usam a mesma fonte; o `typealias KwinPointerSource` da primeira versão foi removido),
+`HoverOcrManager` não faz
+polling nesse backend e o status diz «ponteiro do GNOME Shell». `Main.kt` compartilha o serviço
+D-Bus entre KWin e GNOME e mostra o aviso de hover quando a ponte não está pronta.
+
+**Testes.** `GnomeHoverBridgeTest` (8): contrato lido dos recursos empacotados (nome, caminho,
+`CursorMoved`, nome de prontidão, módulo ESM), instalação idempotente, `XDG_DATA_HOME`, extensão já
+carregada sem tocar no disco, instalação nova pedindo um log out, recusa do `gnome-extensions`,
+CLI que estoura (não pode virar «ativa») e pasta que não pode ser gravada, e sessão D-Bus
+indisponível.
+
+**Mutações provadas.**
+
+| mutação | teste que acusou |
+| --- | --- |
+| falha do `gnome-extensions` tratada como sucesso (`getOrDefault(true)`) | `an enable that throws is a failure, not a pending log out` |
+
+A mutação encontrou um bug de verdade: o código tratava exceção do CLI como «ativa» e o
+usuário veria «saia e entre na sessão» para uma extensão que nunca foi ativada. Corrigido para
+`getOrDefault(false)` e coberto pelo teste novo.
+
+**Limitações.** A extensão **não** foi carregada nesta sessão: o GNOME 46 só a lê no início, e sair
+da sessão não é algo que a tarefa possa fazer sozinha. Ficam sem prova em execução o caminho de
+escala fracionária da extensão (aqui a sessão é 1.0) e o `gnome-extensions enable` real; o app
+reporta a falha com o motivo quando ela acontecer. Roteiro de verificação: abrir o app, ligar o
+hover, sair e entrar, e conferir `gnome-extensions info yabai-ocr@yabai.dev` como `ENABLED`.

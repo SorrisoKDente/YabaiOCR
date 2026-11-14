@@ -4,12 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.MaterialTheme
@@ -23,8 +22,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.EventQueue
 import java.nio.file.Path
@@ -49,11 +50,14 @@ fun AppUpdateNoticeWindow(
     Window(
         onCloseRequest = onDismiss,
         title = "Yabai OCR - ${DesktopStrings.updateAvailable}",
+        // Fits the content: the default 800×600 dp frame left three quarters of the window blank on
+        // a scaled display, and a scroll container cannot be measured without a height limit.
+        state = rememberWindowState(size = DpSize.Unspecified),
         alwaysOnTop = true,
         resizable = false,
     ) {
         YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
-            Surface(color = MaterialTheme.colors.background) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                 val scope = rememberCoroutineScope()
                 var isDownloading by remember { mutableStateOf(false) }
                 var progress by remember { mutableStateOf<Int?>(null) }
@@ -63,8 +67,7 @@ fun AppUpdateNoticeWindow(
                 Column(
                     modifier = Modifier
                         .width(450.dp)
-                        .padding(24.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .padding(24.dp),
                 ) {
                     Text(
                         text = DesktopStrings.updateAvailable,

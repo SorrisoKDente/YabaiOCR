@@ -4,6 +4,8 @@ import java.awt.Rectangle
 import java.awt.image.BufferedImage
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -21,20 +23,45 @@ class ScreencastCaptureTest {
     private val image = BufferedImage(4, 3, BufferedImage.TYPE_INT_ARGB)
 
     @Test
-    fun `an old jdk is reported as unsupported`() {
+    fun `jdk 17 with the screencast backport captures instead of being rejected`() {
+        // The packaged Linux build runs on JDK 17: gating on "feature >= 21" blocked a runtime that
+        // has dbusScreencast since 17.0.13, which is exactly how Ubuntu 24.04 lost the capture.
+        val backend = ScreencastScreenCapture(
+            tokenCandidates = tempToken(),
+            jdkFeatureVersion = 17,
+            jdkUpdateVersion = 21,
+            captureAction = { image },
+        )
+
+        assertEquals(CaptureAvailability.READY, backend.availability())
+        assertSame(image, backend.captureScreen())
+    }
+
+    @Test
+    fun `jdk 17 before the backport is reported as unsupported`() {
         val backend = ScreencastScreenCapture(
             tokenCandidates = emptyList(),
             jdkFeatureVersion = 17,
+            jdkUpdateVersion = 12,
             captureAction = { image },
         )
 
         assertEquals(CaptureAvailability.UNSUPPORTED, backend.availability())
         try {
             backend.captureScreen()
-            fail("capture must not be attempted with an unsupported JDK")
+            fail("capture must not be attempted without dbusScreencast")
         } catch (e: ScreenCaptureException) {
             assertEquals(CaptureAvailability.UNSUPPORTED, e.availability)
         }
+    }
+
+    @Test
+    fun `the screencast starts at 17_0_13 and is unconditional from 21`() {
+        assertTrue(screencastSupported(21, 0))
+        assertTrue(screencastSupported(17, 13))
+        assertFalse("17.0.12 has no dbusScreencast", screencastSupported(17, 12))
+        // Java 17 bytecode cannot run on an older line, so those can never reach this gate.
+        assertFalse(screencastSupported(16, 99))
     }
 
     @Test

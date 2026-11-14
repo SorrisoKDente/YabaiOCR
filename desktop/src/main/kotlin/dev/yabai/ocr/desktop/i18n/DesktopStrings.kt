@@ -382,7 +382,37 @@ object DesktopStrings {
     }
 
     // Lifecycle & App Main Strings
+    val captureNoticeTitle: String get() = if (isEnglish) "Yabai OCR - Screen capture" else "Yabai OCR - Captura de tela"
+    val captureNoticeHeading: String get() = if (isEnglish) "Screen capture unavailable" else "Captura de tela indisponível"
+    val hoverNoticeTitle: String get() = "Yabai OCR - Hover"
+    val hoverNoticeHeading: String get() = if (isEnglish) "Hover unavailable" else "Hover indisponível"
+    val hoverWaylandUnsupported: String get() = if (isEnglish) {
+        "Hover follows the system pointer, and this Wayland session does not expose it. " +
+            "Only KDE provides it (through a KWin script). Use «Full Screen Capture» or «Capture Area»."
+    } else {
+        "O hover segue o ponteiro do sistema, e esta sessão Wayland não o expõe. " +
+            "Só o KDE o fornece (por script do KWin). Use «Capturar Tela Inteira» ou «Capturar Área»."
+    }
     val hoverKwinBridgeUnavailable: String get() = if (isEnglish) "Hover unavailable: KWin bridge is not active." else "Hover indisponível: o bridge do KWin não está ativo."
+    val gnomeIntegrationActive: String get() = if (isEnglish) {
+        "Hover uses the GNOME Shell global pointer."
+    } else {
+        "Hover usa o ponteiro global do GNOME Shell."
+    }
+    val gnomeBridgeInstalled: String get() = if (isEnglish) {
+        "Hover bridge installed and enabled. GNOME Shell only reads an extension when it starts: " +
+            "log out and back in, then turn hover on again."
+    } else {
+        "Ponte do hover instalada e ativa. O GNOME Shell só lê a extensão quando inicia: " +
+            "saia e entre na sessão, depois ligue o hover de novo."
+    }
+    fun gnomeBridgeFailed(detail: String?): String = if (isEnglish) {
+        if (detail == null) "Could not activate the GNOME hover bridge."
+        else "Could not activate the GNOME hover bridge ($detail)."
+    } else {
+        if (detail == null) "Não foi possível ativar a ponte do hover do GNOME."
+        else "Não foi possível ativar a ponte do hover do GNOME ($detail)."
+    }
     val kwinIntegrationActive: String get() = if (isEnglish) "Hover and KWin shortcuts active." else "Hover e atalhos do KWin ativos."
     fun kwinDbusFailed(detail: String?): String = if (isEnglish) {
         if (detail == null) "Could not publish the dev.yabai.Ocr D-Bus service."

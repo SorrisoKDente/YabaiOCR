@@ -215,9 +215,10 @@ flags above.
 | `HoverGeometry.kt` | crop around the pointer, local coordinates, HiDPI |
 | `HoverTextSelector.kt` | picks the line/word under the pointer and builds the hit |
 | `HoverTooltipWindow.kt` | floating card (size, position, content) |
-| `HoverCapability.kt` | is hover supported in this session? (X11/Wayland/Win) |
-| `PointerSource.kt` | pointer position source (AWT or KWin) |
+| `HoverCapability.kt` | is hover supported in this session? (X11/Wayland/Win; on Wayland it picks between the KWin and the GNOME pointer) |
+| `PointerSource.kt` | pointer position source (AWT, KWin script or GNOME extension) |
 | `KWinHoverBridge.kt` / `KWinIntegration.kt` / `KWinScript.kt` | KWin script + D-Bus that delivers the pointer on Wayland; unloads a stale script and reapplies shortcuts |
+| `GnomeHoverBridge.kt` | installs/enables the `yabai-ocr@yabai.dev` extension and detects whether the Shell has loaded it (own D-Bus name); same `CursorMoved` contract as KWin |
 | `KGlobalAccel.kt` | clears the stored KGlobalAccel binding before reloading the KWin script |
 
 ### Desktop OCR

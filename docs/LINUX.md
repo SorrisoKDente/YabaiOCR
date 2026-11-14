@@ -19,6 +19,15 @@ menu da bandeja passou a ser DBusMenu desenhado pelo Plasma (o `ContextMenu`/Swi
 fallback). Onde as seções históricas deste plano dizem “portal `Screenshot`” ou “menu Swing” como
 caminho principal, vale esta atualização. A validação visual continua dependendo de um host KDE real.
 
+**Atualização D57/D58 (14/11/2026):** no **GNOME Wayland** (Ubuntu 24.04/GNOME 46) o hover
+passou a existir por uma extensão do Shell que o app instala e ativa sozinho — é a única rota, porque
+`global.get_pointer()` só existe dentro do compositor. A extensão fala o **mesmo contrato D-Bus** do
+script KWin (`dev.yabai.Ocr.Hover.CursorMoved`) e publica o nome `dev.yabai.GnomePointer`, que o app
+usa para distinguir “instalada” de “carregada”: o GNOME só lê extensões no início da sessão, então a
+primeira ativação pede sair e entrar uma vez. A captura nesse ambiente usa o `ScreenCast` do JDK, e o
+piso real do `dbusScreencast` é **17.0.13** (backport, JDK-8335485), não 21 — o AppImage embarca
+17.0.21 e antes era recusado pelo app. Ver D57/D58 no [ROADMAP](ROADMAP.md).
+
 **O que a P1 entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
 `Exec`, ícone PNG Linux, `YABAI_HOME`, build condicional `Deb`/`AppImage` + `packagePortableTarGz`, e
 27 testes novos. As oito mutações da P1 foram provadas.
@@ -200,8 +209,10 @@ documentação do projeto e no código do OpenJDK/KDE.
   carregado em runtime via `org.kde.KWin.Scripting.loadScript`/`start`. Não exige reiniciar o KWin.
 - O script também serve para **regras de janela** (manter o tooltip acima e fora da barra de tarefas)
   e como **fallback de atalhos** (`registerShortcut`) se o portal não estiver disponível.
-- Limitação: no GNOME não existe API equivalente sem extensão de Shell. Hover fica indisponível fora
-  do KDE nesta fase, com mensagem clara.
+- Limitação: no GNOME não existe API equivalente fora do Shell. O app cobre isso com a extensão
+  `yabai-ocr@yabai.dev` (D58), que entrega a mesma mensagem D-Bus; a extensão só é lida no início da
+  sessão, então a primeira ativação pede um log out. Em compositores sem script nem extensão (Sway,
+  Gamescope) o hover continua indisponível, com mensagem clara e sem `MouseInfo`.
 
 ### 2.4 SteamOS
 
@@ -541,11 +552,14 @@ workspace.cursorPosChanged.connect(pushCursor);
 
 ### 6.4 Limites
 
-- GNOME, Sway e outros compositores: sem API de ponteiro global sem extensão. Hover indisponível, com
-  mensagem e sem tentativa de `MouseInfo`.
+- **GNOME:** coberto pela extensão do Shell (D58). O app grava
+  `$XDG_DATA_HOME/gnome-shell/extensions/yabai-ocr@yabai.dev/` (`metadata.json` + `extension.js`) e
+  ativa por `gnome-extensions enable`; a janela de shell que já está rodando não a carrega, então o
+  estado fica “instalada, precisa reiniciar a sessão” até o próximo login.
+- Sway, Gamescope e outros compositores: sem script nem extensão, não há API de ponteiro global.
+  Hover indisponível, com mensagem e sem tentativa de `MouseInfo`.
 - SteamOS Game Mode: não roda o script do KWin; hover indisponível.
-- Futuro: metadado de cursor do PipeWire (`spa_meta_cursor`) ou extensão de Shell. Não faz parte desta
-  entrega.
+- Futuro: metadado de cursor do PipeWire (`spa_meta_cursor`). Fora desta entrega.
 
 ---
 
@@ -764,7 +778,7 @@ como tal, sem prometer hover/atalhos.
 | `YabaiDbusService.kt` | serviço `dev.yabai.Ocr` (hover + atalhos; implementado na P4) |
 | `KWinIntegration.kt` | ordem D-Bus → script, rollback e status (implementado na P4) |
 | `HoverCapability.kt` | seleção AWT × KWin × indisponível (implementado na P4) |
-| `PointerSource.kt` | `AwtPointerSource` e `KwinPointerSource` com dedup (implementado na P4) |
+| `PointerSource.kt` | `AwtPointerSource` e `BridgePointerSource` com dedup (implementado na P4; o nome `BridgePointerSource` veio com a D58) |
 | `desktop/src/main/resources/kwin/yabai-ocr/` | `metadata.json` e `code/main.js` (implementado na P4) |
 | `LinuxCapabilities.kt` | probe de portal, KWin e bandeja (com timeout) |
 | `desktop/package/linux/` | `.desktop`, ícones, script KWin |

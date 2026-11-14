@@ -14,12 +14,12 @@ internal class AwtPointerSource : PointerSource {
 }
 
 /**
- * Last position reported by the KWin script.
+ * Last position reported by a compositor bridge (the KWin script or the GNOME Shell extension).
  *
- * The script already limits itself to ~10 Hz; this class only remembers the latest point and drops
+ * The bridge already limits itself to ~10 Hz; this class only remembers the latest point and drops
  * repeats, so a stationary pointer does not trigger another OCR pass.
  */
-internal class KwinPointerSource : PointerSource {
+internal class BridgePointerSource : PointerSource {
     @Volatile
     private var last: Point? = null
 

@@ -10,14 +10,20 @@ import java.util.concurrent.TimeUnit
 
 /** What happened to a downloaded update. */
 internal sealed interface UpdateOutcome {
-    /** The running AppImage was replaced; the new file is ready to run. */
+    /** The running AppImage was replaced; the new file — under the release's own name — is ready. */
     data class Replaced(val appImage: Path) : UpdateOutcome
 
     /** A separate installer was downloaded and started. */
     data class InstallerLaunched(val installer: Path) : UpdateOutcome
+}
 
-    /** Nothing could be done safely here; the caller should open the release page. */
-    data object Manual : UpdateOutcome
+/** What [UpdateInstaller.install] is about to do, decided before a single byte is written. */
+internal sealed interface UpdatePlan {
+    /** An AppImage build: the file at [running] is swapped for the download. */
+    data class AppImage(val running: Path) : UpdatePlan
+
+    /** Windows and macOS: an installer is downloaded to [path] and started. */
+    data class Installer(val path: Path) : UpdatePlan
 }
 
 /**
@@ -44,13 +50,49 @@ internal object UpdateInstaller {
         return withoutQuery.substringAfterLast('/').takeIf { it.isNotBlank() } ?: "update.bin"
     }
 
-    fun plan(family: OsFamily, downloadUrl: String?, environment: Map<String, String>): UpdateOutcome? = when {
-        downloadUrl.isNullOrBlank() -> null
-        family == OsFamily.LINUX -> appImagePath(environment)?.let { UpdateOutcome.Replaced(it) }
-        family == OsFamily.WINDOWS || family == OsFamily.MACOS -> {
-            val name = fileNameFor(downloadUrl)
-            UpdateOutcome.InstallerLaunched(Path.of(System.getProperty("java.io.tmpdir"), name))
-        }
+    /**
+     * File the downloaded release is written to.
+     *
+     * The asset already carries the version in its name (`Yabai_OCR-1.0.9-x86_64.AppImage`). Writing
+     * it under the *running* file's name is what made an updated app keep the old version in its
+     * file name, so the release keeps its own.
+     */
+    fun installedPath(running: Path, downloadUrl: String): Path =
+        running.resolveSibling(fileNameFor(downloadUrl))
+
+    /**
+     * Where the download is written. Never over the running file: the new build must not sit on it
+     * until the swap, so a same-name asset goes to a side file first.
+     */
+    fun updateTarget(running: Path, downloadUrl: String): Path {
+        val installed = installedPath(running, downloadUrl)
+        return if (installed == running) running.resolveSibling(running.fileName.toString() + ".update")
+        else installed
+    }
+
+    /**
+     * Variables the AppImage runtime exports for the mount it created.
+     *
+     * A child that inherits them starts the new runtime against the *previous* mount, which vanishes
+     * as soon as this process exits — the restart that seemed to do nothing.
+     */
+    private val APPIMAGE_RUNTIME_VARIABLES = setOf(
+        "APPIMAGE",
+        "APPDIR",
+        "APPDIR_LIBRARY_PATH",
+        "APPIMAGE_EXTRACT_AND_RUN",
+        "ARGV0",
+        "OWD",
+        "LD_LIBRARY_PATH",
+    )
+
+    fun relaunchEnvironment(environment: Map<String, String>): Map<String, String> =
+        environment.filterKeys { it !in APPIMAGE_RUNTIME_VARIABLES }
+
+    fun plan(family: OsFamily, downloadUrl: String, environment: Map<String, String>): UpdatePlan? = when (family) {
+        OsFamily.LINUX -> appImagePath(environment)?.let(UpdatePlan::AppImage)
+        OsFamily.WINDOWS, OsFamily.MACOS ->
+            UpdatePlan.Installer(Path.of(System.getProperty("java.io.tmpdir"), fileNameFor(downloadUrl)))
         else -> null
     }
 
@@ -115,24 +157,54 @@ internal object UpdateInstaller {
      * refused by the kernel. If putting the new file in place fails, the old one is renamed back,
      * so a failed update never leaves the user without a working app.
      */
-    fun replaceAppImage(running: Path, downloaded: Path): Path {
+    fun replaceAppImage(running: Path, downloaded: Path, finalPath: Path = running): Path {
         val backup = running.resolveSibling(running.fileName.toString() + ".old")
         Files.deleteIfExists(backup)
         Files.move(running, backup, StandardCopyOption.REPLACE_EXISTING)
         try {
-            Files.move(downloaded, running, StandardCopyOption.REPLACE_EXISTING)
+            // A versioned asset already sits at its final name; only a same-name download still has
+            // to be moved into place.
+            if (downloaded != finalPath) {
+                Files.move(downloaded, finalPath, StandardCopyOption.REPLACE_EXISTING)
+            }
         } catch (error: IOException) {
             Files.move(backup, running, StandardCopyOption.REPLACE_EXISTING)
             throw error
         }
-        running.toFile().setExecutable(true, false)
+        finalPath.toFile().setExecutable(true, false)
         return backup
     }
 
-    /** Starts the replacement build; the caller closes the current process afterwards. */
-    fun restart(appImage: Path): Boolean = try {
-        ProcessBuilder(appImage.toString()).start()
-        true
+    /**
+     * Starts the replacement build; the caller closes the current process afterwards.
+     *
+     * The environment is cleaned first ([relaunchEnvironment]): the new AppImage has to create its
+     * own mount. A runtime that cannot mount (AppImage type 2 needs FUSE 2) exits a moment after
+     * `start()` reports success, which is why the launch is checked before it is called a success —
+     * and why the unpacked fallback exists.
+     */
+    fun restart(appImage: Path, environment: Map<String, String> = System.getenv()): Boolean {
+        if (!appImage.toFile().canExecute() && !appImage.toFile().setExecutable(true, false)) {
+            return false
+        }
+        val clean = relaunchEnvironment(environment)
+        if (launch(listOf(appImage.toString()), clean)) return true
+
+        // «Nothing opened»: no FUSE. Run the AppImage unpacked instead of giving up silently.
+        return launch(listOf(appImage.toString(), "--appimage-extract-and-run"), clean)
+    }
+
+    /** True when the process is still running 1.5 s later — the difference between «started» and
+     * «the runtime printed an error and left». */
+    private fun launch(command: List<String>, environment: Map<String, String>): Boolean = try {
+        val builder = ProcessBuilder(command)
+        builder.environment().apply {
+            clear()
+            putAll(environment)
+        }
+        val process = builder.start()
+        process.waitFor(1500, TimeUnit.MILLISECONDS)
+        process.isAlive
     } catch (_: Throwable) {
         false
     }
@@ -140,7 +212,8 @@ internal object UpdateInstaller {
     /**
      * Downloads and installs, in one call: the UI only needs to report progress and the outcome.
      *
-     * Returns null when there is no asset to download, so the caller falls back to the browser.
+     * Returns null when there is nothing safe to install here — no asset, or an unpacked build with
+     * no single file to swap — so the caller falls back to the browser.
      */
     fun install(
         url: String?,
@@ -148,27 +221,27 @@ internal object UpdateInstaller {
         environment: Map<String, String>,
         onProgress: (Int?) -> Unit = {},
     ): UpdateOutcome? {
-        val plan = plan(family, url, environment) ?: return null
-        val downloadUrl = url!!
-        return when (plan) {
-            is UpdateOutcome.Replaced -> {
-                val target = plan.appImage.resolveSibling(plan.appImage.fileName.toString() + ".update")
+        val downloadUrl = url?.takeIf { it.isNotBlank() } ?: return null
+        return when (val plan = plan(family, downloadUrl, environment)) {
+            is UpdatePlan.AppImage -> {
+                val installed = installedPath(plan.running, downloadUrl)
+                val target = updateTarget(plan.running, downloadUrl)
                 download(downloadUrl, target, onProgress)
-                replaceAppImage(plan.appImage, target)
-                UpdateOutcome.Replaced(plan.appImage)
+                replaceAppImage(plan.running, target, installed)
+                UpdateOutcome.Replaced(installed)
             }
 
-            is UpdateOutcome.InstallerLaunched -> {
-                download(downloadUrl, plan.installer, onProgress)
+            is UpdatePlan.Installer -> {
+                download(downloadUrl, plan.path, onProgress)
                 if (family == OsFamily.MACOS) {
-                    ProcessBuilder("open", plan.installer.toString()).start()
+                    ProcessBuilder("open", plan.path.toString()).start()
                 } else {
-                    ProcessBuilder(plan.installer.toString()).start()
+                    ProcessBuilder(plan.path.toString()).start()
                 }
-                plan
+                UpdateOutcome.InstallerLaunched(plan.path)
             }
 
-            UpdateOutcome.Manual -> UpdateOutcome.Manual
+            null -> null
         }
     }
 }

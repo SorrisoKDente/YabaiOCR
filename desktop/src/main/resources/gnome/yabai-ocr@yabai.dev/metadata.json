@@ -1,0 +1,8 @@
+{
+  "uuid": "yabai-ocr@yabai.dev",
+  "name": "Yabai OCR Hover Bridge",
+  "description": "Sends the global pointer position to Yabai OCR so the hover works on GNOME Wayland.",
+  "shell-version": ["45", "46", "47", "48"],
+  "version": 1,
+  "url": "https://github.com/SorrisoKDente/YabaiOCR"
+}

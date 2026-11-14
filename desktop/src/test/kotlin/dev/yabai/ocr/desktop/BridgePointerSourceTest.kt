@@ -7,16 +7,16 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class KwinPointerSourceTest {
+class BridgePointerSourceTest {
 
     @Test
-    fun `the source has no pointer before the first kwin event`() {
-        assertNull(KwinPointerSource().current())
+    fun `the source has no pointer before the first bridge event`() {
+        assertNull(BridgePointerSource().current())
     }
 
     @Test
     fun `the latest position is kept and repeated positions are dropped`() {
-        val source = KwinPointerSource()
+        val source = BridgePointerSource()
 
         assertTrue(source.update(Point(10, 20)))
         assertEquals(Point(10, 20), source.current())
