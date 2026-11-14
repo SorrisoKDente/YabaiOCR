@@ -68,6 +68,9 @@ chosen in Settings. Default shortcuts (all configurable):
 On multi-monitor setups, Settings lets you choose which monitor the full-screen capture and the
 manual crop use: the primary one, a specific monitor, or the one under the pointer when you capture.
 
+Windows whose content does not fit the height — Settings, result, dictionary manager, quick lookup,
+license and release notes — show a **scrollbar** on the right, on top of the mouse wheel.
+
 The installed version is shown in **Settings → About**, next to the update check button; in packaged
 builds it comes from the build tag (`-PyabaiVersion`), not from a fixed number. When a release is
 newer, **📄 Release notes** renders the Markdown published with it, and the check on startup can be

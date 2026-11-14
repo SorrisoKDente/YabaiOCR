@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
-    id("org.jetbrains.compose") version "1.7.3"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
+    id("org.jetbrains.compose") version "1.12.2"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
 }
 
 java {
@@ -55,7 +55,7 @@ val isLinuxHost = System.getProperty("os.name").lowercase().contains("linux")
 // Version stamped into the packages. The release workflow passes `-PyabaiVersion=<tag without v>` so
 // an installer, a portable zip and an AppImage from the same tag all carry the same number.
 val appVersion = (project.findProperty("yabaiVersion") as String?)?.trim()?.removePrefix("v")
-    ?.takeIf { it.isNotEmpty() } ?: "1.0.7"
+    ?.takeIf { it.isNotEmpty() } ?: "1.0.8"
 
 // The Windows installer accepts only `MAJOR.MINOR.BUILD` (255.255.65535) and fails configuration
 // with a trailing `$env:VERSION`-style string or a pre-release suffix. Normalising here keeps the
@@ -105,11 +105,11 @@ compose.desktop {
     application {
         mainClass = "dev.yabai.ocr.desktop.MainKt"
         jvmArgs += listOf("-Dfile.encoding=UTF-8")
-        // Compose 1.7 crashes inside libstdc++ on Ubuntu 24.04+ when a native library (PP-OCR's
-        // ONNX Runtime, for instance) formats a number through std::ostream. Compose's Swing-globals
-        // setup is what leaves libstdc++'s locale/conversion path broken (JetBrains CMP-9994, fixed
-        // in Compose 1.10). Turning it off removes the crash; the flag ships only in Linux builds so
-        // Windows keeps the behavior it always had.
+        // CMP-9994 / JDK-8379560: on Ubuntu 24.04+ a native library that formats through
+        // std::ostream (PP-OCR's ONNX Runtime, for instance) crashes the JVM inside libstdc++
+        // when Compose has configured the Swing/AWT globals. Compose 1.10 fixed the root cause
+        // (this project is on 1.12.2), so the flag is only a belt-and-braces switch now: it costs
+        // nothing and it already shipped in 1.0.7. Kept on Linux only, so Windows is unchanged.
         if (isLinuxHost) {
             jvmArgs += "-Dcompose.application.configure.swing.globals=false"
         }

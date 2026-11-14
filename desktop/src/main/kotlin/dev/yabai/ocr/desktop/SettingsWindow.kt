@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
@@ -151,7 +150,7 @@ fun SettingsContent(
 
     val installedDictCount = installedDictTitles.size
 
-    LazyColumn(
+    ScrollableLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)

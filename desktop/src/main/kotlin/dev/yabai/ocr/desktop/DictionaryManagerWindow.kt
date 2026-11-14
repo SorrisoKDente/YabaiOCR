@@ -2,7 +2,6 @@ package dev.yabai.ocr.desktop
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -345,7 +344,7 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
                 )
             } else {
                 SelectionContainer {
-                    LazyColumn(
+                    ScrollableLazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -613,7 +612,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        LazyColumn(
+        ScrollableLazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -830,7 +829,7 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
         } else emptySet()
     }
 
-    LazyColumn(
+    ScrollableLazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

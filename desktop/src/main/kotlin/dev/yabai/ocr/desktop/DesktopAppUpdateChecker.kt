@@ -55,7 +55,7 @@ internal fun preferredReleaseAsset(family: OsFamily, assets: List<ReleaseAsset>)
 }
 
 object DesktopAppUpdateChecker {
-    private const val FALLBACK_VERSION = "1.0.7"
+    private const val FALLBACK_VERSION = "1.0.8"
     private const val GITHUB_RELEASE_URL = "https://api.github.com/repos/SorrisoKDente/YabaiOCR/releases/latest"
 
     private val client = OkHttpClient.Builder()

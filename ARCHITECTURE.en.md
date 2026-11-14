@@ -189,6 +189,7 @@ flags above.
 | `DictLookup.kt` | runs one dictionary query and reports failure instead of throwing inside a `LaunchedEffect` |
 | `DesktopTheme.kt` | light/dark palettes, `contrastRatio`, theme application |
 | `AppIconGenerator.kt` | runtime icon (window, tray) |
+| `AppScrollbar.kt` | `ScrollableLazyColumn`/`ScrollableColumn`: the scrollable containers with the scrollbar Compose Desktop does not draw |
 | `CaptureNoticeWindow.kt` | floating capture notice |
 | `i18n/DesktopStrings.kt` | **every** pt/en desktop string (nothing hardcoded in the screens) |
 

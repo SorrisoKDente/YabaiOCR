@@ -68,6 +68,9 @@ Ajustes. Atalhos padrão (todos configuráveis):
 Em telas múltiplas, os Ajustes deixam escolher qual monitor a captura de tela inteira e o recorte à
 mão usam: o principal, um monitor específico ou aquele em que o ponteiro está no momento da captura.
 
+As janelas cujo conteúdo não cabe na altura — Ajustes, resultado, gerenciador de dicionários, busca
+rápida, licença e notas da versão — mostram **barra de rolagem** à direita, além da roda do mouse.
+
 A versão instalada aparece em **Ajustes → Sobre**, junto do botão de verificação de atualizações; nos
 pacotes ela vem da tag do build (`-PyabaiVersion`), não de um número fixo. Quando há versão nova, o
 botão «📄 Notas da versão» abre o Markdown publicado no release do GitHub, e a checagem ao abrir o app

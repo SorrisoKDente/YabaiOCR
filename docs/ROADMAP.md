@@ -5446,3 +5446,100 @@ aparelho. A correção do CMP-9994 fica como mitigação (`configure.swing.globa
 prova — subir o Compose para 1.10 é o caminho definitivo e foi deixado fora desta rodada por exigir
 Kotlin ≥ 2.2 e um reteste completo. O `settings.properties` do usuário não foi tocado. Nada foi
 commitado.
+
+> **Revisão (14/11/2026).** O workaround não resolveu. No AppImage 1.0.7 sob Temurin 17.0.21 e
+> Ubuntu 24.04 o processo continua morrendo com `SIGSEGV (0xb) at pc=0x0000000000000002` em
+> `libstdc++.so.6` (`std::ostream::_M_insert<long>+0x8a`) ao ativar o hover, ao capturar a tela
+> inteira e ao recortar. O caminho definitivo virou a D55: Compose 1.12.2 com Kotlin 2.4.21.
+
+### D55 — Ubuntu 24.04: SIGSEGV em `libstdc++` no hover/captura (Compose 1.12)  `[x]` (14/11/2026)
+
+**Relato.** No AppImage 1.0.7, com Ubuntu 24.04 e o runtime empacotado (Temurin 17.0.21), o app
+fecha o processo assim que o hover, a captura de tela inteira ou o recorte vão ler algo:
+
+```text
+[Hotkey] gancho global de teclado ativo.
+[Hover] Modo Hover ativo — pare o mouse sobre um texto japonês.
+SIGSEGV (0xb) at pc=0x0000000000000002
+C  [libstdc++.so.6+0x13d11a]  std::ostream& std::ostream::_M_insert<long>(long)+0x8a
+```
+
+**Causa raiz.** É o **CMP-9994**, com o upstream do JDK registrando o mesmo defeito em
+[JDK-8379560](https://bugs.openjdk.org/browse/JDK-8379560) e a Microsoft em
+[microsoft/openjdk#670](https://github.com/microsoft/openjdk/issues/670). Em Ubuntu 24.04+, quando
+uma biblioteca nativa que formata texto por `std::ostream` — o ONNX Runtime do PP-OCR é uma — é
+chamada **dentro de uma aplicação Compose**, a conversão de caracteres (`codecvt`) do `libstdc++`
+recebe um estado inválido e o JVM morre. Não é o OCR em si: o mesmo bloco roda sem crash fora de um
+app Compose. A JetBrains confirmou no CMP-9994 que o problema **foi corrigido no Compose 1.10** e a
+Microsoft fechou o #670 depois do teste com o Compose atualizado.
+
+O `-Dcompose.application.configure.swing.globals=false` da D54 cobre apenas parte dos pontos de
+crash — o do hover continua, que é exatamente o que o usuário viu.
+
+**Correção.**
+- `desktop/build.gradle.kts`: plugin `org.jetbrains.compose` **1.7.3 → 1.12.2** e
+  `org.jetbrains.kotlin.plugin.compose` **2.1.21 → 2.4.21** (o compilador Compose acompanha o
+  Kotlin).
+- `gradle/libs.versions.toml`: `kotlin` **2.1.21 → 2.4.21**. O KGP 2.2.x só suporta Gradle até
+  8.14; o projeto está no Gradle **9.6.0**, e o KGP **2.4.20–2.4.21** é o primeiro com suporte
+  integral (7.6.3–9.7.0, AGP 8.5.2–9.3.1) para essa faixa. AGP segue 8.9.2, dentro da faixa.
+- O flag `configure.swing.globals=false` foi mantido nos builds Linux como cinto de segurança; com
+  a causa raiz corrigida ele é redundante, mas não custa nada e já está em produção.
+- `ComposeLinuxCrashFixTest` (novo) falha se a versão do plugin Compose voltar para antes de 1.10 —
+  um downgrade deixa a suíte verde no Windows e o crash volta só no Linux.
+
+**Testes e mutações.** `:desktop:test` **340 testes em 60 classes, 0 falhas**; `:core:test` **194
+testes em 20 classes, 0 falhas**; `:app:testDebugUnitTest` **416 testes em 57 classes, 0 falhas** —
+as três suítes rodaram depois do upgrade de Kotlin/Compose. Mutação executada:
+
+| mutação | teste que acusou |
+| --- | --- |
+| plugin Compose de volta a `1.7.3` | `the compose desktop plugin is at least 1_10 for the libstdc++ fix` |
+
+**Limitações.** O crash é nativo e só acontece em Ubuntu 24.04+ com a JDK empacotada; não há
+reprodução neste host Windows. A prova possível aqui é de build e de regressão de versão. O AppImage
+precisa ser gerado no CI (`ubuntu-latest`) ou numa máquina Linux e testado com hover, captura
+inteira e recorte — e, se ainda cair, o `hs_err_pid*.log` passa a ser obrigatório para separar
+execução do Compose da execução do ONNX Runtime.
+
+### D56 — Hover que reconhece palavra partida entre linhas/colunas  `[ ]`
+
+**Pedido.** Hoje o hover lê **uma linha só**. `HoverTextSelector.select` escolhe o `LensSegment`
+mais próximo do ponteiro e chama `LookupEngine.lookup` só com o texto dele; `LookupEngine` para na
+fronteira da "run" de caracteres de palavra, então `一生懸` no fim de uma linha e `命` no começo da
+seguinte nunca formam `一生懸命`. O pedido é reconhecer o token que atravessa a fronteira, tanto em
+texto horizontal (linha abaixo) quanto em vertical (coluna à direita, que é a "próxima" no japonês).
+
+**Desenho acordado.**
+1. **Ordem de leitura, não "abaixo/esquerda".** Usar `LensResult.blocks[].pieces`, que já vem em
+   `ReadingOrder` (horizontal: linhas de cima para baixo; vertical: colunas da direita para a
+   esquerda). Fixar "abaixo" quebra o vertical, onde a coluna seguinte fica à direita.
+2. **Só perto da borda.** Tentar a junção quando o índice do caractere sob o ponteiro estiver nos
+   primeiros ~2–3 caracteres da linha (palavra começou antes) ou nos últimos ~2–3 (palavra continua
+   depois). Isso mantém o custo e o falso positivo baixos.
+3. **Candidato curto e sem separador.** Sufixo da linha anterior até `MAX_TERM_LENGTH` (16) + linha
+   atual, ou linha atual + prefixo da seguinte. **Sem espaço nem newline** entre CJK: um separador
+   faria o `LookupEngine` parar na fronteira, que é justamente o que se quer atravessar.
+4. **O token tem de cruzar a fronteira.** Só aceitar o `TokenMatch` cujo `start` cai antes do offset
+   da linha atual e `end` depois dele; token inteiro dentro de uma linha mantém o comportamento
+   atual.
+5. **Mesmo bloco.** Reaproveitar a regra de `LensResultBuilder.belongsToSameBlock` (mesma direção,
+   faixa compartilhada, gap < ~0,75 glifo) ou os grupos de `BlockColumns` do PP-OCR. Balões
+   diferentes não se concatenam.
+6. **Furigana fora.** `blocks[].pieces` já vem sem as leituras; usar os `segments` crus poderia
+   colar uma leitura de furigana na frase.
+7. **Caixa do destaque.** `tokenBox` pode devolver a união dos pedaços; se o retângulo entre duas
+   linhas incomodar, guardar as caixas por linha.
+
+**Desempenho.** Irrelevante: o que domina o hover é o OCR (HTTP no Lens, inferência ONNX no
+PP-OCR), não o dicionário. A consulta extra só acontece a 2–3 caracteres de uma borda, com
+candidato de no máximo ~32 caracteres. Polling de 60 ms, debounce de 420 ms e recorte de 640×360
+**não mudam**.
+
+**Riscos.** Juntar linhas de blocos diferentes e achar palavra inexistente (mitigado por 4+5);
+preferir a palavra quebrada a uma palavra real inteira na linha (só quando o ponteiro está na borda
+e o token cruzado é mais longo); linha vizinha fora do recorte (o recurso simplesmente não ativa).
+
+**Testes previstos.** `HoverTextSelectorTest`: horizontal partido, vertical partido, linhas de
+blocos diferentes, token que não cruza a fronteira, furigana adjacente, caixa do destaque. Mais a
+mutações exigidas pela skill `yabai-regression`.

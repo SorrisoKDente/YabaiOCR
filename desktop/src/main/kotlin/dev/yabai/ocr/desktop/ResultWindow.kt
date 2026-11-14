@@ -4,7 +4,6 @@ import dev.yabai.ocr.desktop.i18n.DesktopStrings
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -301,7 +300,7 @@ fun ResultWindow(
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             // --- Left Column: Scrollable Editable Text & Image ---
-                            LazyColumn(
+                            ScrollableLazyColumn(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
@@ -493,7 +492,7 @@ fun ResultWindow(
                                         )
                                     } else {
                                         SelectionContainer {
-                                            LazyColumn(
+                                            ScrollableLazyColumn(
                                                 modifier = Modifier.fillMaxSize(),
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {

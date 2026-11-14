@@ -187,6 +187,7 @@ rodam com as flags acima.
 | `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos |
 | `DesktopTheme.kt` | paletas clara/escura, `contrastRatio`, aplicação do tema |
 | `AppIconGenerator.kt` | ícone em runtime (janela, bandeja) |
+| `AppScrollbar.kt` | `ScrollableLazyColumn`/`ScrollableColumn`: os containers roláveis com a barra de rolagem que o Compose Desktop não desenha |
 | `CaptureNoticeWindow.kt` | aviso flutuante de captura |
 | `i18n/DesktopStrings.kt` | **todas** as strings pt/en do desktop (nada fixo nas telas) |
 
