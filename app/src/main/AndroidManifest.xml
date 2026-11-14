@@ -15,8 +15,11 @@
     <!-- Foreground-service notification on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Handing a downloaded APK to the package installer (the user still confirms it). -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
+      The update is downloaded, never installed: the app does not hand the APK to the package
+      installer, so it does not need REQUEST_INSTALL_PACKAGES (nor the «install unknown apps»
+      allowance) either.
+    -->
 
     <!--
       The AI apps the settings can offer, in the panel's «Perguntar à IA». Android 11+ hides the
@@ -110,17 +113,6 @@
         <service
             android:name=".service.LookupOverlayService"
             android:exported="false" />
-
-        <!-- Shares the downloaded APK with the system installer; nothing else is exposed. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.updates"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/update_file_paths" />
-        </provider>
 
         <service
             android:name=".service.FloatingOcrService"

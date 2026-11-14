@@ -73,12 +73,17 @@ builds it comes from the build tag (`-PyabaiVersion`), not from a fixed number. 
 newer, **📄 Release notes** renders the Markdown published with it, and the check on startup can be
 turned off in the same card.
 
-**Updating without a browser.** **Download and install** fetches the package itself: on the AppImage
-the running file becomes `<name>.old`, the new one takes its place and **Restart now** opens it; on
-Android the APK goes through `DownloadManager` and is handed to the system installer (which still
-asks for the usual confirmation, plus the «install unknown apps» permission when it was never
-given). Outside an AppImage — `gradle run`, an unpacked distribution — the desktop build does not
-replace its own installation and opens the release page instead.
+**Updating without a browser.** **⬇️ Download Update** fetches the package itself: on the AppImage the
+running file becomes `<name>.old`, the new one takes its place and **Restart now** opens it. On
+Android the APK goes through `DownloadManager` into the app's downloads folder and **stops there**:
+the app neither installs it nor asks for the «install unknown apps» permission — you open the APK
+whenever you want. Outside an AppImage — `gradle run`, an unpacked distribution — the desktop build
+does not replace its own installation and opens the release page instead.
+
+**Startup notice.** With «Check for updates when the app starts» on, the desktop opens a window with
+the download (and the release notes) as soon as it finds a newer version, even when it started in the
+tray; on Android the automatic check shows a dialog with **⬇️ Download**. The same controls stay in
+the updates card afterwards.
 
 **Android**: install the APK, grant **overlay** and **screen capture** (MediaProjection), pick an
 engine and tap start. The floating bubble triggers the capture.

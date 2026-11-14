@@ -18,6 +18,23 @@ data class AppUpdateInfo(
 internal data class ReleaseAsset(val name: String, val downloadUrl: String)
 
 /**
+ * Whether the automatic check still has to run.
+ *
+ * It belongs to «opening the app»: the checkbox says so, and running it again on every resume would
+ * hit GitHub and pop the notice repeatedly within one launch.
+ */
+internal fun shouldCheckAppUpdateOnStart(checkOnStart: Boolean, alreadyStarted: Boolean): Boolean =
+    checkOnStart && !alreadyStarted
+
+/**
+ * The release that earns a startup notice, or null.
+ *
+ * Only a newer version opens a window; an up-to-date answer or a failed check stays silent, because
+ * the user asked to be told about updates, not about the absence of them.
+ */
+internal fun startupUpdateNotice(info: AppUpdateInfo?): AppUpdateInfo? = info?.takeIf { it.hasUpdate }
+
+/**
  * Picks the installer that matches the running OS.
  *
  * A release can publish assets for several platforms; sending a Windows user to the `.AppImage`
@@ -38,7 +55,7 @@ internal fun preferredReleaseAsset(family: OsFamily, assets: List<ReleaseAsset>)
 }
 
 object DesktopAppUpdateChecker {
-    private const val FALLBACK_VERSION = "1.0.6"
+    private const val FALLBACK_VERSION = "1.0.7"
     private const val GITHUB_RELEASE_URL = "https://api.github.com/repos/SorrisoKDente/YabaiOCR/releases/latest"
 
     private val client = OkHttpClient.Builder()

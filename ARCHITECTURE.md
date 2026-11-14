@@ -181,6 +181,8 @@ rodam com as flags acima.
 | `ReleaseNotesWindow.kt` | preview em Markdown das notas do release do GitHub, aberto em Ajustes → Sobre |
 | `LicenseWindow.kt` | texto da licença empacotado no jar, lido em Ajustes → Sobre |
 | `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
+| `AppUpdateNoticeWindow.kt` | aviso de atualização no arranque: baixa com progresso, reinicia e abre as notas sem passar pelos Ajustes |
+| `NativeLibraryPath.kt` | aponta `jnativehook.lib.path` para `~/.cache/yabai-ocr/native` no Linux, antes de tocar em `GlobalScreen` (AppImage é somente leitura) |
 | `QuickDictWindow.kt` | busca rápida de dicionário em janela própria |
 | `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos |
 | `DesktopTheme.kt` | paletas clara/escura, `contrastRatio`, aplicação do tema |
@@ -305,7 +307,7 @@ valem destaque:
 | --- | --- |
 | `update/AppUpdateChecker.kt` | consulta o último release do GitHub, compara com `BuildConfig.VERSION_NAME` e devolve as notas |
 | `update/MarkdownView.kt` | desenha as notas (blocos do `:core`) num `TextView` com negrito, código e links clicáveis |
-| `update/ApkInstall.kt` | baixa o APK com `DownloadManager` e entrega ao instalador do sistema via `FileProvider` |
+| `update/ApkInstall.kt` | baixa o APK com `DownloadManager` para a pasta de downloads do app e para por aí (não instala nem pede permissão) |
 | `dict/DictionaryCatalog.kt` | catálogo de dicionários disponíveis |
 | `dict/DictionaryDownloader.kt` | download/instalação de ZIP |
 | `dict/DictionaryRepository.kt` | dicionários instalados, filtro e ordem |
@@ -409,7 +411,7 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 | furigana | `core/dict/Furigana.kt`, `core/lens/FuriganaMode.kt`, `overlay/PickerReadingLayout.kt` |
 | textos de interface | `desktop/i18n/DesktopStrings.kt`; `app/src/main/res/values*/strings.xml` |
 | tema | `desktop/DesktopTheme.kt`; `app/src/main/res/values*/themes.xml` |
-| atualização do app | `desktop/DesktopAppUpdateChecker.kt`; Android depende do build/loja |
+| atualização do app | `desktop/DesktopAppUpdateChecker.kt`, `UpdateInstaller.kt`, `AppUpdateNoticeWindow.kt`; `app/update/AppUpdateChecker.kt`, `ApkInstall.kt` |
 
 ---
 

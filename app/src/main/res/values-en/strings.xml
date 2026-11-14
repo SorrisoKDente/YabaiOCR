@@ -326,19 +326,17 @@
     <string name="update_checking">Checking…</string>
     <string name="update_check_failed">Could not check right now. Try again later.</string>
     <string name="update_available_message">New version available: %1$s</string>
+    <string name="update_available_title">Update available</string>
     <string name="update_up_to_date">You are on the latest version (%1$s).</string>
     <string name="update_release_notes_button">📄 View release notes</string>
     <string name="update_release_notes_title">Release notes for %1$s</string>
     <string name="update_release_notes_empty">This release has no notes.</string>
-    <string name="update_download_button">⬇️ Download and install</string>
+    <string name="update_download_button">⬇️ Download</string>
     <string name="update_link_failed">Could not open the link.</string>
     <string name="update_close">Close</string>
     <string name="update_downloading">Downloading update…</string>
     <string name="update_download_failed">Could not download the update.</string>
-    <string name="update_install_opened">Installer opened. Follow the instructions to finish.</string>
-    <string name="update_install_permission_title">Allow installation</string>
-    <string name="update_install_permission_message">To install the downloaded update, Android needs to allow Yabai OCR to install apps. Open the settings and turn the permission on.</string>
-    <string name="update_open_settings">Open settings</string>
+    <string name="update_download_done">Update downloaded: %1$s</string>
 
     <!-- Support the project -->
     <string name="section_donate">Support the Project</string>

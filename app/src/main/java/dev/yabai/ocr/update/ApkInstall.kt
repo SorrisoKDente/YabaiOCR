@@ -2,29 +2,30 @@ package dev.yabai.ocr.update
 
 import android.app.DownloadManager
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Environment
-import android.provider.Settings
-import androidx.core.content.FileProvider
 import java.io.File
 
 /**
- * Downloads an APK and hands it to the system installer.
+ * Downloads an update APK and leaves it in the phone's Downloads folder.
  *
- * Both steps belong to the system on Android: the download goes through `DownloadManager` (it keeps
- * going if the screen is off, and the user sees it in the notification shade) and installation is
- * the package-installer activity, which asks for confirmation. An app can never install a package
- * silently, so this is as automatic as the platform allows.
+ * The app deliberately stops there: installing is the system package installer's job, and handing it
+ * the file means the user has to grant «install unknown apps» first. Downloading needs no such
+ * permission, so «Baixar» is all this offers — the user opens the APK when they choose to.
+ *
+ * The download goes through `DownloadManager` (it keeps going if the screen is off, and the user sees
+ * it in the notification shade).
  */
 object ApkInstall {
 
-    /** Must match the authority declared for the provider in the manifest. */
-    private const val AUTHORITY_SUFFIX = ".updates"
     private const val DIRECTORY = "updates"
 
     /** Enqueues the download and returns its id, which is the key of the completion broadcast. */
     fun downloadApk(context: Context, url: String, version: String): Long {
+        // DownloadManager refuses to overwrite an existing destination, and a second «Baixar» after a
+        // failed attempt would otherwise end in ERROR_FILE_ALREADY_EXISTS with nothing to show.
+        downloadedApk(context, version).delete()
+
         val request = DownloadManager.Request(Uri.parse(url))
             .setTitle("Yabai OCR $version")
             .setMimeType("application/vnd.android.package-archive")
@@ -39,36 +40,24 @@ object ApkInstall {
         return manager.enqueue(request)
     }
 
-    /** Where [downloadApk] puts the file; the same path the provider exposes. */
+    /** Where [downloadApk] puts the file. */
     fun downloadedApk(context: Context, version: String): File =
         File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "$DIRECTORY/${fileName(version)}")
 
     fun fileName(version: String): String = "yabai-ocr-$version.apk"
 
-    /** Android 8+ only installs packages from apps the user has allowed. */
-    fun canInstall(context: Context): Boolean = context.packageManager.canRequestPackageInstalls()
-
-    /** Opens the system installer for a downloaded APK; false when there is nothing to install. */
-    fun install(context: Context, apk: File): Boolean {
-        if (!apk.exists()) return false
+    /** True when [downloadId] ended successfully, so the status can say «downloaded» instead of «failed». */
+    fun isDownloaded(context: Context, downloadId: Long): Boolean {
+        if (downloadId < 0) return false
         return try {
-            val uri = FileProvider.getUriForFile(context, context.packageName + AUTHORITY_SUFFIX, apk)
-            val intent = Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
+            val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            manager.query(DownloadManager.Query().setFilterById(downloadId))?.use { cursor ->
+                cursor.moveToFirst() &&
+                    cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) ==
+                    DownloadManager.STATUS_SUCCESSFUL
+            } ?: false
         } catch (_: Throwable) {
             false
         }
-    }
-
-    /** The «install unknown apps» screen for this app, where the user allows the installer. */
-    fun openInstallSettings(context: Context) {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-            Uri.parse("package:" + context.packageName),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { context.startActivity(intent) }
     }
 }

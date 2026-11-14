@@ -325,19 +325,17 @@
     <string name="update_checking">Verificando…</string>
     <string name="update_check_failed">Não foi possível verificar agora. Tente de novo mais tarde.</string>
     <string name="update_available_message">Nova versão disponível: %1$s</string>
+    <string name="update_available_title">Atualização disponível</string>
     <string name="update_up_to_date">Você está na versão mais recente (%1$s).</string>
     <string name="update_release_notes_button">📄 Ver notas da versão</string>
     <string name="update_release_notes_title">Notas da versão %1$s</string>
     <string name="update_release_notes_empty">Este release não tem notas.</string>
-    <string name="update_download_button">⬇️ Baixar e instalar</string>
+    <string name="update_download_button">⬇️ Baixar</string>
     <string name="update_link_failed">Não foi possível abrir o link.</string>
     <string name="update_close">Fechar</string>
     <string name="update_downloading">Baixando atualização…</string>
     <string name="update_download_failed">Não foi possível baixar a atualização.</string>
-    <string name="update_install_opened">Instalador aberto. Siga as instruções para concluir.</string>
-    <string name="update_install_permission_title">Permitir instalação</string>
-    <string name="update_install_permission_message">Para instalar a atualização baixada, o Android precisa permitir que o Yabai OCR instale aplicativos. Abra os ajustes e ligue a permissão.</string>
-    <string name="update_open_settings">Abrir ajustes</string>
+    <string name="update_download_done">Atualização baixada: %1$s</string>
 
     <!-- Support the project -->
     <string name="section_donate">Apoiar o Projeto</string>

@@ -290,6 +290,7 @@ object DesktopStrings {
         "Versão $version baixada. Reinicie para usá-la."
     val updateInstalled: String get() = if (isEnglish) "✅ Downloaded" else "✅ Baixada"
     val btnRestartNow: String get() = if (isEnglish) "🔄 Restart now" else "🔄 Reiniciar agora"
+    val btnLater: String get() = if (isEnglish) "Not now" else "Agora não"
     val updateRestartFailed: String get() = if (isEnglish) "The update is in place, but the restart failed. Open the app again." else "A atualização está no lugar, mas não foi possível reiniciar. Abra o app de novo."
     fun updateInstallerLaunched(version: String): String = if (isEnglish)
         "The $version installer was downloaded and opened. Finish it and open the app again."

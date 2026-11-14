@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
-  Files the update installer may share with the package installer. Kept to the app's own external
-  files directory, which is where DownloadManager puts the APK.
--->
-<paths>
-    <external-files-path name="updates" path="." />
-</paths>

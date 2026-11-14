@@ -40,6 +40,12 @@ class HoverStateHolder(defaultFilter: String = "") {
 private data class CapturedScreen(val image: BufferedImage, val screenBounds: Rectangle)
 
 fun main(args: Array<String>) {
+    // Before the first JNativeHook class is referenced: the packaged build may be running from a
+    // read-only AppImage mount, where the library cannot be written next to the jars.
+    val nativeLibraryDir = configureJNativeHookLibraryPathForThisSession()
+    if (nativeLibraryDir != null) {
+        println("[Native] JNativeHook vai descompactar em ${nativeLibraryDir.absolutePath}")
+    }
     // Must be set before the first AWT/Toolkit use: the JDK reads it when Robot is initialized.
     configureScreenshotMethod(
         isLinux = DesktopPlatform.isLinux,
@@ -317,6 +323,26 @@ fun main(args: Array<String>) {
         trayManager.updateHover(hoverState.active)
     }
 
+    // «Check for updates when the app starts» answers on the first composition, not only when the
+    // settings window happens to be open: a `--minimized` launch lives in the tray, and a version
+    // notice must still reach the user there. Finding a newer release opens the notice window with
+    // the download inside it, so acting on the news does not require walking to Settings.
+    var appUpdateNotice by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var appUpdateNotes by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var appUpdateCheckStarted by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!shouldCheckAppUpdateOnStart(settings.checkUpdatesOnStart, appUpdateCheckStarted)) {
+            return@LaunchedEffect
+        }
+        appUpdateCheckStarted = true
+        val appUpdate = withContext(Dispatchers.IO) { DesktopAppUpdateChecker.checkForAppUpdate() }
+        val notice = startupUpdateNotice(appUpdate)
+        if (notice != null) {
+            trayManager.setStatus(DesktopStrings.appVersionNotice(notice.latestVersion))
+            appUpdateNotice = notice
+        }
+    }
+
     // Linux: "Integrar ao sistema" writes a per-user desktop entry and icon. The card only exists
     // when the integration can name an executable, so Windows keeps the exact same UI as before.
     val linuxIntegration = remember {
@@ -392,6 +418,24 @@ fun main(args: Array<String>) {
         )
     }
 
+    // The automatic update check found a release: say so and carry the download itself.
+    val updateNotice = appUpdateNotice
+    if (updateNotice != null) {
+        AppUpdateNoticeWindow(
+            info = updateNotice,
+            onDismiss = { appUpdateNotice = null },
+            onOpenReleaseNotes = { appUpdateNotes = updateNotice },
+        )
+    }
+    val notesUpdate = appUpdateNotes
+    if (notesUpdate != null) {
+        ReleaseNotesWindow(
+            version = notesUpdate.latestVersion,
+            notes = notesUpdate.releaseNotes,
+            onClose = { appUpdateNotes = null },
+        )
+    }
+
     // Result Window (OCR, furigana, token lookup, translation & AI)
     val tempImage = temporaryViewImage
     if (tempImage != null) {
@@ -441,16 +485,9 @@ fun main(args: Array<String>) {
                 window.isAutoRequestFocus = false
                 window.iconImage = AppIconGenerator.createWindowImage(64)
                 withContext(Dispatchers.IO) {
-                    // 1. Check for Desktop App updates on GitHub — only when the user asked the app
-                    // to do it on start; otherwise the About card's button is the only trigger.
-                    val appUpdate = if (settings.checkUpdatesOnStart) {
-                        DesktopAppUpdateChecker.checkForAppUpdate()
-                    } else {
-                        null
-                    }
-                    if (appUpdate?.hasUpdate == true) {
-                        trayManager.setStatus(DesktopStrings.appVersionNotice(appUpdate.latestVersion))
-                    }
+                    // 1. The app's own update check now runs once per launch from the application
+                    // scope (above), so it also covers a tray-only start. What is left here is the
+                    // periodic dictionary check.
 
                     // 2. Periodic background check for dictionary updates
                     if (DesktopDictionaryUpdateChecker.shouldCheck(settings)) {

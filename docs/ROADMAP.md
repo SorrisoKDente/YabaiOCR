@@ -5228,6 +5228,10 @@ num aparelho. No desktop, o fluxo completo (baixar, trocar o AppImage, reiniciar
 de ponta a ponta: a lógica de download e de troca está testada isoladamente, e a chamada real
 depende de um release novo com asset. Nada foi commitado.
 
+> **Revisão (D54, 13/11/2026).** A parte Android desta entrada não vale mais: o app deixou de instalar
+> o APK. O botão apenas baixa, a permissão `REQUEST_INSTALL_PACKAGES`, o `FileProvider` e o
+> `update_file_paths.xml` saíram, e o receptor passou a usar `RECEIVER_EXPORTED` — ver D54.
+
 
 ### D50 — CI: StackOverflowError do tema no Android e versão literal no Windows  `[x]` (13/11/2026)
 
@@ -5356,3 +5360,89 @@ jar como `LICENSE.txt`; AppImage 1.0.5 gerado.
 e `MainActivity` passaram só por inspeção estática. O QR do Pix precisa ser salvo como
 `docs/pix-qr.png` pelo autor — a imagem veio anexada na conversa, não como arquivo do repositório.
 Nada foi commitado.
+
+
+### D54 — Atualização que não responde, aviso no arranque e o AppImage somente leitura  `[x]` (13/11/2026)
+
+**Relato.** Uma leva de defeitos em volta da atualização:
+
+- No desktop (Windows e Ubuntu), clicar em «🔄 Verificar Atualizações» estourava
+  `IllegalStateException: Module with the Main dispatcher is missing` em `SettingsWindow.kt:1693` e o
+  botão não respondia.
+- No Android o botão prometia «Baixar e instalar» e, para instalar, exigia a permissão «instalar apps
+  desconhecidos»; quando o download terminava, o status ficava preso em «Baixando atualização…».
+- Com «Verificar atualizações ao abrir» ligado, nada avisava o usuário — no desktop a descoberta ia
+  só para o menu da bandeja, e quem abre o app minimizado (`--minimized`) nunca via.
+- No AppImage (Ubuntu/SteamOS) o app falhava ao abrir com
+  `UnsatisfiedLinkError: .../libJNativeHook-2.2.2.x86_64.so (Read-only file system)`, e o hover e a
+  captura de tela inteira derrubavam o processo com `SIGSEGV` em `libstdc++.so.6`
+  (`std::ostream::_M_insert<long>`).
+
+**Causas raiz.** Cinco, independentes:
+
+1. **Main dispatcher.** `Dispatchers.Main` só existe quando um artefato instala um despachante
+   principal. O desktop declarava `kotlinx-coroutines-core` e mais nada; qualquer
+   `withContext(Dispatchers.Main)` — a checagem de atualização entre elas — morria na primeira linha.
+2. **JNativeHook read-only.** O carregador do JNativeHook descompacta a `.so` ao lado dos jars. Um
+   AppImage monta o próprio conteúdo **somente leitura**, então a gravação falhava antes da primeira
+   janela. O Windows resolve a biblioteca pelo `java.library.path` (uma pasta temporária gravável) e
+   nunca teve o problema.
+3. **SIGSEGV do Compose.** É o CMP-9994: no Ubuntu 24.04+, uma biblioteca nativa que formata número
+   por `std::ostream` (o ONNX Runtime do PP-OCR, por exemplo) encontra o `libstdc++` num estado que o
+   setup de Swing do Compose 1.7 deixa quebrado. A correção definitiva está no Compose **1.10**; o
+   projeto usa 1.7.3 (e subir para 1.10 exigiria Kotlin ≥ 2.2).
+4. **Broadcast do download.** `DownloadManager` roda em outro processo. Um receptor registrado com
+   `RECEIVER_NOT_EXPORTED` **não recebe** o `ACTION_DOWNLOAD_COMPLETE` dele, e a tela ficava em
+   «Baixando atualização…» para sempre.
+5. **Aviso de arranque.** A checagem automática do desktop vivia dentro do `LaunchedEffect` da janela
+   de Ajustes; no arranque minimizado a janela nem existe.
+
+**Correção.**
+- `gradle/libs.versions.toml` + `desktop/build.gradle.kts`: `kotlinx-coroutines-swing` (mesma versão
+  do `coroutines`, 1.9.0), que instala `Dispatchers.Main` no event thread do AWT/Swing.
+- `NativeLibraryPath.kt` (novo): fixa `jnativehook.lib.path` em `~/.cache/yabai-ocr/native` antes de
+  qualquer uso de `GlobalScreen`; só no Linux, e nunca substitui um valor já definido pelo usuário.
+  `Main.kt` chama `configureJNativeHookLibraryPathForThisSession()` na primeira linha.
+- `desktop/build.gradle.kts`: `-Dcompose.application.configure.swing.globals=false` nos
+  `jvmArgs` **apenas** em builds Linux — o workaround recomendado para o CMP-9994 sem trocar o
+  Compose. Windows fica exatamente como estava.
+- Desktop, aviso de arranque: `Main.kt` roda a checagem uma vez em `LaunchedEffect(Unit)` no escopo da
+  aplicação (vale com `--minimized`) e `AppUpdateNoticeWindow.kt` (novo) mostra versão, download com
+  progresso, «Reiniciar agora» e «📄 Notas da versão». `shouldCheckAppUpdateOnStart` e
+  `startupUpdateNotice` em `DesktopAppUpdateChecker.kt` concentram as duas regras; `btnLater` entrou
+  em `DesktopStrings` (pt/en).
+- Android: `ApkInstall.kt` virou **somente download** (`DownloadManager` para a pasta de downloads do
+  app, apagando o destino antes de enfileirar); `isDownloaded`/`fileName`/`downloadedApk` para o
+  status. `MainActivity` chama `downloadUpdate()`, o receptor usa `RECEIVER_EXPORTED`, e a checagem
+  automática abre `showUpdateFoundDialog` (título «Atualização disponível», ação «⬇️ Baixar»).
+  Saíram a permissão `REQUEST_INSTALL_PACKAGES`, o `FileProvider` `${'$'}{applicationId}.updates` e
+  `res/xml/update_file_paths.xml`; as strings de instalação foram removidas dos dois idiomas e
+  `update_download_done` entrou no lugar.
+- `README`/`README.en`: «Baixar» agora significa baixar (sem instalar) e o aviso de arranque está
+  descrito; `ARCHITECTURE`/`ARCHITECTURE.en`: `AppUpdateNoticeWindow.kt` e `NativeLibraryPath.kt`
+  entraram na tabela, `ApkInstall.kt` atualizado.
+
+**Testes e mutações.** `:desktop:test` **337 testes em 58 classes, 0 falhas**; são 7 novos em
+`DesktopMainDispatcherTest` (1), `NativeLibraryPathTest` (3) e `AppUpdateStartupTest` (3).
+`:app:testDebugUnitTest` **416 testes em 57 classes, 0 falhas**; são 5 novos em
+`UpdateDownloadOnlyTest` (manifesto sem `REQUEST_INSTALL_PACKAGES`, `ApkInstall` sem entrada de
+instalação, flags do receptor, rótulo do botão, nome do arquivo). Cada regra foi mutada, o teste
+nomeado caiu e voltou a passar ao restaurar:
+
+| mutação | teste que acusou |
+| --- | --- |
+| remover `kotlinx-coroutines-swing` do desktop | `the main dispatcher posts to the AWT event thread` |
+| inverter a checagem de Linux em `configureJNativeHookLibraryPath` | `windows keeps the default lookup` e `linux gets a writable cache directory` |
+| `shouldCheckAppUpdateOnStart` sem `!alreadyStarted` | `the automatic check runs once, only when the user asked for it` |
+| receptor do download com `RECEIVER_NOT_EXPORTED` | `the completion receiver accepts the system download broadcast` |
+
+**Evidência.** `:desktop:cleanTest :desktop:test` → BUILD SUCCESSFUL, 337/0 (resultados com
+timestamp da rodada); `:app:testDebugUnitTest` → BUILD SUCCESSFUL, 416/0. As duas mutações do
+receptor e da dependência foram executadas de verdade, não deduzidas.
+
+**Limitações.** Os três defeitos do Linux (JNativeHook read-only, SIGSEGV do Compose, hover/captura)
+e o fluxo do Android **não foram reproduzidos neste host Windows**: exigem Ubuntu 24.04/SteamOS e um
+aparelho. A correção do CMP-9994 fica como mitigação (`configure.swing.globals=false`), não como
+prova — subir o Compose para 1.10 é o caminho definitivo e foi deixado fora desta rodada por exigir
+Kotlin ≥ 2.2 e um reteste completo. O `settings.properties` do usuário não foi tocado. Nada foi
+commitado.

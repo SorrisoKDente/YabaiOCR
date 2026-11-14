@@ -21,6 +21,11 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
+    // `Dispatchers.Main` only exists when an artifact installs a main dispatcher. On desktop that
+    // is the Swing one, which posts to the AWT event thread — the same thread Compose renders on.
+    // Without it `withContext(Dispatchers.Main)` throws "Module with the Main dispatcher is missing"
+    // and the update check dies in a worker thread.
+    implementation(libs.kotlinx.coroutines.swing)
     implementation("com.github.kwhat:jnativehook:2.2.2")
     implementation("net.java.dev.jna:jna:5.14.0")
     implementation("net.java.dev.jna:jna-platform:5.14.0")
@@ -50,7 +55,7 @@ val isLinuxHost = System.getProperty("os.name").lowercase().contains("linux")
 // Version stamped into the packages. The release workflow passes `-PyabaiVersion=<tag without v>` so
 // an installer, a portable zip and an AppImage from the same tag all carry the same number.
 val appVersion = (project.findProperty("yabaiVersion") as String?)?.trim()?.removePrefix("v")
-    ?.takeIf { it.isNotEmpty() } ?: "1.0.6"
+    ?.takeIf { it.isNotEmpty() } ?: "1.0.7"
 
 // The Windows installer accepts only `MAJOR.MINOR.BUILD` (255.255.65535) and fails configuration
 // with a trailing `$env:VERSION`-style string or a pre-release suffix. Normalising here keeps the
@@ -100,6 +105,14 @@ compose.desktop {
     application {
         mainClass = "dev.yabai.ocr.desktop.MainKt"
         jvmArgs += listOf("-Dfile.encoding=UTF-8")
+        // Compose 1.7 crashes inside libstdc++ on Ubuntu 24.04+ when a native library (PP-OCR's
+        // ONNX Runtime, for instance) formats a number through std::ostream. Compose's Swing-globals
+        // setup is what leaves libstdc++'s locale/conversion path broken (JetBrains CMP-9994, fixed
+        // in Compose 1.10). Turning it off removes the crash; the flag ships only in Linux builds so
+        // Windows keeps the behavior it always had.
+        if (isLinuxHost) {
+            jvmArgs += "-Dcompose.application.configure.swing.globals=false"
+        }
         nativeDistributions {
             outputBaseDir.set(layout.buildDirectory.dir("distributions"))
             // Keep jdk.net in the packaged image: it was required by the earlier native D-Bus

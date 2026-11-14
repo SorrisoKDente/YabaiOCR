@@ -268,25 +268,22 @@ class MainActivity : AppCompatActivity() {
         btnReleaseNotes.setOnClickListener {
             pendingUpdate?.let { showReleaseNotes(it) }
         }
-        btnDownloadUpdate.setOnClickListener { downloadAndInstallUpdate() }
+        btnDownloadUpdate.setOnClickListener { downloadUpdate() }
     }
 
     /**
-     * Downloads the APK and, when it lands, opens the system installer.
+     * Downloads the APK into Downloads and stops there.
      *
-     * Without the «install unknown apps» allowance Android refuses the installer outright, so the
-     * user is sent to that switch first instead of watching a download end in nothing.
+     * Installing would need the «install unknown apps» permission and the system installer on top of
+     * the download; the user asked for «Baixar» only, and a downloaded APK is something they can open
+     * whenever they want.
      */
-    private fun downloadAndInstallUpdate() {
+    private fun downloadUpdate() {
         val update = pendingUpdate ?: return
         val url = update.apkUrl
         if (url.isNullOrBlank()) {
-            // A release without an APK can only be read, not installed.
+            // A release without an APK can only be read, not downloaded.
             openInBrowser(update.releaseUrl)
-            return
-        }
-        if (!ApkInstall.canInstall(this)) {
-            showInstallPermissionDialog()
             return
         }
 
@@ -294,10 +291,11 @@ class MainActivity : AppCompatActivity() {
         appUpdateStatus.text = getString(R.string.update_downloading)
         updateDownloadId = runCatching {
             ApkInstall.downloadApk(this, url, update.latestVersion)
-        }.getOrElse { error ->
+        }.getOrElse {
             appUpdateStatus.text = getString(R.string.update_download_failed)
             -1L
         }
+        if (updateDownloadId < 0) return
         btnDownloadUpdate.isEnabled = false
     }
 
@@ -359,35 +357,26 @@ class MainActivity : AppCompatActivity() {
                 val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
                 if (id == -1L || id != updateDownloadId) return
                 updateDownloadId = -1L
-                installDownloadedUpdate()
+                onUpdateDownloadFinished(id)
             }
         }
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        // System broadcasts still reach a non-exported receiver; no other app needs to talk to it.
-        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        // DownloadManager lives in another process, so this is a broadcast from another app. A
+        // NOT_EXPORTED receiver never sees it and the screen stays on «Baixando atualização…»
+        // forever, which is exactly the bug this replaced.
+        ContextCompat.registerReceiver(this, receiver, filter, updateReceiverFlags())
         updateDownloadReceiver = receiver
     }
 
-    private fun installDownloadedUpdate() {
+    private fun onUpdateDownloadFinished(downloadId: Long) {
         val update = pendingUpdate ?: return
         btnDownloadUpdate.isEnabled = true
-        val apk = ApkInstall.downloadedApk(this, update.latestVersion)
-        if (ApkInstall.install(this, apk)) {
-            appUpdateStatus.visibility = View.VISIBLE
-            appUpdateStatus.text = getString(R.string.update_install_opened)
+        appUpdateStatus.visibility = View.VISIBLE
+        appUpdateStatus.text = if (ApkInstall.isDownloaded(this, downloadId)) {
+            getString(R.string.update_download_done, ApkInstall.fileName(update.latestVersion))
         } else {
-            appUpdateStatus.visibility = View.VISIBLE
-            appUpdateStatus.text = getString(R.string.update_download_failed)
+            getString(R.string.update_download_failed)
         }
-    }
-
-    private fun showInstallPermissionDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.update_install_permission_title))
-            .setMessage(getString(R.string.update_install_permission_message))
-            .setPositiveButton(R.string.update_open_settings) { _, _ -> ApkInstall.openInstallSettings(this) }
-            .setNegativeButton(R.string.update_close, null)
-            .show()
     }
 
     /** Silent when automatic: a failed background check must not interrupt the user. */
@@ -419,6 +408,12 @@ class MainActivity : AppCompatActivity() {
                 )
                 btnReleaseNotes.visibility = View.VISIBLE
                 btnDownloadUpdate.visibility = View.VISIBLE
+                if (!manual) {
+                    // «Check for updates when the app starts» asked to be told, not just to have a
+                    // status line change somewhere down the screen. The dialog offers the download
+                    // right away; the inline controls keep the same actions available afterwards.
+                    showUpdateFoundDialog(update)
+                }
             } else {
                 btnReleaseNotes.visibility = View.GONE
                 btnDownloadUpdate.visibility = View.GONE
@@ -472,6 +467,22 @@ class MainActivity : AppCompatActivity() {
         } catch (t: Throwable) {
             toast(getString(R.string.update_link_failed))
         }
+    }
+
+    /**
+     * The startup notice: the automatic check found a release, and the download is one tap away.
+     *
+     * «Depois» only closes the dialog; the inline status and buttons stay, so the update is not lost.
+     */
+    private fun showUpdateFoundDialog(update: AppUpdate) {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.update_available_title)
+            .setMessage(getString(R.string.update_available_message, update.latestVersion))
+            .setPositiveButton(R.string.update_download_button) { _, _ -> downloadUpdate() }
+            .setNeutralButton(R.string.update_release_notes_button) { _, _ -> showReleaseNotes(update) }
+            .setNegativeButton(R.string.update_close, null)
+            .show()
     }
 
     private fun bindLanguageSelector() {
@@ -1005,3 +1016,11 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }
+
+/**
+ * Flags for the receiver that listens to `DownloadManager.ACTION_DOWNLOAD_COMPLETE`.
+ *
+ * The broadcast comes from the system's download manager, another process. `RECEIVER_NOT_EXPORTED`
+ * makes Android drop it, which left the screen on «Baixando atualização…» after a finished download.
+ */
+internal fun updateReceiverFlags(): Int = ContextCompat.RECEIVER_EXPORTED
