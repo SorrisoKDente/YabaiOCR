@@ -10,7 +10,7 @@ description: Atualizar o README do usuário e o ROADMAP de decisões do Yabai OC
 | arquivo | leitor | conteúdo |
 | --- | --- | --- |
 | `README.md` | quem usa | instalar, usar, atalhos, ajustes, limitações, compilar/testar |
-| `ROADMAP.md` | quem mantém | por que mudou, causa raiz, testes, mutações, evidência, decisões |
+| `docs/ROADMAP.md` | quem mantém | por que mudou, causa raiz, testes, mutações, evidência, decisões |
 
 Mudou comportamento visível? Atualize os dois **na mesma tarefa**. O README não pode prometer o que
 o código não faz; o ROADMAP não pode esconder uma regressão atrás de "melhorias".

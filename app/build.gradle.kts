@@ -11,6 +11,15 @@ val generateLicenseAsset = tasks.register<Copy>("generateLicenseAsset") {
     into(layout.buildDirectory.dir("generated/license-assets"))
 }
 
+fun calculateVersionCode(version: String?): Int {
+    val clean = version.orEmpty().substringBefore('-').substringBefore('+')
+    val parts = clean.split('.').mapNotNull { it.toIntOrNull() }
+    val major = parts.getOrElse(0) { 1 }
+    val minor = parts.getOrElse(1) { 0 }
+    val patch = parts.getOrElse(2) { 0 }
+    return major * 10000 + minor * 100 + patch
+}
+
 android {
     namespace = "dev.yabai.ocr"
     compileSdk = 36
@@ -19,8 +28,8 @@ android {
         applicationId = "dev.yabai.ocr"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionName = "1.0.6"
+        versionCode = calculateVersionCode(versionName)
 
         ndk {
             // The bundled ML Kit model ships native code for four ABIs and that is most of the

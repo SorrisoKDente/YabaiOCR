@@ -20,7 +20,7 @@ Windows/PowerShell, from the repository root:
 .\gradlew.bat :desktop:run            # opens the app
 ```
 
-Linux and Steam Deck: see [LINUX.md](LINUX.md) and [STEAMOS.md](STEAMOS.md).
+Linux and Steam Deck: see [LINUX.md](docs/LINUX.md) and [STEAMOS.md](docs/STEAMOS.md).
 
 ## Non-negotiable rules
 

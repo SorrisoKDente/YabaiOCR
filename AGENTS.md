@@ -119,7 +119,7 @@ nenhum teste significa que o teste não cobre a causa — reescreva o teste, nã
   pública — detalhe de implementação não entra aqui.
 - `ARCHITECTURE.md` é para quem mexe no código: árvore de diretórios, papel de cada arquivo, fluxos e
   onde procurar cada tipo de mudança.
-- `ROADMAP.md` é para quem mantém: itens `B*`/`F*`/`M*`/`D*`/`I*`/`N*`/`R*`, estado `[x]`, data
+- `docs/ROADMAP.md` é para quem mantém: itens `B*`/`F*`/`M*`/`D*`/`I*`/`N*`/`R*`, estado `[x]`, data
   `(dd/MM/yyyy)`, causa raiz, o que mudou, testes/mutações e evidência ponta a ponta.
 - Mudou comportamento? Atualize README/ROADMAP na mesma tarefa. Não deixe o README prometer algo que
   o código não faz.
@@ -128,7 +128,7 @@ nenhum teste significa que o teste não cobre a causa — reescreva o teste, nã
 
 **Documento público é bilíngue.** `README`, `ARCHITECTURE` e `CONTRIBUTING` existem em pt-BR e em
 inglês (`*.en.md`), com o seletor de idioma no topo. Mudou um, atualize o par na mesma tarefa.
-O `ROADMAP.md` é histórico técnico interno e fica só em português.
+O `docs/ROADMAP.md` é histórico técnico interno e fica só em português.
 
 **Estrutura mudou? Atualize o `ARCHITECTURE.md` na mesma tarefa.** Isso vale para arquivo, pasta ou
 módulo novo, removido, renomeado ou que passou a ter outro papel, e para fluxo novo (motor, captura,
@@ -153,6 +153,14 @@ para tarefa de rotina: se a mudança é pequena e o AGENTS já responde, trabalh
 **Que skill carregar.** Uma correção de comportamento normalmente pede `yabai-regression`; se ela for
 visual/desktop, também `yabai-desktop-e2e`; se mexer em texto japonês, também `yabai-ocr-quality`; e
 `yabai-docs` no fim. Skills não se substituem: cada uma cobre uma parte da definição de pronto.
+
+## Checklist para Nova Versão do App
+
+Sempre que for lançar uma nova versão (ex.: `1.0.6`), os seguintes arquivos precisam ser atualizados:
+
+1. **`app/build.gradle.kts`**: Atualizar `versionName = "1.0.6"` (o `versionCode` é calculado automaticamente pela função `calculateVersionCode`).
+2. **`desktop/build.gradle.kts`**: Atualizar o fallback de `appVersion` (`?: "1.0.6"`).
+3. **`desktop/src/main/kotlin/dev/yabai/ocr/desktop/DesktopAppUpdateChecker.kt`**: Atualizar a constante `FALLBACK_VERSION = "1.0.6"`.
 
 ## Definição de pronto
 

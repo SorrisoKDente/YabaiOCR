@@ -4,7 +4,7 @@
 
 Reference document for anyone who needs to **find where to change something**. It describes the three
 modules, the role of each file, the main flows and the known pitfalls. For the decision history and
-the reason behind each fix, see [ROADMAP.md](ROADMAP.md); for using the app, [README.en.md](README.en.md).
+the reason behind each fix, see [ROADMAP.md](docs/ROADMAP.md); for using the app, [README.en.md](README.en.md).
 
 - **110+ Kotlin files**, ~50 thousand lines, three Gradle modules.
 - `:core` — pure Kotlin/JVM (no Android): OCR, protobuf, dictionaries, Japanese, geometry.
@@ -80,9 +80,10 @@ before quoting them.
 ├── CONTRIBUTING.md / .en.md    # how to contribute
 ├── LICENSE                     # PolyForm Noncommercial 1.0.0
 ├── README.md / README.en.md    # public overview
-├── ROADMAP.md                  # technical history, item by item (B/F/M/D/I/N/R)
+├── docs/                       # technical docs, LINUX, STEAMOS and ROADMAP
+│   ├── LINUX.md / STEAMOS.md   # Linux and Steam Deck support
+│   └── ROADMAP.md              # technical history, item by item (B/F/M/D/I/N/R)
 ├── LANGUAGES.md                # i18n: keys and where each text lives
-├── LINUX.md / STEAMOS.md       # Linux and Steam Deck support
 ├── ACCESSIBILITY_SERVICE_GUIDE.md
 └── apk-output/                 # APKs renamed by the build (git-ignored)
 ```
@@ -437,9 +438,9 @@ Settings (desktop/app) → PPOcrModelDownloader → ~23 MB in ppocr_v6/
 | --- | --- |
 | [README.en.md](README.en.md) | people who want to install and use it |
 | **ARCHITECTURE.en.md** | people who will change the code |
-| [ROADMAP.md](ROADMAP.md) | technical history: root cause, fix, tests, evidence (Portuguese) |
+| [ROADMAP.md](docs/ROADMAP.md) | technical history: root cause, fix, tests, evidence (Portuguese) |
 | [LANGUAGES.md](LANGUAGES.md) | i18n: keys, where they live, what is missing |
-| [LINUX.md](LINUX.md) / [STEAMOS.md](STEAMOS.md) | Linux and Steam Deck |
+| [LINUX.md](docs/LINUX.md) / [STEAMOS.md](docs/STEAMOS.md) | Linux and Steam Deck |
 | [AGENTS.md](AGENTS.md) | working rules for the repository (agents and people) |
 | [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | how to build, test and send a change |
 | [ACCESSIBILITY_SERVICE_GUIDE.md](ACCESSIBILITY_SERVICE_GUIDE.md) | accessibility service |

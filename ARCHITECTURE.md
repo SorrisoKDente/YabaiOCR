@@ -4,7 +4,7 @@
 
 Documento de referência para quem precisa **encontrar onde mexer**. Descreve os três módulos, o papel
 de cada arquivo, os fluxos principais e as armadilhas conhecidas. Para o histórico de decisões e o
-porquê de cada correção, ver [ROADMAP.md](ROADMAP.md); para o uso do app, [README.md](README.md).
+porquê de cada correção, ver [ROADMAP.md](docs/ROADMAP.md); para o uso do app, [README.md](README.md).
 
 - **110+ arquivos Kotlin**, ~50 mil linhas, três módulos Gradle.
 - `:core` — Kotlin/JVM puro (sem Android): OCR, protobuf, dicionários, japonês, geometria.
@@ -79,9 +79,10 @@ antes de citá-los.
 ├── CONTRIBUTING.md / .en.md    # como contribuir (compilar, testar, enviar)
 ├── LICENSE                     # PolyForm Noncommercial 1.0.0
 ├── README.md / README.en.md    # visão geral pública (pt/en)
-├── ROADMAP.md                  # histórico técnico item a item (B/F/M/D/I/N/R)
+├── docs/                       # documentação técnica, LINUX, STEAMOS e ROADMAP
+│   ├── LINUX.md / STEAMOS.md   # suporte a Linux e Steam Deck
+│   └── ROADMAP.md              # histórico técnico item a item (B/F/M/D/I/N/R)
 ├── LANGUAGES.md                # i18n: chaves e onde cada texto vive
-├── LINUX.md / STEAMOS.md       # suporte a Linux e Steam Deck
 ├── ACCESSIBILITY_SERVICE_GUIDE.md
 └── apk-output/                 # APKs renomeados pelo build (git-ignored)
 ```
@@ -434,9 +435,9 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 | --- | --- |
 | [README.md](README.md) / [README.en.md](README.en.md) | quem quer instalar e usar |
 | **ARCHITECTURE.md** | quem vai mexer no código |
-| [ROADMAP.md](ROADMAP.md) | histórico técnico: causa raiz, correção, testes, evidência |
+| [ROADMAP.md](docs/ROADMAP.md) | histórico técnico: causa raiz, correção, testes, evidência |
 | [LANGUAGES.md](LANGUAGES.md) | i18n: chaves, onde vivem, o que falta traduzir |
-| [LINUX.md](LINUX.md) / [STEAMOS.md](STEAMOS.md) | Linux e Steam Deck |
+| [LINUX.md](docs/LINUX.md) / [STEAMOS.md](docs/STEAMOS.md) | Linux e Steam Deck |
 | [AGENTS.md](AGENTS.md) | regras de trabalho no repositório (agentes e pessoas) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) / [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | como compilar, testar e enviar uma mudança |
 | [ACCESSIBILITY_SERVICE_GUIDE.md](ACCESSIBILITY_SERVICE_GUIDE.md) | serviço de acessibilidade |

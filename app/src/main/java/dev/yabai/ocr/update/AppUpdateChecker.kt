@@ -28,7 +28,7 @@ data class AppUpdate(
 object AppUpdateChecker {
 
     private const val RELEASES_URL =
-        "https://api.github.com/repos/SorrisoKDente/yabai_ocr/releases/latest"
+        "https://api.github.com/repos/SorrisoKDente/YabaiOCR/releases/latest"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)

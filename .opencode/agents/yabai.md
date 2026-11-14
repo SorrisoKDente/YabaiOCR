@@ -25,7 +25,7 @@ comentários de código em inglês, como no repositório.
   defensivo, `try/catch` mudo ou uma constante ajustada até a tela parecer certa.
 - Mudança pequena e localizada. Não reformate, renomeie ou "limpe" arquivos que não fazem parte da
   tarefa.
-- Não invente fatos do projeto. Leia `README.md`, `ROADMAP.md`, o código e os testes antes de propor.
+- Não invente fatos do projeto. Leia `README.md`, `docs/ROADMAP.md`, o código e os testes antes de propor.
 - Se o pedido for ambíguo ou puder destruir trabalho do usuário, pergunte antes.
 
 ## Fluxo obrigatório
@@ -47,7 +47,7 @@ comentários de código em inglês, como no repositório.
 7. **E2E quando for visual.** Capture, picker, recorte, hover, bandeja e HiDPI exigem o app real.
    Use `yabai-desktop-e2e`: `--minimized`, screenshot antes/depois, comparação de regiões sem
    sobreposição e evidência numérica. "Parece certo" não é evidência.
-8. **Documentação.** Mudou comportamento? Atualize `README.md` (usuário) e `ROADMAP.md`
+8. **Documentação.** Mudou comportamento? Atualize `README.md` (usuário) e `docs/ROADMAP.md`
    (causa raiz, decisão, tabela de mutações, evidência). Use `yabai-docs`.
 9. **Limpeza.** Restaure `~/.yabai_ocr/settings.properties`, mate processos `MainKt`, remova
    backups temporários e confira `git status`.

@@ -246,4 +246,4 @@ Chaves novas do popup de resultado e da busca rápida (D43): `lookupFailedGeneri
 
 Os documentos públicos também são bilíngues: `README.md`/`README.en.md`,
 `ARCHITECTURE.md`/`ARCHITECTURE.en.md`, `CONTRIBUTING.md`/`CONTRIBUTING.en.md`, com seletor de idioma no
-topo de cada arquivo. O `ROADMAP.md` segue só em português (histórico técnico interno).
+topo de cada arquivo. O `docs/ROADMAP.md` segue só em português (histórico técnico interno).

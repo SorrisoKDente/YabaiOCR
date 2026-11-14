@@ -38,8 +38,8 @@ internal fun preferredReleaseAsset(family: OsFamily, assets: List<ReleaseAsset>)
 }
 
 object DesktopAppUpdateChecker {
-    private const val FALLBACK_VERSION = "1.0.0"
-    private const val GITHUB_RELEASE_URL = "https://api.github.com/repos/SorrisoKDente/yabai_ocr/releases/latest"
+    private const val FALLBACK_VERSION = "1.0.6"
+    private const val GITHUB_RELEASE_URL = "https://api.github.com/repos/SorrisoKDente/YabaiOCR/releases/latest"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -79,7 +79,7 @@ object DesktopAppUpdateChecker {
                 val json = JsonParser.parseString(bodyStr).asJsonObject
 
                 val tagName = json.get("tag_name")?.asString?.removePrefix("v")?.trim() ?: return null
-                val htmlUrl = json.get("html_url")?.asString ?: "https://github.com/SorrisoKDente/yabai_ocr/releases/latest"
+                val htmlUrl = json.get("html_url")?.asString ?: "https://github.com/SorrisoKDente/YabaiOCR/releases/latest"
                 val bodyText = json.get("body")?.asString.orEmpty()
 
                 val hasUpdate = compareVersions(packagedVersion, tagName) < 0

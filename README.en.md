@@ -9,6 +9,13 @@ without taking a screenshot or switching windows.
 Recognition can run **online** (Google Lens) or **offline** (ML Kit on Android, PP-OCRv6 on desktop
 and Android), so the app stays useful without a connection.
 
+<p align="center">
+  <img src="docs/yabai-ocr-demo.gif" alt="Yabai OCR Demo with Mina the Hollower" width="650">
+</p>
+<p align="center">
+  <em>Running over the amazing indie game <strong>Mina the Hollower</strong> (by Yacht Club Games) — highly recommended!</em>
+</p>
+
 > **Free and non-commercial.** Yabai OCR is made for people studying Japanese — including me, who
 > wrote it to read manga while learning. Use is free for any **noncommercial** purpose; selling it,
 > charging for access or bundling it into a paid product is not allowed by the license. There is no
@@ -35,8 +42,8 @@ and Android), so the app stays useful without a connection.
 | platform | requirements |
 | --- | --- |
 | **Windows** 10/11 | JDK 17+ to build; there is a ready package in [`apk-output/`](apk-output) for Android |
-| **Linux** (X11 and Wayland/KDE) | JDK 17+; on Wayland/KDE capture uses `KWin.ScreenShot2` (the `Screenshot` portal is the fallback) and shortcuts use the `GlobalShortcuts` portal; on Plasma the hover reads the screen without a permission dialog. On GNOME (Ubuntu) the tray needs the AppIndicator extension — see [LINUX.md](LINUX.md) |
-| **Steam Deck** | Desktop Mode is the target; Game Mode is best effort — see [STEAMOS.md](STEAMOS.md) |
+| **Linux** (X11 and Wayland/KDE) | JDK 17+; on Wayland/KDE capture uses `KWin.ScreenShot2` (the `Screenshot` portal is the fallback) and shortcuts use the `GlobalShortcuts` portal; on Plasma the hover reads the screen without a permission dialog. On GNOME (Ubuntu) the tray needs the AppIndicator extension — see [LINUX.md](docs/LINUX.md) |
+| **Steam Deck** | Desktop Mode is the target; Game Mode is best effort — see [STEAMOS.md](docs/STEAMOS.md) |
 | **Android** 8.0+ (API 26) | `arm64-v8a` APK; overlay and screen capture need permission |
 
 ## How to use
@@ -121,10 +128,10 @@ The detailed map — file by file, flows and pitfalls — is in [ARCHITECTURE.en
 | document | content |
 | --- | --- |
 | [ARCHITECTURE.en.md](ARCHITECTURE.en.md) | full code structure, flows and where to change things |
-| [ROADMAP.md](ROADMAP.md) | technical history of every change (in Portuguese) |
+| [ROADMAP.md](docs/ROADMAP.md) | technical history of every change (in Portuguese) |
 | [LANGUAGES.md](LANGUAGES.md) | interface texts in Portuguese and English |
-| [LINUX.md](LINUX.md) | Linux support (X11, Wayland, portals) |
-| [STEAMOS.md](STEAMOS.md) | installing and using it on the Steam Deck |
+| [LINUX.md](docs/LINUX.md) | Linux support (X11, Wayland, portals) |
+| [STEAMOS.md](docs/STEAMOS.md) | installing and using it on the Steam Deck |
 | [AGENTS.md](AGENTS.md) | working conventions in this repository |
 | [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | how to build, test and send a change |
 

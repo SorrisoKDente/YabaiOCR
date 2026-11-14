@@ -411,5 +411,5 @@ rm -f ~/Applications/Yabai_OCR-*.AppImage
 ## 11. Referências
 
 - [LINUX.md](LINUX.md) — plano, decisões e checklist de aceite por fase.
-- [README.md](README.md) — uso do app, atalhos e ajustes.
+- [README.md](../README.md) — uso do app, atalhos e ajustes.
 - [ROADMAP.md](ROADMAP.md) — decisões D1–D35 com causa raiz e evidência.

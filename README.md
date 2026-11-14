@@ -9,6 +9,13 @@ tradução, sem tirar print nem abrir outra janela.
 O reconhecimento pode ser **online** (Google Lens) ou **offline** (ML Kit no Android, PP-OCRv6 no
 desktop e no Android), então o app continua útil sem conexão.
 
+<p align="center">
+  <img src="docs/yabai-ocr-demo.gif" alt="Yabai OCR Demo com Mina the Hollower" width="650">
+</p>
+<p align="center">
+  <em>Exemplo rodando sobre o excelente jogo indie <strong>Mina the Hollower</strong> (da Yacht Club Games) — altamente recomendado!</em>
+</p>
+
 > **Gratuito e sem fins lucrativos.** O Yabai OCR é feito para quem estuda japonês — inclusive eu, que
 > escrevi o app para ler mangá enquanto estudo. O uso é livre para qualquer finalidade **não
 > comercial**; vender, cobrar pelo acesso ou embutir o app num produto pago não é permitido pela
@@ -35,8 +42,8 @@ desktop e no Android), então o app continua útil sem conexão.
 | plataforma | requisitos |
 | --- | --- |
 | **Windows** 10/11 | JDK 17+ para compilar; existe pacote pronto em [`apk-output/`](apk-output) para Android |
-| **Linux** (X11 e Wayland/KDE) | JDK 17+; no Wayland/KDE a captura usa o `KWin.ScreenShot2` (portal `Screenshot` como fallback) e os atalhos usam o portal `GlobalShortcuts`; o hover no Plasma lê a tela sem diálogo de permissão. No GNOME (Ubuntu) a bandeja precisa da extensão AppIndicator — ver [LINUX.md](LINUX.md) |
-| **Steam Deck** | Desktop Mode é o alvo; Game Mode é melhor esforço — ver [STEAMOS.md](STEAMOS.md) |
+| **Linux** (X11 e Wayland/KDE) | JDK 17+; no Wayland/KDE a captura usa o `KWin.ScreenShot2` (portal `Screenshot` como fallback) e os atalhos usam o portal `GlobalShortcuts`; o hover no Plasma lê a tela sem diálogo de permissão. No GNOME (Ubuntu) a bandeja precisa da extensão AppIndicator — ver [LINUX.md](docs/LINUX.md) |
+| **Steam Deck** | Desktop Mode é o alvo; Game Mode é melhor esforço — ver [STEAMOS.md](docs/STEAMOS.md) |
 | **Android** 8.0+ (API 26) | APK `arm64-v8a`; overlay e captura de tela exigem permissão |
 
 ## Como usar
@@ -121,15 +128,15 @@ O mapa detalhado — arquivo por arquivo, fluxos e armadilhas — está em
 | documento | conteúdo |
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | estrutura completa do código, fluxos e onde mexer |
-| [ROADMAP.md](ROADMAP.md) | histórico técnico: causa raiz, correção e evidências de cada mudança |
+| [ROADMAP.md](docs/ROADMAP.md) | histórico técnico: causa raiz, correção e evidências de cada mudança |
 | [LANGUAGES.md](LANGUAGES.md) | textos de interface em português e inglês |
-| [LINUX.md](LINUX.md) | suporte a Linux (X11, Wayland, portais) |
-| [STEAMOS.md](STEAMOS.md) | instalação e uso no Steam Deck |
+| [LINUX.md](docs/LINUX.md) | suporte a Linux (X11, Wayland, portais) |
+| [STEAMOS.md](docs/STEAMOS.md) | instalação e uso no Steam Deck |
 | [AGENTS.md](AGENTS.md) | convenções de trabalho no repositório |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | como compilar, testar e enviar uma mudança |
 
 Os documentos públicos existem em português e em inglês (`README.en.md`, `ARCHITECTURE.en.md`,
-`CONTRIBUTING.en.md`); o `ROADMAP.md` é o histórico técnico interno, em português.
+`CONTRIBUTING.en.md`); o `docs/ROADMAP.md` é o histórico técnico interno, em português.
 
 ## Sugestões e Suporte
 
