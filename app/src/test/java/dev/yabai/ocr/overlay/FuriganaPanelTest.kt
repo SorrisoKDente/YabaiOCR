@@ -136,7 +136,6 @@ class FuriganaPanelTest {
             text = text,
             meta = "Google Lens · 2348 ms · ja",
             notes = listOf("texto obtido com o Google Lens"),
-            offlineAvailable = true,
             showLines = false,
             segmentLines = emptyList(),
             canRepick = true,

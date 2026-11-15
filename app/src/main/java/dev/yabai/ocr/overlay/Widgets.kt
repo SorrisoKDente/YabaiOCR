@@ -62,6 +62,27 @@ fun Context.actionButton(
     if (onClick != null) setOnClickListener { onClick() }
 }
 
+/** Label size, in sp, of an action inside [ActionGrid]. */
+private const val GRID_TEXT_SIZE_SP = 13f
+
+/**
+ * Makes an action button fit the panel's grid.
+ *
+ * A button standing on its own can afford 14sp and a 14/10 dp padding. Inside the grid it cannot: the
+ * actions sit under the text the user is reading, and on a phone turned sideways — where the window is
+ * barely 360 dp tall — that padding made every row 34 dp of buttons covering the meanings. The label
+ * keeps its weight, the box around it shrinks, and the grid spends the height it saved on text.
+ */
+fun TextView.applyGridStyle() {
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, GRID_TEXT_SIZE_SP)
+    // The font's extra top and bottom padding is what made the row taller than its glyphs.
+    includeFontPadding = false
+    minHeight = context.dp(30)
+    val h = context.dp(10)
+    val v = context.dp(6)
+    setPadding(h, v, h, v)
+}
+
 fun Context.textLabel(
     content: CharSequence,
     sizeSp: Float,

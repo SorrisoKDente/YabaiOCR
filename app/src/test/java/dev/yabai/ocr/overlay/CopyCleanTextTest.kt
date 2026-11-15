@@ -83,7 +83,6 @@ class CopyCleanTextTest {
             text = clean,
             meta = "Google Lens · 1200 ms · ja",
             notes = emptyList(),
-            offlineAvailable = true,
             showLines = false,
             segmentLines = emptyList(),
             canRepick = false,

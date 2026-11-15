@@ -82,7 +82,6 @@ class PauseTest {
             text = "猫",
             meta = "Google Lens · 900 ms · ja",
             notes = emptyList(),
-            offlineAvailable = true,
             showLines = false,
             lines = emptyList(),
             canRepick = false,

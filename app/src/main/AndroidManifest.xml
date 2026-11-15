@@ -119,11 +119,13 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
-        <!-- Quick Settings Tile for starting OCR -->
+        <!-- Quick Settings Tile for starting OCR. Same monochrome icon as the notification: a tile
+             is tinted by the system the same way, so the opaque `ic_scan` would be a white square here
+             too. -->
         <service
             android:name=".service.YabaiTileService"
             android:exported="true"
-            android:icon="@drawable/ic_scan"
+            android:icon="@drawable/ic_stat_scan"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>

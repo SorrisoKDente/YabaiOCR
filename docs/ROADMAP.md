@@ -6105,3 +6105,89 @@ print do jogo. O caso exige o ajuste «Imagem» ligado — com ele desligado o `
 linha e o painel em paisagem nunca quebrou. Em telas ainda mais curtas que 360 dp (janela dividida em
 paisagem), o `ActionGrid` continua sujeito ao encolhimento do B1; não foi mexido nesta entrada. Nada foi
 commitado.
+
+---
+
+### D69 — «Tentar offline» saiu do painel e a grade de ações caiba na paisagem  `[x]` (15/11/2026)
+
+**Relato.** Com o painel em paisagem já abrindo (D68), o usuário viu que **faltava o último botão** — o
+«Tentar offline», cortado embaixo — e pediu três coisas: remover esse botão (não faz sentido para ele),
+garantir que nada fique cortado embaixo com o celular deitado e reduzir os botões, que em paisagem
+«cobrem quase todo o espaço útil» e atrapalham a leitura dos significados.
+
+**Causa raiz.** O botão «Tentar offline» era a sétima ação do painel. A grade era de **duas colunas**, então
+sete ações davam quatro linhas de `101 px`; com a imagem ligada, o cartão passava da janela de `1080 px`
+em cerca de `77 px` e o `LinearLayout` cortava o último filho — exatamente o «Tentar offline». Mesmo sem a
+imagem, seis ações em duas colunas gastavam três linhas (`369 px`) sobre o texto que o usuário estava
+lendo; em paisagem isso é quase um terço da tela.
+
+**O que mudou.**
+
+- `ResultOverlay.showResult` não recebe mais `offlineAvailable` e não acrescenta o botão. O parâmetro saiu
+  também de `OverlayController.showResult` e da chamada em `FloatingOcrService.showResultFor`, junto com o
+  campo `lastForceOffline`, que só existia para essa conta. O «Tentar offline» **continua no cartão de
+  erro** (`showError`), onde é o caminho de volta quando o motor principal falhou — é outra situação, e
+  ela não tem grade.
+- `ActionGrid` escolhe as colunas pela largura da tela: **três** quando
+  `screenWidthDp >= 600` (paisagem), **duas** no retrato. Seis ações passam de três linhas para **duas**.
+- `Widgets.applyGridStyle`, aplicado a cada botão que entra na grade: `13sp`, `includeFontPadding = false`,
+  padding `10/6 dp` e `minHeight` de `30 dp`, no lugar de `14sp` e `14/10 dp`. Fecha em `90 px` de altura
+  a densidade 3 (antes `101 px`), sem mexer nos botões que ficam fora da grade (cabeçalho, busca, cartão de
+  erro).
+
+**Evidência numérica** (Robolectric, `w780dp-h360dp-xxhdpi`, janela 2340×1080, texto longo + nota +
+tradução + dicionário + imagem ligada):
+
+| | antes | depois |
+| --- | --- | --- |
+| botão da grade | `101 px` (33,7 dp) | `90 px` (30 dp) |
+| `ActionGrid` | `488 px` (4 linhas, com o «Tentar offline») | `228 px` (2 linhas de 3) |
+| cartão | `~1157 px` — `77 px` além da janela | `897 px` de `1080` |
+| última ação | cortada | dentro da janela |
+
+**Testes e mutações.** 422 testes do `:app`, 0 falhas (eram 418). Novos, todos em
+`ResultOverlayLayoutTest`: `a short landscape screen keeps every action inside the window` (pior caso com
+imagem, exige todo botão com altura `> 0`, `bottom` dentro da janela e altura `<= 32 dp`),
+`a phone held up keeps two actions on a row` e `a phone turned sideways puts three actions on a row`.
+A lista esperada de ações em `the panel offers the actions it is meant to` e em `ImagePanelTest` perdeu o
+«Tentar offline». Mutações derrubadas, uma por causa:
+
+| mutação | teste que caiu |
+| --- | --- |
+| voltar a acrescentar o «Tentar offline» ao resultado | `the panel offers the actions it is meant to` e `the image is offered as a button only when there is one` |
+| remover `applyGridStyle` do `ActionGrid` | ««Copy Original» is 101px tall, more than the 32 dp a grid action takes» |
+| fixar as colunas em 2 | `a phone turned sideways puts three actions on a row` |
+
+**Limitações.** Sem aparelho/emulador: as medidas são Robolectric com as métricas de um celular
+`xxhdpi` em paisagem, não um print do jogo. Em janelas mais curtas que 360 dp (tela dividida em
+paisagem) a grade compacta cabe melhor que a antiga, mas continua sujeita ao encolhimento do B1 — nada
+além do acima foi mexido. Nada foi commitado.
+
+---
+
+### D70 — Ícone da notificação era um quadrado branco  `[x]` (15/11/2026)
+
+**Relato.** A notificação «OCR ativo» mostrava um **quadrado branco** no lugar do ícone — o print do
+usuário tem o círculo azul do sistema com o quadrado dentro.
+
+**Causa raiz.** `FloatingOcrService.buildNotification` usava `R.drawable.ic_scan` como `setSmallIcon`. A
+barra de status desenha o ícone **só pelo canal alfa**: `ic_scan.png` é 144×144 RGBA com alfa `255` em
+**todos** os 20 736 pixels (fundo preto opaco, medido com Pillow). O sistema pintou cada pixel de branco —
+o quadrado. O mesmo bitmap é o certo no balão do overlay e no seletor, onde a imagem inteira é desenhada,
+então ele não podia ser trocado.
+
+**O que mudou.** Novo vetor `res/drawable/ic_stat_scan.xml` (24 dp, só os colchetes de scan, fundo
+transparente), usado no `setSmallIcon`. O ícone do `YabaiTileService` no manifest passou a ser o mesmo: o
+Quick Settings também tinge o ícone do sistema, e um bitmap opaco virava o mesmo quadrado lá. `ic_scan`
+continua no balão (`OverlayController`) e em nada mais.
+
+**Testes e mutações.** Novo em `CaptureNotificationTest`:
+`the status bar icon has transparency to be drawn from` — lê o id do ícone pequeno, recusa `ic_scan`,
+desenha o drawable num bitmap `96×96` com `@GraphicsMode(NATIVE)` e exige mais de 25 % de pixels
+transparentes. Mutações derrubadas: (1) `setSmallIcon(R.drawable.ic_scan)` → «the status bar still uses
+the opaque picture drawable»; (2) um retângulo branco opaco somado ao vetor novo → «only 0px of 9216 are
+transparent: the system draws the icon as a solid square». Restaurados, 422 testes verdes.
+
+**Limitações.** O Robolectric confirma a transparência e o id do recurso, não a aparência da notificação
+no aparelho. Não há aparelho aqui para conferir a barra de status.
+

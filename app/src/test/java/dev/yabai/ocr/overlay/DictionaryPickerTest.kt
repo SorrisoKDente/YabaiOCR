@@ -124,7 +124,6 @@ class DictionaryPickerTest {
                 text = SENTENCE,
                 meta = "Google Lens · 2348 ms · ja",
                 notes = emptyList(),
-                offlineAvailable = true,
                 showLines = false,
                 segmentLines = emptyList(),
                 canRepick = false,

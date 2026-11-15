@@ -900,7 +900,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         text: String,
         meta: String,
         notes: List<String>,
-        offlineAvailable: Boolean,
         showLines: Boolean,
         segmentLines: List<String>,
         canRepick: Boolean,
@@ -1026,11 +1025,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 context.actionButton(
                     context.getString(R.string.result_repick),
                 ) { callbacks?.onRepick() },
-            )
-        }
-        if (offlineAvailable) {
-            actions.add(
-                context.actionButton(context.getString(R.string.result_retry_offline)) { callbacks?.onRetryOffline() },
             )
         }
         card.addView(actions)

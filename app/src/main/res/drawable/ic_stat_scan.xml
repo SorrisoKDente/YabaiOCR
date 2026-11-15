@@ -1,0 +1,17 @@
+<!--
+    The status bar icon of the «OCR ativo» notification.
+
+    Notification icons are drawn from the alpha channel alone, so this one is a transparent sheet
+    with white brackets: the system paints it in the status bar's own colour. `ic_scan` is a fully
+    opaque picture — right for the bubble it also serves, where the whole bitmap is drawn — and using
+    it here produced the solid white square the status bar showed instead of an icon.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,9V6a2,2 0,0 1,2 -2h3v2H6v3H4zM15,4h3a2,2 0,0 1,2 2v3h-2V6h-3V4zM4,15h2v3h3v2H6a2,2 0,0 1,-2 -2v-3zM18,15h2v3a2,2 0,0 1,-2 2h-3v-2h3v-3z" />
+</vector>

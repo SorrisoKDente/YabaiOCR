@@ -42,7 +42,7 @@ class OcrDispatcher(
     private var lensEngine: LensOcrEngine? = null
     private var lensKey: LensKey? = null
 
-    /** True when the result panel should offer the "tentar offline" action. */
+    /** True when the error card should offer the "tentar offline" way back. */
     fun offlineAvailable(forceOffline: Boolean): Boolean =
         !forceOffline && settings.engine != EngineChoice.MLKIT
 

@@ -109,7 +109,6 @@ class ImagePanelTest {
                 context.getString(R.string.result_close),
                 imageLabel,
                 context.getString(R.string.result_repick),
-                context.getString(R.string.result_retry_offline),
             ),
             withImage,
         )
@@ -163,7 +162,6 @@ class ImagePanelTest {
             text = SENTENCE,
             meta = "Google Lens · 2348 ms · ja",
             notes = emptyList(),
-            offlineAvailable = true,
             showLines = false,
             segmentLines = emptyList(),
             canRepick = true,

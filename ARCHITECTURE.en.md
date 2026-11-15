@@ -328,7 +328,9 @@ worth knowing:
 ### Resources
 
 `app/src/main/res/`: `layout/activity_main.xml` and `activity_help.xml`, `values/` (pt-BR),
-`values-en/`, `values-night/colors.xml`, `drawable/`, `mipmap-anydpi-v26/`.
+`values-en/`, `values-night/colors.xml`, `drawable/` (`ic_scan.png` is the bubble's icon;
+`ic_stat_scan.xml` is the monochrome variant for the notification and the tile),
+`mipmap-anydpi-v26/`.
 Every interface string lives in `values/strings.xml` **and** `values-en/strings.xml` — see
 [LANGUAGES.md](LANGUAGES.md).
 

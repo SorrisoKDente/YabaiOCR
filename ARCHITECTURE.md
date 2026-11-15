@@ -325,7 +325,8 @@ valem destaque:
 ### Recursos
 
 `app/src/main/res/`: `layout/activity_main.xml` e `activity_help.xml`, `values/` (pt-BR),
-`values-en/`, `values-night/colors.xml`, `drawable/`, `mipmap-anydpi-v26/`.
+`values-en/`, `values-night/colors.xml`, `drawable/` (`ic_scan.png` é o ícone do balão;
+`ic_stat_scan.xml` é a variante monocrômica da notificação e do tile), `mipmap-anydpi-v26/`.
 Toda string de interface vive em `values/strings.xml` **e** `values-en/strings.xml` — ver
 [LANGUAGES.md](LANGUAGES.md).
 

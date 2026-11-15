@@ -14,6 +14,7 @@ import android.widget.TextView
 import dev.yabai.ocr.R
 import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
+import dev.yabai.ocr.util.dp
 import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -156,6 +157,73 @@ class ResultOverlayLayoutTest {
         )
     }
 
+    /**
+     * Regression: on a phone held sideways the action grid used to run off the bottom of the card and
+     * take the last button with it — the button was there in the view tree, half of it below the
+     * window, and could not be tapped. A landscape window is barely 360 dp tall and the actions were
+     * two per row; the picture, a long OCR result, its translation and a dictionary entry had already
+     * spent the height. Three narrower columns and a tighter button style are what buy the rows back.
+     *
+     * This is the worst case the panel can be in, so the assertion is the whole card and every one of
+     * its actions, not just the grid.
+     */
+    @Test
+    @Config(qualifiers = "w780dp-h360dp-xxhdpi")
+    fun `a short landscape screen keeps every action inside the window`() {
+        val panel = capturedFullPageWithPicture()
+        val metrics = context.resources.displayMetrics
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(metrics.heightPixels, View.MeasureSpec.EXACTLY),
+        )
+        panel.layout(0, 0, metrics.widthPixels, metrics.heightPixels)
+
+        val buttons = buttonRows(panel).flatten()
+        assertTrue("the panel should offer its actions", buttons.size >= 6)
+        for (button in buttons) {
+            assertTrue(
+                "«${button.text}» was squeezed to ${button.height}px tall",
+                button.height > 0,
+            )
+            val bottom = bottomWithin(panel, button)
+            assertTrue(
+                "«${button.text}» ends at ${bottom}px, past the ${panel.height}px window",
+                bottom <= panel.height,
+            )
+            // The other half of the report: the actions were not merely cut, they were so tall that
+            // they covered the meanings. A grid button is at most 32 dp tall — its own old size was
+            // 34 dp, which is what turned six actions into four rows.
+            assertTrue(
+                "«${button.text}» is ${button.height}px tall, more than the 32 dp a grid action takes",
+                button.height <= context.dp(32),
+            )
+        }
+    }
+
+    /**
+     * The number of columns follows the screen: three on a phone turned sideways, where the width
+     * has room for a third label and the height has none to spare; two held upright, where a third
+     * would only force the labels to wrap.
+     */
+    @Test
+    fun `a phone held up keeps two actions on a row`() {
+        assertEquals(listOf(2, 2, 2), gridRows(layout(capturedFullPageWithPicture(), 320)).map { it.size })
+    }
+
+    @Test
+    @Config(qualifiers = "w780dp-h360dp-xxhdpi")
+    fun `a phone turned sideways puts three actions on a row`() {
+        val panel = capturedFullPageWithPicture()
+        val metrics = context.resources.displayMetrics
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(metrics.heightPixels, View.MeasureSpec.EXACTLY),
+        )
+        panel.layout(0, 0, metrics.widthPixels, metrics.heightPixels)
+
+        assertEquals(listOf(3, 3), gridRows(panel).map { it.size })
+    }
+
     /** The actions on offer, in the order the user sees them. */
     @Test
     fun `the panel offers the actions it is meant to`() {
@@ -168,7 +236,6 @@ class ResultOverlayLayoutTest {
                 context.getString(R.string.result_ask_ai),
                 context.getString(R.string.result_close),
                 context.getString(R.string.result_repick),
-                context.getString(R.string.result_retry_offline),
             ),
             buttonRows(panel).flatten().map { it.text.toString() },
         )
@@ -315,7 +382,6 @@ class ResultOverlayLayoutTest {
             text = "職員",
             meta = "Google Lens · 1200 ms · ja",
             notes = emptyList(),
-            offlineAvailable = true,
             showLines = false,
             segmentLines = emptyList(),
             canRepick = true,
@@ -353,15 +419,19 @@ class ResultOverlayLayoutTest {
      * A whole-screen capture of a full page of manga, already translated and looked up: the case
      * that fills the card from top to bottom.
      */
-    private fun captured(): ResultOverlay = ResultOverlay(context).apply {
+    private fun captured(
+        picture: Bitmap? = null,
+        showImage: Boolean = false,
+    ): ResultOverlay = ResultOverlay(context).apply {
         showResult(
             text = "しょくいんネオの職員さんに聞いたら非童帝くんいうから…いしゅつ外出したって".repeat(6),
             meta = "Google Lens · 2348 ms · ja",
             notes = listOf("texto obtido com o Google Lens"),
-            offlineAvailable = true,
             showLines = false,
             segmentLines = emptyList(),
             canRepick = true,
+            image = picture,
+            showImage = showImage,
             canAskAi = true,
         )
         setTranslation(
@@ -394,6 +464,14 @@ class ResultOverlayLayoutTest {
         )
     }
 
+    /** The same full page, with the captured frame on screen beside it. */
+    private fun capturedFullPageWithPicture(): ResultOverlay = captured(
+        picture = Bitmap.createBitmap(1600, 900, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.rgb(40, 60, 90))
+        },
+        showImage = true,
+    )
+
     // --- helpers --------------------------------------------------------------------------------
 
     /**
@@ -405,7 +483,6 @@ class ResultOverlayLayoutTest {
             text = "職員さんに聞いたら",
             meta = "Google Lens · 4857 ms · ja",
             notes = emptyList(),
-            offlineAvailable = true,
             showLines = false,
             segmentLines = emptyList(),
             canRepick = true,
@@ -526,5 +603,41 @@ class ResultOverlayLayoutTest {
 
         walk(root)
         return rows
+    }
+
+    /** The action grid's rows, each as the buttons it holds. */
+    private fun gridRows(root: ViewGroup): List<List<TextView>> {
+        val grid = findGrid(root) ?: error("the panel has no action grid")
+        val rows = ArrayList<List<TextView>>()
+        for (index in 0 until grid.childCount) {
+            val row = grid.getChildAt(index) as ViewGroup
+            val buttons = ArrayList<TextView>()
+            for (cell in 0 until row.childCount) {
+                val button = row.getChildAt(cell) as? TextView ?: continue
+                if (button.visibility == View.VISIBLE) buttons.add(button)
+            }
+            rows.add(buttons)
+        }
+        return rows
+    }
+
+    private fun findGrid(group: ViewGroup): ViewGroup? {
+        for (index in 0 until group.childCount) {
+            val child = group.getChildAt(index)
+            if (child.tag == ActionGrid.GRID_TAG) return child as ViewGroup
+            if (child is ViewGroup) findGrid(child)?.let { return it }
+        }
+        return null
+    }
+
+    /** Where [view]'s bottom edge sits, in [root]'s coordinates. */
+    private fun bottomWithin(root: View, view: View): Int {
+        var bottom = view.height
+        var current: View? = view
+        while (current != null && current !== root) {
+            bottom += current.top
+            current = current.parent as? View
+        }
+        return bottom
     }
 }

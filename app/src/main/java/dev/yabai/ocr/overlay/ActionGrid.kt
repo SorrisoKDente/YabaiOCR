@@ -4,21 +4,35 @@ import android.content.Context
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.TextView
 import dev.yabai.ocr.util.dp
 
 /**
- * The panel's actions, two per row, in columns of equal width.
+ * The panel's actions, in columns of equal width.
  *
  * The panel used to let its buttons flow: each row took as many as fitted and was pushed to the right
  * edge. With seven actions that came out as rows of 3 / 1 / 2 / 1 buttons of five different widths, all
- * ragged on the left — nothing overlapped, but the block read as a pile instead of a panel. Two equal
- * columns fix what the eye is following: every button starts on one of two lines, and every row has the
- * same two widths.
+ * ragged on the left — nothing overlapped, but the block read as a pile instead of a panel. Equal
+ * columns fix what the eye is following: every button starts on one of the column lines, and every row
+ * has the same widths.
  *
- * A last button left alone in its row takes the whole width. A half-width button with an empty hole
- * beside it looks like a button that failed to load; a full-width one looks like the end of the list.
+ * The number of columns follows the screen: two on a phone held up, where a wider button would need a
+ * label to wrap, and three once the screen is wide enough for a row to hold three labels. A landscape
+ * phone has very little height, and the third column is what keeps six actions in two rows instead of
+ * three — rows that used to push the last button off the bottom of the card.
+ *
+ * A last row that does not fill every cell stretches its buttons across the row. A half-width button
+ * with an empty hole beside it looks like a button that failed to load; one that fills the row looks
+ * like the end of the list.
  */
 class ActionGrid(context: Context) : LinearLayout(context) {
+
+    /**
+     * Chosen once, from the screen the panel is opening on. A capture closes and reopens the card, so
+     * the grid never lives across a rotation.
+     */
+    private val columns: Int =
+        if (context.resources.configuration.screenWidthDp >= THREE_COLUMN_WIDTH_DP) 3 else 2
 
     init {
         orientation = VERTICAL
@@ -30,8 +44,11 @@ class ActionGrid(context: Context) : LinearLayout(context) {
 
     /** Puts [button] in the next free cell, left to right and top to bottom. */
     fun add(button: View) {
+        // The grid is tighter than a button standing on its own: these sit under the text the user is
+        // reading, so every pixel of height they take is a line of text they cover.
+        (button as? TextView)?.applyGridStyle()
         var target = row
-        if (target == null || filled >= COLUMNS) {
+        if (target == null || filled >= columns) {
             target = newRow()
             row = target
             filled = 0
@@ -69,10 +86,10 @@ class ActionGrid(context: Context) : LinearLayout(context) {
         /** Tag on each row of the grid. */
         const val ROW_TAG = "yabai.actionGridRow"
 
-        /** Columns. Two is what fits a button label without wrapping on a 360 dp phone. */
-        private const val COLUMNS = 2
-
         /** Both the gap between columns and the gap between rows. */
         private const val GAP_DP = 6
+
+        /** From this width on, three labels fit side by side without wrapping. */
+        private const val THREE_COLUMN_WIDTH_DP = 600
     }
 }

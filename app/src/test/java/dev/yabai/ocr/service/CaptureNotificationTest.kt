@@ -3,6 +3,9 @@ package dev.yabai.ocr.service
 import android.app.Notification
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import dev.yabai.ocr.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,6 +18,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * Closing the «OCR ativo» notification has to end the capture (R24), and its other two actions have
@@ -121,6 +125,45 @@ class CaptureNotificationTest {
         service.onDestroy()
 
         assertFalse("a destroyed reader is still marked paused", FloatingOcrService.isPaused)
+    }
+
+    /**
+     * Regression: the status bar showed a solid white square where the app's icon should be. A
+     * notification icon is drawn from its alpha channel alone, and `ic_scan` — the bubble's picture,
+     * right for the bubble, where the whole bitmap is drawn — is an opaque rectangle. The system
+     * painted every pixel of it white.
+     *
+     * The check is on the pixels the system would actually paint, so it catches any future icon that
+     * is opaque, not just this one coming back.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Suppress("DEPRECATION")
+    fun `the status bar icon has transparency to be drawn from`() {
+        val notification = service.buildNotification()
+        val id = notification.icon
+        assertTrue("the notification carries no status bar icon", id != 0)
+        assertTrue(
+            "the status bar still uses the opaque picture drawable",
+            id != R.drawable.ic_scan,
+        )
+
+        val icon = context.getDrawable(id)!!
+        val size = 96
+        icon.setBounds(0, 0, size, size)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        icon.draw(Canvas(bitmap))
+
+        var clear = 0
+        for (y in 0 until size) {
+            for (x in 0 until size) {
+                if (Color.alpha(bitmap.getPixel(x, y)) == 0) clear++
+            }
+        }
+        assertTrue(
+            "only ${clear}px of ${size * size} are transparent: the system draws the icon as a solid square",
+            clear > size * size / 4,
+        )
     }
 
     private fun action(notification: Notification, titleRes: Int): Notification.Action? {

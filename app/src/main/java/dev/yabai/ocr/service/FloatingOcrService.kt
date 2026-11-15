@@ -125,7 +125,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private var pendingKanji: List<KanjiPiece> = emptyList()
 
     private var lastOutcome: OcrOutcome? = null
-    private var lastForceOffline = false
 
     /**
      * The frame the last result came from, kept only while that result is on screen so the image can
@@ -578,7 +577,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 overlays.showResultLoading()
                 val outcome = dispatcher.recognize(crop, forceOffline)
                 lastOutcome = outcome
-                lastForceOffline = forceOffline
 
                 // «Ler kanji»: the same capture, but the boxes are strips to point at instead of
                 // paragraphs to copy, and no panel is opened. A page with nothing recognised falls
@@ -655,7 +653,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             text = text,
             meta = buildMeta(outcome),
             notes = buildNotes(outcome),
-            offlineAvailable = dispatcher.offlineAvailable(lastForceOffline),
             showLines = settings.showSegments,
             lines = lines,
             canRepick = canRepick,
@@ -1239,7 +1236,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_scan)
+            // A status bar icon is drawn from its alpha only, so this is the monochrome variant; the
+            // bubble keeps the plain picture (`ic_scan`), which would be a white square here.
+            .setSmallIcon(R.drawable.ic_stat_scan)
             .setContentTitle(
                 getString(if (paused) R.string.notification_title_paused else R.string.notification_title),
             )
