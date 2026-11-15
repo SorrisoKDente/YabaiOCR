@@ -258,6 +258,17 @@ object DesktopStrings {
     fun updateAvailableMessage(version: String): String = if (isEnglish) "✨ New app version available: v$version" else "✨ Nova versão do aplicativo disponível: v$version"
     val updateGeneralNotice: String get() = if (isEnglish) "A newer version of Yabai OCR has been released on GitHub." else "Uma versão mais recente do Yabai OCR foi lançada no GitHub."
 
+    // One instance at a time
+    val alreadyRunningTitle: String get() = if (isEnglish) "Yabai OCR is already running" else "O Yabai OCR já está aberto"
+    val alreadyRunningBody: String get() = if (isEnglish)
+        "Yabai OCR is already running in this session. Open the settings from the tray icon — a second copy would take over the same D-Bus service and lose hover and the shortcuts."
+    else
+        "O Yabai OCR já está rodando nesta sessão. Abra os ajustes pelo ícone da bandeja — uma segunda cópia disputaria o mesmo serviço D-Bus e ficaria sem hover e sem atalhos."
+    val dbusNameTaken: String get() = if (isEnglish)
+        "Another Yabai OCR instance already owns the dev.yabai.Ocr service. Close it (tray → Exit) and open the app again."
+    else
+        "Outra instância do Yabai OCR já é dona do serviço dev.yabai.Ocr. Feche-a (bandeja → Sair) e abra o app de novo."
+
     // Supporting the project
     val donationTitle: String get() = if (isEnglish) "Support the project" else "Apoiar o projeto"
     val donationBody: String get() = if (isEnglish)
@@ -330,6 +341,25 @@ object DesktopStrings {
     val hotkeyBackendPortalStatus: String get() = if (isEnglish) "Active global shortcuts via system portal." else "Atalhos globais pelo portal do sistema."
     val hotkeyBackendUnavailableStatus: String get() = if (isEnglish) "Global shortcuts unavailable in this session. Use tray menu." else "Atalhos globais indisponíveis nesta sessão. Use o menu da bandeja."
     val hotkeyPortalFailureMessage: String get() = if (isEnglish) "System shortcuts portal did not respond. Use tray menu or configure system." else "O portal de atalhos do sistema não respondeu. Use o menu da bandeja ou configure pelo sistema."
+    val hotkeyBackendKwinStatus: String get() = if (isEnglish) "Active global shortcuts through KWin (KGlobalAccel)." else "Atalhos globais pelo KWin (KGlobalAccel)."
+    val hotkeyKwinFailureMessage: String get() = if (isEnglish) "KWin did not register the global shortcuts. Use the tray menu." else "O KWin não registrou os atalhos globais. Use o menu da bandeja."
+
+    // Silent capture on KDE Wayland
+    val kdeCapturePermissionTitle: String get() = if (isEnglish) "🖼 Silent capture on KDE" else "🖼 Captura silenciosa no KDE"
+    val kdeCapturePermissionDesc: String get() = if (isEnglish)
+        "KWin only authorizes its screenshot interface to programs installed in a fixed, system-wide path. This AppImage runs from a temporary folder that changes on every start, so KWin refuses it and every hover asks for permission through the portal — that is the delay."
+    else
+        "O KWin só autoriza a interface de captura a programas instalados em um caminho fixo do sistema. Este AppImage roda de uma pasta temporária que muda a cada abertura, então o KWin recusa e cada hover pede permissão pelo portal — é daí que vem o atraso."
+    val kdeCapturePermissionToggle: String get() = if (isEnglish) "Disable KWin's screenshot authorization check" else "Desligar a checagem de autorização de captura do KWin"
+    val kdeCapturePermissionHint: String get() = if (isEnglish)
+        "Writes ~/.config/environment.d/yabai-ocr.conf with KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1. It applies to the whole session, so any program can capture the screen without asking. No root needed; takes effect after logging out and back in, and stays for every launch."
+    else
+        "Escreve ~/.config/environment.d/yabai-ocr.conf com KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1. Vale para a sessão inteira, então qualquer programa pode capturar a tela sem pedir. Não precisa de root; passa a valer depois de sair e entrar na sessão, e fica para todas as aberturas."
+    val kdeCapturePermissionNeedsRelogin: String get() = if (isEnglish)
+        "Enabled. Log out and back in once to make it effective; you do not need to repeat it afterwards."
+    else
+        "Ativado. Saia e entre na sessão uma vez para valer; depois disso não precisa repetir."
+    val kdeCapturePermissionFailed: String get() = if (isEnglish) "Could not write the environment file." else "Não foi possível escrever o arquivo de ambiente."
     val hotkeyJNativeHookFailureMessage: String get() = if (isEnglish) "Could not install global keyboard hook. Use tray menu." else "Não foi possível instalar o gancho global de teclado. Use o menu da bandeja."
 
     // Dictionary Manager Updates & Progress

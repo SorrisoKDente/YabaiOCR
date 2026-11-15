@@ -37,7 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
+import kotlinx.coroutines.delay
 import dev.yabai.ocr.core.dict.TokenMatch
 import java.awt.Point
 import java.awt.Rectangle
@@ -60,10 +62,23 @@ fun HoverTooltipWindow(
 ) {
     val estimatedHeight = remember(matches) { estimateHeight(matches) }
 
-    val state = remember(estimatedHeight) {
+    // Where the card goes, decided before the window exists: Compose places a new window from
+    // `WindowState.position`, and a `setLocation` that lands while the window is still being mapped
+    // is what the compositor ignores — on KDE/Wayland that left the card in the screen's top-left
+    // corner instead of beside the pointer.
+    val anchor = remember(mousePoint, estimatedHeight) {
+        HoverGeometry.placeTooltip(
+            pointer = mousePoint,
+            size = java.awt.Dimension(TOOLTIP_WIDTH, estimatedHeight),
+            screen = HoverGeometry.screenAt(mousePoint),
+        )
+    }
+
+    val state = remember(anchor) {
         WindowState(
-            width = 460.dp,
+            width = TOOLTIP_WIDTH.dp,
             height = estimatedHeight.dp,
+            position = WindowPosition(anchor.x.dp, anchor.y.dp),
         )
     }
 
@@ -79,7 +94,12 @@ fun HoverTooltipWindow(
         LaunchedEffect(estimatedHeight, mousePoint, window) {
             window.isAutoRequestFocus = false
             window.background = java.awt.Color(0, 0, 0, 0)
-            window.setSize(460, estimatedHeight)
+            window.setSize(TOOLTIP_WIDTH, estimatedHeight)
+            placeWindow(window, mousePoint)
+            onBoundsChanged(window.bounds)
+            // The window exists now, so the placement is no longer decided by whoever mapped it.
+            // A WM that keeps its own position for the first frames is corrected here.
+            delay(TOOLTIP_REPOSITION_DELAY_MS)
             placeWindow(window, mousePoint)
             onBoundsChanged(window.bounds)
         }
@@ -246,10 +266,22 @@ private fun estimateHeight(matches: List<TokenMatch>): Int {
     return pixels.coerceIn(130, 520)
 }
 
+/** Width of the card, in pixels; also the width [estimateHeight]'s line wrapping assumes. */
+private const val TOOLTIP_WIDTH = 460
+
+/**
+ * How long to wait before placing the card again.
+ *
+ * The first placement runs while the window is being mapped, and every compositor is free to put
+ * the window where it wants until it is on screen. 120 ms is long enough for the map on this
+ * desktop and short enough that the card does not visibly jump.
+ */
+private const val TOOLTIP_REPOSITION_DELAY_MS = 120L
+
 private fun placeWindow(window: java.awt.Window, anchor: Point) {
     val screen = HoverGeometry.screenAt(anchor)
     val size = window.size
-    val width = if (size.width > 0) size.width else 460
+    val width = if (size.width > 0) size.width else TOOLTIP_WIDTH
     val height = if (size.height > 0) size.height else 220
     val point = HoverGeometry.placeTooltip(
         pointer = anchor,

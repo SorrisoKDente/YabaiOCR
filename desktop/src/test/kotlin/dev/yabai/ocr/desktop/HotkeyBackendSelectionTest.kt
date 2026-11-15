@@ -48,15 +48,34 @@ class HotkeyBackendSelectionTest {
     }
 
     @Test
-    fun `linux wayland uses the portal instead of jnativehook`() {
+    fun `kde wayland uses the kwin script instead of the portal`() {
+        // The portal needs an app id that a direct AppImage launch does not have, and KDE rejects the
+        // session outright ("An app id is required"). KGlobalAccel needs none.
         assertEquals(
-            HotkeyBackendKind.PORTAL,
+            HotkeyBackendKind.KWIN,
             hotkeyBackendKindFor(OsFamily.LINUX, SessionType.WAYLAND, DesktopFamily.KDE),
         )
+    }
+
+    @Test
+    fun `wayland without kde keeps the portal`() {
         assertEquals(
             HotkeyBackendKind.PORTAL,
             hotkeyBackendKindFor(OsFamily.LINUX, SessionType.WAYLAND, DesktopFamily.GNOME),
         )
+        assertEquals(
+            HotkeyBackendKind.PORTAL,
+            hotkeyBackendKindFor(OsFamily.LINUX, SessionType.WAYLAND, DesktopFamily.UNKNOWN),
+        )
+    }
+
+    @Test
+    fun `the kwin backend delegates registration to the script and never fails on its own`() {
+        val backend = createHotkeyBackend(HotkeyBackendKind.KWIN, HotkeyCallbacks())
+
+        assertEquals(HotkeyBackendKind.KWIN, backend.kind)
+        assertTrue(backend.start(emptyList()))
+        assertTrue(backend.update(emptyList()))
     }
 
     @Test

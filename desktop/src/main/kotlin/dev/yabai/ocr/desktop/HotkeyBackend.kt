@@ -6,15 +6,20 @@ import dev.yabai.ocr.desktop.i18n.DesktopStrings
  * Where the global shortcuts come from.
  *
  * JNativeHook reads the keyboard directly, which is what Windows and X11 do today. On Wayland that
- * is impossible for an ordinary client, so the shortcuts go through the XDG portal.
+ * is impossible for an ordinary client. KDE gets the shortcuts from the KWin helper script the
+ * hover bridge already loads: KGlobalAccel owns the combination and KWin dispatches it back over
+ * D-Bus, which needs no app id and no permission dialog. Everything else on Wayland uses the XDG
+ * portal, whose app id comes from the desktop entry (see [AppIdentity]).
  */
-internal enum class HotkeyBackendKind { JNATIVEHOOK, PORTAL, UNAVAILABLE }
+internal enum class HotkeyBackendKind { JNATIVEHOOK, PORTAL, KWIN, UNAVAILABLE }
 
 internal fun hotkeyBackendKindFor(
     family: OsFamily,
     session: SessionType,
-    @Suppress("UNUSED_PARAMETER") desktop: DesktopFamily,
+    desktop: DesktopFamily,
 ): HotkeyBackendKind = when {
+    family == OsFamily.LINUX && session == SessionType.WAYLAND && desktop == DesktopFamily.KDE ->
+        HotkeyBackendKind.KWIN
     family == OsFamily.LINUX && session == SessionType.WAYLAND -> HotkeyBackendKind.PORTAL
     else -> HotkeyBackendKind.JNATIVEHOOK
 }
@@ -22,6 +27,7 @@ internal fun hotkeyBackendKindFor(
 internal fun hotkeyBackendLabel(kind: HotkeyBackendKind): String = when (kind) {
     HotkeyBackendKind.JNATIVEHOOK -> DesktopStrings.hotkeyBackendActiveStatus
     HotkeyBackendKind.PORTAL -> DesktopStrings.hotkeyBackendPortalStatus
+    HotkeyBackendKind.KWIN -> DesktopStrings.hotkeyBackendKwinStatus
     HotkeyBackendKind.UNAVAILABLE -> DesktopStrings.hotkeyBackendUnavailableStatus
 }
 
@@ -30,6 +36,7 @@ internal fun hotkeyBackendFailureMessage(kind: HotkeyBackendKind): String = when
         DesktopStrings.hotkeyPortalFailureMessage
     HotkeyBackendKind.JNATIVEHOOK ->
         DesktopStrings.hotkeyJNativeHookFailureMessage
+    HotkeyBackendKind.KWIN -> DesktopStrings.hotkeyKwinFailureMessage
     HotkeyBackendKind.UNAVAILABLE -> hotkeyBackendLabel(HotkeyBackendKind.UNAVAILABLE)
 }
 
@@ -87,6 +94,24 @@ internal class JNativeHookHotkeys(private val callbacks: HotkeyCallbacks) : Hotk
             hoverCycle = value(HotkeyIds.HOVER_CYCLE, "Ctrl + Shift + X"),
         )
     }
+}
+
+/**
+ * KDE Wayland: the KWin helper script registers the shortcuts through `registerShortcut` and calls
+ * back into [ShortcutsDbusObject], so there is nothing to bind here.
+ *
+ * The backend never fails on its own — whether the script is loaded is [KWinIntegration]'s answer,
+ * and the caller reports it in the status line. That split is what keeps a broken script from also
+ * breaking hover: both live in the same script.
+ */
+internal class KWinScriptHotkeys : HotkeyBackend {
+    override val kind = HotkeyBackendKind.KWIN
+
+    override fun start(bindings: List<HotkeyBinding>): Boolean = true
+
+    override fun update(bindings: List<HotkeyBinding>): Boolean = true
+
+    override fun stop() = Unit
 }
 
 internal class UnavailableHotkeys : HotkeyBackend {
@@ -169,7 +194,7 @@ internal class HotkeyService(
     fun stop() = backend.stop()
 }
 
-private fun hotkeyFailureStatus(kind: HotkeyBackendKind, error: String?): String {
+internal fun hotkeyFailureStatus(kind: HotkeyBackendKind, error: String?): String {
     val detail = error?.takeIf { it.isNotBlank() } ?: return hotkeyBackendFailureMessage(kind)
     val label = if (DesktopStrings.isEnglish) "Detail:" else "Detalhe:"
     return "${hotkeyBackendFailureMessage(kind)} $label $detail."
@@ -179,5 +204,6 @@ internal fun createHotkeyBackend(kind: HotkeyBackendKind, callbacks: HotkeyCallb
     when (kind) {
         HotkeyBackendKind.JNATIVEHOOK -> JNativeHookHotkeys(callbacks)
         HotkeyBackendKind.PORTAL -> PortalGlobalShortcuts(callbacks)
+        HotkeyBackendKind.KWIN -> KWinScriptHotkeys()
         HotkeyBackendKind.UNAVAILABLE -> UnavailableHotkeys()
     }

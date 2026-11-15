@@ -78,7 +78,7 @@ antes de citá-los.
 ├── ARCHITECTURE.en.md          # este documento em inglês
 ├── CONTRIBUTING.md / .en.md    # como contribuir (compilar, testar, enviar)
 ├── LICENSE                     # PolyForm Noncommercial 1.0.0
-├── README.md / README.en.md    # visão geral pública (pt/en)
+├── README.md / README.pt-BR.md  # visão geral pública (en/pt)
 ├── docs/                       # documentação técnica, LINUX, STEAMOS e ROADMAP
 │   ├── LINUX.md / STEAMOS.md   # suporte a Linux e Steam Deck
 │   └── ROADMAP.md              # histórico técnico item a item (B/F/M/D/I/N/R)
@@ -181,6 +181,8 @@ rodam com as flags acima.
 | `ReleaseNotesWindow.kt` | preview em Markdown das notas do release do GitHub, aberto em Ajustes → Sobre |
 | `LicenseWindow.kt` | texto da licença empacotado no jar, lido em Ajustes → Sobre |
 | `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
+| `InstanceLock.kt` | trava de arquivo em `~/.yabai_ocr/instance.lock`: uma instância por usuário, antes de D-Bus e bandeja |
+| `KdeCapturePermission.kt` | opção «captura silenciosa no KDE»: grava `~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, porque o KWin só autoriza `ScreenShot2` a um `Exec` fixo em diretório de root |
 | `AppUpdateNoticeWindow.kt` | aviso de atualização no arranque: baixa com progresso, reinicia e abre as notas sem passar pelos Ajustes |
 | `NativeLibraryPath.kt` | aponta `jnativehook.lib.path` para `~/.cache/yabai-ocr/native` no Linux, antes de tocar em `GlobalScreen` (AppImage é somente leitura) |
 | `QuickDictWindow.kt` | busca rápida de dicionário em janela própria |
@@ -212,7 +214,8 @@ rodam com as flags acima.
 | `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar |
 | `HoverGeometry.kt` | recorte ao redor do ponteiro, coordenadas locais, HiDPI |
 | `HoverTextSelector.kt` | escolhe a linha/palavra sob o ponteiro e monta o hit |
-| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo) |
+| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada |
+| `WindowActivation.kt` | traz para a tela a janela que o usuário pediu (limpa `ICONIFIED`, pede ativação); no hover nunca é usado |
 | `HoverCapability.kt` | o hover é suportado nesta sessão? (X11/Wayland/Win; no Wayland decide entre ponteiro do KWin e do GNOME) |
 | `PointerSource.kt` | fonte da posição do ponteiro (AWT, script do KWin ou extensão do GNOME) |
 | `KWinHoverBridge.kt` / `KWinIntegration.kt` / `KWinScript.kt` | script KWin + D-Bus que entrega o ponteiro no Wayland; descarrega script obsoleto e reaplica atalhos |
@@ -232,8 +235,8 @@ rodam com as flags acima.
 | arquivo | papel |
 | --- | --- |
 | `GlobalHotkeyManager.kt` | registro dos atalhos globais, recriação ao vivo |
-| `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal), combinação de teclas e catálogo de ações |
-| `PortalGlobalShortcuts.kt` | atalhos globais no Wayland via portal D-Bus |
+| `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal/KWin), combinação de teclas e catálogo de ações; no KDE Wayland os atalhos são do script do KWin (KGlobalAccel), que não precisa de app id |
+| `PortalGlobalShortcuts.kt` | atalhos globais no Wayland fora do KDE via portal D-Bus (o portal exige app id, que um AppImage aberto do arquivo não tem) |
 | `XdgTrigger.kt` | atalhos por `gsettings`/XDG no Linux |
 | `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | bandeja: StatusNotifier + DBusMenu em todo Linux (Plasma e GNOME com AppIndicator), AWT no Windows/macOS e como fallback, motivo da ausência em `lastFailure`, menu Swing fallback e posicionamento |
 | `ExternalBrowser.kt` | abre URL no navegador do usuário: lançadores do desktop (`xdg-open`, `gio open`, `kde-open*`) e `Desktop.browse` como último recurso |
@@ -437,7 +440,7 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 
 | arquivo | para quem |
 | --- | --- |
-| [README.md](README.md) / [README.en.md](README.en.md) | quem quer instalar e usar |
+| [README.md](README.md) / [README.pt-BR.md](README.pt-BR.md) | quem quer instalar e usar |
 | **ARCHITECTURE.md** | quem vai mexer no código |
 | [ROADMAP.md](docs/ROADMAP.md) | histórico técnico: causa raiz, correção, testes, evidência |
 | [LANGUAGES.md](LANGUAGES.md) | i18n: chaves, onde vivem, o que falta traduzir |

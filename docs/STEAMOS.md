@@ -130,20 +130,21 @@ chmod +x ~/Applications/yabai-ocr/bin/yabai-ocr
 ~/Applications/yabai-ocr/bin/yabai-ocr
 ```
 
-No KDE Wayland a captura usa `org.kde.KWin.ScreenShot2` e não abre o diálogo do portal. Se essa
-interface não estiver disponível ou falhar, o app cai para o portal `Screenshot`; nesse fallback o
-KDE pode mostrar **«Permitir que aplicativos tirem capturas de tela?»** (um `QuickDialog` por
-chamada, não uma autorização única silenciosa). A permissão do portal fica ligada à
-identidade/caminho do AppImage; se você mover ou renomear o arquivo, o KDE pode pedir de novo. Se o
-fallback for negado, o app mostra “permissão de captura negada”; reautorize no diálogo do sistema ou
-nas configurações de privacidade do KDE.
+**No AppImage a captura cai no portal `Screenshot`, e isso é estrutural.** O KWin só autoriza
+`org.kde.KWin.ScreenShot2` a quem tem `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`
+numa entrada `.desktop` **que viva em diretório privilegiado** (`/usr/share/applications`) e cujo
+`Exec` seja o próprio `/proc/<pid>/exe`. Dentro de um AppImage o exe é
+`/tmp/.mount_Yabai_XXXX/opt/yabai-ocr/bin/yabai-ocr`, com sufixo novo a cada abertura: nenhuma
+entrada fixa casa. A entrada oculta `~/.local/share/applications/yabai-ocr-screenshot.desktop` que o
+app grava **não** autoriza nada (diretório de usuário é recusado) — ela é inofensiva e só registra o
+caminho em execução.
 
-No KDE Wayland o app também grava `~/.local/share/applications/yabai-ocr-screenshot.desktop` a cada
-início. É uma entrada oculta (`NoDisplay=true`) cuja única função é autorizar
-`org.kde.KWin.ScreenShot2` para o binário que está rodando: o KWin só aceita a captura direta de quem
-tem `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` numa entrada cujo `Exec` seja o
-próprio `/proc/<pid>/exe`. Sem ela a captura cai no portal `Screenshot`, que no Plasma abre um
-diálogo de permissão (a janela «Portal») a cada chamada — e é isso que deixava o hover lento.
+Nesse caminho de portal o KDE mostra **«Permitir que aplicativos tirem capturas de tela?»** a cada
+chamada, e é isso que deixa o hover lento. A saída é **Ajustes → 🖼 Captura silenciosa no KDE**: grava
+`~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, que desliga a
+checagem dentro do KWin. A sessão só lê esse arquivo no login, então **saia e entre uma vez** depois
+de ligar — não é preciso repetir depois, e não é preciso reiniciar a cada abertura do app. A opção
+vale para a sessão inteira (qualquer programa passa a capturar sem pedir), por isso é opt-in.
 
 Para testar sem misturar seus dados:
 
@@ -342,7 +343,8 @@ Não prometa hover/atalhos nessa sessão.
 | `~/Applications/Yabai_OCR-*.AppImage` | executável | apague o arquivo |
 | `~/.yabai_ocr/` | ajustes, dicionários, cache | apague a pasta |
 | `~/.local/share/applications/yabai-ocr.desktop` | atalho do menu (declara a interface do KWin) | “Integrar” ou apague |
-| `~/.local/share/applications/yabai-ocr-screenshot.desktop` | entrada oculta que autoriza o `ScreenShot2` no binário em execução | apague; o app regrava no próximo início |
+| `~/.local/share/applications/yabai-ocr-screenshot.desktop` | entrada oculta com o caminho do binário em execução (não autoriza `ScreenShot2`: usuário não é diretório privilegiado) | apague; o app regrava no próximo início |
+| `~/.config/environment.d/yabai-ocr.conf` | `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, só se você ligar «Captura silenciosa no KDE» | desligue a opção ou apague o arquivo (vale no próximo login) |
 | `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png` | ícone | apague |
 | `~/.config/autostart/yabai-ocr.desktop` | início automático | desligue o toggle ou apague |
 | `~/.local/share/kwin/scripts/yabai-ocr/` | script KWin do hover | apague; o app reinstala |
@@ -394,7 +396,7 @@ rm -f ~/Applications/Yabai_OCR-*.AppImage
 | `packageAppImage` não gera `.AppImage` | o Compose 1.7 mapeia esse alvo para uma pasta | use `:desktop:packageLinuxAppImage` ou `:desktop:packagePortableTarGz` |
 | captura preta ou “permissão negada” | `ScreenShot2` e portal `Screenshot` indisponíveis, ou fallback negado | §5.2; confirme `XDG_SESSION_TYPE=wayland`, o backend KDE e, se o fallback for usado, permita a captura |
 | hover “indisponível” | sessão não é KDE Wayland, ou script KWin não carregou | use Desktop Mode/Plasma; veja o status nos Ajustes; confira `~/.local/share/kwin/scripts/yabai-ocr/` |
-| janela «Portal» aparece e o hover demora a cada leitura | o `ScreenShot2` recusou o app (`Error.NoAuthorized`) e a captura caiu no portal `Screenshot` | use o build atual (D45); confirme `ls ~/.local/share/applications/yabai-ocr-screenshot.desktop` e que o caminho em `Exec=` é o binário em execução (`readlink /proc/<pid>/exe`); depois de mover/renomear o AppImage, reinicie o app para regravar a entrada |
+| janela «Portal» aparece e o hover demora a cada leitura | o `ScreenShot2` recusou o app (`Error.NoAuthorized`) e a captura caiu no portal `Screenshot`. Em AppImage é o comportamento normal: o exe vive em `/tmp/.mount_*` e nunca casa com a entrada fixa exigida pelo KWin (D61) | ligue **Ajustes → 🖼 Captura silenciosa no KDE** e saia/entre na sessão uma vez; o log do app mostra `captura direta pelo KWin recusada (…)` |
 | atalho novo (ex.: busca rápida) não dispara, o antigo continua | o KGlobalAccel mantinha a combinação anterior daquele fallback do KWin | use o build atual (D45); se persistir, rode `kbuildsycoca6` uma vez ou reinicie o app para reaplicar o fallback |
 | “o KWin bridge recusou carregar o script” ao reabrir o app | o script da execução anterior continuou carregado no KWin | use o build atual (D45), que descarrega o script obsoleto antes de carregar; se aparecer mesmo assim, reinicie a sessão do Plasma |
 | atalhos “indisponíveis” | portal `GlobalShortcuts` ausente | no KDE o fallback KWin assume; fora do KDE use a bandeja |
@@ -411,5 +413,5 @@ rm -f ~/Applications/Yabai_OCR-*.AppImage
 ## 11. Referências
 
 - [LINUX.md](LINUX.md) — plano, decisões e checklist de aceite por fase.
-- [README.md](../README.md) — uso do app, atalhos e ajustes.
+- [README.pt-BR.md](../README.pt-BR.md) — requisitos, instalação, uso e atalhos (em português).
 - [ROADMAP.md](ROADMAP.md) — decisões D1–D35 com causa raiz e evidência.

@@ -153,6 +153,7 @@ internal class KdeWaylandCapture(
     private val portal: ScreenCaptureBackend = PortalScreenshotCapture(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val retryDelayMillis: Long = DIRECT_RETRY_DELAY_MS,
+    private val report: (String) -> Unit = { message -> System.err.println(message) },
 ) : ScreenCaptureBackend {
 
     @Volatile
@@ -179,12 +180,27 @@ internal class KdeWaylandCapture(
                 directRetryAt = 0L
                 return captured
             } catch (e: ScreenCaptureException) {
+                reportRefusal(e.message)
                 directRetryAt = clock() + retryDelayMillis
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                reportRefusal(e.describe())
                 directRetryAt = clock() + retryDelayMillis
             }
         }
         return action(portal)
+    }
+
+    /**
+     * Why the direct capture was refused, in the only log the packaged app has.
+     *
+     * Without this line the only symptom of a refused `ScreenShot2` call is the portal's permission
+     * window on every hover — which says nothing about the cause (usually KWin not finding a desktop
+     * entry that authorizes this caller).
+     */
+    private fun reportRefusal(detail: String?) {
+        report(
+            "Yabai OCR: captura direta pelo KWin recusada (${detail ?: "sem detalhe"}); usando o portal",
+        )
     }
 
     private companion object {

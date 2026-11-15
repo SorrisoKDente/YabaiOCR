@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import org.freedesktop.dbus.annotations.DBusInterfaceName
 import org.freedesktop.dbus.annotations.DBusMemberName
 import org.freedesktop.dbus.connections.impl.DBusConnection
@@ -118,7 +119,11 @@ internal class DbusYabaiTransport : YabaiDbusTransport {
             connection = created
             true
         }.getOrElse { error ->
-            lastError = error.describe()
+            // A taken name means a second instance of the app, which the single-instance guard now
+            // prevents — but if it ever happens the status line must say so instead of showing a
+            // raw DBusException.
+            val nameTaken = error.message.orEmpty().contains("register bus name", ignoreCase = true)
+            lastError = if (nameTaken) DesktopStrings.dbusNameTaken else error.describe()
             logDbusFailure("conectar ao barramento da sessão", error)
             runCatching { connection?.close() }
             connection = null

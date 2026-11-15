@@ -40,6 +40,27 @@ class HoverStateHolder(defaultFilter: String = "") {
 private data class CapturedScreen(val image: BufferedImage, val screenBounds: Rectangle)
 
 fun main(args: Array<String>) {
+    // One instance per user. The D-Bus name `dev.yabai.Ocr`, the tray item and the global shortcuts
+    // have a single owner, and closing the window only hides the app, so launching the AppImage
+    // again used to start a second process that could not register the name: it showed «não foi
+    // possível publicar o serviço D-Bus» and sat there without hover or shortcuts.
+    val instanceLock = InstanceLock.default()
+    if (!instanceLock.acquire()) {
+        val background = args.contains("--minimized") || args.contains("--tray")
+        System.err.println("Yabai OCR: já existe uma instância aberta; esta cópia vai sair.")
+        if (!background) {
+            runCatching {
+                javax.swing.JOptionPane.showMessageDialog(
+                    null,
+                    DesktopStrings.alreadyRunningBody,
+                    DesktopStrings.alreadyRunningTitle,
+                    javax.swing.JOptionPane.WARNING_MESSAGE,
+                )
+            }
+        }
+        return
+    }
+
     // Before the first JNativeHook class is referenced: the packaged build may be running from a
     // read-only AppImage mount, where the library cannot be written next to the jars.
     val nativeLibraryDir = configureJNativeHookLibraryPathForThisSession()
@@ -61,6 +82,11 @@ fun main(args: Array<String>) {
     // interface, and the portal fallback presents a permission window per capture. Writing the entry
     // before the first capture is what makes hover silent; it must name the running binary, so it is
     // refreshed on every start.
+    //
+    // The same entry is what the shortcut portal would need as an app id, but exporting
+    // `XDG_DESKTOP_FILE` cannot be done from inside the process (the portal reads the environment
+    // the process was started with), and a self-restart through the AppImage runtime does not reach
+    // `main` on this stack. That is why KDE uses the KWin shortcuts instead of the portal.
     if (DesktopPlatform.isWayland && DesktopPlatform.isKde) {
         LinuxSystemIntegration().ensureScreenshotAuthorization()
     }
@@ -213,7 +239,16 @@ fun main(args: Array<String>) {
             },
         )
     }
-    val hotkeyService = remember { HotkeyService(hotkeyCallbacks) }
+    // On KDE Wayland the shortcuts and the pointer bridge live in the same KWin script, so the
+    // chosen kind decides whether that script also gets the shortcut registrations.
+    val hotkeyBackendKind = remember {
+        hotkeyBackendKindFor(
+            family = DesktopPlatform.family,
+            session = DesktopPlatform.session,
+            desktop = DesktopPlatform.desktop,
+        )
+    }
+    val hotkeyService = remember { HotkeyService(hotkeyCallbacks, hotkeyBackendKind) }
     var hotkeyStatus by remember { mutableStateOf(hotkeyService.statusMessage) }
 
     fun currentHotkeyBindings(): List<HotkeyBinding> = hotkeyBindings(
@@ -264,7 +299,9 @@ fun main(args: Array<String>) {
                 service = service,
                 bridge = KWinHoverBridge(),
                 fallbackShortcuts = {
-                    if (hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE) {
+                    if (hotkeyBackendKind == HotkeyBackendKind.KWIN ||
+                        hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE
+                    ) {
                         currentHotkeyBindings()
                     } else {
                         emptyList()
@@ -287,6 +324,19 @@ fun main(args: Array<String>) {
             if (!hoverBackendReady) {
                 hoverBackendFailure = kwinIntegration.statusMessage
                 hoverState.status = kwinIntegration.statusMessage
+            }
+            // On KDE the shortcuts live in the same script as the pointer bridge, so a script that
+            // does not start also means no shortcuts; the status line must say that instead of
+            // claiming an active backend.
+            if (hotkeyService.activeKind == HotkeyBackendKind.KWIN) {
+                hotkeyStatus = if (hoverBackendReady) {
+                    hotkeyService.statusMessage
+                } else {
+                    hotkeyFailureStatus(
+                        HotkeyBackendKind.KWIN,
+                        kwinIntegration.statusMessage.takeIf { it.isNotBlank() },
+                    )
+                }
             }
 
             onDispose {
@@ -321,6 +371,15 @@ fun main(args: Array<String>) {
         }
     }
 
+    // KDE Wayland refuses its screenshot interface to an AppImage, so the only way to capture
+    // without a permission dialog per hover is KWin's own escape hatch in the session environment.
+    var kdeCapturePermission by remember { mutableStateOf(isKdeCapturePermissionEnabled()) }
+    var kdeCapturePermissionNote by remember { mutableStateOf("") }
+    // Bumped every time the user asks for the main window from the tray. A window created while
+    // another app is focused is not raised by KWin and stays in the taskbar; the counter is what
+    // makes the app bring it to the screen.
+    var mainWindowRequest by remember { mutableStateOf(0) }
+
     // Setup System Tray (Steam-like behavior)
     val trayManager = remember {
         SystemTrayManager(
@@ -343,10 +402,12 @@ fun main(args: Array<String>) {
                 mainDictInitialQuery = ""
                 mainScreen = MainScreen.DICTIONARIES
                 showMainWindow = true
+                mainWindowRequest++
             },
             onSettingsRequested = {
                 mainScreen = MainScreen.SETTINGS
                 showMainWindow = true
+                mainWindowRequest++
             },
             onExitRequested = {
                 exitApplication()
@@ -546,6 +607,12 @@ fun main(args: Array<String>) {
             title = title,
             state = windowState,
         ) {
+            LaunchedEffect(mainWindowRequest) {
+                // Only after the user asked for the window: on a plain start the window already has
+                // focus and stealing it would be rude.
+                if (mainWindowRequest > 0) activateOnOpen(window)
+            }
+
             LaunchedEffect(Unit) {
                 window.isAutoRequestFocus = false
                 window.iconImage = AppIconGenerator.createWindowImage(64)
@@ -578,6 +645,22 @@ fun main(args: Array<String>) {
                             trayStatus = trayStatus,
                             linuxIntegrationStatus = linuxIntegrationStatus,
                             onInstallLinuxIntegration = installLinuxIntegration,
+                            kdeCapturePermission = kdeCapturePermission,
+                            kdeCapturePermissionNote = kdeCapturePermissionNote,
+                            onKdeCapturePermissionChange = if (
+                                DesktopPlatform.isWayland && DesktopPlatform.isKde
+                            ) {
+                                { enabled ->
+                                    kdeCapturePermissionNote = if (setKdeCapturePermission(enabled)) {
+                                        kdeCapturePermission = enabled
+                                        if (enabled) DesktopStrings.kdeCapturePermissionNeedsRelogin else ""
+                                    } else {
+                                        DesktopStrings.kdeCapturePermissionFailed
+                                    }
+                                }
+                            } else {
+                                null
+                            },
                             onHoverToggle = { applyHover(!hoverState.active) },
                             onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
                             onThemeChanged = { isDark ->
@@ -604,7 +687,9 @@ fun main(args: Array<String>) {
                                 // the new bindings immediately; a successful portal edit removes any
                                 // stale fallback left by an earlier failure.
                                 kwinIntegration?.let { integration ->
-                                    val fallback = if (hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE) {
+                                    val fallback = if (hotkeyBackendKind == HotkeyBackendKind.KWIN ||
+                                        hotkeyService.activeKind == HotkeyBackendKind.UNAVAILABLE
+                                    ) {
                                         hotkeyBindings(fullScreen, region, quickDict, hover, hoverCycle)
                                     } else {
                                         emptyList()

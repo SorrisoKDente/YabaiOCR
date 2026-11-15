@@ -146,6 +146,9 @@ fun ResultWindow(
     ) {
         LaunchedEffect(Unit) {
             window.iconImage = AppIconGenerator.createWindowImage(64)
+            // Opened from a hotkey while another app had focus: without this KWin leaves the window
+            // in the taskbar and the result looks minimised.
+            activateOnOpen(window)
         }
 
         YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {

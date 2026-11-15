@@ -154,8 +154,12 @@ documentação do projeto e no código do OpenJDK/KDE.
   diálogo do portal. O app converte `RGBX8888`/`RGBA8888` e `ARGB32`/`ARGB32_Premultiplied` (formato
   6, o que o Plasma 6 devolve de fato) respeitando `stride` e o tamanho nativo. O KWin só autoriza
   quem tem `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` numa entrada `.desktop` cujo
-  `Exec` seja o próprio `/proc/<pid>/exe`; por isso o app grava a entrada oculta
-  `yabai-ocr-screenshot.desktop` a cada início (D45). Se a interface não existir, a chamada for
+  `Exec` seja o próprio `/proc/<pid>/exe` **e que viva em diretório privilegiado**
+  (`/usr/share/applications`). A entrada oculta `yabai-ocr-screenshot.desktop` fica em
+  `~/.local/share/applications` e por isso **não** autoriza: num AppImage o exe é
+  `/tmp/.mount_*/…` e nenhuma entrada fixa casa (D61). A saída no AppImage é
+  `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` em `~/.config/environment.d/` (Ajustes → «Captura
+  silenciosa no KDE»), que vale a partir do login seguinte. Se a interface não existir, a chamada for
   recusada ou o formato for desconhecido, ele cai para o portal `Screenshot`
 
   Em telas múltiplas, os Ajustes escolhem o monitor da captura inteira e do recorte (`PRIMARY`,
@@ -1142,6 +1146,11 @@ quando a bandeja falha).
 - [ ] Suspender/retomar e atualização simulada do Plasma não geram crash.
 - [ ] Escala 100% e 125%/150% sem borrão/deslocamento.
 - [ ] Nenhum processo residual e nenhum arquivo do usuário alterado após o E2E.
+- [ ] Abrir o AppImage com o app já na bandeja não cria uma segunda instância: a nova cópia avisa e sai, e hover/atalhos continuam do processo original.
+- [ ] No KDE Wayland os cinco atalhos globais vêm do script do KWin (Ajustes → Atalhos diz «Atalhos globais pelo KWin (KGlobalAccel)») e funcionam abrindo o AppImage direto do arquivo, sem o portal pedir app id.
+- [ ] O cartão do hover aparece ao lado do ponteiro (não no canto superior esquerdo) e se reposiciona perto das bordas da tela em vez de sair cortado.
+- [ ] Com «Captura silenciosa no KDE» ligado e a sessão reiniciada, o hover não abre o diálogo do portal (`KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` em `~/.config/environment.d/yabai-ocr.conf`).
+- [ ] Abrir a Busca Rápida, o Gerenciador de Dicionários ou o Resultado do recorte por atalho/bandeja traz a janela para a frente, em vez de deixá-la só na barra de tarefas.
 
 ### 15.2 Linux Wayland genérico
 

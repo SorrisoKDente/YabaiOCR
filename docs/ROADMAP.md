@@ -5662,3 +5662,131 @@ da sessão não é algo que a tarefa possa fazer sozinha. Ficam sem prova em exe
 escala fracionária da extensão (aqui a sessão é 1.0) e o `gnome-extensions enable` real; o app
 reporta a falha com o motivo quando ela acontecer. Roteiro de verificação: abrir o app, ligar o
 hover, sair e entrar, e conferir `gnome-extensions info yabai-ocr@yabai.dev` como `ENABLED`.
+
+
+### D59 — Segunda instância derrubava hover e atalhos (nome D-Bus duplicado)  `[x]` (14/11/2026)
+
+**Relato (Steam Deck, AppImage 1.0.8 do GitHub).** O hover funcionou uma vez (pelo portal), parou
+depois de fechar e abrir o app, e os atalhos globais pararam junto. Os Ajustes mostravam duas linhas
+de erro: hover «Não foi possível publicar o serviço D-Bus dev.yabai.Ocr (DbusException: Failed to
+register bus name)» e atalhos «O portal de atalhos do sistema não respondeu … (1) Underlying
+transport returned -1».
+
+**Causa raiz.** Havia **duas instâncias** rodando na sessão. Fechar a janela de Ajustes não encerra o
+processo — ele continua na bandeja —, e abrir o AppImage de novo criava uma segunda cópia. As duas
+disputam o nome D-Bus `dev.yabai.Ocr`, a bandeja e os atalhos globais, que têm dono único. A segunda
+perdia a corrida: `requestBusName` lançava, o `YabaiDbusService` falhava inteiro (hover **e** atalhos
+de fallback passam por ele) e o portal também não respondia no processo novo. Evidência colhida na
+máquina: `busctl --user list` com dois processos `yabai-ocr`, o antigo (13074) dono de `dev.yabai.Ocr`
+e o novo (14164) sem o nome.
+
+**Correção.** `InstanceLock.kt`: trava de arquivo em `~/.yabai_ocr/instance.lock`, adquirida na
+primeira linha de `main()`, antes de qualquer janela, bandeja ou D-Bus. Se outra instância já tem a
+trava, a nova avisa («O Yabai OCR já está aberto… abra os ajustes pelo ícone da bandeja»), escreve o
+motivo no stderr e sai com código 0 — sem bandeja, sem D-Bus, sem confusão. Em `--minimized`/`--tray`
+(autostart) sai em silêncio, sem diálogo. O sistema libera a trava quando o processo morre, então
+travamento ou `kill -9` não deixam o app bloqueado; se a trava em si não puder ser criada, o app
+**abre** — recusar abrir por causa do arquivo de trava seria pior que a duplicata. Quando o nome
+D-Bus já tem dono, a linha de status agora diz isso em linguagem de gente, em vez de mostrar a
+`DBusException` crua.
+
+**Testes e evidências.** `InstanceLockTest` (3): a primeira instância passa e a segunda é recusada;
+depois de liberar, a próxima passa; adquirir duas vezes no mesmo processo não é conflito. Mutação
+«segunda instância é aceita» derrubada. Mutação `release()` sem fechar o canal também é derrubada;
+trocar só `lock.release()` por vazio **não** derruba nada porque fechar o canal já solta a trava —
+mutante equivalente, registrado aqui.
+
+Prova ponta a ponta na máquina (`YABAI_HOME=/tmp/yabai-instance-test`, build 1.0.9): a primeira cópia
+subiu e ficou viva; a segunda imprimiu «Yabai OCR: já existe uma instância aberta; esta cópia vai
+sair.» e terminou com código 0, com o `instance.lock` criado. AppImage 1.0.9 gerado.
+
+**Limitações.** O hover e os atalhos em si não foram exercitados na sessão real nesta rodada — a
+evidência é a ausência do erro de D-Bus e a recusa da segunda instância. Nada foi commitado.
+
+### D60 — Atalhos no KDE iam para um portal sem app id, e o cartão do hover nascia no canto  `[x]` (14/11/2026)
+
+**Relato (Steam Deck, AppImage 1.0.9 já com a trava de instância).** Com uma instância só, os
+atalhos globais continuavam mortos e o stderr mostrava `DBusExecutionException: An app id is
+required` em `DbusPortalShortcutsTransport.createSession`. O hover voltou, mas o cartão aparecia
+sempre no canto superior esquerdo da tela, longe do ponteiro, e o diálogo do portal abria a cada
+hover (captura lenta).
+
+**Causa raiz dos atalhos.** `hotkeyBackendKindFor` mandava **todo** Wayland para o portal
+`org.freedesktop.portal.GlobalShortcuts`. O portal identifica o chamador pelo *app id*, que vem da
+entrada `.desktop` que iniciou o app (`XDG_DESKTOP_FILE`); um AppImage aberto do gerenciador de
+arquivos não tem nenhuma. Testes na máquina descartaram as saídas de contorno: exportar
+`XDG_DESKTOP_FILE` apontando para a entrada oculta do app, para uma entrada no
+`~/.local/share/applications` real e para uma entrada cujo `Exec` é exatamente o
+`/proc/<pid>/exe` do processo — nos três casos o portal respondeu `An app id is required`.
+Relançar o app com a variável exportada também não se sustentou: o filho do runtime do AppImage
+morre antes do `main` (imprime o *usage* do `java`), então esse caminho **não** foi incluído.
+
+**Correção dos atalhos.** No KDE Wayland os atalhos passam a vir do script do KWin, que já existia
+para o ponteiro: `registerShortcut` → KGlobalAccel → `dev.yabai.Ocr.Shortcuts.ShortcutPressed` →
+`HotkeyCallbacks`. Novo `HotkeyBackendKind.KWIN` com `KWinScriptHotkeys` (delega o registro e nunca
+falha sozinho — quem sabe se o script carregou é `KWinIntegration`, e a linha de status dos Ajustes
+agora mostra «Atalhos globais pelo KWin (KGlobalAccel)» ou o motivo da falha). Nada de portal, nada
+de app id, nada de diálogo. O portal continua sendo o backend do Wayland **sem** KDE.
+
+**Causa raiz do cartão.** A posição vinha de `window.setLocation` dentro do `LaunchedEffect`, que
+roda enquanto a janela ainda está sendo mapeada. O KWin decide a posição no mapeamento e ignora o
+`setLocation` que chega antes; o cartão ficava em (0,0). **Correção:** a posição é calculada por
+`HoverGeometry.placeTooltip` **antes** da janela existir, entregue no `WindowState`
+(`WindowPosition`) e reaplicada 120 ms depois, quando a janela já está na tela.
+
+**Diagnóstico da captura por hover.** `KdeWaylandCapture` agora escreve no stderr por que a captura
+direta pelo `ScreenShot2` foi recusada antes de cair no portal; sem essa linha o único sintoma era o
+diálogo de permissão a cada hover, sem causa visível.
+
+**Testes e mutações.** 364 testes desktop, 0 falhas (1 pulado): `kde wayland uses the kwin script
+instead of the portal`, `the kwin backend delegates registration to the script and never fails on its
+own` e `a refused direct capture says why it fell back to the portal`. Mutação «KDE volta ao portal»
+derrubada; mutação «não registrar o motivo da recusa» derrubada.
+
+**Limitações.** A posição do cartão e o disparo real dos atalhos com tecla física não foram
+observados nesta rodada (a sessão do usuário estava em uso com o app aberto): a evidência é a suíte e
+o cálculo de `HoverGeometry`. O AppImage `1.0.9` não pôde ser regerado porque o app do usuário estava
+rodando a partir dele; foi gerado um `1.0.9-e2e` para os testes. Nada foi commitado.
+
+### D61 — Captura sempre pelo portal (ScreenShot2 impossível em AppImage) e janelas nascendo na barra  `[x]` (14/11/2026)
+
+**Relato.** Com atalhos e cartão já corretos, o hover continuava lento e o log do AppImage mostrava
+`The process is not authorized to take a screenshot` a cada leitura, seguido de «captura direta pelo
+KWin recusada …; usando o portal». O usuário também relatou «todos os menus abrindo minimizados»:
+Busca Rápida, Gerenciador de Dicionários e o Resultado do recorte apareciam só na barra de tarefas.
+
+**Causa raiz da captura.** KWin (`ScreenShotDBusInterface2::checkPermissions` →
+`fetchRestrictedDBusInterfacesFromPid`) autoriza `org.kde.KWin.ScreenShot2` apenas quando o
+`/proc/<pid>/exe` do chamador é o `Exec` de uma entrada `.desktop` que declare
+`X-KDE-DBUS-Restricted-Interfaces` **e que viva em diretório privilegiado** (`/usr/share/applications`;
+KDE D29407 e bug 446628 dizem isso explicitamente). Dentro de um AppImage o exe é
+`/tmp/.mount_Yabai_XXXX/opt/yabai-ocr/bin/yabai-ocr`, com sufixo novo a cada abertura: nenhuma entrada
+fixa pode casar. O `yabai-ocr-screenshot.desktop` em `~/.local/share/applications` nunca autorizou
+nada — a captura sempre caiu no portal, que abre o diálogo a cada leitura (a lentidão). O caminho do
+ScreenCast do JDK também não resolve nesta máquina: o portal 1.22.1 passou a emitir tokens que não são
+UUID e o JDK até 21.0.12 os rejeita (JDK-8396109, integrado só em 11/2026 num JDK futuro).
+
+**Correção da captura.** Opção explícita em Ajustes («Captura silenciosa no KDE»): grava
+`~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, lido pelo
+`systemd --user` no login. Não precisa de root, vale para todas as aberturas depois de um único
+relogin, e desmarcar apaga o arquivo (a checagem volta no próximo login). O texto do cartão diz que a
+variável vale para a sessão inteira — é uma escolha do usuário, não um padrão.
+
+**Causa raiz das janelas «minimizadas».** Numa sessão KDE Wayland o app é um cliente XWayland que
+normalmente **não** está ativo (o usuário estava sobre outro programa). Uma janela criada nesse
+estado não é elevada pelo KWin e fica na barra de tarefas. Não reproduzi o caso em sessão isolada
+(`_NET_WM_STATE_FOCUSED`, 480×572 em +765+174), então a correção é preventiva e explícita:
+`WindowActivation.kt` limpa o bit `ICONIFIED` e pede ativação (`isAutoRequestFocus`, `toFront`,
+`requestFocus`) nas janelas que o usuário pediu — Resultado, Busca Rápida e a janela principal quando
+aberta pela bandeja. O cartão do hover continua proibido de roubar foco.
+
+**Testes e mutações.** 372 testes desktop, 0 falhas (1 pulado). `KdeCapturePermissionTest` (6):
+escreve a variável documentada, apaga ao desligar, ignora arquivo alheio, `=0` não conta, escrever
+duas vezes é idempotente, relogin pendente até a sessão carregar a variável. `WindowActivationTest`
+(2): o bit `ICONIFIED` sai e o `MAXIMIZED` fica. Mutações derrubadas: «escrever a variável errada» e
+«não limpar o bit de minimizado».
+
+**Limitações.** A elevação das janelas e o cartão novo não foram vistos na tela nesta rodada (a
+verificação visual depende da sessão real); a evidência é a suíte, as mutações e o exame por
+`xprop`/`xdotool` que não reproduziu o minimizado. O efeito da variável só aparece depois de sair e
+entrar na sessão. Nada foi commitado.

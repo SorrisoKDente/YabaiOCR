@@ -119,6 +119,26 @@ class KWinScreenshotCaptureTest {
     }
 
     @Test
+    fun `a refused direct capture says why it fell back to the portal`() {
+        val direct = TestBackend("direct", capture = { throw ScreenCaptureException(CaptureAvailability.UNSUPPORTED, "NoAuthorized") })
+        val messages = mutableListOf<String>()
+        val backend = KdeWaylandCapture(
+            direct = direct,
+            portal = TestBackend("portal", capture = { testImage(7, 7) }),
+            clock = { 0L },
+            retryDelayMillis = 30_000L,
+            report = { messages.add(it) },
+        )
+
+        backend.captureScreen()
+
+        // The user sees a permission window per hover; this line is the only clue of the cause.
+        assertEquals(1, messages.size)
+        assertTrue(messages.single().contains("NoAuthorized"))
+        assertTrue(messages.single().contains("portal"))
+    }
+
+    @Test
     fun `the backend captures the workspace and crops the primary screen`() {
         val transport = FakeTransport()
         val backend = KWinScreenshotCapture(

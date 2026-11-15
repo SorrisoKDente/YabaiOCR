@@ -52,7 +52,7 @@ sem que isso seja o comportamento pedido e testado.
 Windows/PowerShell, na raiz:
 
 ```powershell
-.\gradlew.bat :desktop:test --console=plain       # suíte desktop (358 testes em 14/11/2026)
+.\gradlew.bat :desktop:test --console=plain       # suíte desktop (372 testes em 14/11/2026)
 .\gradlew.bat :desktop:compileKotlin              # compilação rápida do desktop
 .\gradlew.bat :desktop:run --args="--minimized"   # app na bandeja, sem abrir Ajustes
 .\gradlew.bat :core:test                          # core (JVM puro)
@@ -67,7 +67,7 @@ Opções do `:core`:
 .\gradlew.bat :core:test -Pdicts="E:\Documentos\DicionariosJapones" # ZIPs reais do Yomitan
 ```
 
-A suíte desktop fechou em **358 testes**, o `:core` padrão (sem `-Plive`/`-Pdicts`) em **194** e o
+A suíte desktop fechou em **372 testes**, o `:core` padrão (sem `-Plive`/`-Pdicts`) em **194** e o
 app, com Robolectric, em **416** na última verificação (14/11/2026). Se os números mudarem, confirme
 que os testes novos são intencionais e atualize ROADMAP/AGENTS.
 
@@ -115,8 +115,9 @@ nenhum teste significa que o teste não cobre a causa — reescreva o teste, nã
 
 ## Documentação
 
-- `README.md` é para quem usa: o que é, plataformas, atalhos, como compilar e limitações. É vitrine
-  pública — detalhe de implementação não entra aqui.
+- `README.md` (inglês, original) e `README.pt-BR.md` são para quem usa: o que é, requisitos e
+  instalação por sistema, atalhos, como compilar e limitações. É vitrine pública — detalhe de
+  implementação não entra aqui.
 - `ARCHITECTURE.md` é para quem mexe no código: árvore de diretórios, papel de cada arquivo, fluxos e
   onde procurar cada tipo de mudança.
 - `docs/ROADMAP.md` é para quem mantém: itens `B*`/`F*`/`M*`/`D*`/`I*`/`N*`/`R*`, estado `[x]`, data
@@ -126,8 +127,9 @@ nenhum teste significa que o teste não cobre a causa — reescreva o teste, nã
 - Use a skill `yabai-docs` e o template
   `.opencode/skills/yabai-docs/references/entry-template.md`.
 
-**Documento público é bilíngue.** `README`, `ARCHITECTURE` e `CONTRIBUTING` existem em pt-BR e em
-inglês (`*.en.md`), com o seletor de idioma no topo. Mudou um, atualize o par na mesma tarefa.
+**Documento público é bilíngue.** O original é em inglês: `README.md`, `ARCHITECTURE.en.md`,
+`CONTRIBUTING.en.md`. A versão em pt-BR vem ao lado (`README.pt-BR.md`, `ARCHITECTURE.md`,
+`CONTRIBUTING.md`), com o seletor de idioma no topo. Mudou um, atualize o par na mesma tarefa.
 O `docs/ROADMAP.md` é histórico técnico interno e fica só em português.
 
 **Estrutura mudou? Atualize o `ARCHITECTURE.md` na mesma tarefa.** Isso vale para arquivo, pasta ou

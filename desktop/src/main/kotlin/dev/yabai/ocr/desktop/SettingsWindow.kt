@@ -45,6 +45,9 @@ fun SettingsContent(
     trayStatus: String = "",
     linuxIntegrationStatus: String = "",
     onInstallLinuxIntegration: (() -> Unit)? = null,
+    kdeCapturePermission: Boolean = false,
+    kdeCapturePermissionNote: String = "",
+    onKdeCapturePermissionChange: ((Boolean) -> Unit)? = null,
     onHoverToggle: () -> Unit = {},
     onHoverTest: () -> Unit = {},
     onThemeChanged: (Boolean) -> Unit = {},
@@ -788,6 +791,38 @@ fun SettingsContent(
                         )
                     ) {
                         Text(DesktopStrings.btnIntegrateSystem)
+                    }
+                }
+            }
+        }
+
+        // --- Captura silenciosa no KDE Wayland ---
+        // KWin refuses ScreenShot2 to a caller installed under ~/.local or /tmp, and an AppImage
+        // always runs from /tmp/.mount_*: this switch is the only way for hover to capture without
+        // a permission dialog on every read.
+        if (onKdeCapturePermissionChange != null) {
+            item {
+                SettingCard(title = DesktopStrings.kdeCapturePermissionTitle) {
+                    Text(
+                        text = DesktopStrings.kdeCapturePermissionDesc,
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.secondary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingCheckboxItem(
+                        checked = kdeCapturePermission,
+                        title = DesktopStrings.kdeCapturePermissionToggle,
+                        description = DesktopStrings.kdeCapturePermissionHint,
+                        onCheckedChange = onKdeCapturePermissionChange
+                    )
+                    val note = kdeCapturePermissionNote
+                    if (note.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = note,
+                            style = MaterialTheme.typography.caption,
+                            color = palette.info
+                        )
                     }
                 }
             }

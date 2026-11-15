@@ -4,7 +4,7 @@
 
 Reference document for anyone who needs to **find where to change something**. It describes the three
 modules, the role of each file, the main flows and the known pitfalls. For the decision history and
-the reason behind each fix, see [ROADMAP.md](docs/ROADMAP.md); for using the app, [README.en.md](README.en.md).
+the reason behind each fix, see [ROADMAP.md](docs/ROADMAP.md); for using the app, [README.md](README.md).
 
 - **110+ Kotlin files**, ~50 thousand lines, three Gradle modules.
 - `:core` — pure Kotlin/JVM (no Android): OCR, protobuf, dictionaries, Japanese, geometry.
@@ -79,7 +79,7 @@ before quoting them.
 ├── ARCHITECTURE.en.md          # this document (English)
 ├── CONTRIBUTING.md / .en.md    # how to contribute
 ├── LICENSE                     # PolyForm Noncommercial 1.0.0
-├── README.md / README.en.md    # public overview
+├── README.md / README.pt-BR.md  # public overview
 ├── docs/                       # technical docs, LINUX, STEAMOS and ROADMAP
 │   ├── LINUX.md / STEAMOS.md   # Linux and Steam Deck support
 │   └── ROADMAP.md              # technical history, item by item (B/F/M/D/I/N/R)
@@ -182,6 +182,8 @@ flags above.
 | `ReleaseNotesWindow.kt` | Markdown preview of the GitHub release notes, opened from Settings → About |
 | `LicenseWindow.kt` | license text bundled in the jar, opened from Settings → About |
 | `UpdateInstaller.kt` | downloads the asset with progress, swaps the running AppImage (`.old` backup), opens the installer on Windows/macOS and restarts |
+| `InstanceLock.kt` | file lock at `~/.yabai_ocr/instance.lock`: one instance per user, before D-Bus and the tray |
+| `KdeCapturePermission.kt` | the «silent capture on KDE» switch: writes `~/.config/environment.d/yabai-ocr.conf` with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, because KWin only authorizes `ScreenShot2` to a fixed `Exec` under a root-writable directory |
 | `AppUpdateNoticeWindow.kt` | startup update notice: downloads with progress, restarts and opens the notes without walking to Settings |
 | `NativeLibraryPath.kt` | points `jnativehook.lib.path` at `~/.cache/yabai-ocr/native` on Linux before `GlobalScreen` is touched (an AppImage is read-only) |
 | `QuickDictWindow.kt` | quick dictionary lookup in its own window |
@@ -214,7 +216,8 @@ flags above.
 | `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close |
 | `HoverGeometry.kt` | crop around the pointer, local coordinates, HiDPI |
 | `HoverTextSelector.kt` | picks the line/word under the pointer and builds the hit |
-| `HoverTooltipWindow.kt` | floating card (size, position, content) |
+| `HoverTooltipWindow.kt` | floating card (size, position, content); the position comes in the `WindowState` and is applied again once the window exists, because the compositor ignores a `setLocation` on a window still being mapped |
+| `WindowActivation.kt` | brings the window the user asked for to the screen (clears `ICONIFIED`, requests activation); never used by hover |
 | `HoverCapability.kt` | is hover supported in this session? (X11/Wayland/Win; on Wayland it picks between the KWin and the GNOME pointer) |
 | `PointerSource.kt` | pointer position source (AWT, KWin script or GNOME extension) |
 | `KWinHoverBridge.kt` / `KWinIntegration.kt` / `KWinScript.kt` | KWin script + D-Bus that delivers the pointer on Wayland; unloads a stale script and reapplies shortcuts |
@@ -234,8 +237,8 @@ flags above.
 | file | role |
 | --- | --- |
 | `GlobalHotkeyManager.kt` | registers global shortcuts, live re-registration |
-| `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal), key matching and action catalog |
-| `PortalGlobalShortcuts.kt` | global shortcuts on Wayland through the D-Bus portal |
+| `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal/KWin), key matching and action catalog; on KDE Wayland the shortcuts belong to the KWin script (KGlobalAccel), which needs no app id |
+| `PortalGlobalShortcuts.kt` | global shortcuts on Wayland outside KDE through the D-Bus portal (the portal requires an app id an AppImage opened from its file does not have) |
 | `XdgTrigger.kt` | `gsettings`/XDG shortcuts on Linux |
 | `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | tray: StatusNotifier + DBusMenu on every Linux session (Plasma and GNOME with AppIndicator), AWT on Windows/macOS and as the fallback, missing-tray reason in `lastFailure`, Swing menu fallback and placement |
 | `ExternalBrowser.kt` | opens a URL in the user's browser: desktop launchers (`xdg-open`, `gio open`, `kde-open*`) with `Desktop.browse` as the last resort |
@@ -440,7 +443,7 @@ Settings (desktop/app) → PPOcrModelDownloader → ~23 MB in ppocr_v6/
 
 | file | for whom |
 | --- | --- |
-| [README.en.md](README.en.md) | people who want to install and use it |
+| [README.md](README.md) / [README.pt-BR.md](README.pt-BR.md) | people who want to install and use it |
 | **ARCHITECTURE.en.md** | people who will change the code |
 | [ROADMAP.md](docs/ROADMAP.md) | technical history: root cause, fix, tests, evidence (Portuguese) |
 | [LANGUAGES.md](LANGUAGES.md) | i18n: keys, where they live, what is missing |

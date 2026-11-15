@@ -125,6 +125,9 @@ fun QuickDictWindow(onClose: () -> Unit) {
     ) {
         LaunchedEffect(Unit) {
             window.iconImage = AppIconGenerator.createWindowImage(64)
+            // The tray or a hotkey can open this while another app is active; KWin otherwise keeps
+            // it in the taskbar, which reads as «abriu minimizado».
+            activateOnOpen(window)
         }
 
         YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
