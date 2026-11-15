@@ -4,6 +4,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import org.freedesktop.dbus.connections.impl.DBusConnection
 import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
+import org.freedesktop.dbus.exceptions.DBusExecutionException
 
 /**
  * GNOME Shell extension that forwards the global pointer, and the code that installs it.
@@ -66,10 +67,24 @@ internal interface GnomePointerHost {
     /** True when the extension is loaded and owns its bus name. */
     fun isBridgeLoaded(): Boolean
 
-    /** `gnome-extensions enable <uuid>`: writes the user preference the shell reads at startup. */
+    /** Enables [uuid] for the next session. */
     fun enableExtension(uuid: String): Boolean
 
     fun close() = Unit
+}
+
+/**
+ * Value of `org.gnome.shell enabled-extensions` with [uuid] appended, in the GVariant form
+ * `gsettings set` expects.
+ *
+ * `gnome-extensions enable` cannot be used for a fresh install: it asks the *running* Shell, which
+ * only lists the extensions it found at startup, and answers “does not exist”. Writing the
+ * preference is what GNOME reads on the next login, and it also keeps the ids already there.
+ */
+internal fun enabledExtensionsWith(current: String, uuid: String): String {
+    val ids = Regex("'([^']*)'").findAll(current).map { it.groupValues[1] }.toMutableList()
+    if (uuid !in ids) ids += uuid
+    return ids.joinToString(", ", prefix = "[", postfix = "]") { "'$it'" }
 }
 
 /**
@@ -142,6 +157,21 @@ internal class GnomeHoverBridge(
     }
 }
 
+/**
+ * Owner of [name] on [connection], or null when nobody owns it.
+ *
+ * `getNames()` cannot be used here: it lists the names **this** connection owns, so the extension
+ * never showed up and the app kept telling the user to log out again on every start. Asking the bus
+ * for the owner is the real check — it throws «no such name» while the Shell has not loaded the
+ * extension yet, which is not an error.
+ */
+internal fun dbusOwnerOrNull(connection: DBusConnection, name: String): String? =
+    try {
+        connection.getDBusOwnerName(name)
+    } catch (_: DBusExecutionException) {
+        null
+    }
+
 /** Real host: owner check on the session bus plus the `gnome-extensions` CLI. */
 internal class DbusGnomePointerHost : GnomePointerHost {
 
@@ -149,33 +179,42 @@ internal class DbusGnomePointerHost : GnomePointerHost {
 
     override fun isBridgeLoaded(): Boolean = runCatching {
         ensureConnected()
-        connection?.getDBusOwnerName(GnomeShellExtension.BRIDGE_BUS_NAME) != null
+        connection?.let { dbusOwnerOrNull(it, GnomeShellExtension.BRIDGE_BUS_NAME) != null } == true
     }.getOrElse { error ->
         logDbusFailure("consultar a extensão do GNOME", error)
         false
     }
 
     override fun enableExtension(uuid: String): Boolean = runCatching {
-        val process = ProcessBuilder("gnome-extensions", "enable", uuid)
+        // Reading is mandatory: without the current list the write would drop the user's extensions.
+        val current = gsettings("get", "org.gnome.shell", "enabled-extensions") ?: return false
+        gsettings("set", "org.gnome.shell", "enabled-extensions", enabledExtensionsWith(current, uuid)) != null
+    }.getOrElse { error ->
+        logDbusFailure("ativar a extensão do GNOME", error)
+        false
+    }
+
+    /** Runs gsettings; null means it failed (already logged). */
+    private fun gsettings(vararg arguments: String): String? = runCatching {
+        val process = ProcessBuilder("gsettings", *arguments)
             .redirectErrorStream(true)
             .start()
         val finished = process.waitFor(ENABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         if (!finished) {
             process.destroyForcibly()
-            logDbusFailure("ativar a extensão do GNOME", null, "gnome-extensions não respondeu")
-            return false
+            logDbusFailure("ler a preferência de extensões do GNOME", null, "gsettings não respondeu")
+            return null
         }
-        val exit = process.exitValue()
-        if (exit != 0) {
-            val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
-            logDbusFailure("ativar a extensão do GNOME", null, "código $exit: $output")
-            false
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        if (process.exitValue() != 0) {
+            logDbusFailure("gravar a preferência de extensões do GNOME", null, "código ${process.exitValue()}: ${output.trim()}")
+            null
         } else {
-            true
+            output.trim()
         }
     }.getOrElse { error ->
-        logDbusFailure("executar gnome-extensions", error)
-        false
+        logDbusFailure("executar gsettings", error)
+        null
     }
 
     override fun close() {

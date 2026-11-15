@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -57,7 +56,8 @@ fun AppUpdateNoticeWindow(
         resizable = false,
     ) {
         YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
-            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            // The window packs to its content; filling the frame would cut the last row.
+            Surface(color = MaterialTheme.colors.background) {
                 val scope = rememberCoroutineScope()
                 var isDownloading by remember { mutableStateOf(false) }
                 var progress by remember { mutableStateOf<Int?>(null) }

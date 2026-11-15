@@ -5593,7 +5593,7 @@ mutações exigidas pela skill `yabai-regression`.
 **Testes.** `ScreencastCaptureTest` (gate 17.0.13, piso por linha, token/permissão/negação),
 `NoticeWindowLayoutTest` (as três janelas de aviso), `UpdateInstallerTest` (+3: nome do release,
 renomeação na instalação e ambiente do relançamento) e `HoverCapabilityTest` (GNOME). Suíte desktop
-em **358 testes**.
+em **358 testes** naquele momento (o total subiu com as tarefas seguintes).
 
 **Mutações provadas.**
 
@@ -5603,6 +5603,12 @@ em **358 testes**.
 | `updateTarget` devolve sempre o arquivo em execução | `the update keeps the release file name, not the running one`, `installing a newer release renames the file to the new version` |
 | `relaunchEnvironment` devolve o ambiente intacto | `the relaunch does not inherit the running appimage mount` |
 | `rememberWindowState(size = DpSize.Unspecified)` removido do aviso de captura | `notice windows fit their content instead of the default 800x600 frame` |
+
+**Correção de 15/11/2026 (janelas de aviso).** `Surface(fillMaxSize)` saiu dos avisos: com
+`rememberWindowState(size = DpSize.Unspecified)` a primeira medida reportava o quadro em vez do
+conteúdo, então a janela empacotada terminava acima do rodapé — o botão «OK» aparecia como uma pílula
+cortada, sem texto, como no print do Ubuntu. O teste `the notice surface wraps its content instead
+of filling the packed frame` prende a regra.
 
 **Limitações.** A suíte prova o gate, o recorte de nomes e o ambiente do relançamento, mas não
 instala um AppImage de verdade: a troca de arquivo em uso e o relançamento só podem ser vistos com o
@@ -5632,36 +5638,54 @@ quem é a fonte:
   KWin.
 
 **Implementação.** `GnomeHoverBridge.kt` (novo) grava `metadata.json` + `extension.js` em
-`$XDG_DATA_HOME/gnome-shell/extensions/yabai-ocr@yabai.dev/` (só quando o conteúdo muda), chama
-`gnome-extensions enable <uuid>` e devolve três estados: pronto, «ativa, mas só depois de sair e
-entrar» ou falha com o motivo. `HoverCapability` ganhou `HoverBackendKind.GNOME` (seleção
+`$XDG_DATA_HOME/gnome-shell/extensions/yabai-ocr@yabai.dev/` (só quando o conteúdo muda), ativa e
+devolve três estados: pronto, «ativa, mas só depois de sair e entrar» ou falha com o motivo.
+
+**Ativação (correção de 15/11/2026).** A primeira versão chamava `gnome-extensions enable`, e o
+teste com o AppImage mostrou que isso **não funciona para instalação nova**: o comando pergunta à
+Shell em execução, que só lista as extensões encontradas no início da sessão, e responde
+`Extension “yabai-ocr@yabai.dev” does not exist`. A ativação passou a ser `gsettings set
+org.gnome.shell enabled-extensions`, com leitura prévia da lista para não descartar as extensões do
+usuário (`enabledExtensionsWith`), que é exatamente o que o GNOME lê no próximo login. No AppImage
+1.0.8 rodado aqui, a chave ficou `['yabai-ocr@yabai.dev']` e o app não registrou mais a falha de
+ativação.
+
+**Detecção (correção de 15/11/2026).** Na revisão seguinte a checagem de «extensão carregada» passou
+a usar `DBusConnection.getNames()` — que lista os nomes da **própria conexão**, não os do barramento.
+Resultado: com a extensão `State: ACTIVE` e dona de `dev.yabai.GnomePointer`, o app continuava
+mostrando «instalada e ativada, saia e entre de novo» a cada início, e o hover nunca ligava. Voltou
+para `getDBusOwnerName` (via `dbusOwnerOrNull`), tratando «no such name» como «ainda não carregada»
+em vez de erro — é o estado normal antes do primeiro login. `HoverCapability` ganhou `HoverBackendKind.GNOME` (seleção
 GNOME → GNOME, captura screencast incluída), `PointerSource` virou `BridgePointerSource` (as duas
 pontes usam a mesma fonte; o `typealias KwinPointerSource` da primeira versão foi removido),
 `HoverOcrManager` não faz
 polling nesse backend e o status diz «ponteiro do GNOME Shell». `Main.kt` compartilha o serviço
 D-Bus entre KWin e GNOME e mostra o aviso de hover quando a ponte não está pronta.
 
-**Testes.** `GnomeHoverBridgeTest` (8): contrato lido dos recursos empacotados (nome, caminho,
+**Testes.** `GnomeHoverBridgeTest` (11): contrato lido dos recursos empacotados (nome, caminho,
 `CursorMoved`, nome de prontidão, módulo ESM), instalação idempotente, `XDG_DATA_HOME`, extensão já
-carregada sem tocar no disco, instalação nova pedindo um log out, recusa do `gnome-extensions`,
-CLI que estoura (não pode virar «ativa») e pasta que não pode ser gravada, e sessão D-Bus
-indisponível.
+carregada sem tocar no disco, instalação nova pedindo um log out, recusa do CLI, CLI que estoura
+(não pode virar «ativa»), pasta que não pode ser gravada, sessão D-Bus indisponível e a lista de
+extensões habilitadas preservando as do usuário sem duplicar a nossa.
 
 **Mutações provadas.**
 
 | mutação | teste que acusou |
 | --- | --- |
-| falha do `gnome-extensions` tratada como sucesso (`getOrDefault(true)`) | `an enable that throws is a failure, not a pending log out` |
+| falha do CLI tratada como sucesso (`getOrDefault(true)`) | `an enable that throws is a failure, not a pending log out` |
+| `enabledExtensionsWith` sem acrescentar a UUID | `the enabled list keeps the user's extensions and gains ours once` |
+| «carregada» voltar a `getNames()` | `GnomeHoverBridgeTest > the bridge is found through the owner of its bus name` |
+| aviso volta a `fillMaxSize` | `NoticeWindowLayoutTest > the notice surface wraps its content instead of filling the packed frame` |
 
 A mutação encontrou um bug de verdade: o código tratava exceção do CLI como «ativa» e o
 usuário veria «saia e entre na sessão» para uma extensão que nunca foi ativada. Corrigido para
 `getOrDefault(false)` e coberto pelo teste novo.
 
-**Limitações.** A extensão **não** foi carregada nesta sessão: o GNOME 46 só a lê no início, e sair
-da sessão não é algo que a tarefa possa fazer sozinha. Ficam sem prova em execução o caminho de
-escala fracionária da extensão (aqui a sessão é 1.0) e o `gnome-extensions enable` real; o app
-reporta a falha com o motivo quando ela acontecer. Roteiro de verificação: abrir o app, ligar o
-hover, sair e entrar, e conferir `gnome-extensions info yabai-ocr@yabai.dev` como `ENABLED`.
+**Limitações.** Na sessão em que a D58 foi escrita a extensão ainda **não** estava carregada: o
+GNOME 46 só a lê no início. Depois do relogin do usuário ela aparece como `State: ACTIVE` e dona de
+`dev.yabai.GnomePointer` (pid do gnome-shell em `busctl --user list`), e um `CursorMoved` forjado no
+`dev.yabai.Ocr` é aceito — o que faltava era o app reconhecê-la (ver «Detecção» acima). A escala
+fracionária continua sem teste aqui (monitor em 1.0).
 
 
 ### D59 — Segunda instância derrubava hover e atalhos (nome D-Bus duplicado)  `[x]` (14/11/2026)
@@ -5790,3 +5814,82 @@ duas vezes é idempotente, relogin pendente até a sessão carregar a variável.
 verificação visual depende da sessão real); a evidência é a suíte, as mutações e o exame por
 `xprop`/`xdotool` que não reproduziu o minimizado. O efeito da variável só aparece depois de sair e
 entrar na sessão. Nada foi commitado.
+
+### D62 — Hover no GNOME abrindo uma sessão de captura por leitura  `[x]` (15/11/2026)
+
+**Relato.** Depois do relogin a extensão aparece como `State: ACTIVE` e dona de
+`dev.yabai.GnomePointer`, o app liga o hover (sem o aviso de relogin), mas nenhum texto aparece; a
+cada tentativa surge um ícone/indicador do sistema na barra e a leitura demora vários segundos.
+
+**Causa raiz.** `PlatformServices.captureBackendFor` mandava o GNOME Wayland para
+`ScreencastScreenCapture` — `Robot` sobre o portal `ScreenCast` do JDK. O GNOME não reaproveita o
+*restore token* do JDK, então **cada** captura abria uma sessão nova: indicador de compartilhamento
+do Shell, escolha de fonte e segundos de espera. Quando a imagem chegava, o ponteiro sintético já
+tinha se movido além de `STALE_RADIUS_PX` (56 px) e o resultado era descartado; sem cartão, o usuário
+só via o ícone piscando.
+
+**Correção.** No GNOME Wayland a captura passa a usar `PortalScreenshotCapture`:
+`org.freedesktop.portal.Screenshot` com `interactive=false` e `modal=false`, uma chamada por leitura,
+sem sessão, sem diálogo e sem indicador. Medido nesta máquina: **128 ms** até o PNG existir e
+1280×800 lidos; o app recorta a região do ponteiro e apaga o arquivo (o portal sempre salva o
+workspace inteiro). `captureBackendFor` ganhou o parâmetro `gnomeCapture` (genérico para qualquer
+compositor que honre o portal) e o KDoc de `PortalScreenshotCapture` deixou de ser «só KDE».
+
+**Por que não um ScreenCast persistente.** Seria manter um PipeWire e um token que o GNOME não
+reusa pelo JDK — estado, fio e erro a mais para o mesmo recorte. O portal `Screenshot` é o caminho
+one-shot que o próprio GNOME usa para a tecla Print.
+
+**Testes e mutações.** 382 testes desktop, 0 falhas (1 pulado).
+`ScreenCaptureBackendTest > gnome wayland uses the one-shot screenshot portal instead of the JDK
+screencast` e `other wayland desktops keep the screencast backend`; mutação «GNOME volta ao
+ScreenCast» derruba o primeiro. E2E no AppImage: hover ligado pelo menu da bandeja sem aviso,
+`[Hover] Modo Hover ativo (ponteiro do GNOME Shell)`, e um `CursorMoved` forjado no `dev.yabai.Ocr`
+executou a captura pelo portal (o PNG apareceu e foi apagado pelo app) e seguiu o pipeline até a
+checagem de dicionário.
+
+**E2E do cartão (15/11/2026).** Com Jitendex PT-BR instalado, o ponteiro forjado sobre「です」mostrou
+o cartão (`です 【です】 · jitendex PT-BR [2026-09-29]` com acepções e exemplo) sobre a página, e uma
+leitura completa — captura, OCR e lookup — levou **593 ms** com `[Hover] が — Jitendex PT-BR` no log.
+O `Cannot create Linux GL context` do Skiko nesta VM (VirtualBox sem 3D) aparece no log, mas o
+Skiko cai para software e a janela `Yabai OCR - Hover` mapeia normalmente (460×178, `IsViewable`,
+`_NET_WM_STATE_ABOVE`); a mesma leitura com `SKIKO_RENDER_API=SOFTWARE` mostra o mesmo cartão.
+
+**Limitações.** A escala fracionária continua sem teste aqui (monitor em 1.0). A latência depende
+do motor OCR: sem os modelos do PP-OCR o app usa o Lens (rede), então a primeira leitura depois de
+um tempo parado pode passar de um segundo. Nada foi commitado.
+
+### D63 — Dicionários do JMdict falhando por publicação vazia do upstream  `[x]` (15/11/2026)
+
+**Relato.** No Gerenciador de Dicionários, JMdict (inglês), JMnedict (nomes próprios) e KANJIDIC
+(inglês) falham; Jitendex, ggjz.org, os três do Wikcionário e as onomatopeias instalam.
+
+**Causa raiz.** A publicação `2026-11-14` de `yomidevs/jmdict-yomitan` é um build quebrado do lado
+de lá: `JMdict_english.zip` tem **2303 bytes** com apenas `index.json` (título «JMdict [unknown]») e
+`tag_bank_1.json`; `JMnedict.zip` 1682 e `KANJIDIC_english.zip` 1369 — nenhum `term_bank_*.json` nem
+`kanji_bank_*.json`. O `DictionaryCompiler` recusa com «Nenhum verbete encontrado», que para quem
+está instalando o primeiro dicionário parece defeito do app. A publicação anterior (`2026-11-13`)
+tem os assets completos (15.628.711 / 11.432.840 / 721.032 bytes), e o repositório alterna builds
+vazios e completos (12/11 vazio, 11/11 completo) — fixar um tag envelheceria.
+
+**Correção.** `DictionaryReleaseFallback.kt`: `yomitanArchiveHasEntries` exige um
+`term_bank_*`/`kanji_bank_*.json` de pelo menos 2 KiB; `releaseDownloadTarget` reconhece as duas
+formas de URL de release do GitHub; `fallbackAssetUrls` lista até 5 publicações anteriores que têm
+o **mesmo asset** com pelo menos 64 KiB; `dictionaryDownloadUrls` monta a lista primária + fallbacks.
+O instalador baixa a candidata, valida o ZIP e só então compila — se todas falharem, a mensagem é
+«Nenhuma publicação recente de X tem verbetes agora. Tente de novo mais tarde.» (pt/en). O
+`temp_<id>.zip` agora é apagado num `finally`: as tentativas anteriores deixaram três arquivos no
+`~/.yabai_ocr/dicts`.
+
+**Testes e mutações.** `DictionaryReleaseFallbackTest` (6): URL `latest` e `download/<tag>`,
+stub × dicionário real × dicionário só de kanji, arquivo que não é ZIP, ordenação e filtro das
+publicações anteriores, primária primeiro. Mutações derrubadas: «todo ZIP tem verbetes» e «tamanho
+mínimo do asset ignorado». E2E com rede: o `temp_jmdict-en.zip` de 2303 bytes que sobrou na máquina
+reprova em `yomitanArchiveHasEntries`; o asset `2026-11-13` baixado (15.628.711 bytes) compila em
+**527.778 verbetes** e reabre pelo `CompactDictionary` com a mesma contagem.
+
+**Limitações.** A checagem de atualização continua comparando assinatura (ETag/Last-Modified/tamanho)
+com a publicação mais recente, então um dicionário instalado do `2026-11-13` pode aparecer como
+«atualização disponível» enquanto o topo estiver quebrado; instalar de novo rebaixa o mesmo
+`2026-11-13` (passa pelo fallback) em vez de falhar. Os três dicionários em si não foram instalados
+por mim na pasta do usuário: a correção ficou provada pelo teste ao vivo e ele pode instalar pela
+UI. Nada foi commitado.

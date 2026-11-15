@@ -38,16 +38,18 @@ internal interface ScreenshotPortalTransport {
 }
 
 /**
- * KDE Wayland capture through `org.freedesktop.portal.Screenshot` with `interactive=false`.
+ * Wayland capture through `org.freedesktop.portal.Screenshot` with `interactive=false`.
  *
- * This is the compatibility fallback behind [KdeWaylandCapture]. It deliberately does not use
- * `Robot`'s ScreenCast path: JDK-8396405 makes AWT reject KDE's restore token unless it looks like a
- * UUID; the token never matches, so every capture opens a new ScreenCast session and the compositor
- * asks for the screen again.
+ * This is the main path on GNOME and the compatibility fallback behind [KdeWaylandCapture]. It
+ * deliberately does not use `Robot`'s ScreenCast path: no compositor reuses the JDK's restore token
+ * (JDK-8396405 rejects KDE's outright), so every capture would open a new ScreenCast session and ask
+ * for the screen again — the Shell sharing indicator blinking on every hover, seconds of latency and
+ * usually no text at all. `Screenshot` is one-shot: no session to renew, no dialog, ~130 ms here.
  *
  * The `interactive=false` option does not make KDE capture silently: Plasma creates and presents a
  * `QuickDialog` permission window for every call. That is why the direct ScreenShot2 path is
- * preferred and this portal is only used when the compositor does not expose it.
+ * preferred there and this portal is only used when the compositor does not expose it. GNOME honors
+ * the option without any window.
  *
  * The portal always captures the whole workspace, so this backend crops the requested rectangle
  * from that image. On a single-monitor Steam Deck the crop is the whole screen.
@@ -119,7 +121,7 @@ internal class PortalScreenshotCapture(
     } catch (e: Exception) {
         throw ScreenCaptureException(
             CaptureAvailability.UNSUPPORTED,
-            "Não foi possível capturar a tela pelo portal do KDE: ${e.message ?: e::class.simpleName}",
+            "Não foi possível capturar a tela pelo portal de captura: ${e.message ?: e::class.simpleName}",
             e,
         )
     }
@@ -228,7 +230,7 @@ internal class DbusScreenshotPortalTransport : ScreenshotPortalTransport {
             lastError = "o portal não respondeu à captura"
             throw ScreenCaptureException(
                 CaptureAvailability.UNSUPPORTED,
-                "O portal de captura do KDE não respondeu.",
+                "O portal de captura não respondeu.",
             )
         }
         if (response.code != 0) {
@@ -251,7 +253,7 @@ internal class DbusScreenshotPortalTransport : ScreenshotPortalTransport {
         if (error is SecurityException) throw error
         throw ScreenCaptureException(
             CaptureAvailability.UNSUPPORTED,
-            "Não foi possível capturar a tela pelo portal do KDE: ${error.message ?: error::class.simpleName}",
+            "Não foi possível capturar a tela pelo portal de captura: ${error.message ?: error::class.simpleName}",
             error,
         )
     }

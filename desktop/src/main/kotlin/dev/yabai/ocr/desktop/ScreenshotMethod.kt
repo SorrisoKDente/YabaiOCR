@@ -5,7 +5,9 @@ internal const val AWT_SCREENSHOT_METHOD_PROPERTY = "awt.robot.screenshotMethod"
 /**
  * On KDE Wayland the JDK must be told to use the ScreenCast portal; the X11 fallback would only see
  * the XWayland island. GNOME is intentionally left alone: newer JDKs pick RemoteDesktop there, and
- * overriding it with ScreenCast would be a regression. Windows and X11 keep the historical path.
+ * overriding it with ScreenCast would be a regression — GNOME capture does not go through `Robot` at
+ * all, it uses the one-shot Screenshot portal (see [captureBackendFor]). Windows and X11 keep the
+ * historical path.
  */
 internal fun screenshotMethodOverride(
     isLinux: Boolean,

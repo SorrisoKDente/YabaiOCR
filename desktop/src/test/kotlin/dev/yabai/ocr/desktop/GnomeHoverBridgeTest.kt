@@ -1,10 +1,13 @@
 package dev.yabai.ocr.desktop
 
 import java.io.File
+import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -152,6 +155,45 @@ class GnomeHoverBridgeTest {
         assertFalse(bridge.start())
         assertFalse(bridge.needsRelogin)
         assertNotNull(bridge.lastError)
+    }
+
+    @Test
+    fun `the enabled list keeps the user's extensions and gains ours once`() {
+        // `gnome-extensions enable` cannot see a fresh install (the Shell only lists what it found at
+        // startup), so the app writes the gsettings preference GNOME reads on the next login.
+        assertEquals(
+            "['ubuntu-dock@ubuntu.com', 'yabai-ocr@yabai.dev']",
+            enabledExtensionsWith("['ubuntu-dock@ubuntu.com']", GnomeShellExtension.UUID),
+        )
+        assertEquals(
+            "['yabai-ocr@yabai.dev']",
+            enabledExtensionsWith("@as []", GnomeShellExtension.UUID),
+        )
+        assertEquals(
+            "['yabai-ocr@yabai.dev', 'ding@rastersoft.com']",
+            enabledExtensionsWith("['yabai-ocr@yabai.dev', 'ding@rastersoft.com']", GnomeShellExtension.UUID),
+        )
+    }
+
+    @Test
+    fun `the bridge is found through the owner of its bus name`() {
+        // The regression: `getNames()` only lists the names this very connection owns, so the loaded
+        // extension never showed up and the app asked for a log out on every start.
+        val connection = runCatching { DBusConnectionBuilder.forSessionBus().build() }.getOrNull()
+        assumeTrue("sem barramento de sessão para exercitar o D-Bus", connection != null)
+
+        try {
+            assertNotNull(
+                "a name the daemon owns must be seen",
+                dbusOwnerOrNull(connection!!, "org.freedesktop.DBus"),
+            )
+            assertNull(
+                "an absent name is a «not loaded yet», not a crash",
+                dbusOwnerOrNull(connection, "dev.yabai.absent${System.nanoTime()}"),
+            )
+        } finally {
+            runCatching { connection!!.close() }
+        }
     }
 
     @Test

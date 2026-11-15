@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -45,7 +44,9 @@ fun CaptureNoticeWindow(
         resizable = false,
     ) {
         YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
-            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+            // No `fillMaxSize` here: it made the first measure report the frame instead of the
+            // content, and the packed window ended above the button (cut pill, no label).
+            Surface(color = MaterialTheme.colors.background) {
                 Column(
                     modifier = Modifier
                         .width(430.dp)

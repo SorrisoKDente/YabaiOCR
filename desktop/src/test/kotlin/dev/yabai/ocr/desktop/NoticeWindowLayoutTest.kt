@@ -38,7 +38,16 @@ class NoticeWindowLayoutTest {
         val source = sourceFile("AppUpdateNoticeWindow.kt").readText()
 
         assertFalse("verticalScroll without a bounded height throws when the window packs", source.contains("verticalScroll"))
-        assertTrue("the themed surface has to fill the packed frame", source.contains("Modifier.fillMaxSize()"))
+    }
+
+    @Test
+    fun `the notice surface wraps its content instead of filling the packed frame`() {
+        // `fillMaxSize` made the first measure report the frame instead of the content, so the packed
+        // window ended above the button: the pill appeared cut and without its label.
+        for (name in listOf("CaptureNoticeWindow.kt", "AppUpdateNoticeWindow.kt")) {
+            val source = sourceFile(name).readText()
+            assertFalse("$name must wrap its content", source.contains("Modifier.fillMaxSize()"))
+        }
     }
 
     @Test

@@ -37,10 +37,34 @@ class ScreenCaptureBackendTest {
     }
 
     @Test
+    fun `gnome wayland uses the one-shot screenshot portal instead of the JDK screencast`() {
+        // The regression: every hover opened a new ScreenCast session, so the Shell showed its
+        // sharing indicator, asked for the screen again and no text ever appeared.
+        val robot = fake("robot")
+        val screencast = fake("screencast")
+        val kdeCapture = fake("kde-capture")
+        val gnomeCapture = fake("gnome-capture")
+
+        assertEquals(
+            gnomeCapture,
+            captureBackendFor(
+                family = OsFamily.LINUX,
+                session = SessionType.WAYLAND,
+                robot = robot,
+                screencast = screencast,
+                desktop = DesktopFamily.GNOME,
+                kdeCapture = kdeCapture,
+                gnomeCapture = gnomeCapture,
+            ),
+        )
+    }
+
+    @Test
     fun `other wayland desktops keep the screencast backend`() {
         val robot = fake("robot")
         val screencast = fake("screencast")
         val kdeCapture = fake("kde-capture")
+        val gnomeCapture = fake("gnome-capture")
 
         assertEquals(
             screencast,
@@ -49,8 +73,9 @@ class ScreenCaptureBackendTest {
                 session = SessionType.WAYLAND,
                 robot = robot,
                 screencast = screencast,
-                desktop = DesktopFamily.GNOME,
+                desktop = DesktopFamily.OTHER,
                 kdeCapture = kdeCapture,
+                gnomeCapture = gnomeCapture,
             ),
         )
     }

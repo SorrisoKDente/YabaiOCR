@@ -397,6 +397,16 @@ object DesktopStrings {
     fun serverHttpResponseError(code: Int): String = if (isEnglish) "Server responded HTTP $code" else "Servidor respondeu HTTP $code"
     val emptyDownloadError: String get() = if (isEnglish) "Empty download from server" else "Download vazio do servidor"
     val downloadDictError: String get() = if (isEnglish) "Error downloading dictionary." else "Erro ao baixar o dicionário."
+    fun dictionaryReleaseEmpty(name: String): String = if (isEnglish) {
+        "The newest publication of $name has no entries. Trying the previous one..."
+    } else {
+        "A publicação mais recente de $name está vazia. Tentando a anterior..."
+    }
+    fun dictionaryNoUsableRelease(name: String): String = if (isEnglish) {
+        "No recent publication of $name has entries right now. Try again later."
+    } else {
+        "Nenhuma publicação recente de $name tem verbetes agora. Tente de novo mais tarde."
+    }
     val noDictsForCredits: String get() = if (isEnglish) "No dictionaries installed to display credits and licenses." else "Nenhum dicionário instalado para exibir créditos e licenças."
     fun creditAuthor(author: String): String = if (isEnglish) "  Author / Source: $author" else "  Autor / Origem: $author"
     fun creditDescription(desc: String): String = if (isEnglish) "  Description: $desc" else "  Descrição: $desc"

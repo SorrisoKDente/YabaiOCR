@@ -28,6 +28,12 @@ primeira ativação pede sair e entrar uma vez. A captura nesse ambiente usa o `
 piso real do `dbusScreencast` é **17.0.13** (backport, JDK-8335485), não 21 — o AppImage embarca
 17.0.21 e antes era recusado pelo app. Ver D57/D58 no [ROADMAP](ROADMAP.md).
 
+**Atualização D62 (15/11/2026):** no GNOME a captura deixou de usar o `ScreenCast` do JDK e passou a
+ser o portal `org.freedesktop.portal.Screenshot` com `interactive=false` — uma chamada one-shot por
+leitura (128 ms medidos), sem sessão ScreenCast, sem diálogo e sem o indicador de compartilhamento do
+Shell que aparecia a cada hover. O `ScreenCast` continua apenas nos Wayland que não são KDE nem
+GNOME. Ver D62 no [ROADMAP](ROADMAP.md).
+
 **O que a P1 entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
 `Exec`, ícone PNG Linux, `YABAI_HOME`, build condicional `Deb`/`AppImage` + `packagePortableTarGz`, e
 27 testes novos. As oito mutações da P1 foram provadas.
@@ -147,7 +153,7 @@ roda KWin scripting e não tem bandeja.
 Estes não são detalhes internos do Yabai OCR; são as APIs que o plano usa. Confirmados na
 documentação do projeto e no código do OpenJDK/KDE.
 
-### 2.1 Captura: `KWin.ScreenShot2` no KDE, Robot/ScreenCast nos outros desktops
+### 2.1 Captura: `KWin.ScreenShot2` no KDE, portal `Screenshot` no GNOME, Robot/ScreenCast nos outros
 
 - **KDE Wayland (Steam Deck):** o caminho principal é `org.kde.KWin.ScreenShot2`
   (`CaptureWorkspace` e `CaptureArea`), que entrega um QImage cru por file descriptor sem abrir o
@@ -175,6 +181,11 @@ documentação do projeto e no código do OpenJDK/KDE.
   (`O0ci...=`) e nunca é enviado. Toda captura abre uma sessão nova e volta a pedir a tela
   ([JDK-8396405](https://bugs.openjdk.org/browse/JDK-8396405)). O caminho AWT continua correto em
   X11/Windows e em Wayland não-KDE, onde o token do portal pode ser UUID.
+- **GNOME Wayland:** `PortalScreenshotCapture` (`org.freedesktop.portal.Screenshot` com
+  `interactive=false`/`modal=false`), o mesmo caminho one-shot usado no fallback do KDE. Não usa
+  `Robot`: o JDK abre uma sessão ScreenCast por captura no GNOME, porque o *restore token* não é
+  reaproveitado, e o Shell mostra o indicador de compartilhamento a cada hover — medido à parte, o
+  PNG do portal sai em **128 ms** (1280×800 aqui), sem diálogo.
 - **Outros Wayland:** `ScreencastScreenCapture` mantém o caminho do JDK 21
   (`org.freedesktop.portal.ScreenCast` + PipeWire, JDK-8280982). A propriedade
   **`awt.robot.screenshotMethod`** continua sendo definida antes do AWT:
@@ -340,6 +351,7 @@ SO diretamente.
   `PortalScreenshotCapture`, que fala `org.freedesktop.portal.Screenshot` com
   `interactive=false`, lê o PNG devolvido e recorta o monitor principal/região. O caminho direto não
   usa `X-KDE-DBUS-Restricted-Interfaces`; o portal é o fallback compatível.
+- **GNOME Wayland:** `PortalScreenshotCapture` (portal `Screenshot`, one-shot).
 - **Outros Wayland:** `ScreencastScreenCapture` (JDK 21 ScreenCast), com
   `awt.robot.screenshotMethod=dbusScreencast` definido antes do AWT.
 
@@ -402,6 +414,10 @@ Regras:
 O hover pede `CaptureArea` ao `ScreenShot2`, então captura só a região ao redor do ponteiro, sem
 diálogo. No fallback pelo portal `Screenshot`, a chamada devolve o workspace inteiro e o app recorta;
 nesse caminho o KDE pode apresentar o `QuickDialog` a cada captura.
+
+No GNOME Wayland o hover sempre passa pelo portal `Screenshot` (D62): uma chamada por leitura
+devolve o workspace inteiro, o app recorta a região do ponteiro e apaga o PNG. Não há sessão
+ScreenCast, então não aparece o indicador de compartilhamento do Shell a cada movimento parado.
 
 - A mesma rota atende seletor de tela inteira, recorte e hover; não há sessão ScreenCast aberta.
 - Medir no Steam Deck: latência de uma captura e custo de CPU durante o hover. Se o caminho direto
@@ -558,8 +574,11 @@ workspace.cursorPosChanged.connect(pushCursor);
 
 - **GNOME:** coberto pela extensão do Shell (D58). O app grava
   `$XDG_DATA_HOME/gnome-shell/extensions/yabai-ocr@yabai.dev/` (`metadata.json` + `extension.js`) e
-  ativa por `gnome-extensions enable`; a janela de shell que já está rodando não a carrega, então o
-  estado fica “instalada, precisa reiniciar a sessão” até o próximo login.
+  ativa gravando `org.gnome.shell enabled-extensions` via `gsettings` (com a lista atual lida antes,
+  para não perder as extensões do usuário). `gnome-extensions enable` não serve aqui: ele consulta a
+  Shell em execução, que só conhece o que encontrou no início da sessão. Por isso a janela de shell
+  atual não carrega a extensão e o estado fica “instalada, precisa reiniciar a sessão” até o próximo
+  login.
 - Sway, Gamescope e outros compositores: sem script nem extensão, não há API de ponteiro global.
   Hover indisponível, com mensagem e sem tentativa de `MouseInfo`.
 - SteamOS Game Mode: não roda o script do KWin; hover indisponível.

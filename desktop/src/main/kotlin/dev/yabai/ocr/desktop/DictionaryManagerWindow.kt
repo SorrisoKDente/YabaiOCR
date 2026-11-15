@@ -1000,9 +1000,64 @@ private fun downloadAndInstallDictionary(
 
     // 2. Download zip file to temp
     val tempZip = File(dictDir, "temp_${entry.id}.zip")
-    val request = Request.Builder().url(url).build()
+    // A broken upstream build (index + tag bank only) would fail at compile time with a message that
+    // reads like our bug, so walk back to the previous publication that really has entries.
+    var installedBytes = 0L
+    try {
+        val candidates = dictionaryDownloadUrls(url, runCatching { releaseListJson(url, client) }.getOrNull())
+        var usedUrl: String? = null
+        for ((index, candidate) in candidates.withIndex()) {
+            downloadArchive(client, candidate, tempZip, entry.sizeLabel, onProgress)
+            if (yomitanArchiveHasEntries(tempZip) || candidates.size == 1) {
+                usedUrl = candidate
+                break
+            }
+            onProgress(DesktopStrings.dictionaryReleaseEmpty(entry.name), 0.8f)
+        }
+        val acceptedUrl = usedUrl
+            ?: throw Exception(DesktopStrings.dictionaryNoUsableRelease(entry.name))
 
-    onProgress(DesktopStrings.downloadStartNotice(entry.sizeLabel), 0.1f)
+        // 3. Compile zip into .yabai dictionary
+        onProgress(DesktopStrings.compilingDictNotice, 0.85f)
+        val targetYabaiDir = File(dictDir, "${entry.id}.yabai")
+        // The picker's cached engine may still hold the old blobs open; without this the delete below
+        // is a no-op on Windows and the compile would write into the previous version's files.
+        DesktopDictLoader.closeCached()
+        if (targetYabaiDir.exists()) targetYabaiDir.deleteRecursively()
+
+        val compiler = DictionaryCompiler(
+            zipFile = tempZip,
+            outputDir = targetYabaiDir,
+            sourceName = entry.name
+        )
+        compiler.compile()
+
+        // Save signature for future updates check
+        installedBytes = tempZip.length()
+        runCatching {
+            val headReq = Request.Builder().url(acceptedUrl).head().build()
+            client.newCall(headReq).execute().use { resp ->
+                writeSignature(targetYabaiDir, resp.header("ETag"), resp.header("Last-Modified"), installedBytes)
+            }
+        }
+
+        onProgress(DesktopStrings.installSuccessNotice, 1.0f)
+    } finally {
+        // A failed install used to leave temp_<id>.zip behind in the dictionary folder.
+        tempZip.delete()
+    }
+}
+
+/** Streams [url] into [target], reporting the progress bar the settings window shows. */
+private fun downloadArchive(
+    client: OkHttpClient,
+    url: String,
+    target: File,
+    sizeLabel: String,
+    onProgress: (String, Float) -> Unit,
+) {
+    onProgress(DesktopStrings.downloadStartNotice(sizeLabel), 0.1f)
+    val request = Request.Builder().url(url).build()
 
     client.newCall(request).execute().use { response ->
         if (!response.isSuccessful) throw Exception(DesktopStrings.serverHttpResponseError(response.code))
@@ -1010,7 +1065,7 @@ private fun downloadAndInstallDictionary(
         val totalBytes = body.contentLength()
 
         body.byteStream().use { inputStream ->
-            tempZip.outputStream().use { outputStream ->
+            target.outputStream().use { outputStream ->
                 val buffer = ByteArray(64 * 1024)
                 var bytesRead = 0L
                 var bytesCount = inputStream.read(buffer)
@@ -1031,33 +1086,19 @@ private fun downloadAndInstallDictionary(
             }
         }
     }
+}
 
-    // 3. Compile zip into .yabai dictionary
-    onProgress(DesktopStrings.compilingDictNotice, 0.85f)
-    val targetYabaiDir = File(dictDir, "${entry.id}.yabai")
-    // The picker's cached engine may still hold the old blobs open; without this the delete below
-    // is a no-op on Windows and the compile would write into the previous version's files.
-    DesktopDictLoader.closeCached()
-    if (targetYabaiDir.exists()) targetYabaiDir.deleteRecursively()
-
-    val compiler = DictionaryCompiler(
-        zipFile = tempZip,
-        outputDir = targetYabaiDir,
-        sourceName = entry.name
-    )
-    compiler.compile()
-
-    // Save signature for future updates check
-    runCatching {
-        val headReq = Request.Builder().url(url).head().build()
-        client.newCall(headReq).execute().use { resp ->
-            writeSignature(targetYabaiDir, resp.header("ETag"), resp.header("Last-Modified"), tempZip.length())
-        }
+/** Release list of the repository behind a GitHub release URL, or null when it is not one. */
+private fun releaseListJson(url: String, client: OkHttpClient): String? {
+    val (repo, _) = releaseDownloadTarget(url) ?: return null
+    val request = Request.Builder()
+        .url(releasesApiUrl(repo))
+        .header("Accept", "application/vnd.github+json")
+        .build()
+    client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) return null
+        return response.body?.string()
     }
-
-    // 4. Cleanup
-    tempZip.delete()
-    onProgress(DesktopStrings.installSuccessNotice, 1.0f)
 }
 
 @Composable
