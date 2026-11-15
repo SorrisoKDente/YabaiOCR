@@ -62,6 +62,7 @@ Exec=yabai-ocr
 Icon=yabai-ocr
 Terminal=false
 Categories=Utility;
+StartupWMClass=dev-yabai-ocr-desktop-MainKt
 EOF
 
 cat > "$APPDIR/AppRun" <<'EOF'

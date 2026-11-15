@@ -7,16 +7,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class DictionaryReleaseFallbackTest {
 
-    private fun zip(vararg entries: Pair<String, String>): File {
-        val file = File.createTempFile("yabai-yomitan", ".zip")
-        file.deleteOnExit()
+    @get:Rule
+    val temp = TemporaryFolder()
+
+    private fun zip(directory: File, name: String, vararg entries: Pair<String, String>): File {
+        val file = File(directory, name)
         ZipOutputStream(file.outputStream()).use { out ->
-            for ((name, content) in entries) {
-                out.putNextEntry(ZipEntry(name))
+            for ((entryName, content) in entries) {
+                out.putNextEntry(ZipEntry(entryName))
                 out.write(content.toByteArray())
                 out.closeEntry()
             }
@@ -25,6 +29,16 @@ class DictionaryReleaseFallbackTest {
     }
 
     private fun bank(size: Int): String = "[" + "{\"k\":1}".padEnd(size - 2, ' ') + "]"
+
+    private fun releasesJson(vararg entries: Triple<String, String, Long>): String =
+        entries.joinToString(prefix = "[", postfix = "]") { (tag, name, size) ->
+            """
+            {"tag_name":"$tag","assets":[
+              {"name":"index.json","size":10,"browser_download_url":"https://example.invalid/$tag/index.json"},
+              {"name":"$name","size":$size,"browser_download_url":"https://example.invalid/$tag/$name"}
+            ]}
+            """.trimIndent()
+        }
 
     @Test
     fun `release download urls expose the repository and the asset`() {
@@ -41,20 +55,34 @@ class DictionaryReleaseFallbackTest {
             ),
         )
         assertNull(releaseDownloadTarget("https://ggjz.org/yomitan-ptbr.json"))
+        assertEquals(
+            "2026-11-13",
+            releaseTagFromUrl(
+                "https://github.com/yomidevs/jmdict-yomitan/releases/download/2026-11-13/JMdict_english.zip",
+            ),
+        )
+        assertNull(
+            releaseTagFromUrl(
+                "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/JMdict_english.zip",
+            ),
+        )
     }
 
     @Test
     fun `an upstream stub release has no entries and a real one does`() {
         val stub = zip(
+            temp.root, "stub.zip",
             "index.json" to "{\"title\":\"JMdict [unknown]\",\"format\":3}",
             "tag_bank_1.json" to "[[\"name\",\"n\",\"name\",\"name\",0]]",
         )
         val real = zip(
+            temp.root, "real.zip",
             "index.json" to "{\"title\":\"JMdict\",\"format\":3}",
             "tag_bank_1.json" to "[]",
             "term_bank_1.json" to bank(8192),
         )
         val kanjiOnly = zip(
+            temp.root, "kanji.zip",
             "index.json" to "{\"title\":\"KANJIDIC\",\"format\":3}",
             "kanji_bank_1.json" to bank(4096),
         )
@@ -66,25 +94,14 @@ class DictionaryReleaseFallbackTest {
 
     @Test
     fun `a file that is not a zip is not a dictionary`() {
-        val file = File.createTempFile("yabai-not-a-zip", ".zip")
-        file.deleteOnExit()
+        val file = File(temp.root, "not-a-zip.zip")
         file.writeText("404: Not Found")
 
         assertFalse(yomitanArchiveHasEntries(file))
     }
 
-    private fun releasesJson(vararg entries: Triple<String, String, Long>): String =
-        entries.joinToString(prefix = "[", postfix = "]") { (tag, name, size) ->
-            """
-            {"tag_name":"$tag","assets":[
-              {"name":"index.json","size":10,"browser_download_url":"https://example.invalid/$tag/index.json"},
-              {"name":"$name","size":$size,"browser_download_url":"https://example.invalid/$tag/$name"}
-            ]}
-            """.trimIndent()
-        }
-
     @Test
-    fun `the previous good publication is offered when the newest is a stub`() {
+    fun `only publications with a usable asset are offered`() {
         val json = releasesJson(
             Triple("2026-11-14", "JMdict_english.zip", 2303),
             Triple("2026-11-13", "JMdict_english.zip", 15628711),
@@ -93,26 +110,14 @@ class DictionaryReleaseFallbackTest {
         )
 
         assertEquals(
-            listOf(
-                "https://example.invalid/2026-11-13/JMdict_english.zip",
-                "https://example.invalid/2026-11-11/JMdict_english.zip",
-            ),
-            fallbackAssetUrls(json, "JMdict_english.zip"),
+            listOf("2026-11-13", "2026-11-11"),
+            usableReleaseAssets(json, "JMdict_english.zip").map { it.tag },
         )
-    }
-
-    @Test
-    fun `releases without the asset are ignored`() {
-        val json = releasesJson(
-            Triple("2026-11-14", "other.zip", 9_000_000),
-            Triple("2026-11-13", "JMnedict.zip", 11432840),
-        )
-
+        assertEquals(emptyList<ReleasePublication>(), usableReleaseAssets("not json", "JMdict_english.zip"))
         assertEquals(
-            listOf("https://example.invalid/2026-11-13/JMnedict.zip"),
-            fallbackAssetUrls(json, "JMnedict.zip"),
+            emptyList<ReleasePublication>(),
+            usableReleaseAssets(releasesJson(Triple("2026-11-14", "other.zip", 9_000_000)), "JMnedict.zip"),
         )
-        assertEquals(emptyList<String>(), fallbackAssetUrls("not json", "JMnedict.zip"))
     }
 
     @Test
@@ -128,11 +133,84 @@ class DictionaryReleaseFallbackTest {
             listOf(primary, "https://example.invalid/2026-11-13/KANJIDIC_english.zip"),
             dictionaryDownloadUrls(primary, json),
         )
-        // No release list (offline, or a URL that is not a GitHub release): the primary alone.
         assertEquals(listOf(primary), dictionaryDownloadUrls(primary, null))
         assertEquals(
             listOf("https://ggjz.org/jitendex.zip"),
             dictionaryDownloadUrls("https://ggjz.org/jitendex.zip", json),
         )
+    }
+
+    @Test
+    fun `the newest release is resolved from the release list`() {
+        val json = releasesJson(
+            Triple("2026-11-14", "JMdict_english.zip", 2303),
+            Triple("2026-11-13", "JMdict_english.zip", 15628711),
+        )
+        val requested = mutableListOf<String>()
+
+        val release = newestReleaseFor(
+            "https://github.com/yomidevs/jmdict-yomitan/releases/latest/download/JMdict_english.zip",
+        ) { url ->
+            requested += url
+            json
+        }
+
+        assertEquals("2026-11-13", release?.tag)
+        assertEquals(listOf(releasesApiUrl("yomidevs/jmdict-yomitan")), requested)
+        assertNull(newestReleaseFor("https://ggjz.org/yomitan-ptbr.json") { json })
+        assertNull(newestReleaseFor("https://github.com/a/b/releases/latest/download/x.zip") { null })
+    }
+
+    @Test
+    fun `an install from the fallback is not offered the empty publication as an update`() {
+        // The user's case: JMdict installed from 2026-11-13 while 2026-11-14 is an empty stub. The
+        // update check must compare publications, not the size/ETag of whichever URL is `latest`.
+        val releases = releasesJson(
+            Triple("2026-11-14", "JMdict_english.zip", 2303),
+            Triple("2026-11-13", "JMdict_english.zip", 15628711),
+        )
+        val remote = usableReleaseAssets(releases, "JMdict_english.zip").first()
+
+        val installed = DictionarySignature(length = 15628711, releaseTag = "2026-11-13")
+        assertFalse(dictionaryUpdateAvailable(installed, remote))
+
+        assertTrue(
+            "a genuine newer publication must still be offered",
+            dictionaryUpdateAvailable(installed, remote.copy(tag = "2026-11-20")),
+        )
+        assertTrue("no signature at all means «not installed by us»", dictionaryUpdateAvailable(null, remote))
+
+        // Installs made before the tag was recorded only have the size to compare.
+        assertFalse(
+            dictionaryUpdateAvailable(DictionarySignature(length = remote.size), remote),
+        )
+        assertTrue(
+            dictionaryUpdateAvailable(DictionarySignature(length = remote.size - 1), remote),
+        )
+    }
+
+    @Test
+    fun `the signature round trips through the dictionary folder`() {
+        val dir = temp.newFolder("jmdict.yabai")
+        writeDictionarySignature(
+            dir,
+            DictionarySignature(
+                etag = "\"abc\"",
+                lastModified = "Sat, 14 Nov 2026 12:50:00 GMT",
+                length = 15_628_711,
+                releaseTag = "2026-11-13",
+            ),
+        )
+
+        assertEquals(
+            DictionarySignature(
+                etag = "\"abc\"",
+                lastModified = "Sat, 14 Nov 2026 12:50:00 GMT",
+                length = 15_628_711,
+                releaseTag = "2026-11-13",
+            ),
+            readDictionarySignature(dir),
+        )
+        assertNull(readDictionarySignature(temp.newFolder("no-signature.yabai")))
     }
 }

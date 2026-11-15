@@ -11,7 +11,7 @@ import dev.yabai.ocr.desktop.i18n.DesktopStrings
  * D-Bus, which needs no app id and no permission dialog. Everything else on Wayland uses the XDG
  * portal, whose app id comes from the desktop entry (see [AppIdentity]).
  */
-internal enum class HotkeyBackendKind { JNATIVEHOOK, PORTAL, KWIN, UNAVAILABLE }
+internal enum class HotkeyBackendKind { JNATIVEHOOK, PORTAL, KWIN, GNOME, UNAVAILABLE }
 
 internal fun hotkeyBackendKindFor(
     family: OsFamily,
@@ -20,6 +20,10 @@ internal fun hotkeyBackendKindFor(
 ): HotkeyBackendKind = when {
     family == OsFamily.LINUX && session == SessionType.WAYLAND && desktop == DesktopFamily.KDE ->
         HotkeyBackendKind.KWIN
+    // GNOME has no `GlobalShortcuts` portal: the Shell extension that already forwards the pointer
+    // also owns the accelerators, so the portal is never asked and cannot fail.
+    family == OsFamily.LINUX && session == SessionType.WAYLAND && desktop == DesktopFamily.GNOME ->
+        HotkeyBackendKind.GNOME
     family == OsFamily.LINUX && session == SessionType.WAYLAND -> HotkeyBackendKind.PORTAL
     else -> HotkeyBackendKind.JNATIVEHOOK
 }
@@ -28,6 +32,7 @@ internal fun hotkeyBackendLabel(kind: HotkeyBackendKind): String = when (kind) {
     HotkeyBackendKind.JNATIVEHOOK -> DesktopStrings.hotkeyBackendActiveStatus
     HotkeyBackendKind.PORTAL -> DesktopStrings.hotkeyBackendPortalStatus
     HotkeyBackendKind.KWIN -> DesktopStrings.hotkeyBackendKwinStatus
+    HotkeyBackendKind.GNOME -> DesktopStrings.hotkeyBackendGnomeStatus
     HotkeyBackendKind.UNAVAILABLE -> DesktopStrings.hotkeyBackendUnavailableStatus
 }
 
@@ -37,6 +42,7 @@ internal fun hotkeyBackendFailureMessage(kind: HotkeyBackendKind): String = when
     HotkeyBackendKind.JNATIVEHOOK ->
         DesktopStrings.hotkeyJNativeHookFailureMessage
     HotkeyBackendKind.KWIN -> DesktopStrings.hotkeyKwinFailureMessage
+    HotkeyBackendKind.GNOME -> DesktopStrings.hotkeyGnomeFailureMessage
     HotkeyBackendKind.UNAVAILABLE -> hotkeyBackendLabel(HotkeyBackendKind.UNAVAILABLE)
 }
 
@@ -106,6 +112,22 @@ internal class JNativeHookHotkeys(private val callbacks: HotkeyCallbacks) : Hotk
  */
 internal class KWinScriptHotkeys : HotkeyBackend {
     override val kind = HotkeyBackendKind.KWIN
+
+    override fun start(bindings: List<HotkeyBinding>): Boolean = true
+
+    override fun update(bindings: List<HotkeyBinding>): Boolean = true
+
+    override fun stop() = Unit
+}
+
+/**
+ * GNOME Wayland: the Shell extension registers the accelerators through
+ * `Main.keybindingManager` and calls `dev.yabai.Ocr.Shortcuts.ShortcutPressed`, exactly like the
+ * KWin script does on KDE. Nothing is bound here; whether the extension is loaded is
+ * [GnomeHoverBridge]'s answer and the caller reports it.
+ */
+internal class GnomeExtensionHotkeys : HotkeyBackend {
+    override val kind = HotkeyBackendKind.GNOME
 
     override fun start(bindings: List<HotkeyBinding>): Boolean = true
 
@@ -205,5 +227,6 @@ internal fun createHotkeyBackend(kind: HotkeyBackendKind, callbacks: HotkeyCallb
         HotkeyBackendKind.JNATIVEHOOK -> JNativeHookHotkeys(callbacks)
         HotkeyBackendKind.PORTAL -> PortalGlobalShortcuts(callbacks)
         HotkeyBackendKind.KWIN -> KWinScriptHotkeys()
+        HotkeyBackendKind.GNOME -> GnomeExtensionHotkeys()
         HotkeyBackendKind.UNAVAILABLE -> UnavailableHotkeys()
     }

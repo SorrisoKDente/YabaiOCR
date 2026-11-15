@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.GraphicsEnvironment
 import java.awt.Rectangle
 import java.awt.image.BufferedImage
@@ -127,6 +128,15 @@ internal class PortalScreenshotCapture(
     }
 }
 
+/**
+ * What a non-zero `Response` code means.
+ *
+ * 1 is the user cancelling the dialog (a refusal); 2 is «other error» — no permission dialog was
+ * shown at all, so telling the user to authorize one is wrong.
+ */
+internal fun portalCaptureFailure(code: Int): CaptureAvailability =
+    if (code == 1) CaptureAvailability.DENIED else CaptureAvailability.UNSUPPORTED
+
 /** Options for `org.freedesktop.portal.Screenshot.Screenshot`. */
 internal fun screenshotPortalOptions(
     handleToken: String,
@@ -235,9 +245,16 @@ internal class DbusScreenshotPortalTransport : ScreenshotPortalTransport {
         }
         if (response.code != 0) {
             lastError = "Screenshot recusado (código ${response.code})"
+            val availability = portalCaptureFailure(response.code)
+            // A failure that is not a refusal must not be reported as «you denied the permission»:
+            // that sends the user looking for a dialog that never appeared.
             throw ScreenCaptureException(
-                CaptureAvailability.DENIED,
-                captureAvailabilityMessage(CaptureAvailability.DENIED),
+                availability,
+                if (availability == CaptureAvailability.DENIED) {
+                    captureAvailabilityMessage(CaptureAvailability.DENIED)
+                } else {
+                    DesktopStrings.portalCaptureFailed(response.code)
+                },
             )
         }
         val uri = response.results["uri"]?.value as? String

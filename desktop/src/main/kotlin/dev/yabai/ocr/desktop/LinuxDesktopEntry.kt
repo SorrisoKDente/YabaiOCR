@@ -30,6 +30,7 @@ internal fun autostartDesktopEntry(executable: String): String = buildString {
     appendLine("Icon=yabai-ocr")
     appendLine("Terminal=false")
     appendLine("Categories=Utility;")
+    appendLine("StartupWMClass=$APP_WM_CLASS")
     appendLine("X-GNOME-Autostart-enabled=true")
 }
 
@@ -41,6 +42,15 @@ internal fun autostartDesktopEntry(executable: String): String = buildString {
  */
 internal const val KWIN_SCREENSHOT_INTERFACE = "org.kde.KWin.ScreenShot2"
 
+/**
+ * `WM_CLASS` the AWT window carries: the toolkit derives it from the main class.
+ *
+ * GNOME links a running window to its menu entry by this value, so the entry has to declare it —
+ * without `StartupWMClass` the shell cannot tell which entry the window belongs to and draws its
+ * generic gear instead of the app icon.
+ */
+internal const val APP_WM_CLASS = "dev-yabai-ocr-desktop-MainKt"
+
 internal fun applicationDesktopEntry(executable: String): String = buildString {
     appendLine("[Desktop Entry]")
     appendLine("Type=Application")
@@ -51,6 +61,7 @@ internal fun applicationDesktopEntry(executable: String): String = buildString {
     appendLine("Terminal=false")
     appendLine("Categories=Utility;")
     appendLine("StartupNotify=true")
+    appendLine("StartupWMClass=$APP_WM_CLASS")
     appendLine("X-KDE-DBUS-Restricted-Interfaces=$KWIN_SCREENSHOT_INTERFACE")
 }
 

@@ -28,9 +28,12 @@ object DesktopDictionaryUpdateChecker {
     fun checkUpdates(settings: DesktopSettings): DesktopDictCheckResult {
         val now = System.currentTimeMillis()
         val dictDir = settings.dictDirectory()
-        val installedFiles = if (dictDir.exists() && dictDir.isDirectory) {
-            dictDir.listFiles()?.filter {
-                it.isFile && (it.extension.equals("yabai", ignoreCase = true) || it.extension.equals("zip", ignoreCase = true))
+        // `.yabai` is a directory of blobs; only an imported ZIP is a file. Filtering on `isFile`
+        // alone skipped every compiled dictionary, so the periodic check found nothing to compare.
+        val installedFiles = if (dictDir.isDirectory) {
+            dictDir.listFiles()?.filter { file ->
+                file.isDirectory && file.extension.equals("yabai", ignoreCase = true) ||
+                    file.isFile && file.extension.equals("zip", ignoreCase = true)
             }.orEmpty()
         } else {
             emptyList()
@@ -48,6 +51,19 @@ object DesktopDictionaryUpdateChecker {
 
         val available = mutableMapOf<String, Boolean>()
         val remotes = mutableMapOf<String, String>()
+        // One release list per repository per check: GitHub allows 60 unauthenticated calls an hour.
+        val releaseLists = mutableMapOf<String, String?>()
+        val fetchText: (String) -> String? = { url ->
+            if (releaseLists.containsKey(url)) {
+                releaseLists[url]
+            } else {
+                runCatching {
+                    client.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                        if (response.isSuccessful) response.body?.string() else null
+                    }
+                }.getOrNull().also { releaseLists[url] = it }
+            }
+        }
 
         installedFiles.forEach { file ->
             val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
@@ -82,21 +98,16 @@ object DesktopDictionaryUpdateChecker {
                     }
                 } else if (catalogEntry.url != null) {
                     runCatching {
-                        val req = Request.Builder().url(catalogEntry.url).build()
-                        client.newCall(req).execute().use { resp ->
-                            val finalUrl = resp.request.url.toString()
-                            val remoteVersion = extractVersionFromUrl(finalUrl) ?: formatRemoteLabel(resp.header("Last-Modified"), resp.header("ETag"))
-                            val remoteEtag = resp.header("ETag")
-                            val remoteLastModified = resp.header("Last-Modified")
-                            val remoteLength = resp.header("Content-Length")?.toLongOrNull() ?: 0L
-                            val localSig = readSignature(file)
-                            val hasUpdate = localSig == null || localSig.length != remoteLength ||
-                                    (remoteEtag != null && localSig.etag != remoteEtag) ||
-                                    (remoteLastModified != null && localSig.lastModified != remoteLastModified)
+                        // GitHub releases: compare publications, not the HTTP metadata of `latest`.
+                        // The newest publication is often an empty stub, and comparing against it
+                        // offered an update that just reinstalled the same fallback version.
+                        val remote = newestReleaseFor(catalogEntry.url, fetchText)
+                        if (remote == null) {
+                            available[file.name] = false
+                        } else {
+                            val hasUpdate = dictionaryUpdateAvailable(readDictionarySignature(file), remote)
                             available[file.name] = hasUpdate
-                            if (hasUpdate) {
-                                remotes[file.name] = remoteVersion
-                            }
+                            if (hasUpdate) remotes[file.name] = remote.tag
                         }
                     }
                 }
@@ -125,27 +136,4 @@ object DesktopDictionaryUpdateChecker {
         return parts.ifEmpty { null }
     }
 
-    private data class FileSignature(val etag: String?, val lastModified: String?, val length: Long)
-
-    private fun readSignature(file: File): FileSignature? {
-        val sigFile = File(file.parentFile, "${file.name}.sig")
-        if (!sigFile.exists()) return null
-        val text = sigFile.readText().trim()
-        val parts = text.split("\n")
-        val etag = parts.getOrNull(0)?.takeIf { it.isNotBlank() && it != "null" }
-        val lm = parts.getOrNull(1)?.takeIf { it.isNotBlank() && it != "null" }
-        val len = parts.getOrNull(2)?.toLongOrNull() ?: 0L
-        return FileSignature(etag, lm, len)
-    }
-
-    private fun formatRemoteLabel(lastModified: String?, etag: String?): String {
-        if (lastModified != null) return lastModified
-        if (etag != null) return etag.replace("\"", "").take(10)
-        return "Disponível"
-    }
-
-    private fun extractVersionFromUrl(url: String): String? {
-        val regex = Regex("/releases/download/([^/]+)/")
-        return regex.find(url)?.groupValues?.getOrNull(1)
-    }
 }

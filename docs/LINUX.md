@@ -34,6 +34,22 @@ leitura (128 ms medidos), sem sessão ScreenCast, sem diálogo e sem o indicador
 Shell que aparecia a cada hover. O `ScreenCast` continua apenas nos Wayland que não são KDE nem
 GNOME. Ver D62 no [ROADMAP](ROADMAP.md).
 
+**Atualização D63/D64 (15/11/2026):** no **GNOME** os atalhos globais deixaram de tentar o portal
+`GlobalShortcuts` (que o GNOME 46 não implementa — `UnknownMethod`) e passaram a ser registrados
+pela **mesma extensão do Shell** que entrega o ponteiro: o app publica `id → acelerador` em
+`dev.yabai.Ocr.Shortcuts.ShortcutBindings`, a extensão chama `Main.keybindingManager.addHotKey` e
+devolve `ShortcutPressed(id)`; uma edição nos Ajustes entra em até 5 s, sem relogin (mas o
+`extension.js` novo só é lido no próximo login). No mesmo dia: a checagem de atualização dos
+dicionários passou a comparar a **tag da publicação** (não o asset `latest`, que é um stub vazio em
+uma publicação sim e outra não → o fallback era oferecido como “atualização”), a trava de instância
+espera até 3 s (o restart pós-atualização não mostra mais “already running”), o portal `Screenshot`
+só trata o código 1 como permissão negada (antes qualquer erro dizia “permissão negada” sem nunca
+ter pedido) e o SNI publica `IconName = yabai-ocr` com o PNG gravado em
+`~/.local/share/icons/hicolor/256x256/apps/` a cada início. O item SNI passou a servir
+`org.freedesktop.DBus.Properties` ele mesmo: o `Get` com `@DBusBoundProperty` do `dbus-java` 5.1.1
+responde com o tipo cru (`s`), e o AppIndicator do GNOME pede `(v)` e descarta a resposta — era a
+engrenagem genérica mesmo com `IconName` preenchido (D65). Ver D64/D65 no [ROADMAP](ROADMAP.md).
+
 **O que a P1 entregou:** `DesktopPlatform`/`PlatformServices`, autostart XDG com escape correto de
 `Exec`, ícone PNG Linux, `YABAI_HOME`, build condicional `Deb`/`AppImage` + `packagePortableTarGz`, e
 27 testes novos. As oito mutações da P1 foram provadas.
@@ -133,7 +149,7 @@ compositor. A estratégia é usar as duas únicas rotas que existem no KDE Plasm
 | captura de tela inteira | ✅ Robot | ✅ Robot | ✅ **`KWin.ScreenShot2`** (portal `Screenshot` como fallback) | QImage cru/FD + recorte; sem diálogo no caminho direto |
 | recorte à mão | ✅ | ✅ | ✅ | captura antes + overlay fullscreen |
 | hover (ponteiro + recorte) | ✅ | ✅ | ✅ **KWin script → D-Bus do app** | `workspace.cursorPos` |
-| atalhos globais | ✅ JNativeHook | ✅ JNativeHook | ✅ **`GlobalShortcuts` portal** (fallback KWin) | xdg-desktop-portal |
+| atalhos globais | ✅ JNativeHook | ✅ JNativeHook | ✅ **`GlobalShortcuts` portal** (KDE: fallback KWin; GNOME: extensão do Shell — o portal não existe lá) | xdg-desktop-portal / extensão |
 | bandeja | ✅ AWT | ✅ AWT | ✅ **SNI (`StatusNotifierItem`)** | `org.kde.StatusNotifierWatcher` |
 | menu da bandeja | ✅ custom | ✅ nativo/custom | ✅ **DBusMenu (`com.canonical.dbusmenu`)** (`ContextMenu`/Swing como fallback) | SNI, sem XEmbed |
 | autostart | registro | XDG | ✅ XDG | `~/.config/autostart` |

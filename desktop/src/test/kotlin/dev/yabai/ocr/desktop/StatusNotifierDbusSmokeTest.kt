@@ -63,7 +63,10 @@ class StatusNotifierDbusSmokeTest {
                 watcherService = watcherService,
             )
 
-            assertTrue("start failed: ${tray.lastError}", tray.start())
+            // Read lastError only after the call: the message argument used to be evaluated first,
+            // which reported "start failed: null" and hid the real cause.
+            val started = tray.start()
+            assertTrue("start failed: ${tray.lastError}", started)
             assertTrue(watcher.registered.await(5, TimeUnit.SECONDS))
             assertEquals(service, watcher.service)
 
@@ -81,6 +84,13 @@ class StatusNotifierDbusSmokeTest {
                 // KDE checks the concrete signatures; `av` would make it ignore the tray icon.
                 assertEquals("a(iiay)", all["IconPixmap"]?.sig)
                 assertEquals("(sa(iiay)ss)", all["ToolTip"]?.sig)
+
+                // GNOME's AppIndicator reads each property individually with Properties.Get and
+                // tells GDBus to expect `(v)`. dbus-java's client unwraps the variant here, so the
+                // wire type is asserted by `every property is readable through Properties Get as a
+                // variant` (the reply must be a Variant) and by `dbus-send` in the E2E notes.
+                assertEquals("yabai-ocr", properties.Get<Any>(SNI_INTERFACE_NAME, "IconName"))
+                assertEquals("Yabai OCR", properties.Get<Any>(SNI_INTERFACE_NAME, "Title"))
 
                 val dbusMenu = client.getRemoteObject(service, SNI_MENU_PATH, DbusMenuDbus::class.java)
                 val layout = dbusMenu.GetLayout(0, 1, emptyList())

@@ -24,18 +24,23 @@ internal class HoverDbusObject(
 }
 
 /**
- * The shortcut object the KWin fallback script calls:
- * `dev.yabai.Ocr.Shortcuts.ShortcutPressed(id)`.
+ * The shortcut object the KWin script and the GNOME extension call:
+ * `ShortcutPressed(id)`, plus the accelerators the GNOME extension has to register.
  */
 @DBusInterfaceName(KWinScript.SHORTCUTS_INTERFACE)
 internal class ShortcutsDbusObject(
     private val onShortcutPressed: (String) -> Unit,
+    private val bindings: () -> Map<String, String> = { emptyMap() },
 ) : DBusInterface {
 
     @DBusMemberName("ShortcutPressed")
     fun shortcutPressed(id: String) {
         onShortcutPressed(id)
     }
+
+    /** `id → GNOME accelerator`; empty for the KWin script, which registers its own shortcuts. */
+    @DBusMemberName("ShortcutBindings")
+    fun shortcutBindings(): Map<String, String> = bindings()
 
     override fun getObjectPath(): String = KWinScript.SHORTCUTS_PATH
 }
@@ -47,6 +52,9 @@ internal interface YabaiDbusTransport {
 
     fun start(onCursorMoved: (Int, Int) -> Unit, onShortcutPressed: (String) -> Unit): Boolean
     fun stop()
+
+    /** Accelerators a Shell extension would register; ignored by transports that do not export them. */
+    fun updateShortcutBindings(bindings: Map<String, String>) {}
 }
 
 /**
@@ -61,6 +69,9 @@ internal class YabaiDbusService(
     private val transportFactory: () -> YabaiDbusTransport? = { DbusYabaiTransport() },
 ) {
     private var transport: YabaiDbusTransport? = null
+
+    @Volatile
+    private var shortcutBindings: Map<String, String> = emptyMap()
 
     var running: Boolean = false
         private set
@@ -91,7 +102,14 @@ internal class YabaiDbusService(
 
         transport = created
         running = true
+        created.updateShortcutBindings(shortcutBindings)
         return true
+    }
+
+    /** Publishes the accelerators the Shell extension should own, now and after an edit. */
+    fun updateShortcutBindings(bindings: Map<String, String>) {
+        shortcutBindings = bindings
+        transport?.updateShortcutBindings(bindings)
     }
 
     fun stop() {
@@ -105,9 +123,17 @@ internal class YabaiDbusService(
 internal class DbusYabaiTransport : YabaiDbusTransport {
 
     private var connection: DBusConnection? = null
+    private var shortcuts: ShortcutsDbusObject? = null
+
+    @Volatile
+    private var shortcutBindings: Map<String, String> = emptyMap()
 
     override var lastError: String? = null
         private set
+
+    override fun updateShortcutBindings(bindings: Map<String, String>) {
+        shortcutBindings = bindings
+    }
 
     override fun start(onCursorMoved: (Int, Int) -> Unit, onShortcutPressed: (String) -> Unit): Boolean =
         runCatching {
@@ -115,7 +141,8 @@ internal class DbusYabaiTransport : YabaiDbusTransport {
             val created = DBusConnectionBuilder.forSessionBus().build()
             created.requestBusName(KWinScript.SERVICE_NAME)
             created.exportObject(KWinScript.HOVER_PATH, HoverDbusObject(onCursorMoved))
-            created.exportObject(KWinScript.SHORTCUTS_PATH, ShortcutsDbusObject(onShortcutPressed))
+            shortcuts = ShortcutsDbusObject(onShortcutPressed) { shortcutBindings }
+            created.exportObject(KWinScript.SHORTCUTS_PATH, shortcuts)
             connection = created
             true
         }.getOrElse { error ->

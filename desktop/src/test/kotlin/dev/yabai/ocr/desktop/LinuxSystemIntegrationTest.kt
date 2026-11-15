@@ -43,6 +43,42 @@ class LinuxSystemIntegrationTest {
     }
 
     @Test
+    fun `a stale entry is refreshed with the current AppImage and window class`() {
+        // The dock kept the gear because the installed entry named an older AppImage and predated
+        // StartupWMClass; the running app only rewrote the icon.
+        val dataHome = tempDir()
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { "/home/deck/Downloads/Yabai_OCR-1.0.9-revisao3.AppImage" },
+            iconBytes = { byteArrayOf(0x89.toByte(), 0x50) },
+        )
+        integration.desktopFile.parentFile?.mkdirs()
+        integration.desktopFile.writeText(applicationDesktopEntry("/home/deck/Downloads/Old.AppImage"))
+
+        assertTrue(integration.ensureTrayIcon())
+
+        val entry = integration.desktopFile.readText()
+        assertTrue(entry.contains("Exec=\"/home/deck/Downloads/Yabai_OCR-1.0.9-revisao3.AppImage\""))
+        assertTrue(entry.contains("StartupWMClass=$APP_WM_CLASS"))
+        assertFalse(entry.contains("Old.AppImage"))
+    }
+
+    @Test
+    fun `an absent entry is not created by the tray icon path`() {
+        val dataHome = tempDir()
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { "/home/deck/Applications/Yabai OCR.AppImage" },
+            iconBytes = { byteArrayOf(0x89.toByte(), 0x50) },
+        )
+
+        assertTrue(integration.ensureTrayIcon())
+
+        assertTrue(integration.iconFile.isFile)
+        assertFalse("creating the menu entry is 'Integrar ao sistema'\'s job", integration.desktopFile.exists())
+    }
+
+    @Test
     fun `no executable means no broken entry`() {
         val dataHome = tempDir()
         val integration = LinuxSystemIntegration(
@@ -114,6 +150,25 @@ class LinuxSystemIntegrationTest {
         assertTrue(entry.contains("X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2"))
         // The menu entry is a different concern and must not be created by this call.
         assertFalse(integration.desktopFile.exists())
+    }
+
+    @Test
+    fun `the tray icon is written on its own, without installing the menu entry`() {
+        // The StatusNotifier item advertises `IconName=yabai-ocr`; without the file in the user's
+        // icon theme GNOME drew its generic gear instead of the app icon.
+        val dataHome = tempDir()
+        val icon = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { null },
+            iconBytes = { icon },
+        )
+
+        assertTrue(integration.ensureTrayIcon())
+
+        assertTrue(integration.iconFile.isFile)
+        assertTrue(icon.contentEquals(integration.iconFile.readBytes()))
+        assertFalse("the menu entry is a separate choice", integration.desktopFile.exists())
     }
 
     @Test

@@ -447,21 +447,21 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             }
                                         } else if (catalogEntry.url != null) {
                                             runCatching {
-                                                val req = Request.Builder().url(catalogEntry.url).build()
-                                                client.newCall(req).execute().use { resp ->
-                                                    val finalUrl = resp.request.url.toString()
-                                                    val remoteVersion = extractVersionFromUrl(finalUrl) ?: formatRemoteLabel(resp.header("Last-Modified"), resp.header("ETag"))
-                                                    val remoteEtag = resp.header("ETag")
-                                                    val remoteLastModified = resp.header("Last-Modified")
-                                                    val remoteLength = resp.header("Content-Length")?.toLongOrNull() ?: 0L
-                                                    val localSig = readSignature(file)
-                                                    val hasUpdate = localSig == null || localSig.length != remoteLength ||
-                                                        (remoteEtag != null && localSig.etag != remoteEtag) ||
-                                                        (remoteLastModified != null && localSig.lastModified != remoteLastModified)
+                                                // Same rule as the background check: a GitHub release is
+                                                // compared by publication, so an install made from the
+                                                // fallback is not offered an update that reinstalls it.
+                                                val remote = newestReleaseFor(catalogEntry.url) { url ->
+                                                    runCatching {
+                                                        client.newCall(Request.Builder().url(url).build()).execute()
+                                                            .use { resp -> if (resp.isSuccessful) resp.body?.string() else null }
+                                                    }.getOrNull()
+                                                }
+                                                if (remote == null) {
+                                                    available[file.name] = false
+                                                } else {
+                                                    val hasUpdate = dictionaryUpdateAvailable(readDictionarySignature(file), remote)
                                                     available[file.name] = hasUpdate
-                                                    if (hasUpdate) {
-                                                        remotes[file.name] = remoteVersion
-                                                    }
+                                                    if (hasUpdate) remotes[file.name] = remote.tag
                                                 }
                                             }
                                         }
@@ -1002,7 +1002,6 @@ private fun downloadAndInstallDictionary(
     val tempZip = File(dictDir, "temp_${entry.id}.zip")
     // A broken upstream build (index + tag bank only) would fail at compile time with a message that
     // reads like our bug, so walk back to the previous publication that really has entries.
-    var installedBytes = 0L
     try {
         val candidates = dictionaryDownloadUrls(url, runCatching { releaseListJson(url, client) }.getOrNull())
         var usedUrl: String? = null
@@ -1032,12 +1031,22 @@ private fun downloadAndInstallDictionary(
         )
         compiler.compile()
 
-        // Save signature for future updates check
-        installedBytes = tempZip.length()
+        // Save the signature for the update check; the release tag is what tells two publications
+        // of the same repository apart when the newest one is an empty stub.
+        val installedBytes = tempZip.length()
+        val releaseTag = releaseTagFromUrl(acceptedUrl)
         runCatching {
             val headReq = Request.Builder().url(acceptedUrl).head().build()
             client.newCall(headReq).execute().use { resp ->
-                writeSignature(targetYabaiDir, resp.header("ETag"), resp.header("Last-Modified"), installedBytes)
+                writeDictionarySignature(
+                    targetYabaiDir,
+                    DictionarySignature(
+                        etag = resp.header("ETag"),
+                        lastModified = resp.header("Last-Modified"),
+                        length = installedBytes,
+                        releaseTag = releaseTag,
+                    ),
+                )
             }
         }
 
@@ -1264,29 +1273,6 @@ private fun revisionParts(label: String): List<Long>? {
     return parts.ifEmpty { null }
 }
 
-private data class DictSignature(val etag: String?, val lastModified: String?, val length: Long)
-
-private fun readSignature(dir: File): DictSignature? {
-    val file = File(dir, "signature.properties")
-    if (!file.isFile) return null
-    val props = java.util.Properties()
-    runCatching { file.inputStream().use { props.load(it) } }
-    return DictSignature(
-        props.getProperty("etag"),
-        props.getProperty("lastModified"),
-        props.getProperty("length")?.toLongOrNull() ?: 0L
-    )
-}
-
-private fun writeSignature(dir: File, etag: String?, lastModified: String?, length: Long) {
-    val file = File(dir, "signature.properties")
-    val props = java.util.Properties().apply {
-        if (etag != null) setProperty("etag", etag)
-        if (lastModified != null) setProperty("lastModified", lastModified)
-        setProperty("length", length.toString())
-    }
-    runCatching { file.outputStream().use { props.store(it, "Yabai OCR Dictionary Signature") } }
-}
 
 private fun formatRemoteLabel(lastModified: String?, etag: String?): String {
     if (!lastModified.isNullOrBlank()) {

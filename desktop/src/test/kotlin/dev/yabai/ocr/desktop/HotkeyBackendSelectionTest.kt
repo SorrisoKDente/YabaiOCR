@@ -58,15 +58,30 @@ class HotkeyBackendSelectionTest {
     }
 
     @Test
-    fun `wayland without kde keeps the portal`() {
+    fun `gnome wayland uses the shell extension, not the portal gnome does not implement`() {
+        // Ubuntu 24.04 / GNOME 46 answers `UnknownMethod` for org.freedesktop.portal.GlobalShortcuts,
+        // so asking the portal could only produce the error the user saw in Settings.
         assertEquals(
-            HotkeyBackendKind.PORTAL,
+            HotkeyBackendKind.GNOME,
             hotkeyBackendKindFor(OsFamily.LINUX, SessionType.WAYLAND, DesktopFamily.GNOME),
         )
+    }
+
+    @Test
+    fun `wayland without kde or gnome keeps the portal`() {
         assertEquals(
             HotkeyBackendKind.PORTAL,
             hotkeyBackendKindFor(OsFamily.LINUX, SessionType.WAYLAND, DesktopFamily.UNKNOWN),
         )
+    }
+
+    @Test
+    fun `the gnome backend delegates to the extension and never fails on its own`() {
+        val backend = createHotkeyBackend(HotkeyBackendKind.GNOME, HotkeyCallbacks())
+
+        assertEquals(HotkeyBackendKind.GNOME, backend.kind)
+        assertTrue(backend.start(emptyList()))
+        assertTrue(backend.update(emptyList()))
     }
 
     @Test

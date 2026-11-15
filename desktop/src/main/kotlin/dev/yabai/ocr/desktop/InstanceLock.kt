@@ -77,3 +77,24 @@ internal class InstanceLock(private val path: Path) {
             InstanceLock(File(defaultDesktopHome(), "instance.lock").toPath())
     }
 }
+
+/**
+ * Acquires the lock, waiting a few seconds before declaring a second instance.
+ *
+ * After an in-app update the new build is started while the old process is still shutting down: the
+ * file lock outlives `main` by a few hundred milliseconds, so the fresh start used to greet the user
+ * with «Yabai OCR is already running» for an app that had just replaced itself. The wait is bounded,
+ * and a real second instance still gets the message.
+ */
+internal fun acquireInstanceLockWithRetry(
+    attempts: Int = 12,
+    waitMs: Long = 250L,
+    sleep: (Long) -> Unit = { Thread.sleep(it) },
+    tryAcquire: () -> Boolean,
+): Boolean {
+    for (attempt in 1..attempts.coerceAtLeast(1)) {
+        if (tryAcquire()) return true
+        if (attempt < attempts) runCatching { sleep(waitMs) }
+    }
+    return false
+}

@@ -2,7 +2,9 @@ package dev.yabai.ocr.desktop
 
 import java.awt.Color
 import java.awt.image.BufferedImage
-import org.freedesktop.dbus.annotations.DBusBoundProperty
+import org.freedesktop.dbus.annotations.DBusProperties
+import org.freedesktop.dbus.annotations.DBusProperty
+import org.freedesktop.dbus.types.Variant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -120,19 +122,130 @@ class StatusNotifierTrayTest {
         assertEquals("Yabai OCR", item.getTitle())
         assertEquals("Active", item.getStatus())
         assertTrue(item.getIconPixmap().isNotEmpty())
+        // GNOME's AppIndicator host resolves IconName through the icon theme; empty made it draw
+        // its generic gear instead of the app icon.
+        assertEquals("yabai-ocr", item.getIconName())
     }
 
     @Test
     fun `the icon pixmap property declares the concrete struct array type`() {
-        // A raw List return type loses its generic argument in reflection, so dbus-java would
-        // advertise `av`. KDE ignores an IconPixmap that is not `a(iiay)` and the tray would show
-        // no icon. The explicit annotation type is what makes Marshalling emit the struct array.
-        val method = StatusNotifierItemDbus::class.java.getMethod("getIconPixmap")
-        val annotation = method.getAnnotation(DBusBoundProperty::class.java)
+        // A raw List would be advertised as `av`. KDE ignores an IconPixmap that is not `a(iiay)`
+        // and the tray would show no icon. The introspection property type is what documents it.
+        val properties = StatusNotifierItemDbus::class.java.getAnnotation(DBusProperties::class.java)
+            .value
+            .associateBy { it.name }
+        val iconPixmap = properties.getValue("IconPixmap")
 
-        assertTrue("IconPixmap must declare an explicit type", annotation.type.java.isArray)
-        assertEquals(StatusNotifierIconPixmap::class.java, annotation.type.java.componentType)
+        assertTrue("IconPixmap must declare an explicit type", iconPixmap.type.java.isArray)
+        assertEquals(StatusNotifierIconPixmap::class.java, iconPixmap.type.java.componentType)
+        // The wire type of the value itself, which is what the hosts actually read.
+        assertEquals("a(iiay)", (testItem().Get<Any>(SNI_INTERFACE_NAME, "IconPixmap") as Variant<*>).sig)
     }
+
+    @Test
+    fun `every property is readable through Properties Get as a variant`() {
+        // GNOME's AppIndicator reads each SNI property with `Properties.Get` and asks GDBus for a
+        // `(v)` reply. dbus-java's @DBusBoundProperty answered with the getter's own type (`s`), so
+        // the host rejected the reply and drew its generic gear instead of the app icon.
+        val item = testItem()
+
+        val iconName = item.Get<Any>(SNI_INTERFACE_NAME, "IconName")
+        assertTrue(
+            "Properties.Get must answer with a variant, got ${iconName?.javaClass?.name}",
+            iconName is Variant<*>,
+        )
+        assertEquals("yabai-ocr", (iconName as Variant<*>).value)
+        assertEquals("s", iconName.sig)
+
+        for (property in listOf("Category", "Id", "IconName", "Title", "Status", "IconPixmap", "ToolTip", "ItemIsMenu", "Menu", "WindowId")) {
+            val value = item.Get<Any>(SNI_INTERFACE_NAME, property)
+            assertTrue("$property must be a variant", value is Variant<*>)
+        }
+        assertEquals("o", (item.Get<Any>(SNI_INTERFACE_NAME, "Menu") as Variant<*>).sig)
+        assertEquals("i", (item.Get<Any>(SNI_INTERFACE_NAME, "WindowId") as Variant<*>).sig)
+        assertEquals("b", (item.Get<Any>(SNI_INTERFACE_NAME, "ItemIsMenu") as Variant<*>).sig)
+    }
+
+    @Test
+    fun `an unknown property or interface is refused instead of answered`() {
+        val item = testItem()
+
+        try {
+            item.Get<Any>(SNI_INTERFACE_NAME, "DoesNotExist")
+            throw AssertionError("an unknown property must not be answered")
+        } catch (expected: org.freedesktop.dbus.exceptions.DBusExecutionException) {
+            assertTrue(expected.message.orEmpty().contains("DoesNotExist"))
+        }
+        try {
+            item.GetAll("org.example.NotStatusNotifierItem")
+            throw AssertionError("an unknown interface must not be answered")
+        } catch (expected: org.freedesktop.dbus.exceptions.DBusExecutionException) {
+            assertTrue(expected.message.orEmpty().contains("org.example.NotStatusNotifierItem"))
+        }
+    }
+
+    @Test
+    fun `no property is published as a dbus-java bound getter`() {
+        // Root cause of the gear icon: with @DBusBoundProperty, dbus-java answers Properties.Get
+        // with the getter's own type (`s`) instead of the required `v`, and GNOME's AppIndicator
+        // discards a reply that is not `(v)`. The properties must be served by the explicit
+        // Get/GetAll implementation only.
+        val bound = StatusNotifierItemDbus::class.java.methods
+            .filter { it.isAnnotationPresent(org.freedesktop.dbus.annotations.DBusBoundProperty::class.java) }
+
+        assertTrue(
+            "dbus-java would intercept Properties.Get for: ${bound.map { it.name }}",
+            bound.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `get all keeps the same variants the hosts read one by one`() {
+        val item = testItem()
+
+        val all = item.GetAll(SNI_INTERFACE_NAME)
+
+        assertEquals(10, all.size)
+        assertEquals("yabai-ocr", all.getValue("IconName").value)
+        assertEquals("a(iiay)", all.getValue("IconPixmap").sig)
+        assertEquals("(sa(iiay)ss)", all.getValue("ToolTip").sig)
+        assertEquals(SNI_MENU_PATH, all.getValue("Menu").value)
+    }
+
+    @Test
+    fun `the introspection annotation is the single source of the published properties`() {
+        // The declaration used to be duplicated in the annotation and in a literal map, so a new
+        // property could be introspected and never served (or served with the wrong type). The
+        // annotation now drives both; this test fails if they ever drift again.
+        val declared = StatusNotifierItemDbus::class.java.getAnnotation(DBusProperties::class.java).value
+        val published = testItem().GetAll(SNI_INTERFACE_NAME)
+
+        assertEquals(
+            declared.map { it.name }.toSet(),
+            published.keys,
+        )
+        for (property in declared) {
+            val expectedSignature = org.freedesktop.dbus.Marshalling
+                .getDBusType(arrayOf<java.lang.reflect.Type>(property.type.java))
+            assertEquals(
+                "the variant of ${property.name} must use the type the introspection declares",
+                expectedSignature,
+                published.getValue(property.name).sig,
+            )
+            assertEquals(
+                "${property.name} must be readable on its own too",
+                published.getValue(property.name).sig,
+                (testItem().Get<Any>(SNI_INTERFACE_NAME, property.name) as Variant<*>).sig,
+            )
+        }
+    }
+
+    private fun testItem() = StatusNotifierItem(
+        onActivate = {},
+        onSecondaryActivate = {},
+        onContextMenu = { _, _ -> },
+        currentStatus = { "" },
+    )
 
     private fun assertArrayEquals(expected: ByteArray, actual: ByteArray) {
         assertEquals(expected.toList(), actual.toList())

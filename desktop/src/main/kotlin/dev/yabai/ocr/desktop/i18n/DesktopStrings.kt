@@ -395,7 +395,22 @@ object DesktopStrings {
     val installSuccessNotice: String get() = if (isEnglish) "Installation completed successfully!" else "Instalação concluída com sucesso!"
     fun downloadUrlNotFound(name: String): String = if (isEnglish) "Download URL not found for $name" else "URL de download não encontrada para $name"
     fun serverHttpResponseError(code: Int): String = if (isEnglish) "Server responded HTTP $code" else "Servidor respondeu HTTP $code"
+    val hotkeyBackendGnomeStatus: String get() = if (isEnglish) {
+        "Global shortcuts come from the GNOME Shell extension."
+    } else {
+        "Atalhos globais pela extensão do GNOME Shell."
+    }
+    val hotkeyGnomeFailureMessage: String get() = if (isEnglish) {
+        "The GNOME Shell extension did not register the shortcuts. Log out and back in once so the Shell loads it."
+    } else {
+        "A extensão do GNOME Shell não registrou os atalhos. Saia e entre uma vez para o Shell carregá-la."
+    }
     val emptyDownloadError: String get() = if (isEnglish) "Empty download from server" else "Download vazio do servidor"
+    fun portalCaptureFailed(code: Int): String = if (isEnglish) {
+        "Screen capture failed at the system portal (code $code). No permission was requested."
+    } else {
+        "A captura de tela falhou no portal do sistema (código $code). Nenhuma permissão foi pedida."
+    }
     val downloadDictError: String get() = if (isEnglish) "Error downloading dictionary." else "Erro ao baixar o dicionário."
     fun dictionaryReleaseEmpty(name: String): String = if (isEnglish) {
         "The newest publication of $name has no entries. Trying the previous one..."

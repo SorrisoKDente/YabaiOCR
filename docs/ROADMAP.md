@@ -5893,3 +5893,119 @@ com a publicação mais recente, então um dicionário instalado do `2026-11-13`
 `2026-11-13` (passa pelo fallback) em vez de falhar. Os três dicionários em si não foram instalados
 por mim na pasta do usuário: a correção ficou provada pelo teste ao vivo e ele pode instalar pela
 UI. Nada foi commitado.
+
+### D64 — Revisão do fallback, atalhos no GNOME pela extensão e quatro regressões do dia  `[x]` (15/11/2026)
+
+**Revisão com olhos frescos (D63).** Dois leitores de assinatura divergentes: o instalador gravava
+`signature.properties` dentro do `*.yabai`, e o verificador de atualização lia `<nome>.sig` ao lado do
+arquivo — arquivo que nunca existiu. Como consequência, a checagem considerava todo dicionário
+«sem assinatura» e oferecia atualização sempre. Além disso `checkUpdates` filtrava `it.isFile`, e um
+`.yabai` é **diretório**: a checagem periódica não via nenhum dicionário instalado. Consolidado em
+`DictionarySignature.kt` (etag, lastModified, tamanho e tag da publicação), com um leitor e um
+escritor para os dois lados. `DictionaryReleaseFallback.kt` ficou com uma única leitura de assets
+(`usableReleaseAssets`) usada por download, fallback e checagem; o instalador perdeu o índice não
+usado e o `var` desnecessário.
+
+**Atualização que rebaixava a mesma versão.** A checagem comparava tamanho/ETag do asset `latest`,
+que é justamente o stub vazio de 2303 bytes: quem instalou o fallback de `2026-11-13` recebia
+«atualização disponível» para a publicação vazia de `2026-11-14`, e baixar de novo reinstalava o
+mesmo `2026-11-13`. Agora a instalação grava a tag (`releaseTagFromUrl`) e a checagem compara
+publicações (`dictionaryUpdateAvailable`): tag igual = em dia; instalações antigas sem tag caem na
+comparação por tamanho. O mesmo helper serve o botão «Verificar atualizações» e a checagem periódica.
+
+**Quatro relatos do usuário (build do GitHub) e o que cada um era.**
+
+1. **«Yabai OCR is already running» logo após atualizar pelo próprio app.** O novo AppImage sobe
+   enquanto o antigo ainda está saindo, e a trava de arquivo sobrevive alguns instantes ao `main`.
+   `acquireInstanceLockWithRetry` espera até 3 s (12 tentativas de 250 ms) antes de declarar segunda
+   instância; uma segunda instância real continua recusada.
+2. **Atalhos globais com `UnknownMethod: no such interface org.freedesktop.portal.GlobalShortcuts`.**
+   Correto na mensagem, inútil na prática: o GNOME 46 não implementa esse portal. No GNOME os
+   atalhos passam a vir da **mesma extensão** que já entrega o ponteiro: `HotkeyBackendKind.GNOME`
+   (sem portal), `ShortcutsDbusObject.ShortcutBindings()` publica `id → acelerador do GNOME`
+   (`gnomeAccelerator`: «Ctrl + Shift + O» → «<Control><Shift>o», F1–F12 com maiúscula), e a extensão
+   registra com `Main.keybindingManager.addHotKey`, chamando `ShortcutPressed(id)` de volta a cada
+   acionamento e relendo os aceleradores a cada 5 s para pegar uma edição nos Ajustes. Exige **um**
+   relogin para o Shell carregar o `extension.js` novo.
+3. **Hover dizendo «a permissão de captura foi negada» sem nunca ter pedido.** O código 2 do portal
+   (`other error`) era mapeado como `DENIED`. Agora só o código 1 (diálogo cancelado) é negação;
+   qualquer outro falha como `UNSUPPORTED` com a mensagem «falhou no portal do sistema (código N).
+   Nenhuma permissão foi pedida» — que é o texto certo para procurar o problema no log. O hover em si
+   já não usa ScreenCast no GNOME desde a D62.
+4. **Ícone genérico na bandeja.** O item SNI não publicava `IconName` e o PNG só era instalado no
+   «Integrar ao sistema»; sem o arquivo no tema hicolor o AppIndicator desenhava o engrenagem
+   genérica. Agora `IconName = yabai-ocr` e `ensureTrayIcon()` grava o PNG a cada início no Linux.
+
+**Testes e mutações.** 395 testes desktop, 0 falhas (1 pulado). Novos: regra de atualização
+(tag igual, tag nova, sem tag por tamanho), round-trip da assinatura, `usableReleaseAssets`,
+`newestReleaseFor` com fetch falso, espera da trava, `portalCaptureFailure`, `IconName`,
+`ensureTrayIcon`, conversão de aceleradores e contrato do `extension.js`. Mutações derrubadas:
+ignorar a tag na comparação; uma única tentativa de trava; mapear todo código de portal como
+negação; `IconName` vazio; GNOME voltando ao portal; acelerador sem conversão.
+
+**Limitações.** Os atalhos no GNOME só entram depois de sair e entrar (o Shell já carregou o
+`extension.js` antigo nesta sessão); não houve prova visual deles aqui. O ícone novo aparece no
+próximo refresh da bandeja. Nada foi commitado.
+
+### D65 — `Properties.Get` do SNI devolvia o tipo cru e o AppIndicator desenhava a engrenagem  `[x]` (15/11/2026)
+
+**Sintoma.** Mesmo com `IconName = "yabai-ocr"` publicado (D64), o GNOME continuava mostrando a
+engrenagem; e `busctl get-property` no item respondia
+`Error Executing Method org.freedesktop.DBus.Properties.Get: object is not an instance of declaring class`.
+
+**Como o AppIndicator lê.** O `dbusProxy.js` da extensão do Ubuntu expõe `getProperty`/`refreshProperty`,
+que chamam `org.freedesktop.DBus.Properties.Get` por propriedade com tipo de resposta esperado
+`(v)` (`TUPLE_VARIANT_TYPE`); `GetAll` é usado só no `getProperties`. A issue #628 do projeto mostra
+o efeito: um `Get` que falha derruba o proxy e o ícone cai no `FALLBACK_ICON_NAME`. Ou seja: **lê por
+`Get`**, e a assinatura importa.
+
+**Causa raiz.** `@DBusBoundProperty` no `dbus-java` 5.1.1 responde ao `Get` com o tipo do getter, não
+com um variant: `dbus-send --print-reply` devolvia `string "yabai-ocr"` onde a spec (e o GDBus)
+esperam `variant string "yabai-ocr"`. O `GetAll` já sai certo porque o handler monta `a{sv}`. O
+`busctl` só era o mensageiro: ele recusa a resposta e o GJS também, cada um com sua mensagem.
+
+**Correção.** O item SNI passou a publicar `org.freedesktop.DBus.Properties` por conta própria
+(`Get`/`Set`/`GetAll` retornando `Variant`, com `Set` recusado por ser somente leitura). As
+getter continuam na interface, marcadas `@DBusIgnore` para não serem exportadas como métodos (um
+`List` de retorno quebra o `exportObject`), e um `@DBusProperties` mantém a introspecção com os
+tipos concretos (`a(iiay)` no `IconPixmap`). O `dbus-java` não intercepta mais nada: sem
+`@DBusBoundProperty` ele delega ao método do objeto.
+
+**Prova.** `dbus-send` contra o app rodando: `variant string "yabai-ocr"` (antes: `string`), `GetAll`
+com `a{sv}` e `gdbus` devolvendo `(<'yabai-ocr'>,)`. 399 testes desktop, 0 falhas (1 pulado).
+Novos: `Get` de todas as propriedades devolve `Variant` com as assinaturas `s`/`o`/`i`/`b`/`a(iiay)`,
+propriedade ou interface desconhecida recusada, `GetAll` com os mesmos variants e
+`no property is published as a dbus-java bound getter` (o invariante que impede a regressão).
+Mutações derrubadas: `Get` devolvendo o valor cru em vez do variant (2 testes), `IconName` fora do
+mapa (4 testes, inclusive o smoke test no barramento real) e `@DBusBoundProperty` de volta no
+`getIconName` (4 testes).
+
+**Limitações.** A verificação visual do ícone na bandeja continua dependendo do Shell recarregar o
+item; a prova aqui é o envelope D-Bus que o host consome. Nada foi commitado.
+
+### D66 — Propriedades do SNI numa fonte só e o `StartupWMClass` que faltava no ícone  `[x]` (15/11/2026)
+
+**Duas listas de propriedades.** A D65 deixou o nome e o tipo em `@DBusProperties` (introspecção) e
+os valores num `propertyVariants()` literal: adicionar uma propriedade exigia editar as duas, e
+esquecer uma delas só aparecia em tempo de execução, num host específico. Agora a anotação é a única
+fonte: `propertyVariants()` percorre `@DBusProperties`, chama `get<Name>()` por reflexão e monta o
+`Variant` com a assinatura declarada (`Marshalling.getDBusType`, a mesma que a introspecção usa).
+Propriedade sem getter ou com tipo que não serializa falha alto na hora da leitura, não em silêncio.
+Um `DBusPath` é convertido para a string do caminho (o `o` vem da anotação).
+
+**O ícone continuava engrenagem.** O PNG e o `.DirIcon` do AppImage são o ícone certo (hash igual ao
+recurso empacotado), então o problema era associação: `xprop` mostra que a janela AWT carrega
+`WM_CLASS = dev-yabai-ocr-desktop-MainKt`, e nenhum `.desktop` declarava `StartupWMClass`. Sem isso
+o GNOME Shell não liga a janela à entrada e desenha a engrenagem no dock. Além do `StartupWMClass`
+(entrada do menu, entrada de autostart e o `.desktop` dentro do AppImage), o `ensureTrayIcon()` agora
+**atualiza uma entrada existente** — a do usuário apontava para um AppImage antigo e não tinha o
+campo — sem criar entrada nova (isso continua sendo o "Integrar ao sistema"). O ícone só é reescrito
+quando os bytes mudam (antes bastava o mesmo tamanho para não atualizar).
+
+**Testes e mutações.** 403 testes desktop, 0 falhas (1 pulado). Novos: a anotação é a fonte única
+(nomes e assinaturas iguais aos da introspecção), `StartupWMClass` nas duas entradas e a entrada
+velha sendo corrigida com o AppImage atual. Mutações derrubadas: uma propriedade na anotação sem
+getter (**6 falhas**), `StartupWMClass` fora da entrada e o refresh da entrada removido (**2 falhas**).
+
+**Limitações.** Continua sem prova visual do dock/bandeja aqui; a associação é verificada pelo
+`WM_CLASS` real e pelo conteúdo das entradas. Nada foi commitado.

@@ -47,6 +47,15 @@ class PortalScreenshotCaptureTest {
     }
 
     @Test
+    fun `only a cancelled dialog counts as a denied permission`() {
+        // Code 2 is «other error»: the portal failed without ever showing a dialog, so telling the
+        // user to authorize one sends them looking for something that will not appear.
+        assertEquals(CaptureAvailability.DENIED, portalCaptureFailure(1))
+        assertEquals(CaptureAvailability.UNSUPPORTED, portalCaptureFailure(2))
+        assertEquals(CaptureAvailability.UNSUPPORTED, portalCaptureFailure(7))
+    }
+
+    @Test
     fun `screen capture crops the primary screen from the workspace image`() {
         val workspace = image(1920, 1080)
         workspace.setRGB(100, 100, Color.RED.rgb)

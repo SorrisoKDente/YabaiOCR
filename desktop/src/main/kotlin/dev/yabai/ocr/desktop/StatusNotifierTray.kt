@@ -3,16 +3,22 @@ package dev.yabai.ocr.desktop
 import java.awt.Image
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
+import java.lang.reflect.Type
+import org.freedesktop.dbus.Marshalling
 import org.freedesktop.dbus.DBusPath
 import org.freedesktop.dbus.Struct
-import org.freedesktop.dbus.annotations.DBusBoundProperty
+import org.freedesktop.dbus.annotations.DBusIgnore
 import org.freedesktop.dbus.annotations.DBusInterfaceName
+import org.freedesktop.dbus.annotations.DBusProperties
 import org.freedesktop.dbus.annotations.DBusProperty
 import org.freedesktop.dbus.annotations.Position
 import org.freedesktop.dbus.connections.impl.DBusConnection
 import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
+import org.freedesktop.dbus.exceptions.DBusExecutionException
 import org.freedesktop.dbus.interfaces.DBusInterface
+import org.freedesktop.dbus.interfaces.Properties
 import org.freedesktop.dbus.messages.DBusSignal
+import org.freedesktop.dbus.types.Variant
 
 // KDE/Plasma talks to modern tray icons through org.kde.StatusNotifierItem. AWT's TrayIcon is
 // still XEmbed; Plasma's xembedsniproxy loses the click events on Wayland (KDE bug 498824), so the
@@ -21,6 +27,7 @@ import org.freedesktop.dbus.messages.DBusSignal
 // DBusMenu support.
 
 internal const val SNI_OBJECT_PATH = "/StatusNotifierItem"
+internal const val SNI_INTERFACE_NAME = "org.kde.StatusNotifierItem"
 internal const val SNI_WATCHER_SERVICE = "org.kde.StatusNotifierWatcher"
 internal const val SNI_WATCHER_PATH = "/StatusNotifierWatcher"
 
@@ -90,45 +97,79 @@ internal fun statusNotifierPixmap(image: Image, size: Int = 32): List<StatusNoti
     return listOf(StatusNotifierIconPixmap(size, size, data))
 }
 
+/**
+ * The SNI object, exported together with an explicit `org.freedesktop.DBus.Properties`.
+ *
+ * The properties are deliberately *not* `@DBusBoundProperty` getters: dbus-java 5.1.1 answers
+ * `Properties.Get` with the getter's own D-Bus type (`s`) instead of the `v` the spec requires, and
+ * GNOME's AppIndicator reads every property with `Get` expecting `(v)` — it discards the reply as
+ * mistyped and draws its generic gear instead of the app icon. Answering `Get`/`GetAll` here keeps
+ * the variant on the wire. The `@DBusProperties` list is introspection only (the host and
+ * `gdbus introspect` still see the properties).
+ */
 @Suppress("FunctionName")
-@DBusInterfaceName("org.kde.StatusNotifierItem")
-internal interface StatusNotifierItemDbus : DBusInterface {
+@DBusInterfaceName(SNI_INTERFACE_NAME)
+@DBusProperties(
+    value = [
+        DBusProperty(name = "Category", type = String::class, access = DBusProperty.Access.READ),
+        DBusProperty(name = "Id", type = String::class, access = DBusProperty.Access.READ),
+        DBusProperty(name = "IconName", type = String::class, access = DBusProperty.Access.READ),
+        DBusProperty(name = "Title", type = String::class, access = DBusProperty.Access.READ),
+        DBusProperty(name = "Status", type = String::class, access = DBusProperty.Access.READ),
+        // A raw `List` would be advertised as `av`; the SNI spec and KDE want `a(iiay)`.
+        DBusProperty(
+            name = "IconPixmap",
+            type = Array<StatusNotifierIconPixmap>::class,
+            access = DBusProperty.Access.READ,
+        ),
+        DBusProperty(
+            name = "ToolTip",
+            type = StatusNotifierToolTip::class,
+            access = DBusProperty.Access.READ,
+        ),
+        DBusProperty(name = "ItemIsMenu", type = Boolean::class, access = DBusProperty.Access.READ),
+        DBusProperty(name = "Menu", type = DBusPath::class, access = DBusProperty.Access.READ),
+        DBusProperty(name = "WindowId", type = Int::class, access = DBusProperty.Access.READ),
+    ],
+)
+internal interface StatusNotifierItemDbus : DBusInterface, Properties {
 
-    @DBusBoundProperty(name = "Category", access = DBusProperty.Access.READ)
+    // Java-level accessors only: each one is served through `Get`/`GetAll` above, and exporting
+    // them as D-Bus methods would also fail (`List` is not an exportable return type).
+    @DBusIgnore
     fun getCategory(): String
 
-    @DBusBoundProperty(name = "Id", access = DBusProperty.Access.READ)
+    @DBusIgnore
     fun getId(): String
 
-    @DBusBoundProperty(name = "Title", access = DBusProperty.Access.READ)
+    // GNOME's AppIndicator host draws the theme icon named here. Empty means it goes straight to
+    // `IconPixmap`, and the extension in practice showed its generic gear instead.
+    @DBusIgnore
+    fun getIconName(): String
+
+    @DBusIgnore
     fun getTitle(): String
 
-    @DBusBoundProperty(name = "Status", access = DBusProperty.Access.READ)
+    @DBusIgnore
     fun getStatus(): String
 
-    // The annotation type is required: a raw `List` return type loses its generic argument and
-    // dbus-java would advertise `av`, but KDE expects the concrete `a(iiay)` from the SNI spec.
-    @DBusBoundProperty(
-        name = "IconPixmap",
-        type = Array<StatusNotifierIconPixmap>::class,
-        access = DBusProperty.Access.READ,
-    )
+    @DBusIgnore
     fun getIconPixmap(): List<StatusNotifierIconPixmap>
 
-    @DBusBoundProperty(name = "ToolTip", access = DBusProperty.Access.READ)
+    @DBusIgnore
     fun getToolTip(): StatusNotifierToolTip
 
-    @DBusBoundProperty(name = "ItemIsMenu", access = DBusProperty.Access.READ)
+    @DBusIgnore
     fun getItemIsMenu(): Boolean
 
     /**
      * Let Plasma draw the context menu itself. A host that understands DBusMenu shows it natively
      * and never calls [ContextMenu]; the old Swing path stays as the fallback for hosts that do.
      */
-    @DBusBoundProperty(name = "Menu", access = DBusProperty.Access.READ)
+    @DBusIgnore
     fun getMenu(): DBusPath
 
-    @DBusBoundProperty(name = "WindowId", access = DBusProperty.Access.READ)
+    @DBusIgnore
     fun getWindowId(): Int
 
     fun Activate(x: Int, y: Int)
@@ -161,6 +202,8 @@ internal class StatusNotifierItem(
 
     override fun getId(): String = "yabai-ocr"
 
+    override fun getIconName(): String = "yabai-ocr"
+
     override fun getTitle(): String = "Yabai OCR"
 
     override fun getStatus(): String = "Active"
@@ -175,6 +218,52 @@ internal class StatusNotifierItem(
     override fun getMenu(): DBusPath = DBusPath(SNI_MENU_PATH)
 
     override fun getWindowId(): Int = 0
+
+    /**
+     * Every SNI property as a D-Bus variant, the only shape `Properties.Get`/`GetAll` accept.
+     *
+     * The `@DBusProperties` list is the single source: it already drives the introspection, and the
+     * values are read back from it through `get<Name>()`, with the variant signature taken from the
+     * declared type. Adding a property there (plus its getter) is enough; a getter that is missing
+     * or a type that does not marshal fails loudly here instead of silently answering nothing.
+     */
+    private fun propertyVariants(): Map<String, Variant<*>> = buildMap {
+        for (property in declaredProperties()) {
+            val getter = StatusNotifierItemDbus::class.java.getMethod("get${property.name}")
+            val value = getter.invoke(this@StatusNotifierItem)
+            // `o` marshals from either a DBusPath or its string form; the signature is the one from
+            // the annotation, so the path goes as a plain string.
+            val wireValue = if (value is DBusPath) value.path else value
+            put(property.name, Variant(wireValue, Marshalling.getDBusType(arrayOf<Type>(property.type.java))))
+        }
+    }
+
+    private fun declaredProperties(): List<DBusProperty> =
+        StatusNotifierItemDbus::class.java.getAnnotation(DBusProperties::class.java)?.value?.toList()
+            ?: error("StatusNotifierItemDbus must declare its properties with @DBusProperties")
+
+    // `Get` returns the variant itself: dbus-java marshals the generic return as `v`, which is what
+    // the spec promises and what GDBus/GNOME require (`('yabai-ocr',)`), unlike the bound-property
+    // path that answered with a bare `s`.
+    @Suppress("UNCHECKED_CAST")
+    override fun <A : Any?> Get(interfaceName: String, propertyName: String): A {
+        if (interfaceName != SNI_INTERFACE_NAME) {
+            throw DBusExecutionException("interface '$interfaceName' does not exist")
+        }
+        return (propertyVariants()[propertyName]
+            ?: throw DBusExecutionException("property '$propertyName' does not exist")) as A
+    }
+
+    override fun <A : Any?> Set(interfaceName: String, propertyName: String, value: A) {
+        throw DBusExecutionException("property '$propertyName' is read-only")
+    }
+
+    override fun GetAll(interfaceName: String): Map<String, Variant<*>> {
+        if (interfaceName != SNI_INTERFACE_NAME) {
+            throw DBusExecutionException("interface '$interfaceName' does not exist")
+        }
+        return propertyVariants()
+    }
 
     override fun Activate(x: Int, y: Int) = onActivate()
 

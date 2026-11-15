@@ -36,6 +36,15 @@ class LinuxDesktopEntryTest {
     }
 
     @Test
+    fun `both entries declare the window class gnome uses to find the icon`() {
+        // The AWT window's WM_CLASS is the main class name (checked with xprop on a running app).
+        // Without StartupWMClass GNOME cannot link the window to the entry and draws its gear.
+        assertEquals("dev-yabai-ocr-desktop-MainKt", APP_WM_CLASS)
+        assertTrue(applicationDesktopEntry("/x/Yabai.AppImage").contains("StartupWMClass=$APP_WM_CLASS"))
+        assertTrue(autostartDesktopEntry("/x/Yabai.AppImage").contains("StartupWMClass=$APP_WM_CLASS"))
+    }
+
+    @Test
     fun `the app entry authorizes the silent kwin capture interface`() {
         val entry = applicationDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage")
 

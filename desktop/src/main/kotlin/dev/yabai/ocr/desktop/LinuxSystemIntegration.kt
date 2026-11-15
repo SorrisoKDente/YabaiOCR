@@ -45,6 +45,38 @@ internal class LinuxSystemIntegration(
         }.getOrDefault(false)
     }
 
+    /**
+     * Writes [iconFile] on every start and keeps an existing menu entry current.
+     *
+     * The StatusNotifier item names the icon (`IconName`), and the AppIndicator host resolves that
+     * name through the icon theme: with no file installed it fell back to its generic gear.
+     *
+     * The entry itself is only refreshed when it already exists — creating one is what "Integrar ao
+     * sistema" is for — but a stale entry is why the dock kept the gear: it named an older AppImage
+     * and predated `StartupWMClass`, so the shell could not link the window to it. The launcher path
+     * stays the user-facing one ([executableResolver]); the `/tmp/.mount_*` path of the running
+     * AppImage would stop existing when the app closes.
+     */
+    fun ensureTrayIcon(): Boolean {
+        val icon = runCatching(iconBytes).getOrNull()?.takeIf { it.isNotEmpty() } ?: return false
+        val iconWritten = runCatching {
+            if (iconFile.isFile && iconFile.readBytes().contentEquals(icon)) return@runCatching true
+            iconFile.parentFile?.mkdirs()
+            iconFile.writeBytes(icon)
+            true
+        }.getOrDefault(false)
+
+        val executable = executableResolver()?.takeIf { it.isNotBlank() }
+        if (executable != null && desktopFile.isFile) {
+            runCatching {
+                val content = applicationDesktopEntry(executable)
+                if (desktopFile.readText() != content) desktopFile.writeText(content)
+            }
+        }
+
+        return iconWritten
+    }
+
     /** Writes both files atomically enough for the menu to pick them up on its next refresh. */
     fun install(): Boolean {
         val executable = executableResolver()?.takeIf { it.isNotBlank() } ?: return false

@@ -45,7 +45,7 @@ fun main(args: Array<String>) {
     // again used to start a second process that could not register the name: it showed «não foi
     // possível publicar o serviço D-Bus» and sat there without hover or shortcuts.
     val instanceLock = InstanceLock.default()
-    if (!instanceLock.acquire()) {
+    if (!acquireInstanceLockWithRetry { instanceLock.acquire() }) {
         val background = args.contains("--minimized") || args.contains("--tray")
         System.err.println("Yabai OCR: já existe uma instância aberta; esta cópia vai sair.")
         if (!background) {
@@ -89,6 +89,11 @@ fun main(args: Array<String>) {
     // `main` on this stack. That is why KDE uses the KWin shortcuts instead of the portal.
     if (DesktopPlatform.isWayland && DesktopPlatform.isKde) {
         LinuxSystemIntegration().ensureScreenshotAuthorization()
+    }
+    // The tray item advertises the icon by name; without the PNG in the user's hicolor theme the
+    // StatusNotifier host draws its generic placeholder instead of the app icon.
+    if (DesktopPlatform.isLinux) {
+        LinuxSystemIntegration().ensureTrayIcon()
     }
 
     application {
@@ -285,7 +290,10 @@ fun main(args: Array<String>) {
         ) {
             YabaiDbusService(
                 onCursorMoved = { x, y -> hoverOcrManager.onPointerMoved(Point(x, y)) },
-                onShortcutPressed = { id -> hotkeyCallbacks.dispatch(id) },
+                // D-Bus delivers on its own thread; the callbacks touch Compose state.
+                onShortcutPressed = { id ->
+                    javax.swing.SwingUtilities.invokeLater { hotkeyCallbacks.dispatch(id) }
+                },
             )
         } else {
             null
@@ -351,6 +359,11 @@ fun main(args: Array<String>) {
             val serviceReady = hoverDbusService?.start() == true
             val bridgeReady = serviceReady && gnomeBridge.start()
             hoverBackendReady = bridgeReady
+            // The same extension owns the accelerators, so it needs them as soon as it can talk to
+            // the app; the Shell re-reads them when the user edits a shortcut.
+            if (serviceReady) {
+                hoverDbusService?.updateShortcutBindings(gnomeShortcutBindings(currentHotkeyBindings()))
+            }
             if (bridgeReady) {
                 hoverState.status = DesktopStrings.gnomeIntegrationActive
             } else {
@@ -361,6 +374,10 @@ fun main(args: Array<String>) {
                 }
                 hoverBackendFailure = message
                 hoverState.status = message
+                // No extension, no shortcuts on GNOME: say that instead of claiming a backend.
+                if (hotkeyService.activeKind == HotkeyBackendKind.GNOME) {
+                    hotkeyStatus = hotkeyFailureStatus(HotkeyBackendKind.GNOME, null)
+                }
             }
 
             onDispose {
@@ -681,6 +698,11 @@ fun main(args: Array<String>) {
                                     hoverCycle,
                                 )
                                 hotkeyStatus = hotkeyService.statusMessage
+                                hoverDbusService?.updateShortcutBindings(
+                                    gnomeShortcutBindings(
+                                        hotkeyBindings(fullScreen, region, quickDict, hover, hoverCycle),
+                                    ),
+                                )
 
                                 // The portal and the KWin fallback are mutually exclusive. A failed
                                 // portal edit has just closed its old session, so KWin must receive
