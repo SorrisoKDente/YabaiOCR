@@ -28,7 +28,7 @@ android {
         applicationId = "dev.yabai.ocr"
         minSdk = 26
         targetSdk = 36
-        versionName = "1.0.8"
+        versionName = "1.0.9"
         versionCode = calculateVersionCode(versionName)
 
         ndk {
