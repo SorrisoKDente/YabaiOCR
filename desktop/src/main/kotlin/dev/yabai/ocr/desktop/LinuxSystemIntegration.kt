@@ -10,6 +10,7 @@ internal class LinuxSystemIntegration(
     private val dataHome: File = defaultDataHome(),
     private val executableResolver: () -> String? = { resolveLinuxExecutable() },
     private val runningExecutable: () -> String? = { runningExecutablePath() },
+    private val wmClass: () -> String? = { runningWmClass() },
     private val iconBytes: () -> ByteArray? = {
         LinuxSystemIntegration::class.java
             .getResourceAsStream("/ic_scan_linux.png")
@@ -69,7 +70,7 @@ internal class LinuxSystemIntegration(
         val executable = executableResolver()?.takeIf { it.isNotBlank() }
         if (executable != null && desktopFile.isFile) {
             runCatching {
-                val content = applicationDesktopEntry(executable)
+                val content = applicationDesktopEntry(executable, wmClass())
                 if (desktopFile.readText() != content) desktopFile.writeText(content)
             }
         }
@@ -84,7 +85,7 @@ internal class LinuxSystemIntegration(
 
         return runCatching {
             desktopFile.parentFile?.mkdirs()
-            desktopFile.writeText(applicationDesktopEntry(executable))
+            desktopFile.writeText(applicationDesktopEntry(executable, wmClass()))
             iconFile.parentFile?.mkdirs()
             iconFile.writeBytes(icon)
             true

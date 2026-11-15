@@ -47,19 +47,24 @@ class LinuxSystemIntegrationTest {
         // The dock kept the gear because the installed entry named an older AppImage and predated
         // StartupWMClass; the running app only rewrote the icon.
         val dataHome = tempDir()
+        val wmClass = wmClassForMainClass("dev.yabai.ocr.desktop.MainKt")!!
         val integration = LinuxSystemIntegration(
             dataHome = dataHome,
             executableResolver = { "/home/deck/Downloads/Yabai_OCR-1.0.9-revisao3.AppImage" },
+            wmClass = { wmClass },
             iconBytes = { byteArrayOf(0x89.toByte(), 0x50) },
         )
         integration.desktopFile.parentFile?.mkdirs()
-        integration.desktopFile.writeText(applicationDesktopEntry("/home/deck/Downloads/Old.AppImage"))
+        integration.desktopFile.writeText(
+            applicationDesktopEntry("/home/deck/Downloads/Old.AppImage", "old-wm-class"),
+        )
 
         assertTrue(integration.ensureTrayIcon())
 
         val entry = integration.desktopFile.readText()
         assertTrue(entry.contains("Exec=\"/home/deck/Downloads/Yabai_OCR-1.0.9-revisao3.AppImage\""))
-        assertTrue(entry.contains("StartupWMClass=$APP_WM_CLASS"))
+        assertTrue(entry.contains("StartupWMClass=$wmClass"))
+        assertFalse(entry.contains("old-wm-class"))
         assertFalse(entry.contains("Old.AppImage"))
     }
 

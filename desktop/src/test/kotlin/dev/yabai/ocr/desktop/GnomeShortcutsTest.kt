@@ -1,6 +1,7 @@
 package dev.yabai.ocr.desktop
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -65,7 +66,7 @@ class GnomeShortcutsTest {
     }
 
     @Test
-    fun `the extension registers and dispatches the shortcuts itself`() {
+    fun `the extension grabs the shortcuts with the api gnome shell 46 has`() {
         // The GNOME bridge has no portal to fall back on, so the contract lives in the JS resource.
         val source = javaClass.classLoader
             .getResourceAsStream("gnome/yabai-ocr@yabai.dev/extension.js")
@@ -73,8 +74,16 @@ class GnomeShortcutsTest {
             ?: error("extension.js not packaged")
 
         assertTrue("must ask the app for the accelerators", source.contains("ShortcutBindings"))
-        assertTrue("must register them with the Shell", source.contains("addHotKey"))
-        assertTrue("must release them on disable", source.contains("removeHotKey"))
+        // `Main.keybindingManager` is not exported by GNOME Shell 46: calling addHotKey on it threw
+        // a TypeError inside a try/catch, so nothing was registered and the shortcut did nothing.
+        assertFalse(
+            "Main.keybindingManager does not exist on GNOME Shell 46, so it must not be called",
+            source.contains("Main.keybindingManager"),
+        )
+        assertTrue("must grab the accelerator", source.contains("grab_accelerator"))
+        assertTrue("must allow the binding name in every mode", source.contains("allowKeybinding"))
+        assertTrue("must listen for the activation", source.contains("'accelerator-activated'"))
+        assertTrue("must release the grab on disable", source.contains("ungrab_accelerator"))
         assertTrue("must dispatch the pressed shortcut", source.contains("ShortcutPressed"))
         assertTrue("must poll bindings after a settings edit", source.contains("SHORTCUT_REFRESH_SECONDS"))
     }

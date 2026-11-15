@@ -11,6 +11,8 @@ import java.io.File
  */
 internal class LinuxAutostart(
     private val configHome: File = defaultConfigHome(),
+    // `wmClass` stays before `executableResolver`: callers pass the resolver as a trailing lambda.
+    private val wmClass: () -> String? = { runningWmClass() },
     private val executableResolver: () -> String? = { resolveLinuxExecutable() },
 ) : Autostart {
 
@@ -31,7 +33,7 @@ internal class LinuxAutostart(
 
         runCatching {
             entryFile.parentFile?.mkdirs()
-            entryFile.writeText(autostartDesktopEntry(executable))
+            entryFile.writeText(autostartDesktopEntry(executable, wmClass()))
         }.onFailure {
             System.err.println("[Autostart] could not write ${entryFile.path}: ${it.message}")
         }

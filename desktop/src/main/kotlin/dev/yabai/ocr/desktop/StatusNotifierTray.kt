@@ -229,7 +229,9 @@ internal class StatusNotifierItem(
      */
     private fun propertyVariants(): Map<String, Variant<*>> = buildMap {
         for (property in declaredProperties()) {
-            val getter = StatusNotifierItemDbus::class.java.getMethod("get${property.name}")
+            val name = property.name
+            val getter = runCatching { StatusNotifierItemDbus::class.java.getMethod("get$name") }
+                .getOrElse { throw DBusExecutionException("property '$name' has no getter") }
             val value = getter.invoke(this@StatusNotifierItem)
             // `o` marshals from either a DBusPath or its string form; the signature is the one from
             // the annotation, so the path goes as a plain string.

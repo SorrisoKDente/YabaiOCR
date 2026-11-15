@@ -6009,3 +6009,50 @@ getter (**6 falhas**), `StartupWMClass` fora da entrada e o refresh da entrada r
 
 **Limitações.** Continua sem prova visual do dock/bandeja aqui; a associação é verificada pelo
 `WM_CLASS` real e pelo conteúdo das entradas. Nada foi commitado.
+### D67 — O atalho do GNOME morria num `TypeError` silencioso e o `WM_CLASS` passou a ser derivado  `[x]` (15/11/2026)
+
+**Revisão da D66.** As duas mudanças se sustentam: a anotação é mesmo a fonte única das propriedades
+do SNI (o `Get` responde `variant` e o `AppIndicator` desenha o ícone) e o `ensureTrayIcon()` apenas
+reescreve a entrada quando os bytes mudam. Duas arestas: o getter é achado por convenção (`get<Name>`),
+então uma propriedade renomeada sem renomear o getter falha alto na leitura — coberto por teste — e o
+`StartupWMClass` era uma constante repetida em três lugares (entrada do menu, autostart e o `.desktop`
+dentro do AppImage), que quebraria no dia em que a classe `main` fosse renomeada.
+
+**`WM_CLASS` derivado.** `wmClassForMainClass(sun.java.command)` (dots → dashes, `null` para jar/vazio)
+e `runningWmClass()` alimentam o `LinuxSystemIntegration` e o `LinuxAutostart`; quando a classe não é
+conhecida a entrada **omite** `StartupWMClass` em vez de publicar uma string errada. O literal que
+sobra no `build-appimage.sh` é o do processo empacotado e está amarrado por teste.
+
+**O atalho que não fazia nada.** A extensão chamava `Main.keybindingManager.addHotKey`, dentro de um
+`try/catch` que engolia o erro — e o `main.js` do GNOME Shell 46 **não exporta `keybindingManager`**
+(só `wm`, `extensionManager`, `panel`, …), então *toda* tentativa de registro era um `TypeError`
+descartado: nenhum atalho registrado, nenhum erro no app, nenhum log. Agora a extensão usa o par que o
+próprio Shell usa no `shellDBus.js`: `global.display.grab_accelerator(accel, NONE)`,
+`Meta.external_binding_name_for_action`, `Main.wm.allowKeybinding(name, Shell.ActionMode.ALL)` e o
+sinal `accelerator-activated` do display; o `ungrab_accelerator` libera no `disable()`/refresh. Falha
+de grab (combinação já tomada) vai para o journal como erro, não em silêncio. As mensagens usam
+`console.log`/`console.error`, que aparecem no journal do GJS.
+
+**O que foi testado de verdade.** Com o app aberto (`:desktop:run --args="--minimized"`,
+`dev.yabai.Ocr` no barramento), `ShortcutPressed(capture-fullscreen)` abriu a janela
+`Yabai OCR - Escolher trecho` (1440x716) — o lado do app responde. A extensão instalada é carregada
+pelo Shell e reporta `ACTIVE`. **Não foi possível sintetizar a tecla física**: não há
+`wtype`/`ydotool`/`xdotool`, injeção no Wayland exige `/dev/uinput` com privilégio de administrador, e
+o Shell 46 mantém o módulo ESM já carregado em cache (`ReloadExtension` devolve `NOT_SUPPORTED`),
+então o `extension.js` novo só roda no próximo login. O `GrabAccelerator` por D-Bus é recusado
+(`AccessDenied`) para quem não é `org.gnome.Settings`, o que confirma por que o registro precisa
+acontecer dentro do Shell.
+
+**Testes e mutações.** 404 testes desktop, 0 falhas (1 pulado). O teste de contrato da extensão passou
+a exigir `grab_accelerator`/`allowKeybinding`/`accelerator-activated`/`ungrab_accelerator` e a
+**proibir** `Main.keybindingManager`; a derivação do `WM_CLASS` ganhou um caso com outra classe
+(`com.example.Other`), porque só `MainKt` passaria com uma constante fixa. Mutações derrubadas: voltar
+a chamar `Main.keybindingManager.addHotKey` (**1 falha**) e trocar a derivação por uma constante
+(**1 falha**).
+
+**Limitações.** A prova do atalho de ponta a ponta depende de um login e de uma tecla física; o ícone
+no **Nautilus** continua sendo o MIME genérico (`application/x-executable`, a engrenagem) mesmo com o
+PNG certo em `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png`: o Nautilus não consulta
+`StartupWMClass`/`Icon=` de entradas `.desktop` para arquivos soltos. No SteamOS o Dolphin lê o
+`.DirIcon` do AppImage (o mesmo PNG, hash `44c98976…`), então lá o ícone deve sair certo. Nada foi
+commitado.

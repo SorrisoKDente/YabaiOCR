@@ -37,8 +37,9 @@ GNOME. Ver D62 no [ROADMAP](ROADMAP.md).
 **Atualização D63/D64 (15/11/2026):** no **GNOME** os atalhos globais deixaram de tentar o portal
 `GlobalShortcuts` (que o GNOME 46 não implementa — `UnknownMethod`) e passaram a ser registrados
 pela **mesma extensão do Shell** que entrega o ponteiro: o app publica `id → acelerador` em
-`dev.yabai.Ocr.Shortcuts.ShortcutBindings`, a extensão chama `Main.keybindingManager.addHotKey` e
-devolve `ShortcutPressed(id)`; uma edição nos Ajustes entra em até 5 s, sem relogin (mas o
+`dev.yabai.Ocr.Shortcuts.ShortcutBindings`, a extensão agarra cada acelerador com
+`global.display.grab_accelerator` + `Main.wm.allowKeybinding` (o `Main` do Shell 46 não tem
+`keybindingManager` — D67) e devolve `ShortcutPressed(id)`; uma edição nos Ajustes entra em até 5 s, sem relogin (mas o
 `extension.js` novo só é lido no próximo login). No mesmo dia: a checagem de atualização dos
 dicionários passou a comparar a **tag da publicação** (não o asset `latest`, que é um stub vazio em
 uma publicação sim e outra não → o fallback era oferecido como “atualização”), a trava de instância

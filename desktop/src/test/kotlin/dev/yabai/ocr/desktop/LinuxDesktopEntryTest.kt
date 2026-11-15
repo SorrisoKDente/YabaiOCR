@@ -3,6 +3,8 @@ package dev.yabai.ocr.desktop
 import java.io.File
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,9 +20,11 @@ class LinuxDesktopEntryTest {
         )
     }
 
+    private val wmClass = wmClassForMainClass("dev.yabai.ocr.desktop.MainKt")!!
+
     @Test
     fun `autostart entry uses the real path and minimized flag`() {
-        val entry = autostartDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage")
+        val entry = autostartDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage", wmClass)
 
         assertTrue(entry.contains("Exec=\"/home/deck/Applications/Yabai OCR.AppImage\" \"--minimized\""))
         assertTrue(entry.contains("Icon=yabai-ocr"))
@@ -29,24 +33,41 @@ class LinuxDesktopEntryTest {
 
     @Test
     fun `application entry does not force minimized startup`() {
-        val entry = applicationDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage")
+        val entry = applicationDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage", wmClass)
 
         assertTrue(entry.contains("Exec=\"/home/deck/Applications/Yabai OCR.AppImage\""))
         assertTrue(!entry.contains("--minimized"))
     }
 
     @Test
+    fun `the window class is derived from the main class`() {
+        // `xprop` on the running app shows WM_CLASS dev-yabai-ocr-desktop-MainKt: AWT derives it from
+        // the main class with dots replaced by dashes. Keeping the derivation here means renaming the
+        // entry point cannot leave a stale literal behind.
+        assertEquals(
+            "dev-yabai-ocr-desktop-MainKt",
+            wmClassForMainClass("dev.yabai.ocr.desktop.MainKt --minimized"),
+        )
+        assertEquals("dev-yabai-ocr-desktop-MainKt", wmClassForMainClass("  dev.yabai.ocr.desktop.MainKt  "))
+        // A different entry point must produce a different class: a hardcoded constant would pass the
+        // first assertion and break the moment the main class is renamed.
+        assertEquals("com-example-Other", wmClassForMainClass("com.example.Other --minimized"))
+        assertNull("a jar is not a class name", wmClassForMainClass("app.jar"))
+        assertNull(wmClassForMainClass(""))
+        assertNull(wmClassForMainClass(null))
+    }
+
+    @Test
     fun `both entries declare the window class gnome uses to find the icon`() {
-        // The AWT window's WM_CLASS is the main class name (checked with xprop on a running app).
-        // Without StartupWMClass GNOME cannot link the window to the entry and draws its gear.
-        assertEquals("dev-yabai-ocr-desktop-MainKt", APP_WM_CLASS)
-        assertTrue(applicationDesktopEntry("/x/Yabai.AppImage").contains("StartupWMClass=$APP_WM_CLASS"))
-        assertTrue(autostartDesktopEntry("/x/Yabai.AppImage").contains("StartupWMClass=$APP_WM_CLASS"))
+        assertTrue(applicationDesktopEntry("/x/Yabai.AppImage", wmClass).contains("StartupWMClass=$wmClass"))
+        assertTrue(autostartDesktopEntry("/x/Yabai.AppImage", wmClass).contains("StartupWMClass=$wmClass"))
+        // Unknown class: the line is left out instead of writing a wrong one.
+        assertFalse(applicationDesktopEntry("/x/Yabai.AppImage", null).contains("StartupWMClass"))
     }
 
     @Test
     fun `the app entry authorizes the silent kwin capture interface`() {
-        val entry = applicationDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage")
+        val entry = applicationDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage", wmClass)
 
         assertTrue(
             entry.contains("X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2"),

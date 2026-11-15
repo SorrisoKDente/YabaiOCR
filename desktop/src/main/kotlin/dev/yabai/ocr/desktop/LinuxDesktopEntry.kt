@@ -21,7 +21,26 @@ internal fun desktopEntryArgument(value: String): String {
 internal fun desktopEntryExec(executable: String, args: List<String> = emptyList()): String =
     (listOf(executable) + args).joinToString(" ") { desktopEntryArgument(it) }
 
-internal fun autostartDesktopEntry(executable: String): String = buildString {
+/**
+ * `WM_CLASS` AWT gives the window: the toolkit derives it from the main class, with `.` replaced by
+ * `-` (checked with `xprop` on a running app: `dev-yabai-ocr-desktop-MainKt`).
+ *
+ * GNOME links a running window to its menu entry by this value, so the entry has to declare it —
+ * without `StartupWMClass` the shell cannot tell which entry the window belongs to and draws its
+ * generic gear instead of the app icon. Deriving it from the running command keeps the entry right
+ * if the entry point is ever renamed, instead of carrying a copy of the name here.
+ */
+internal fun wmClassForMainClass(command: String?): String? {
+    val main = command?.trim()?.substringBefore(' ')?.takeIf { it.isNotBlank() } ?: return null
+    // `java -jar something.jar` says nothing about a class name, and neither does a blank command.
+    if (main.endsWith(".jar", ignoreCase = true)) return null
+    return main.replace('.', '-')
+}
+
+/** [wmClassForMainClass] for the process that is running now. */
+internal fun runningWmClass(): String? = wmClassForMainClass(System.getProperty("sun.java.command"))
+
+internal fun autostartDesktopEntry(executable: String, wmClass: String?): String = buildString {
     appendLine("[Desktop Entry]")
     appendLine("Type=Application")
     appendLine("Name=Yabai OCR")
@@ -30,7 +49,7 @@ internal fun autostartDesktopEntry(executable: String): String = buildString {
     appendLine("Icon=yabai-ocr")
     appendLine("Terminal=false")
     appendLine("Categories=Utility;")
-    appendLine("StartupWMClass=$APP_WM_CLASS")
+    if (wmClass != null) appendLine("StartupWMClass=$wmClass")
     appendLine("X-GNOME-Autostart-enabled=true")
 }
 
@@ -42,16 +61,7 @@ internal fun autostartDesktopEntry(executable: String): String = buildString {
  */
 internal const val KWIN_SCREENSHOT_INTERFACE = "org.kde.KWin.ScreenShot2"
 
-/**
- * `WM_CLASS` the AWT window carries: the toolkit derives it from the main class.
- *
- * GNOME links a running window to its menu entry by this value, so the entry has to declare it —
- * without `StartupWMClass` the shell cannot tell which entry the window belongs to and draws its
- * generic gear instead of the app icon.
- */
-internal const val APP_WM_CLASS = "dev-yabai-ocr-desktop-MainKt"
-
-internal fun applicationDesktopEntry(executable: String): String = buildString {
+internal fun applicationDesktopEntry(executable: String, wmClass: String?): String = buildString {
     appendLine("[Desktop Entry]")
     appendLine("Type=Application")
     appendLine("Name=Yabai OCR")
@@ -61,7 +71,7 @@ internal fun applicationDesktopEntry(executable: String): String = buildString {
     appendLine("Terminal=false")
     appendLine("Categories=Utility;")
     appendLine("StartupNotify=true")
-    appendLine("StartupWMClass=$APP_WM_CLASS")
+    if (wmClass != null) appendLine("StartupWMClass=$wmClass")
     appendLine("X-KDE-DBUS-Restricted-Interfaces=$KWIN_SCREENSHOT_INTERFACE")
 }
 
