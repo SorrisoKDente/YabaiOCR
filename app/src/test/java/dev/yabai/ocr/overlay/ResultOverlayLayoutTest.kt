@@ -1,12 +1,15 @@
 package dev.yabai.ocr.overlay
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
 import dev.yabai.ocr.R
 import dev.yabai.ocr.core.dict.DictionaryEntry
@@ -103,6 +106,54 @@ class ResultOverlayLayoutTest {
                 )
             }
         }
+    }
+
+    /**
+     * Regression: in a landscape game (a short window) with the «Imagem» toggle on, the panel opened
+     * showing nothing but the header and the «Texto reconhecido» label. The picture takes whatever
+     * height is left once the header, the text and the actions had their share, and on a short screen
+     * that is nothing; an [android.widget.ImageView] with `adjustViewBounds` and no height to fit
+     * then divides the empty height into a width of sixteen million pixels. The row kept that width
+     * for the picture, so the editor got the zero that was left — present, editable, invisible — and
+     * the card, now taller than the window, squeezed the action grid to nothing as well.
+     */
+    @Test
+    @Config(qualifiers = "w780dp-h360dp-xxhdpi")
+    fun `a short landscape screen keeps the text and the actions with the picture on`() {
+        val panel = capturedWithPicture()
+        val metrics = context.resources.displayMetrics
+        panel.measure(
+            View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(metrics.heightPixels, View.MeasureSpec.EXACTLY),
+        )
+        panel.layout(0, 0, metrics.widthPixels, metrics.heightPixels)
+
+        val editor = editor(panel)
+        assertTrue("the text field was squeezed to ${editor.width}px wide", editor.width > 0)
+
+        val buttons = buttonRows(panel).flatten()
+        assertTrue("the panel should still offer its actions", buttons.size >= 5)
+        for (button in buttons) {
+            assertTrue(
+                "«${button.text}» was squeezed to ${button.height}px tall",
+                button.height > 0,
+            )
+        }
+    }
+
+    /**
+     * The other side of the test above: where the screen does have room, the picture is still there.
+     * The guard that drops a picture with no room must not become a panel that never shows one.
+     */
+    @Test
+    fun `the picture still shows when the screen has room for it`() {
+        val panel = layout(capturedWithPicture(), 320)
+        val picture = picture(panel)
+        assertNotNull("the panel should carry the captured picture", picture)
+        assertTrue(
+            "the picture should be on screen: ${picture!!.width}x${picture.height}",
+            picture.width > 0 && picture.height > 0,
+        )
     }
 
     /** The actions on offer, in the order the user sees them. */
@@ -345,6 +396,27 @@ class ResultOverlayLayoutTest {
 
     // --- helpers --------------------------------------------------------------------------------
 
+    /**
+     * A capture whose picture is on screen — the «Imagem» button writes a saved setting, so every
+     * later capture opens this way.
+     */
+    private fun capturedWithPicture(): ResultOverlay = ResultOverlay(context).apply {
+        showResult(
+            text = "職員さんに聞いたら",
+            meta = "Google Lens · 4857 ms · ja",
+            notes = emptyList(),
+            offlineAvailable = true,
+            showLines = false,
+            segmentLines = emptyList(),
+            canRepick = true,
+            image = Bitmap.createBitmap(320, 90, Bitmap.Config.ARGB_8888).apply {
+                eraseColor(Color.rgb(70, 90, 140))
+            },
+            showImage = true,
+            canAskAi = true,
+        )
+    }
+
     /** Measures and lays out [view] the way the window manager would at a screen [width]. */
     private fun <T : View> layout(view: T, width: Int): T {
         view.measure(
@@ -382,6 +454,22 @@ class ResultOverlayLayoutTest {
             return null
         }
         return find(root) ?: error("the panel has no editable text")
+    }
+
+    /** The picture beside the recognised text, if the panel put one on screen. */
+    private fun picture(root: ViewGroup): ImageView? {
+        val wanted = context.getString(R.string.result_image_description)
+        fun find(group: ViewGroup): ImageView? {
+            for (index in 0 until group.childCount) {
+                when (val child = group.getChildAt(index)) {
+                    is ImageView ->
+                        if (child.contentDescription?.toString() == wanted) return child
+                    is ViewGroup -> find(child)?.let { return it }
+                }
+            }
+            return null
+        }
+        return find(root)
     }
 
     /** Every label under [root], in the order it was added, so a test can look for the one it means. */

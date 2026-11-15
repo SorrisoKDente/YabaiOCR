@@ -13,6 +13,7 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | --- | --- | --- | --- |
 | B1 | `[x]` | **Botão «Fechar» cortado** no painel de resultado | trivial |
 | B2 | `[x]` | **«Analisar» parece não fazer nada** | trivial |
+| B3 | `[x]` | **Painel vazio em paisagem** (só cabeçalho e o rótulo do texto) | média |
 
 ### B1 — Botão «Fechar» cortado  `[x]` (18/10/2026)
 
@@ -6055,4 +6056,52 @@ no **Nautilus** continua sendo o MIME genérico (`application/x-executable`, a e
 PNG certo em `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png`: o Nautilus não consulta
 `StartupWMClass`/`Icon=` de entradas `.desktop` para arquivos soltos. No SteamOS o Dolphin lê o
 `.DirIcon` do AppImage (o mesmo PNG, hash `44c98976…`), então lá o ícone deve sair certo. Nada foi
+commitado.
+
+### D68 — Paisagem com a imagem ligada abria o painel só com cabeçalho e rótulo  `[x]` (15/11/2026)
+
+**Relato.** Em jogos DMM em **paisagem**, tocar numa caixa do picker abria o painel «Texto reconhecido»
+com o cabeçalho (título, «Google Lens · 4857 ms · ja», chevron, ✕) e o rótulo «Texto reconhecido (toque
+para corrigir; a análise se atualiza)» — e **mais nada**: nem editor, nem «Copiar original», nem
+«Fechar», nem «Imagem». O app continuava vivo (nada de exceção), e o mesmo jogo em retrato, com a tela
+dividida, abria o painel completo. O print mostrava o cartão preenchido de `panel_bg` até o fim da tela.
+
+**Causa raiz.** O caminho não é o OCR nem o picker: é a **imagem ao lado do texto** (`showImage`, o botão
+«Imagem», que grava um ajuste e vale para as capturas seguintes). `freeHeightForImage()` devolve o que
+sobra da altura depois do cabeçalho, do texto e das ações — e numa janela curta (paisagem) sobra **zero**.
+O `CappedImageView` passava esse zero como `AT_MOST(0)` para o `ImageView`; com `adjustViewBounds` e
+`maxHeight`, o cálculo de proporção do `ImageView` divide a altura vazia e **estoura**: mediu
+`16 777 198 px` de largura (reproduzido em Robolectric NATIVE: `cap=0 -> 16777198x0`). A linha do texto
+dava essa largura à imagem, e o `EditText` (peso 1) ficava com **0 px** de largura — presente, editável,
+invisível — mas com 1122 px de altura. O cartão virava uma parede de `panel_bg` e, maior que a janela, o
+`LinearLayout` espremia o último filho até zero: o `ActionGrid` desaparecia inteiro. É o mesmo mecanismo
+do B1 (LinearLayout encolhendo quem não cabe), agora alimentado pela imagem.
+
+**O que mudou.** Uma guarda no `CappedImageView.onMeasure`: tampa menor ou igual ao padding vertical da
+própria view significa que não há altura para um pixel de imagem — mede `0×0` e não desenha. É a regra
+que o painel já seguia («a imagem é a única parte que pode ceder sem nada ficar inalcançável»): em
+paisagem o texto e os botões aparecem e a imagem simplesmente não tem espaço. Nenhum outro arquivo de
+produção mudou.
+
+**Evidência numérica** (Robolectric, `w780dp-h360dp-xxhdpi`, janela 2340×1080, imagem 320×90, texto
+`職員さんに聞いたら`):
+
+| | antes | depois |
+| --- | --- | --- |
+| `CappedImageView` | `16777198×0` | `0×0` |
+| `EditText` | `0×1122` (invisível) | `2196×101` |
+| `ActionGrid` | `2196×0` (nenhum botão) | `2196×488` (4 linhas de `101 px`) |
+| cartão | maior que a janela | `810 px` de `1080` |
+
+**Testes e mutações.** 418 testes do `:app`, 0 falhas (eram 416). Novos, em `ResultOverlayLayoutTest`:
+`a short landscape screen keeps the text and the actions with the picture on` — paisagem de celular,
+imagem ligada, mede a janela inteira e exige `editor.width > 0` e **todos** os botões com altura `> 0` —
+e `the picture still shows when the screen has room for it`, que impede a guarda de virar um painel que
+nunca mostra imagem. Mutação derrubada: removida a guarda do `CappedImageView`, o primeiro falha com
+«the text field was squeezed to 0px wide» (1 falha); restaurada, passa.
+
+**Limitações.** Sem aparelho/emulador aqui: a reprodução é Robolectric com as métricas do celular, não um
+print do jogo. O caso exige o ajuste «Imagem» ligado — com ele desligado o `CappedImageView` nem entra na
+linha e o painel em paisagem nunca quebrou. Em telas ainda mais curtas que 360 dp (janela dividida em
+paisagem), o `ActionGrid` continua sujeito ao encolhimento do B1; não foi mexido nesta entrada. Nada foi
 commitado.

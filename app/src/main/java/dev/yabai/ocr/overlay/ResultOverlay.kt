@@ -1877,7 +1877,18 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         private val cap: (width: Int) -> Int,
     ) : ImageView(context) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            val limit = MeasureSpec.makeMeasureSpec(cap(MeasureSpec.getSize(widthMeasureSpec)), MeasureSpec.AT_MOST)
+            val room = cap(MeasureSpec.getSize(widthMeasureSpec))
+            // A cap that does not even cover this view's own vertical padding leaves no room for a
+            // single pixel of picture. `adjustViewBounds` then divides that empty height into a width
+            // of sixteen million pixels (the aspect-ratio pass overflows), the row hands that width to
+            // the picture, and the text beside it is laid out with nothing left — a landscape game
+            // with the «Imagem» toggle on showed a panel with only its header and the text label. A
+            // picture with no room is no picture: the text and the actions are what the panel is for.
+            if (room <= paddingTop + paddingBottom) {
+                setMeasuredDimension(0, 0)
+                return
+            }
+            val limit = MeasureSpec.makeMeasureSpec(room, MeasureSpec.AT_MOST)
             super.onMeasure(widthMeasureSpec, limit)
         }
     }

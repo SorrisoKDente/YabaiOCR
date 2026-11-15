@@ -27,6 +27,7 @@ local.properties
 /apk-output/
 /release-apk/
 /release/
+/app/release/
 
 # Logs and temp files
 *.log
