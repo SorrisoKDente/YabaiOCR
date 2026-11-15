@@ -54,13 +54,15 @@ Building from source needs JDK 17+ and the Gradle wrapper — see [Building](#bu
 
 ## Installing
 
+> **Download the latest release files for your OS from the [GitHub Releases page](https://github.com/SorrisoKDente/YabaiOCR/releases/latest).**
+
 ### SteamOS / Steam Deck (Desktop Mode)
 
 ```bash
 mkdir -p ~/Applications
-mv ~/Downloads/Yabai_OCR-*-x86_64.AppImage ~/Applications/
-chmod +x ~/Applications/Yabai_OCR-*-x86_64.AppImage
-~/Applications/Yabai_OCR-*.AppImage
+mv ~/Downloads/Yabai_OCR*.AppImage ~/Applications/
+chmod +x ~/Applications/Yabai_OCR*.AppImage
+~/Applications/Yabai_OCR*.AppImage
 ```
 
 The app opens on Settings and stays in the tray. **Settings → Integrate with the system** adds it to
@@ -81,9 +83,9 @@ portal work as soon as the app starts; only the dialog-free capture waits for th
 ```bash
 # AppImage
 sudo apt install libfuse2t64     # Ubuntu 24.04+; use libfuse2 on 22.04 and older
-chmod +x ~/Downloads/Yabai_OCR-*-x86_64.AppImage
-mv ~/Downloads/Yabai_OCR-*-x86_64.AppImage ~/Applications/
-~/Applications/Yabai_OCR-*.AppImage
+chmod +x ~/Downloads/Yabai_OCR*.AppImage
+mv ~/Downloads/Yabai_OCR*.AppImage ~/Applications/
+~/Applications/Yabai_OCR*.AppImage
 
 # or the .deb
 sudo apt install ./yabai-ocr_<version>_amd64.deb

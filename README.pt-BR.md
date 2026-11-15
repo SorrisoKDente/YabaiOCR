@@ -54,13 +54,15 @@ Compilar do código exige JDK 17+ e o wrapper do Gradle — ver [Compilar](#comp
 
 ## Instalação
 
+> **Baixe os arquivos da versão mais recente para o seu sistema na página de [Releases no GitHub](https://github.com/SorrisoKDente/YabaiOCR/releases/latest).**
+
 ### SteamOS / Steam Deck (Desktop Mode)
 
 ```bash
 mkdir -p ~/Applications
-mv ~/Downloads/Yabai_OCR-*-x86_64.AppImage ~/Applications/
-chmod +x ~/Applications/Yabai_OCR-*-x86_64.AppImage
-~/Applications/Yabai_OCR-*.AppImage
+mv ~/Downloads/Yabai_OCR*.AppImage ~/Applications/
+chmod +x ~/Applications/Yabai_OCR*.AppImage
+~/Applications/Yabai_OCR*.AppImage
 ```
 
 O app abre nos Ajustes e fica na bandeja. **Ajustes → Integrar ao sistema** coloca no menu de
@@ -81,9 +83,9 @@ assim que o app abre; só a captura sem diálogo espera o relogin.
 ```bash
 # AppImage
 sudo apt install libfuse2t64     # Ubuntu 24.04+; use libfuse2 no 22.04 e anteriores
-chmod +x ~/Downloads/Yabai_OCR-*-x86_64.AppImage
-mv ~/Downloads/Yabai_OCR-*-x86_64.AppImage ~/Applications/
-~/Applications/Yabai_OCR-*.AppImage
+chmod +x ~/Downloads/Yabai_OCR*.AppImage
+mv ~/Downloads/Yabai_OCR*.AppImage ~/Applications/
+~/Applications/Yabai_OCR*.AppImage
 
 # ou o .deb
 sudo apt install ./yabai-ocr_<versão>_amd64.deb
