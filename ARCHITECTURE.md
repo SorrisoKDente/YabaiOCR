@@ -61,7 +61,7 @@ Opções de teste que ligam casos reais (nenhuma roda por padrão):
 | `-PcompiledDicts="C:\compiled"` | `:core` | `.yabai` já compilados (índice de tradução) |
 | `-Pppocr="C:\home"` | `:desktop` | modelos do PP-OCR em `home/ppocr_v6` (teste ponta a ponta) |
 
-Contagens atuais: **`:core` 177 testes**, **`:desktop` 265**, **`:app` 411**. Confirme com a suíte
+Contagens atuais: **`:core` 177 testes**, **`:desktop` 265**, **`:app` 424**. Confirme com a suíte
 antes de citá-los.
 
 ---

@@ -6191,3 +6191,45 @@ transparent: the system draws the icon as a solid square». Restaurados, 422 tes
 **Limitações.** O Robolectric confirma a transparência e o id do recurso, não a aparência da notificação
 no aparelho. Não há aparelho aqui para conferir a barra de status.
 
+### D71 — Painel deitado mais alto e bolha alcançando a borda do display  `[x]` (15/11/2026)
+
+**Relato.** «Aumentar um pouco o espaço que o aplicativo cobre da tela na aba de reconhecimento quando o
+celular está de lado — não quero que cubra 100% da tela, mas dá pra aumentar uns 5/10% pra cima e pra
+baixo» e «a bolha flutuante parece ter um limite… na parte de baixo quando o celular está em pé e na
+parte da direita quando o celular está deitado virado para a esquerda; gostaria de deixar a borda da
+bolha chegar até onde tem os botões do aparelho».
+
+**Causa raiz do painel.** `ResultOverlay.availableHeight()` subtraía a altura da barra de status **e** da
+barra de navegação em qualquer orientação. Deitado, a barra de navegação fica na lateral: a altura dela
+não rouba nada da altura do painel, mas era descontada igual — o card saía uma barra de navegação mais
+baixo do que o espaço que a janela overlay pode ocupar.
+
+**Correção do painel.** O cálculo virou `availablePanelHeight(displayHeight, statusBar, navigationBar,
+landscape, topMargin)`: em landscape desconta só a barra de status. Retrato continua igual (o painel já
+cabia). O ganho é a altura da barra de navegação, ~7-13% conforme a densidade — dentro do «5/10% a mais»
+pedido.
+
+**Causa raiz da bolha.** O limite do arrasto vinha de `resources.displayMetrics`, que é a área em que um
+app desenha: a barra de navegação **já está fora** dela, no lado em que a orientação a coloca. A janela
+da bolha é adicionada com `FLAG_LAYOUT_IN_SCREEN`, ou seja, suas coordenadas são coordenadas do display
+inteiro — mas o clamp usava a métrica do app. Resultado: uma faixa morta exatamente com a largura da
+barra de navegação embaixo (retrato) e à direita (deitado para a esquerda), justo onde ficam os três
+botões do sistema, e a bolha não entrava ali.
+
+**Correção da bolha.** `OverlayController.displayBounds()` lê o display inteiro (`Display.getRealMetrics`,
+que funciona de API 26 ao 36 e no Robolectric; cai para `displayMetrics` se vier vazio) e o limite do
+arrasto e o encaixe nas bordas usam esse retângulo: `clampBubbleTo(params, bounds)` e
+`snapToEdgeIn(params, bounds)`.
+
+**Testes e mutações.**
+
+| teste | mutação que o derruba |
+| --- | --- |
+| `ResultOverlayLayoutTest > o painel deitado nao perde a altura da barra de navegacao` | voltar a descontar `navigationBar` em landscape → esperado 330, obtido 282 |
+| `BubblePlacementTest > a bolha alcanca a borda do display inteiro` | trocar `bounds.right/bottom` por `displayMetrics.width/heightPixels` no clamp |
+
+**Limitações.** O Robolectric não distingue métricas reais das do app, então o teste do clamp prende a
+função (recebe o retângulo e precisa usá-lo); a leitura do display real só se prova no aparelho.
+Nenhum dos dois ajustes foi verificado visualmente no celular.
+
+**Resultado.** `:app` 424 testes, 0 falhas (os dois novos incluídos).

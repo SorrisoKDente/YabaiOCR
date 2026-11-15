@@ -61,6 +61,25 @@ class ResultOverlayLayoutTest {
     }
 
     /**
+     * Regression: the height budget subtracted the navigation bar in every orientation. With the
+     * phone on its side that bar is at the side of the screen, so the card came out one navigation
+     * bar shorter than the screen it can cover — the strip the user asked to win back.
+     */
+    @Test
+    fun `o painel deitado nao perde a altura da barra de navegacao`() {
+        assertEquals(
+            "landscape should only lose the status bar",
+            360 - 24 - 6,
+            availablePanelHeight(360, statusBar = 24, navigationBar = 48, landscape = true, topMargin = 6),
+        )
+        assertEquals(
+            "portrait still keeps room for the bar at the bottom",
+            640 - 24 - 48 - 6,
+            availablePanelHeight(640, statusBar = 24, navigationBar = 48, landscape = false, topMargin = 6),
+        )
+    }
+
+    /**
      * Regression: the button rows were `LinearLayout`s, and a LinearLayout never wraps. Once the
      * buttons added up to more than the panel was wide, the last one was squeezed to a sliver and its
      * label was drawn one character per line — «Fechar» as a vertical column of letters, hanging off

@@ -2,6 +2,8 @@ package dev.yabai.ocr.overlay
 
 import android.content.Context
 import android.graphics.Point
+import android.graphics.Rect
+import android.view.WindowManager
 import android.view.MotionEvent
 import android.view.View
 import android.widget.CheckBox
@@ -96,6 +98,26 @@ class BubblePlacementTest {
         controller.setPaused(false)
 
         assertEquals("the bubble came back somewhere else", resting, controller.bubbleOrigin())
+    }
+
+    /**
+     * Regression: the drag limit came from `resources.displayMetrics`, which is the area the app
+     * draws in and already has the navigation bar taken out. The bubble therefore stopped one bar
+     * short of the bottom in portrait and of the right edge with the phone rotated left — exactly the
+     * strip where the system buttons sit, which the overlay window may use.
+     */
+    @Test
+    fun `a bolha alcanca a borda do display inteiro`() {
+        val controller = OverlayController(context)
+        val params = WindowManager.LayoutParams()
+        val wholeDisplay = Rect(0, 0, 1080, 2400)
+        params.x = 5000
+        params.y = 5000
+
+        controller.clampBubbleTo(params, wholeDisplay)
+
+        assertEquals(1080 - controller.bubbleSize + context.dp(4), params.x)
+        assertEquals(2400 - controller.bubbleSize - context.dp(4), params.y)
     }
 
     /** The choice is a setting like any other: off by default, saved for the next start. */

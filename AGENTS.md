@@ -68,7 +68,7 @@ Opções do `:core`:
 ```
 
 A suíte desktop fechou em **404 testes**, o `:core` padrão (sem `-Plive`/`-Pdicts`) em **194** e o
-app, com Robolectric, em **422** na última verificação (15/11/2026). Se os números mudarem, confirme
+app, com Robolectric, em **424** na última verificação (15/11/2026). Se os números mudarem, confirme
 que os testes novos são intencionais e atualize ROADMAP/AGENTS.
 
 ## Teste de regressão e prova de mutação

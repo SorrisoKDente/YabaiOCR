@@ -1810,10 +1810,14 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     /** What the panel has to work with: the screen minus the bars it cannot draw over. */
     private fun availableHeight(): Int =
-        context.resources.displayMetrics.heightPixels -
-            systemBarHeight("status_bar_height", fallbackDp = 24) -
-            systemBarHeight("navigation_bar_height", fallbackDp = 48) -
-            dp(CARD_TOP_MARGIN_DP)
+        availablePanelHeight(
+            displayHeight = context.resources.displayMetrics.heightPixels,
+            statusBar = systemBarHeight("status_bar_height", fallbackDp = 24),
+            navigationBar = systemBarHeight("navigation_bar_height", fallbackDp = 48),
+            landscape = context.resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE,
+            topMargin = dp(CARD_TOP_MARGIN_DP),
+        )
 
     /**
      * The height the card spends on everything except [except] (and except the scrolling section, whose
@@ -2003,3 +2007,19 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         private const val PICKER_MAX_WIDTH_DP = 150
     }
 }
+
+/**
+ * The height the panel may use.
+ *
+ * The navigation bar only takes room from the card when it sits at the bottom. With the phone on its
+ * side it is at the side of the screen, so subtracting its height shortened the card for nothing —
+ * the panel came out one navigation bar shorter than the screen it can cover, which is the strip the
+ * user asked to win back.
+ */
+internal fun availablePanelHeight(
+    displayHeight: Int,
+    statusBar: Int,
+    navigationBar: Int,
+    landscape: Boolean,
+    topMargin: Int,
+): Int = displayHeight - statusBar - (if (landscape) 0 else navigationBar) - topMargin

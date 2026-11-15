@@ -316,19 +316,52 @@ class OverlayController(
         return false
     }
 
-    private fun clampBubble(params: WindowManager.LayoutParams) {
-        val metrics = context.resources.displayMetrics
+    private fun clampBubble(params: WindowManager.LayoutParams) = clampBubbleTo(params, displayBounds())
+
+    /**
+     * Keeps the bubble inside [bounds], which is the **whole** display, system bars included.
+     *
+     * The bubble's window is added with `FLAG_LAYOUT_IN_SCREEN`, so its coordinates are display
+     * coordinates: the limit may not come from `resources.displayMetrics`, which is the area an app
+     * draws in and already leaves the navigation bar out. Clamping against that left a dead strip
+     * exactly one navigation bar wide — at the bottom in portrait, at the right edge with the phone
+     * rotated left — where the bubble could not be dragged to, which is the strip that holds the
+     * system buttons.
+     */
+    internal fun clampBubbleTo(params: WindowManager.LayoutParams, bounds: Rect) {
         val margin = dp(4)
-        params.x = params.x.coerceIn(-margin, metrics.widthPixels - bubbleSize + margin)
-        params.y = params.y.coerceIn(margin, metrics.heightPixels - bubbleSize - margin)
+        val maxX = (bounds.right - bubbleSize + margin).coerceAtLeast(-margin)
+        val maxY = (bounds.bottom - bubbleSize - margin).coerceAtLeast(bounds.top + margin)
+        params.x = params.x.coerceIn(-margin, maxX)
+        params.y = params.y.coerceIn(bounds.top + margin, maxY)
     }
 
-    private fun snapToEdge(params: WindowManager.LayoutParams) {
-        val metrics = context.resources.displayMetrics
+    private fun snapToEdge(params: WindowManager.LayoutParams) = snapToEdgeIn(params, displayBounds())
+
+    internal fun snapToEdgeIn(params: WindowManager.LayoutParams, bounds: Rect) {
         val margin = dp(6)
-        val left = params.x + bubbleSize / 2 < metrics.widthPixels / 2
-        params.x = if (left) margin else metrics.widthPixels - bubbleSize - margin
-        params.y = params.y.coerceIn(margin, metrics.heightPixels - bubbleSize - margin)
+        val left = params.x + bubbleSize / 2 < bounds.exactCenterX()
+        params.x = if (left) margin else (bounds.right - bubbleSize - margin).coerceAtLeast(margin)
+        val maxY = (bounds.bottom - bubbleSize - margin).coerceAtLeast(bounds.top + margin)
+        params.y = params.y.coerceIn(bounds.top + margin, maxY)
+    }
+
+    /**
+     * The whole display, bars and all.
+     *
+     * `Display.getRealMetrics` is deprecated in favour of `WindowMetrics`, but it is the one call
+     * that answers on every API level this app supports (26+) and in Robolectric.
+     */
+    internal fun displayBounds(): Rect {
+        val manager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        val metrics = android.util.DisplayMetrics()
+        @Suppress("DEPRECATION")
+        manager?.defaultDisplay?.getRealMetrics(metrics)
+        if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
+            return Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
+        }
+        val fallback = context.resources.displayMetrics
+        return Rect(0, 0, fallback.widthPixels, fallback.heightPixels)
     }
 
     // --- action menu ---------------------------------------------------------------------------

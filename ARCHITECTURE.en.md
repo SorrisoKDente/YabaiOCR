@@ -62,7 +62,7 @@ Test flags that turn on real cases (none of them run by default):
 | `-PcompiledDicts="C:\compiled"` | `:core` | already compiled `.yabai` (translation index) |
 | `-Pppocr="C:\home"` | `:desktop` | PP-OCR models in `home/ppocr_v6` (end-to-end test) |
 
-Current counts: **`:core` 177 tests**, **`:desktop` 265**, **`:app` 411**. Confirm with the suite
+Current counts: **`:core` 177 tests**, **`:desktop` 265**, **`:app` 424**. Confirm with the suite
 before quoting them.
 
 ---
