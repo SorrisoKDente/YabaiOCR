@@ -3,6 +3,7 @@ package dev.yabai.ocr.desktop
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.core.layout.KanjiGrid
+import dev.yabai.ocr.core.layout.ReadingOrder
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.core.lens.LensSegment
 import dev.yabai.ocr.core.lens.PixelBox
@@ -41,6 +42,26 @@ object HoverTextSelector {
 
     /** How many characters away a hit may be when the pointer is on punctuation. */
     const val TOKEN_SNAP_CHARS = 3
+
+    /**
+     * How close to a line's edge the pointer has to be for a word to be looked up across lines.
+     *
+     * A word that started in the previous line leaves at most a few of its characters at the head of
+     * this one; anywhere else the word under the pointer is complete in this line, and joining lines
+     * would only invent words.
+     */
+    const val BRIDGE_EDGE_CHARS = 3
+
+    /**
+     * How many characters of the neighbouring line are carried into the candidate.
+     *
+     * A dictionary term never exceeds `LookupEngine.MAX_TERM_LENGTH` (16), so a longer tail cannot
+     * contribute to a hit and only makes the candidate string bigger.
+     */
+    const val BRIDGE_CHARS = 16
+
+    /** How far apart two lines may be and still be neighbours, in glyphs. */
+    private const val MERGE_GAP_RATIO = 0.75
 
     /** Advance of a full-width Japanese cell; the unit every other weight is relative to. */
     private const val FULL_WIDTH = 1.0
@@ -83,23 +104,224 @@ object HoverTextSelector {
 
         for ((segment, _) in candidates) {
             val box = segment.box ?: continue
-            val matches = lookup(segment.text, only)
-            if (matches.isEmpty()) continue
-
             val index = characterIndex(segment.text, box, imagePoint)
-            val covering = matches.firstOrNull { index >= it.start && index < it.end }
-            val match = covering ?: matches
-                .filter { distanceToRange(index, it.start, it.end) <= TOKEN_SNAP_CHARS }
-                .minByOrNull { distanceToRange(index, it.start, it.end) }
-            if (match == null) continue
+            val inside = distanceToBox(imagePoint, box) <= 0.0
 
-            return HoverHit(
-                match = match,
-                line = segment,
-                tokenBox = tokenBox(segment.text, box, match.start, match.end),
-            )
+            val matches = lookup(segment.text, only)
+            val covering = matches.firstOrNull { index >= it.start && index < it.end }
+            // Snapping is for punctuation and blanks, where there is no word to answer with. A
+            // kanji or kana that finds nothing is the head of a word printed in the next line, and
+            // snapping answered with a word *above* it — always a neighbour, never the pointer's.
+            val snapped = covering ?: if (snapAllowed(segment.text, index)) {
+                matches
+                    .filter { distanceToRange(index, it.start, it.end) <= TOKEN_SNAP_CHARS }
+                    .minByOrNull { distanceToRange(index, it.start, it.end) }
+            } else null
+            val direct = snapped?.let { match ->
+                HoverHit(match, segment, tokenBox(segment.text, box, match.start, match.end))
+            }
+
+            // A word printed across the line boundary is only a better answer when it is *longer*
+            // than what this line alone offers: standing near an edge is no reason to throw away a
+            // complete word the pointer is on.
+            val crossed = crossingMatch(result, segment, index, box, lookup, only)
+            val chosen = when {
+                crossed != null && (direct == null || crossed.span > direct.match.span()) -> crossed.hit
+                else -> direct
+            }
+            if (chosen != null) return chosen
+
+            // The pointer is inside a line that *does* have entries, yet none covers the character.
+            // Falling through to the next candidate then named a word from another column, and the
+            // card looked like it was reading the wrong text. A line with no entries at all keeps
+            // the old behaviour: it does not swallow a pointer that a nearby line can answer.
+            if (inside && matches.isNotEmpty()) return null
         }
         return null
+    }
+
+    /** Whether the character at [index] may answer with a nearby word instead of its own. */
+    private fun snapAllowed(text: String, index: Int): Boolean {
+        val character = text.getOrNull(index) ?: return false
+        return !character.isLetterOrDigit()
+    }
+
+    /** A hit whose word begins in one printed line and ends in the next one of the same block. */
+    private class Crossing(val hit: HoverHit, val span: Int)
+
+    private fun TokenMatch.span(): Int = end - start
+
+    /**
+     * The word under the pointer when it is split between two lines (or two columns) of one block.
+     *
+     * The lines are taken from `LensResult.blocks[].pieces`, which are already in reading order and
+     * already have the furigana readings removed: with the raw segments a reading printed beside a
+     * kanji would be glued into the sentence. Which neighbour to join follows that same order —
+     * below in horizontal text, to the *right* in vertical text — so «next» is never guessed from
+     * screen coordinates.
+     */
+    private fun crossingMatch(
+        result: LensResult,
+        segment: LensSegment,
+        index: Int,
+        box: PixelBox,
+        lookup: (String, Set<String>) -> List<TokenMatch>,
+        only: Set<String>,
+    ): Crossing? {
+        val text = segment.text
+        if (text.isEmpty()) return null
+        val (pieces, position) = neighbourhoodOf(result, segment) ?: return null
+
+        val nearHead = index < BRIDGE_EDGE_CHARS
+        val nearTail = index >= text.length - BRIDGE_EDGE_CHARS
+        if (!nearHead && !nearTail) return null
+
+        val before = if (nearHead) joinWithPrevious(pieces, position, text, box, index, lookup, only) else null
+        val after = if (nearTail) joinWithNext(pieces, position, text, box, index, lookup, only) else null
+        return listOfNotNull(before, after).maxByOrNull { it.span }
+    }
+
+    /** The line, its position, and the lines around it in reading order. */
+    private fun neighbourhoodOf(
+        result: LensResult,
+        segment: LensSegment,
+    ): Pair<List<LensSegment>, Int>? {
+        val pieces = blockPiecesOf(result, segment)
+        if (pieces != null && pieces.size >= 2) {
+            val position = pieces.indexOfFirst { it.text == segment.text && it.box == segment.box }
+            if (position >= 0) return pieces to position
+        }
+        // Lens does not always put the columns of one vertical sentence in the same block: in a
+        // novel each column often arrives as its own block, which is why the feature looked dead
+        // there. The raw segments are no help for the order either — Lens reports the columns of a
+        // page in any arrangement, and «the next one in the list» was then the column on the
+        // *right*, the one already read. The geometry knows the order, so it is worked out from the
+        // boxes; only the lines it says are adjacent are joined, so a different balloon still
+        // cannot be glued on.
+        val all = result.segments.filter { it.text.isNotBlank() && it.box != null }
+        val ordered = if (all.size > 1) {
+            ReadingOrder.order(all.map { it.box }).map { all[it] }
+        } else {
+            all
+        }
+        val position = ordered.indexOfFirst { it.text == segment.text && it.box == segment.box }
+        if (position < 0) return null
+        return ordered to position
+    }
+
+    /** The block that holds [segment], with its pieces in reading order. */
+    private fun blockPiecesOf(result: LensResult, segment: LensSegment): List<LensSegment>? =
+        result.blocks
+            .firstOrNull { block ->
+                block.pieces.any { piece -> piece.text == segment.text && piece.box == segment.box }
+            }
+            ?.pieces
+            ?.filter { it.text.isNotBlank() && it.box != null }
+            ?.takeIf { it.isNotEmpty() }
+
+    /**
+     * Whether two printed lines are neighbours on the page.
+     *
+     * Same direction, a shared band across it, and a gap along it shorter than one glyph — the rule
+     * the block builder uses. A word is never joined with a line from another balloon: those are
+     * separated by more than a glyph of white space, or sit on a different band.
+     */
+    internal fun adjacent(first: PixelBox, second: PixelBox): Boolean {
+        val firstVertical = isVertical(first)
+        if (firstVertical != isVertical(second)) return false
+        return if (firstVertical) {
+            val shared = minOf(first.bottom, second.bottom) - maxOf(first.y, second.y)
+            if (shared < 0.5 * minOf(first.height, second.height)) return false
+            maxOf(second.x - first.right, first.x - second.right) <= MERGE_GAP_RATIO * maxOf(first.width, second.width)
+        } else {
+            val shared = minOf(first.right, second.right) - maxOf(first.x, second.x)
+            if (shared < 0.5 * minOf(first.width, second.width)) return false
+            maxOf(second.y - first.bottom, first.y - second.bottom) <= MERGE_GAP_RATIO * maxOf(first.height, second.height)
+        }
+    }
+
+    private fun joinWithPrevious(
+        pieces: List<LensSegment>,
+        position: Int,
+        text: String,
+        box: PixelBox,
+        index: Int,
+        lookup: (String, Set<String>) -> List<TokenMatch>,
+        only: Set<String>,
+    ): Crossing? {
+        val previous = pieces.getOrNull(position - 1) ?: return null
+        val previousBox = previous.box ?: return null
+        if (!adjacent(previousBox, box)) return null
+        val carried = previous.text.takeLast(BRIDGE_CHARS)
+        if (carried.isEmpty()) return null
+
+        val joined = carried + text
+        val boundary = carried.length
+        val pointer = boundary + index
+        val match = crossingMatchIn(joined, boundary, pointer, lookup(joined, only)) ?: return null
+
+        val head = tokenBox(
+            previous.text,
+            previousBox,
+            previous.text.length - carried.length + match.start,
+            previous.text.length,
+        )
+        val tail = tokenBox(text, box, 0, match.end - boundary)
+        // `line` stays the one under the pointer: it is what the card anchors itself to.
+        val pointerLine = pieces[position]
+        return Crossing(HoverHit(match, pointerLine, union(head, tail)), match.span())
+    }
+
+    private fun joinWithNext(
+        pieces: List<LensSegment>,
+        position: Int,
+        text: String,
+        box: PixelBox,
+        index: Int,
+        lookup: (String, Set<String>) -> List<TokenMatch>,
+        only: Set<String>,
+    ): Crossing? {
+        val next = pieces.getOrNull(position + 1) ?: return null
+        val nextBox = next.box ?: return null
+
+        if (!adjacent(box, nextBox)) return null
+        val following = next.text.take(BRIDGE_CHARS)
+        if (following.isEmpty()) return null
+
+        val joined = text + following
+        val boundary = text.length
+        val match = crossingMatchIn(joined, boundary, index, lookup(joined, only)) ?: return null
+
+        val head = tokenBox(text, box, match.start, text.length)
+        val tail = tokenBox(next.text, nextBox, 0, match.end - boundary)
+        val pointerLine = pieces[position]
+        return Crossing(HoverHit(match, pointerLine, union(head, tail)), match.span())
+    }
+
+    /**
+     * The match of [joined] that covers [pointer] and really crosses the boundary.
+     *
+     * A token that begins and ends on the same side is the word the line alone already had, and
+     * accepting it here would move the highlight to a neighbour that is not part of the word.
+     */
+    private fun crossingMatchIn(
+        joined: String,
+        boundary: Int,
+        pointer: Int,
+        matches: List<TokenMatch>,
+    ): TokenMatch? = matches
+        .filter { pointer >= it.start && pointer < it.end }
+        .filter { it.start < boundary && it.end > boundary }
+        .filter { it.start >= 0 && it.end <= joined.length }
+        .maxByOrNull { it.span() }
+
+    /** The smallest box that contains both halves of a word split between two lines. */
+    private fun union(first: PixelBox, second: PixelBox): PixelBox {
+        val left = minOf(first.x, second.x)
+        val top = minOf(first.y, second.y)
+        val right = maxOf(first.right, second.right)
+        val bottom = maxOf(first.bottom, second.bottom)
+        return PixelBox(left, top, right - left, bottom - top)
     }
 
     /** Character index of [point] along a line box, clamped to the text. */

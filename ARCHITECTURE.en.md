@@ -62,7 +62,7 @@ Test flags that turn on real cases (none of them run by default):
 | `-PcompiledDicts="C:\compiled"` | `:core` | already compiled `.yabai` (translation index) |
 | `-Pppocr="C:\home"` | `:desktop` | PP-OCR models in `home/ppocr_v6` (end-to-end test) |
 
-Current counts: **`:core` 177 tests**, **`:desktop` 265**, **`:app` 424**. Confirm with the suite
+Current counts: **`:core` 194 tests**, **`:desktop` 417**, **`:app` 424**. Confirm with the suite
 before quoting them.
 
 ---
@@ -215,7 +215,7 @@ flags above.
 | `HoverOcrManager.kt` | hover cycle: capture → OCR (chosen engine) → dictionary → card |
 | `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close |
 | `HoverGeometry.kt` | crop around the pointer, local coordinates, HiDPI |
-| `HoverTextSelector.kt` | picks the line/word under the pointer and builds the hit |
+| `HoverTextSelector.kt` | picks the line/word under the pointer and builds the hit; joins a word split across lines/columns of the same block (D56) |
 | `HoverTooltipWindow.kt` | floating card (size, position, content); the position comes in the `WindowState` and is applied again once the window exists, because the compositor ignores a `setLocation` on a window still being mapped |
 | `WindowActivation.kt` | brings the window the user asked for to the screen (clears `ICONIFIED`, requests activation); never used by hover |
 | `HoverCapability.kt` | is hover supported in this session? (X11/Wayland/Win; on Wayland it picks between the KWin and the GNOME pointer) |

@@ -61,7 +61,7 @@ Opções de teste que ligam casos reais (nenhuma roda por padrão):
 | `-PcompiledDicts="C:\compiled"` | `:core` | `.yabai` já compilados (índice de tradução) |
 | `-Pppocr="C:\home"` | `:desktop` | modelos do PP-OCR em `home/ppocr_v6` (teste ponta a ponta) |
 
-Contagens atuais: **`:core` 177 testes**, **`:desktop` 265**, **`:app` 424**. Confirme com a suíte
+Contagens atuais: **`:core` 194 testes**, **`:desktop` 417**, **`:app` 424**. Confirme com a suíte
 antes de citá-los.
 
 ---
@@ -213,7 +213,7 @@ rodam com as flags acima.
 | `HoverOcrManager.kt` | ciclo do hover: captura → OCR (motor escolhido) → dicionário → cartão |
 | `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar |
 | `HoverGeometry.kt` | recorte ao redor do ponteiro, coordenadas locais, HiDPI |
-| `HoverTextSelector.kt` | escolhe a linha/palavra sob o ponteiro e monta o hit |
+| `HoverTextSelector.kt` | escolhe a linha/palavra sob o ponteiro e monta o hit; junta palavra partida entre linhas/colunas do mesmo bloco (D56) |
 | `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada |
 | `WindowActivation.kt` | traz para a tela a janela que o usuário pediu (limpa `ICONIFIED`, pede ativação); no hover nunca é usado |
 | `HoverCapability.kt` | o hover é suportado nesta sessão? (X11/Wayland/Win; no Wayland decide entre ponteiro do KWin e do GNOME) |

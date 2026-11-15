@@ -153,6 +153,32 @@ class HoverGeometryTest {
         assertEquals(Point(0, 0), point)
     }
 
+    /**
+     * Regression: the hover crop was 640×360 centred on the pointer, so the other half of a word
+     * split between two columns — printed at the top of the column beside it — fell outside the
+     * crop and no crossing was possible. Measured on a real novel page through Lens: with 640×360 the
+     * card answered 救 and 振; with the whole monitor's height it answered 救い and 振り向かせて.
+     */
+    @Test
+    fun `hover crop reaches the half of the word printed at the top of the next column`() {
+        val pointer = Point(1100, 900) // near the bottom of a column
+        val continuation = PixelBox(1080, 20, 24, 40) // the top of the column on its left
+        val crop = HoverGeometry.hoverCrop(pointer, screen)
+
+        assertTrue("the crop does not reach y=${continuation.y}", crop.y <= continuation.y)
+        assertTrue("the crop stops before the neighbour's bottom", crop.y + crop.height >= continuation.bottom)
+        assertTrue("the neighbour column is outside the crop on the x axis", crop.x <= continuation.x)
+        assertTrue(crop.contains(pointer))
+    }
+
+    @Test
+    fun `hover crop keeps the width that covers a dozen columns`() {
+        val crop = HoverGeometry.hoverCrop(Point(900, 500), screen)
+
+        assertEquals(HoverGeometry.HOVER_CROP_WIDTH, crop.width)
+        assertEquals(screen.height, crop.height)
+    }
+
     @Test
     fun `contains honours the margin used to keep the tooltip open`() {
         val rect = Rectangle(100, 100, 50, 50)

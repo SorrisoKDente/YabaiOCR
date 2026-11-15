@@ -262,7 +262,9 @@ internal class HoverOcrManager(
         scope.launch {
             try {
                 val screen = HoverGeometry.screenAt(point)
-                val cropRect = HoverGeometry.planCrop(point, screen, CROP_WIDTH, CROP_HEIGHT)
+                // Full monitor height: a word split between two columns has half of itself at the
+                // bottom of one column and half at the top of the next, far outside a small crop.
+                val cropRect = HoverGeometry.hoverCrop(point, screen)
                 // Windows/X11 keeps the per-device Robot; Wayland uses the screencast backend.
                 val image = captureProvider?.invoke(cropRect)
                     ?: robotFor(cropRect).createScreenCapture(cropRect)
@@ -399,8 +401,6 @@ internal class HoverOcrManager(
     private companion object {
         const val POLL_MILLIS = 60L
         const val DISMISS_GRACE_MS = 220L
-        const val CROP_WIDTH = 640
-        const val CROP_HEIGHT = 360
         const val TARGET_MARGIN = 6
         const val STALE_RADIUS_PX = 56.0
     }

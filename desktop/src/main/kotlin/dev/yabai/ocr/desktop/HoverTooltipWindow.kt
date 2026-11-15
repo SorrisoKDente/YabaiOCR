@@ -18,8 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.Divider
-import androidx.compose.material.DropdownMenu
-import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
@@ -60,7 +58,16 @@ fun HoverTooltipWindow(
     onDismiss: () -> Unit,
     onBoundsChanged: (Rectangle?) -> Unit = {},
 ) {
-    val estimatedHeight = remember(matches) { estimateHeight(matches) }
+    // Hoisted, because the list of dictionaries is drawn inside the card: it used to be a popup — a
+    // window of its own — which on this desktop opened off the bottom of the screen and took the
+    // click with it, and whose open/close raced the card's resize into «Reentry into
+    // ignoringRedrawRequests is not allowed». Inside the card it cannot leave the screen and there
+    // is no second window to race.
+    var dictMenuOpen by remember { mutableStateOf(false) }
+
+    val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles) {
+        estimateHeight(matches, dictMenuOpen, installedDictTitles.size)
+    }
 
     // Where the card goes, decided before the window exists: Compose places a new window from
     // `WindowState.position`, and a `setLocation` that lands while the window is still being mapped
@@ -74,10 +81,15 @@ fun HoverTooltipWindow(
         )
     }
 
-    val state = remember(anchor) {
+    // The state is built once, and its size is a constant on purpose. `WindowState` is applied by Compose itself, so
+    // a height that follows the content made every dictionary change resize the window *during*
+    // composition — the second writer of the same bounds, and the one that AWT refused with «Reentry
+    // into ignoringRedrawRequests is not allowed». The card is sized and placed in one place now:
+    // [applySizeAndPlacement], one event later.
+    val state = remember {
         WindowState(
             width = TOOLTIP_WIDTH.dp,
-            height = estimatedHeight.dp,
+            height = TOOLTIP_INITIAL_HEIGHT.dp,
             position = WindowPosition(anchor.x.dp, anchor.y.dp),
         )
     }
@@ -94,14 +106,11 @@ fun HoverTooltipWindow(
         LaunchedEffect(estimatedHeight, mousePoint, window) {
             window.isAutoRequestFocus = false
             window.background = java.awt.Color(0, 0, 0, 0)
-            window.setSize(TOOLTIP_WIDTH, estimatedHeight)
-            placeWindow(window, mousePoint)
-            onBoundsChanged(window.bounds)
+            applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
             // The window exists now, so the placement is no longer decided by whoever mapped it.
             // A WM that keeps its own position for the first frames is corrected here.
             delay(TOOLTIP_REPOSITION_DELAY_MS)
-            placeWindow(window, mousePoint)
-            onBoundsChanged(window.bounds)
+            applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
         }
 
         DisposableEffect(window) {
@@ -141,41 +150,31 @@ fun HoverTooltipWindow(
                             color = Color(0xFF5D84FF)
                         )
 
-                        var expandedMenu by remember { mutableStateOf(false) }
-                        Box {
-                            Surface(
-                                modifier = Modifier.clickable { expandedMenu = true },
-                                color = Color(0xFF2E3344),
-                                shape = RoundedCornerShape(4.dp)
-                            ) {
-                                Text(
-                                    text = DesktopStrings.selectDictDropdown,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    fontSize = 11.sp,
-                                    color = Color.White
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = expandedMenu,
-                                onDismissRequest = { expandedMenu = false }
-                            ) {
-                                DropdownMenuItem(onClick = {
-                                    expandedMenu = false
-                                    onSelectDictionary("")
-                                }) {
-                                    Text(DesktopStrings.allDictionaries)
-                                }
-                                installedDictTitles.forEach { title ->
-                                    DropdownMenuItem(onClick = {
-                                        expandedMenu = false
-                                        onSelectDictionary(title)
-                                    }) {
-                                        Text("📖 $title")
-                                    }
-                                }
-                            }
+                        Surface(
+                            modifier = Modifier.clickable { dictMenuOpen = !dictMenuOpen },
+                            color = Color(0xFF2E3344),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = DesktopStrings.selectDictDropdown,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                fontSize = 11.sp,
+                                color = Color.White
+                            )
                         }
+                    }
+
+                    // The list grows the card instead of hanging below it in a popup: at the bottom
+                    // of the screen a popup opens outside everything the user can see, and the
+                    // click that asked for it looks like it went through to the app behind.
+                    if (dictMenuOpen) {
+                        DictionaryList(
+                            titles = installedDictTitles,
+                            onPick = { title ->
+                                dictMenuOpen = false
+                                onSelectDictionary(title)
+                            },
+                        )
                     }
 
                     SelectionContainer {
@@ -248,9 +247,33 @@ fun HoverTooltipWindow(
     }
 }
 
+/** One row of the dictionary list: fixed height, so [estimateHeight] can count it. */
+@Composable
+private fun DictionaryList(titles: List<String>, onPick: (String) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF141620))) {
+        DictionaryRow(text = DesktopStrings.allDictionaries, onClick = { onPick("") })
+        titles.forEach { title ->
+            DictionaryRow(text = "📖 $title", onClick = { onPick(title) })
+        }
+        Divider(color = Color(0xFF2E3344), thickness = 0.5.dp)
+    }
+}
+
+@Composable
+private fun DictionaryRow(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        fontSize = 12.sp,
+        color = Color(0xFFC7CCDA),
+    )
+}
+
 /** Accurately estimates content height so window wraps definitions tightly without cutting text off. */
-private fun estimateHeight(matches: List<TokenMatch>): Int {
+internal fun estimateHeight(matches: List<TokenMatch>, dictMenuOpen: Boolean = false, dictionaryCount: Int = 0): Int {
     var pixels = 58 // Header bar (28px) + container padding + safety buffer
+    if (dictMenuOpen) pixels += DICTIONARY_ROW_HEIGHT * (dictionaryCount + 1) + 2
     for (match in matches.take(3)) {
         pixels += 26 // Term & Reading line
         if (match.surface != match.entry.term) pixels += 18
@@ -263,11 +286,22 @@ private fun estimateHeight(matches: List<TokenMatch>): Int {
         }
         pixels += lines * 20 + 16
     }
-    return pixels.coerceIn(130, 520)
+    return pixels.coerceIn(130, 640)
 }
 
 /** Width of the card, in pixels; also the width [estimateHeight]'s line wrapping assumes. */
 private const val TOOLTIP_WIDTH = 460
+
+/** Height the card starts at, before [applySizeAndPlacement] measures the content. */
+private const val TOOLTIP_INITIAL_HEIGHT = 220
+
+/**
+ * Height of one dictionary row, in pixels; the unit [estimateHeight] counts them with.
+ *
+ * The row has no fixed height: a 12 sp line plus the 7 dp of padding on each side is ~30 px, and
+ * giving it a `height` smaller than that cut the names in half — the list showed ten half-rows.
+ */
+private const val DICTIONARY_ROW_HEIGHT = 32
 
 /**
  * How long to wait before placing the card again.
@@ -277,6 +311,30 @@ private const val TOOLTIP_WIDTH = 460
  * desktop and short enough that the card does not visibly jump.
  */
 private const val TOOLTIP_REPOSITION_DELAY_MS = 120L
+
+/**
+ * Sizes and places the card, one Swing event later.
+ *
+ * `setSize` on a window that is mapping, or while one of its popups is being opened or dismissed,
+ * re-enters the component's redraw bookkeeping — AWT answers that with «Reentry into
+ * ignoringRedrawRequests is not allowed» in an Error dialog. Deferring the call to the next turn of
+ * the event loop lets the popup finish first, and the window is only touched while it is displayable.
+ */
+private fun applySizeAndPlacement(
+    window: java.awt.Window,
+    anchor: Point,
+    height: Int,
+    onBoundsChanged: (java.awt.Rectangle?) -> Unit,
+) {
+    javax.swing.SwingUtilities.invokeLater {
+        if (!window.isDisplayable) return@invokeLater
+        runCatching {
+            window.setSize(TOOLTIP_WIDTH, height)
+            placeWindow(window, anchor)
+        }
+        onBoundsChanged(window.bounds)
+    }
+}
 
 private fun placeWindow(window: java.awt.Window, anchor: Point) {
     val screen = HoverGeometry.screenAt(anchor)

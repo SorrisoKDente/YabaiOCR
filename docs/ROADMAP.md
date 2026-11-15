@@ -5503,7 +5503,7 @@ precisa ser gerado no CI (`ubuntu-latest`) ou numa máquina Linux e testado com 
 inteira e recorte — e, se ainda cair, o `hs_err_pid*.log` passa a ser obrigatório para separar
 execução do Compose da execução do ONNX Runtime.
 
-### D56 — Hover que reconhece palavra partida entre linhas/colunas  `[ ]`
+### D56 — Hover que reconhece palavra partida entre linhas/colunas  `[x]` (15/11/2026)
 
 **Pedido.** Hoje o hover lê **uma linha só**. `HoverTextSelector.select` escolhe o `LensSegment`
 mais próximo do ponteiro e chama `LookupEngine.lookup` só com o texto dele; `LookupEngine` para na
@@ -5544,6 +5544,34 @@ e o token cruzado é mais longo); linha vizinha fora do recorte (o recurso simpl
 **Testes previstos.** `HoverTextSelectorTest`: horizontal partido, vertical partido, linhas de
 blocos diferentes, token que não cruza a fronteira, furigana adjacente, caixa do destaque. Mais a
 mutações exigidas pela skill `yabai-regression`.
+
+**Implementação.** `HoverTextSelector.select` passou a tentar, além da linha sob o ponteiro, o
+candidato que atravessa a fronteira:
+
+- o vizinho vem de `LensResult.blocks[].pieces` (leitura correta, sem furigana) e a ordem é a de
+  leitura — abaixo no horizontal, à direita no vertical —, nunca "a linha que está embaixo na tela";
+- só a 3 caracteres de uma borda (`BRIDGE_EDGE_CHARS`), com até 16 caracteres do vizinho
+  (`BRIDGE_CHARS`, o teto de `LookupEngine.MAX_TERM_LENGTH`);
+- sem espaço nem quebra entre os pedaços: é a ausência de separador que faz o `LookupEngine`
+  atravessar a fronteira;
+- o `TokenMatch` precisa cobrir o caractere do ponteiro **e** cruzar a fronteira (`start` antes,
+  `end` depois);
+- a palavra cruzada só ganha quando é mais longa que a palavra inteira que a linha já oferece;
+- `HoverHit.tokenBox` é a união das duas metades, e `line` continua sendo a linha sob o ponteiro, que
+  é a âncora do cartão.
+
+**Testes e mutações.** Cinco testes novos em `HoverTextSelectorTest`: linha horizontal partida,
+colunas verticais partidas, linhas de balões diferentes (não juntam), token que não cruza (rejeitado),
+palavra completa vencendo uma travessia curta. Mutações derrubadas: (1) desligar a travessia →
+os dois testes de palavra partida falham; (2) remover a exigência de cruzar a fronteira →
+«a token that does not cross the line boundary is rejected» falha; (3) trocar `blocks[].pieces` por
+`result.segments` → «lines of different blocks are never joined» falha. Restauradas, 409 testes
+verdes no `:desktop`.
+
+**Limitações.** O teste injeta o lookup, então o que está provado é a geometria e a escolha do
+candidato, não o dicionário real. A caixa de destaque de uma palavra partida é a união das duas
+linhas — o retângulo inclui o vão entre elas; se incomodar visualmente, o próximo passo é guardar uma
+caixa por linha. Não foi verificado no app rodando.
 
 ### D57 — Ubuntu 24.04: captura recusada, avisos em 800×600 e atualização que não reabria  `[x]` (14/11/2026)
 
@@ -6233,3 +6261,154 @@ função (recebe o retângulo e precisa usá-lo); a leitura do display real só 
 Nenhum dos dois ajustes foi verificado visualmente no celular.
 
 **Resultado.** `:app` 424 testes, 0 falhas (os dois novos incluídos).
+
+### D72 — Hover apontando para a palavra errada, D56 sem efeito em novels e o erro do AWT  `[x]` (15/11/2026)
+
+**Relato.** Três sintomas com a mesma origem aparente: «Apareceu esse erro do primeiro print ao tentar
+mudar de dicionário» (`Reentry into ignoringRedrawRequests is not allowed`), «Nas novels essa
+configuração nova não parece estar surtindo efeito» e, nos prints 3 e 4, o mouse em cima de 納
+mostrando 捉えて, em cima de 振 mostrando に — sempre a palavra *acima* do ponteiro.
+
+**Causa raiz 1 — snap para a palavra vizinha.** Quando a linha tem verbetes mas nenhum cobre o
+caractere sob o ponteiro, `select` caía no `snap` de até `TOKEN_SNAP_CHARS` (3): em 「…捉えて納」 com o
+ponteiro em 納, a resposta era 捉えて, três caracteres acima. Num kanji no fim da coluna — exatamente
+onde a palavra continua na coluna seguinte — o resultado era sempre o vizinho, e por isso parecia
+pior quanto mais para baixo na página.
+
+**Causa raiz 2 — fallback para outra coluna.** Sem `snap` cobrindo, o laço seguia para o próximo
+candidato e podia responder com uma palavra de *outra* linha, várias colunas de distância (print 4: を
+para o ponteiro em 迎).
+
+**Causa raiz 3 — D56 preso ao bloco.** A travessia só usava `blocks[].pieces`. Nas novels o Lens
+entrega cada coluna como um bloco próprio, então não havia vizinho para juntar e o recurso parecia
+morto.
+
+**Causa raiz 4 — AWT.** O cartão do hover redimensiona a própria janela (`window.setSize`) sempre que
+o conteúdo muda — e mudar de dicionário muda o conteúdo. Com o menu «Selecionar Dicionário» (um popup,
+ou seja, outra janela) abrindo ou fechando naquele instante, o `setSize` reentra na contabilidade de
+redesenho do componente e o AWT lança «Reentry into ignoringRedrawRequests is not allowed» num diálogo
+de erro.
+
+**Correção.**
+
+- `snapAllowed`: o snap só vale quando o caractere é pontuação/espaço. Kanji, kana e letras não
+  adivinham — a leitura incerta continua incerta, como manda a regra de ouro.
+- Uma linha que **tem** verbetes mas nenhum cobrindo o caractere encerra a busca: não se responde com
+  outra linha. Uma linha **sem nenhum** verbete continua deixando o ponteiro passar (comportamento que
+  já existia e está pinado por teste).
+- `neighbourhoodOf`: usa `blocks[].pieces` quando o bloco tem duas ou mais peças; caso contrário usa os
+  próprios `segments` em ordem de leitura, e a junção passa a ser decidida pela **geometria**
+  (`adjacent`: mesma direção, faixa compartilhada, vão menor que 0,75 glifo) — a mesma regra do
+  construtor de blocos. Duas colunas da mesma frase se juntam mesmo em blocos diferentes; dois balões
+  continuam sem se juntar.
+- `HoverTooltipWindow`: o estado do menu subiu para a janela e o redimensionamento roda em
+  `SwingUtilities.invokeLater`, com `isDisplayable` conferido, e não roda com o menu aberto.
+
+**Testes e mutações.** Três testes novos em `HoverTextSelectorTest` (kanji sem verbete não responde a
+palavra de cima; linha com verbetes não responde de outra linha; colunas adjacentes em blocos
+diferentes se juntam) e o teste de snap foi corrigido para usar pontuação (、) em vez de を — kana é
+letra e não deve adivinhar. Mutações derrubadas: (1) `snapAllowed` sempre verdadeiro → falha o teste do
+kanji; (2) remover o corte de fallback → falha «a line with entries does not answer from another line»;
+(3) remover `adjacent` do vizinho anterior → falha «lines of different blocks are never joined»;
+(4) aceitar bloco com uma única peça → falha «adjacent columns in different blocks still join».
+Restauradas: **412 testes, 0 falhas** no `:desktop`.
+
+**Limitações.** O erro do AWT não foi reproduzido nesta máquina: a correção é a causa provável (o
+`setSize` concorrendo com o popup) e o efeito só se confirma clicando no menu do cartão no aparelho do
+usuário. `applySizeAndPlacement` deferido não tem teste (é uma janela Swing real). A escolha do
+caractere continua usando divisão uniforme da caixa da linha: se o OCR reportar uma caixa que não
+corresponde ao número de caracteres, o ponteiro pode cair um caractere ao lado — o snap e o fallback é
+que não mascaram mais isso. Nada foi verificado visualmente no app.
+
+### D73 — O menu de dicionário do cartão, a «reentrância» que voltou e a ordem das colunas  `[x]` (15/11/2026)
+
+**Relato.** «O botão para alterar o dicionário não me permite selecionar nenhum, clico e é como se ele
+nem existisse, o clique vai direto no que está atrás»; o «Reentry into ignoringRedrawRequests is not
+allowed» voltou — agora ao trocar de dicionário pelo atalho; e a continuação da palavra entre colunas
+continua sem ser reconhecida (os kanji, agora, são identificados corretamente).
+
+**Causa raiz 1 — o menu era um popup.** O `DropdownMenu` do cartão é uma janela própria, posicionada
+*abaixo* do botão. O cartão fica no rodapé da tela, então o menu abria fora da área visível e era
+dispensado no mesmo instante: ficava «como se não existisse». Uma janela a mais para o AWT reconciliar
+a cada abertura, ainda por cima.
+
+**Causa raiz 2 — dois donos do mesmo tamanho.** O item anterior adiou o `setSize` do cartão, mas o
+`WindowState` continuava carregando `height = estimatedHeight.dp`. Como o Compose **também** aplica o
+tamanho do `WindowState`, cada mudança de conteúdo (trocar de dicionário, por atalho inclusive) redimensionava
+a janela durante a composição — caminho que não passava pelo adiamento. Era esse `setSize` que o AWT
+recusava com «Reentry…».
+
+**Correção.** A lista de dicionários passou a ser desenhada **dentro do cartão** (o cartão cresce, a
+lista sempre cabe na tela e não há segunda janela); e o `WindowState` virou um tamanho constante,
+criado uma única vez, deixando `applySizeAndPlacement` como o único código que muda os limites da
+janela — um evento depois. O `estimateHeight` agora conta as linhas da lista aberta, senão as últimas
+ficariam cortadas (e cortadas = não clicáveis).
+
+**Causa raiz 3 — ordem das colunas.** Em novela o Lens entrega cada coluna como um bloco próprio, então
+a travessia do D56 caía no fallback `result.segments` — e usava a **ordem crua** do OCR. O próprio
+`LensResultBuilder` documenta que «as colunas de um balão podem chegar como direita, meio, esquerda em
+qualquer arranjo». Com a coluna apontada em primeiro lugar, «a próxima» era a coluna da *direita*, já
+lida, e nenhuma palavra atravessava. A ordem agora vem da geometria (`ReadingOrder`, o mesmo objeto que
+o corpo do projeto usa para montar as frases), e a adjacência continua exigindo encostar de verdade.
+
+**Testes e mutações.** Um teste novo em `HoverTextSelectorTest` (colunas reportadas fora da ordem de
+leitura ainda se juntam — falha se a ordem crua voltar: mutação aplicada e revertida) e dois em
+`HoverTooltipHeightTest` (a lista aberta entra na altura; mais dicionários, cartão mais alto). **415
+testes, 0 falhas** no `:desktop`.
+
+**Limitações.** O «clique que atravessa» não foi reproduzido aqui: a explicação (popup abrindo fora da
+tela) é a mais provável, mas se o clique também não chegar à lista desenhada dentro do cartão, a causa é
+outra — nesse caso o próximo passo é investigar como o KWin está entregando eventos a esta janela
+(`focusable = false`, transparente, always-on-top). A troca por atalho continua funcionando. Nada foi
+verificado visualmente no app.
+
+### D74 — O hover nas novels: o recorte não alcançava a coluna vizinha  `[x]` (15/11/2026)
+
+**Relato.** «O hover ainda continua não funcionando com as novels» — os kanji já apareciam certos,
+mas a continuação da palavra entre colunas não. E o aviso: não podia parar de funcionar o que já
+funcionava, e manga/horizontal também precisava ser conferido.
+
+**Como foi medido (sem chute).** Um probe temporário (`HoverPageProbeTest`, apagado no fim) renderizou
+páginas de novela com o **texto real dos prints** e passou cada caractere pelo caminho de verdade:
+recorte → `DesktopOcr.recognize` (Lens) → `HoverTextSelector.select` com os dicionários do usuário
+(`~/yabai_ocr/dicts` + `E:\Documentos\DicionariosJapones`). Três páginas: colunas verticais, colunas
+com furigana e um parágrafo horizontal.
+
+**Causa raiz.** O recorte do hover é `planCrop(point, screen, 640, 360)`. Numa novela vertical a
+palavra partida tem metade no **fim** de uma coluna e a outra metade no **começo** da coluna ao lado —
+centenas de pixels acima. O recorte de 360 px de altura nunca continha as duas metades, então
+`crossingMatch` não tinha vizinho para juntar, por mais correta que fosse a regra. Num ponto a 607 px
+de altura, o recorte reconheceu só «こが、なにより救», «しそこにはだ»… — a coluna «いだった…» estava
+fora, e a resposta era 救 sozinho.
+
+**Correção.** `HoverGeometry.hoverCrop(pointer, screen)`: 640 px de largura por **toda a altura do
+monitor**. É uma linha de mudança no `HoverOcrManager`, e a largura continua a mesma.
+
+**Evidência do pipeline real (Lens, dicionários do usuário).** Mesmos pontos, dois recortes:
+
+| página | ponto | 640×360 | altura inteira |
+| --- | --- | --- | --- |
+| vertical | 救 (fim da 1ª coluna) | 救 | **救い** |
+| vertical | 振 (fim da coluna) | 振 | **振り向かせて** |
+| vertical | り (início da coluna seguinte) | り | **振り向かせて** |
+| com furigana | 救 / 振 / り | 救 / 振 / り | **救い / 振り向かせて / 振り向かせて** |
+| com furigana | leituras | じゅうたん, だれか, すくい, かたわ | 絨毯, 誰か, 救い, 片端 |
+
+Todos os outros caracteres das três páginas passaram a responder o mesmo que antes ou melhor (com
+640×360, o 「──っ！」 respondia 短い; com a altura inteira responde っ). No horizontal, início e fim de
+cada linha continuam respondendo o próprio (という, じゃ, ないか, 梅雨, ダルさ, いた, ああ, 思う).
+
+**Testes e mutações.** Dois testes novos em `HoverGeometryTest`: o recorte precisa conter a metade
+impressa no topo da coluna vizinha, e continua com 640 px de largura e a altura do monitor. Mutação
+provada: voltar a altura para 360 derruba os dois; restaurado, verde. Também corrigido o corte dos
+nomes na lista de dicionários: a linha tinha `height(26.dp)` fixo com 12 sp de texto e o nome aparecia
+cortado; agora cresce pela própria linha, e a conta de altura usa 32 px por linha. **417 testes, 0
+falhas** no `:desktop`.
+
+**Limitações.** 1) O recorte maior inclui o próprio cartão do hover; ele fica ao lado do ponteiro e a
+linha apontada tem distância 0, então nada mudou na prática, mas o cartão entra na imagem enviada. 2)
+Com o texto juntado, um verbete que começa na coluna anterior pode vencer: em «…そこにはだ» + «らしなく»
+o ponteiro em ら responde はだら (斑) — antes respondia らし (螺子), igualmente errado; é ambiguidade do
+dicionário, não da geometria. 3) Não testei com Lens sobre as suas imagens reais (os prints do chat não
+são arquivos): as páginas foram renderizadas com o texto deles. Se algum caso continuar errado, o
+caminho é repetir o probe com o PNG da página. 4) Nada foi verificado visualmente no app.
