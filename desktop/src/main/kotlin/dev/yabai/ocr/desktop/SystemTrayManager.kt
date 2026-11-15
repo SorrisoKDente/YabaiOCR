@@ -172,9 +172,18 @@ internal class SystemTrayManager(
             panel.background = Color(0x12, 0x14, 0x1A)
             panel.border = BorderFactory.createEmptyBorder(6, 6, 6, 6)
 
+            val trayButtonFont = run {
+                val fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames
+                when {
+                    "Segoe UI Emoji" in fonts -> Font("Segoe UI Emoji", Font.PLAIN, 13)
+                    "Segoe UI" in fonts -> Font("Segoe UI", Font.PLAIN, 13)
+                    else -> Font("SansSerif", Font.PLAIN, 13)
+                }
+            }
+
             fun createTrayButton(text: String, action: () -> Unit): JButton {
                 val btn = JButton(text)
-                btn.font = Font("SansSerif", Font.PLAIN, 13)
+                btn.font = trayButtonFont
                 btn.foreground = Color.WHITE
                 btn.background = Color(0x1B, 0x1E, 0x28)
                 btn.isFocusPainted = false
