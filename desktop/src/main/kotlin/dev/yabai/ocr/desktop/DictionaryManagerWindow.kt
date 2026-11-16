@@ -500,9 +500,17 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         val chooser = JFileChooser()
                         chooser.dialogTitle = DesktopStrings.selectDictFileDialogTitle
                         chooser.fileFilter = FileNameExtensionFilter(DesktopStrings.selectDictFileFilterName, "yabai", "zip")
+                        // Reopen where the last import left off; a folder that no longer exists is
+                        // ignored so the chooser still opens somewhere usable.
+                        val lastImport = settings.lastDictionaryImportDirectory
+                        if (lastImport.isNotBlank()) {
+                            val folder = File(lastImport)
+                            if (folder.isDirectory) chooser.currentDirectory = folder
+                        }
                         val result = chooser.showOpenDialog(null)
                         if (result == JFileChooser.APPROVE_OPTION) {
                             val selected = chooser.selectedFile
+                            selected.parentFile?.absolutePath?.let { settings.lastDictionaryImportDirectory = it }
                             if (!dictDir.exists()) dictDir.mkdirs()
                             if (selected.extension.lowercase() == "zip") {
                                 val targetDir = File(dictDir, "${selected.nameWithoutExtension}.yabai")
@@ -640,8 +648,11 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                 }
             } else {
                 items(installedFiles) { file ->
-                    val dict = remember(file) { runCatching { CompactDictionary.open(file) }.getOrNull() }
-                    val info = dict?.info
+                    // Read the metadata and close it at once. An open blob is what made «Remover»
+                    // a silent no-op on Windows for the dictionary that was on screen.
+                    val info = remember(file) {
+                        runCatching { CompactDictionary.open(file)?.use { it.info } }.getOrNull()
+                    }
                     val title = info?.title?.ifBlank { file.nameWithoutExtension } ?: file.nameWithoutExtension
                     val revision = info?.revision.orEmpty()
                     val sizeMb = "%.1f MB".format(DesktopDictLoader.sizeBytes(file).toDouble() / (1024 * 1024))
@@ -776,7 +787,13 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                                             // The picker keeps its dictionaries open between
                                             // captures; on Windows an open blob blocks the delete.
                                             DesktopDictLoader.closeCached()
-                                            file.deleteRecursively()
+                                            val removed = file.deleteRecursively()
+                                            // A delete that fails used to look like a dead button.
+                                            updateError = if (!removed && file.exists()) {
+                                                DesktopStrings.dictRemoveFailed(file.name)
+                                            } else {
+                                                null
+                                            }
                                             refreshFiles()
                                         },
                                         colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().dangerContainer, contentColor = yabaiPalette().danger)
@@ -800,7 +817,6 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                             }
                         }
                     }
-                    dict?.close()
                 }
             }
 
@@ -814,19 +830,40 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
 
 @Composable
 private fun CatalogTab(onInstalledChanged: () -> Unit) {
-    val dictDir = remember { DesktopSettings().dictDirectory() }
+    val settings = remember { DesktopSettings() }
+    val dictDir = remember { settings.dictDirectory() }
 
     var downloadingId by remember { mutableStateOf<String?>(null) }
     var downloadProgressText by remember { mutableStateOf("") }
     var downloadProgressFraction by remember { mutableStateOf(0f) }
     var downloadError by remember { mutableStateOf<String?>(null) }
+    var downloadNotice by remember { mutableStateOf<String?>(null) }
+    var installedFiles by remember { mutableStateOf(DesktopDictLoader.loadInstalledFiles(settings)) }
+
+    // The download body blocks on IO, and a cancelled coroutine finishes its blocked read first:
+    // the flag is what the loops inside actually check. The job is deliberately not cancelled —
+    // cancelling it is what used to skip the card's reset.
+    val cancelRequested = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
-    val installedNames = remember(downloadingId) {
-        if (dictDir.exists()) {
-            dictDir.listFiles()?.map { it.nameWithoutExtension.lowercase() }?.toSet().orEmpty()
-        } else emptySet()
+    fun refreshInstalled() {
+        installedFiles = DesktopDictLoader.loadInstalledFiles(settings)
+        onInstalledChanged()
+    }
+
+    fun removeFiles(files: List<File>) {
+        // The picker holds its dictionaries open between captures; on Windows the blob keeps the
+        // folder undeletable.
+        DesktopDictLoader.closeCached()
+        var failed: File? = null
+        for (file in files) {
+            val removed = file.deleteRecursively()
+            if (!removed && file.exists()) failed = file
+        }
+        downloadError = failed?.let { DesktopStrings.dictRemoveFailed(it.name) }
+        downloadNotice = null
+        refreshInstalled()
     }
 
     ScrollableLazyColumn(
@@ -863,8 +900,21 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
             }
         }
 
+        if (downloadNotice != null) {
+            item {
+                Text(
+                    downloadNotice.orEmpty(),
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+            }
+        }
+
         items(DesktopDictionaryCatalog.entries) { entry ->
-            val isInstalled = installedNames.contains(entry.id.lowercase()) || installedNames.contains(entry.name.lowercase())
+            // Only the files this entry's own button writes are «installed»: a dictionary the user
+            // imported by hand with a similar name must not appear under a catalogue row.
+            val entryFiles = installedDictionaryFilesFor(entry, installedFiles)
+            val isInstalled = entryFiles.isNotEmpty()
             val isDownloading = downloadingId == entry.id
 
             Card(
@@ -904,58 +954,110 @@ private fun CatalogTab(onInstalledChanged: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    if (isDownloading) {
-                        Column {
-                            LinearProgressIndicator(
-                                progress = downloadProgressFraction,
-                                modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colors.primary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(downloadProgressText, style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
-                        }
-                    } else if (isInstalled) {
-                        Surface(
-                            color = yabaiPalette().successContainer,
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Text(
-                                text = "✓ ${DesktopStrings.statusInstalled}",
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
-                                color = yabaiPalette().success
-                            )
-                        }
-                    } else {
-                        Button(
-                            onClick = {
-                                downloadingId = entry.id
-                                downloadError = null
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    try {
-                                        downloadAndInstallDictionary(
-                                            entry = entry,
-                                            dictDir = dictDir,
-                                            onProgress = { text, fraction ->
-                                                onUiThread {
-                                                    downloadProgressText = text
-                                                    downloadProgressFraction = fraction
-                                                }
-                                            }
-                                        )
-                                        withContext(Dispatchers.Main) { onInstalledChanged() }
-                                    } catch (e: Exception) {
-                                        withContext(Dispatchers.Main) {
-                                            downloadError = e.message ?: DesktopStrings.downloadDictError
-                                        }
-                                    } finally {
-                                        withContext(Dispatchers.Main) { downloadingId = null }
+                    when {
+                        isDownloading -> {
+                            Column {
+                                LinearProgressIndicator(
+                                    progress = downloadProgressFraction,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colors.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(downloadProgressText, style = MaterialTheme.typography.caption, color = MaterialTheme.colors.onSurface)
+                                    OutlinedButton(
+                                        onClick = {
+                                            // Only the flag: the coroutine keeps running until the
+                                            // next 64 KB chunk, and its reset then still happens.
+                                            cancelRequested.set(true)
+                                        },
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = yabaiPalette().danger)
+                                    ) {
+                                        Text(DesktopStrings.btnCancelDownload)
                                     }
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
-                        ) {
-                            Text(DesktopStrings.btnDownloadAndInstall)
+                            }
+                        }
+
+                        isInstalled -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    color = yabaiPalette().successContainer,
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "✓ ${DesktopStrings.statusInstalled}",
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
+                                        color = yabaiPalette().success
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                OutlinedButton(
+                                    onClick = { removeFiles(entryFiles) },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = yabaiPalette().danger)
+                                ) {
+                                    Text(DesktopStrings.remove)
+                                }
+                            }
+                        }
+
+                        else -> {
+                            Button(
+                                onClick = {
+                                    downloadingId = entry.id
+                                    downloadError = null
+                                    downloadNotice = null
+                                    cancelRequested.set(false)
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        runCatalogueInstall(
+                                            install = {
+                                                downloadAndInstallDictionary(
+                                                    entry = entry,
+                                                    dictDir = dictDir,
+                                                    onProgress = { text, fraction ->
+                                                        onUiThread {
+                                                            downloadProgressText = text
+                                                            downloadProgressFraction = fraction
+                                                        }
+                                                    },
+                                                    cancelled = { cancelRequested.get() }
+                                                )
+                                            },
+                                            hooks = CatalogueInstallHooks(
+                                                installed = {
+                                                    withContext(Dispatchers.Main) { refreshInstalled() }
+                                                },
+                                                cancelled = {
+                                                    withContext(Dispatchers.Main) {
+                                                        downloadNotice = DesktopStrings.dictDownloadCancelled
+                                                    }
+                                                },
+                                                failed = { message ->
+                                                    withContext(Dispatchers.Main) {
+                                                        downloadError = message.ifBlank {
+                                                            DesktopStrings.downloadDictError
+                                                        }
+                                                    }
+                                                },
+                                                finished = {
+                                                    withContext(Dispatchers.Main) {
+                                                        downloadingId = null
+                                                        cancelRequested.set(false)
+                                                    }
+                                                },
+                                            ),
+                                        )
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(backgroundColor = yabaiPalette().button, contentColor = yabaiPalette().onButton)
+                            ) {
+                                Text(DesktopStrings.btnDownloadAndInstall)
+                            }
                         }
                     }
                 }
@@ -975,12 +1077,36 @@ internal fun onUiThread(block: () -> Unit) {
     javax.swing.SwingUtilities.invokeLater(block)
 }
 
+/**
+ * Thrown when the user cancels an install; not a failure, so the catalogue says «cancelled» instead
+ * of showing an error.
+ */
+internal class DictionaryDownloadCancelled : Exception("download cancelled")
+
+/** Stops a blocking install at the next checkpoint. */
+internal fun checkCancelled(cancelled: () -> Boolean) {
+    if (cancelled()) throw DictionaryDownloadCancelled()
+}
+
+/**
+ * The files a catalogue entry owns, so the catalogue can remove exactly what its own button wrote.
+ *
+ * [downloadAndInstallDictionary] names the result `${entry.id}.yabai`; matching on that id keeps a
+ * hand-imported dictionary that happens to be listed in the same folder out of the way.
+ */
+internal fun installedDictionaryFilesFor(
+    entry: DesktopDictionaryCatalog.Entry,
+    files: List<File>,
+): List<File> = files.filter { file -> file.nameWithoutExtension.equals(entry.id, ignoreCase = true) }
+
 private fun downloadAndInstallDictionary(
     entry: DesktopDictionaryCatalog.Entry,
     dictDir: File,
-    onProgress: (String, Float) -> Unit
+    onProgress: (String, Float) -> Unit,
+    cancelled: () -> Boolean = { false },
 ) {
     if (!dictDir.exists()) dictDir.mkdirs()
+    checkCancelled(cancelled)
 
     val client = OkHttpClient.Builder()
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
@@ -1006,7 +1132,7 @@ private fun downloadAndInstallDictionary(
         val candidates = dictionaryDownloadUrls(url, runCatching { releaseListJson(url, client) }.getOrNull())
         var usedUrl: String? = null
         for ((index, candidate) in candidates.withIndex()) {
-            downloadArchive(client, candidate, tempZip, entry.sizeLabel, onProgress)
+            downloadArchive(client, candidate, tempZip, entry.sizeLabel, onProgress, cancelled)
             if (yomitanArchiveHasEntries(tempZip) || candidates.size == 1) {
                 usedUrl = candidate
                 break
@@ -1017,6 +1143,8 @@ private fun downloadAndInstallDictionary(
             ?: throw Exception(DesktopStrings.dictionaryNoUsableRelease(entry.name))
 
         // 3. Compile zip into .yabai dictionary
+        // A cancelled install must not leave a half-written .yabai behind.
+        checkCancelled(cancelled)
         onProgress(DesktopStrings.compilingDictNotice, 0.85f)
         val targetYabaiDir = File(dictDir, "${entry.id}.yabai")
         // The picker's cached engine may still hold the old blobs open; without this the delete below
@@ -1064,6 +1192,7 @@ private fun downloadArchive(
     target: File,
     sizeLabel: String,
     onProgress: (String, Float) -> Unit,
+    cancelled: () -> Boolean = { false },
 ) {
     onProgress(DesktopStrings.downloadStartNotice(sizeLabel), 0.1f)
     val request = Request.Builder().url(url).build()
@@ -1079,6 +1208,8 @@ private fun downloadArchive(
                 var bytesRead = 0L
                 var bytesCount = inputStream.read(buffer)
                 while (bytesCount >= 0) {
+                    // The read blocks, so this is where a cancel takes effect.
+                    checkCancelled(cancelled)
                     outputStream.write(buffer, 0, bytesCount)
                     bytesRead += bytesCount
                     if (totalBytes > 0) {

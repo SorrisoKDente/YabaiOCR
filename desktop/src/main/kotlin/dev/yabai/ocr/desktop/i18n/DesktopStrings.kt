@@ -548,6 +548,24 @@ object DesktopStrings {
     // Hover OCR Statuses & Defaults
     val hoverNoDictsInstalled: String get() = if (isEnglish) "No dictionaries installed — open 'Dictionary Manager'." else "Nenhum dicionário instalado — abra «Gerenciar Dicionários»."
     val hoverNoTextNearCursor: String get() = if (isEnglish) "No text recognized near the cursor." else "Nenhum texto reconhecido perto do cursor."
+    /**
+     * The chosen dictionary has no entry here.
+     *
+     * The card used to answer from another dictionary in this case, with no sign that the choice had
+     * been ignored; the user picked a dictionary and has to be told when it cannot answer.
+     */
+    fun hoverDictionaryMissingEntry(dictionary: String): String = if (isEnglish) {
+        "This dictionary has no entry for that word: $dictionary. Choose another one in the list above."
+    } else {
+        "Este dicionário não tem esse verbete: $dictionary. Escolha outro na lista acima."
+    }
+    val btnCancelDownload: String get() = if (isEnglish) "✕ Cancel" else "✕ Cancelar"
+    val dictDownloadCancelled: String get() = if (isEnglish) "Download cancelled." else "Download cancelado."
+    fun dictRemoveFailed(name: String): String = if (isEnglish) {
+        "Could not remove $name: a file inside it is still open. Close the app and try again."
+    } else {
+        "Não foi possível remover $name: algum arquivo dentro dele continua aberto. Feche o app e tente de novo."
+    }
     fun hoverNoMatchForText(text: String): String = if (isEnglish) "Text read, but no dictionary match: $text" else "Texto lido, mas sem verbete no dicionário: $text"
     fun hoverOcrFailure(detail: String): String = if (isEnglish) "OCR failure: $detail" else "Falha no OCR: $detail"
     val defaultAiPrompt: String get() = if (isEnglish) "Translate to English and explain the grammar, vocabulary, and nuances of this Japanese sentence:" else "Traduza para português e explique a gramática, vocabulário e nuances desta frase em japonês:"

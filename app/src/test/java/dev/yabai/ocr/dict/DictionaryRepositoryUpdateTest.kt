@@ -150,13 +150,13 @@ class DictionaryRepositoryUpdateTest {
     @Test
     fun `an index dictionary updated with a newer archive is not offered its stale label`() = runBlocking {
         // The archive is compiled with 2026.03.05 while the descriptor still announces 2025.08.12 —
-        // exactly what the device showed for the three Wiktionary dictionaries (R43).
+        // exactly what the device showed for the Wiktionary dictionaries (R43).
         val repository = DictionaryRepository.get(context)
         repository.install(
-            archive("wty", "2026.03.05", "comer"),
-            "wty-ja-pt",
-            "Wikcionário japonês → português",
-            DictionarySource("wty-ja-pt", "https://example.test/wty", RemoteSignature(length = 10)),
+            archive("wty", "2026.03.05", "食べる"),
+            "wty-ja-ja",
+            "Wikcionário japonês (monolíngue)",
+            DictionarySource("wty-ja-ja", "https://example.test/wty", RemoteSignature(length = 10)),
         )
 
         val remote = object : RemoteSource {

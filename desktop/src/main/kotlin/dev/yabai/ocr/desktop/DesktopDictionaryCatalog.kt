@@ -87,20 +87,7 @@ object DesktopDictionaryCatalog {
             attributionPt = "JMnedict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
             attributionEn = "JMnedict, Electronic Dictionary Research and Development Group (CC BY-SA 4.0)",
         ),
-        Entry(
-            id = "wty-ja-pt",
-            namePt = "Wikcionário: japonês → português",
-            nameEn = "Wiktionary: Japanese → Portuguese",
-            descPt = "Acepções em português, extraídas do Wikcionário lusófono. Leve e objetivo.",
-            descEn = "Portuguese definitions extracted from Lusophone Wiktionary. Lightweight and concise.",
-            language = "pt",
-            sizeLabel = "0,4 MB",
-            kind = Kind.TERMS,
-            indexUrl = "$WTY_RELEASES/kty-ja-pt-index.json",
-            attributionPt = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
-            attributionEn = "Wiktionary via wiktionary-to-yomitan (CC BY-SA 3.0)",
-        ),
-        Entry(
+                Entry(
             id = "wty-ja-ja",
             namePt = "Wikcionário: japonês (monolíngue)",
             nameEn = "Wiktionary: Japanese (monolingual)",
@@ -113,20 +100,7 @@ object DesktopDictionaryCatalog {
             attributionPt = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
             attributionEn = "Wiktionary via wiktionary-to-yomitan (CC BY-SA 3.0)",
         ),
-        Entry(
-            id = "wty-ja-en",
-            namePt = "Wikcionário: japonês → inglês",
-            nameEn = "Wiktionary: Japanese → English",
-            descPt = "Acepções em inglês vindas do Wikcionário. Complementa o JMdict em gírias e palavras novas.",
-            descEn = "English definitions from Wiktionary. Complements JMdict with slang and new words.",
-            language = "en",
-            sizeLabel = "21 MB",
-            kind = Kind.TERMS,
-            indexUrl = "$WTY_RELEASES/kty-ja-en-index.json",
-            attributionPt = "Wikcionário via wiktionary-to-yomitan (CC BY-SA 3.0)",
-            attributionEn = "Wiktionary via wiktionary-to-yomitan (CC BY-SA 3.0)",
-        ),
-        Entry(
+                Entry(
             id = "surasura-ja",
             namePt = "Onomatopeias (surasura)",
             nameEn = "Onomatopeias (surasura)",

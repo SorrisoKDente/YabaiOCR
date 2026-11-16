@@ -36,6 +36,25 @@ class DesktopSettingsTest {
     }
 
     @Test
+    fun `the last dictionary import folder is remembered`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertEquals("a fresh install must not open a folder", "", settings.lastDictionaryImportDirectory)
+
+        settings.lastDictionaryImportDirectory = "C:\\Users\\Eric PC\\Documentos\\Dicionarios"
+
+        assertEquals(
+            "C:\\Users\\Eric PC\\Documentos\\Dicionarios",
+            DesktopSettings(file).lastDictionaryImportDirectory,
+        )
+        assertEquals(
+            "C:\\Users\\Eric PC\\Documentos\\Dicionarios",
+            read(file).getProperty("last_dict_import_dir"),
+        )
+    }
+
+    @Test
     fun `the capture monitor defaults to the primary screen and round-trips`() {
         val file = tempSettings()
         val settings = DesktopSettings(file)

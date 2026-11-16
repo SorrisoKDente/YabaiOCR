@@ -2,6 +2,7 @@ package dev.yabai.ocr.desktop
 
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,10 +12,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.Divider
@@ -60,6 +67,12 @@ fun HoverTooltipWindow(
     matches: List<TokenMatch>,
     mousePoint: Point,
     activeFilter: String = "",
+    /**
+     * Why the card has nothing to show — today, that the chosen dictionary has no entry for the word.
+     * Drawn inside the card: a notice window of its own would open on every hover, on top of the very
+     * text being read.
+     */
+    notice: String? = null,
     installedDictTitles: List<String> = emptyList(),
     onSelectDictionary: (String) -> Unit = {},
     onDismiss: () -> Unit,
@@ -75,6 +88,7 @@ fun HoverTooltipWindow(
             matches = matches,
             mousePoint = mousePoint,
             activeFilter = activeFilter,
+            notice = notice,
             installedDictTitles = installedDictTitles,
             onSelectDictionary = onSelectDictionary,
             onDismiss = onDismiss,
@@ -88,6 +102,7 @@ private fun HoverTooltipCardWindow(
     matches: List<TokenMatch>,
     mousePoint: Point,
     activeFilter: String = "",
+    notice: String? = null,
     installedDictTitles: List<String> = emptyList(),
     onSelectDictionary: (String) -> Unit = {},
     onDismiss: () -> Unit,
@@ -100,8 +115,8 @@ private fun HoverTooltipCardWindow(
     // is no second window to race.
     var dictMenuOpen by remember { mutableStateOf(false) }
 
-    val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles) {
-        estimateHeight(matches, dictMenuOpen, installedDictTitles.size)
+    val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles, notice) {
+        estimateHeight(matches, dictMenuOpen, installedDictTitles.size, notice != null)
     }
 
     // Where the card goes, decided before the window exists: Compose places a new window from
@@ -212,6 +227,19 @@ private fun HoverTooltipCardWindow(
                         )
                     }
 
+                    val noticeText = notice
+                    if (noticeText != null) {
+                        Text(
+                            text = noticeText,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.body2,
+                            color = Color(0xFFE5A93C),
+                        )
+                        Divider(color = Color(0xFF2E3344), thickness = 0.5.dp)
+                    }
+
                     SelectionContainer {
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(12.dp),
@@ -282,15 +310,38 @@ private fun HoverTooltipCardWindow(
     }
 }
 
-/** One row of the dictionary list: fixed height, so [estimateHeight] can count it. */
+/**
+ * The dictionary list: at most [DICTIONARY_MENU_MAX_ROWS] rows tall, the rest behind a scrollbar.
+ *
+ * With every dictionary of a full install the list used to grow the card to its 640 px ceiling and
+ * the rows past it were simply cut off — the ones at the bottom could not be clicked at all. The
+ * card no longer grows with the list; the list scrolls inside it.
+ */
 @Composable
 private fun DictionaryList(titles: List<String>, onPick: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF141620))) {
-        DictionaryRow(text = DesktopStrings.allDictionaries, onClick = { onPick("") })
-        titles.forEach { title ->
-            DictionaryRow(text = "📖 $title", onClick = { onPick(title) })
+    val scrollState = rememberScrollState()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = (DICTIONARY_ROW_HEIGHT * DICTIONARY_MENU_MAX_ROWS).dp)
+            .background(Color(0xFF141620)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(end = DICTIONARY_SCROLLBAR_GUTTER_DP.dp),
+        ) {
+            DictionaryRow(text = DesktopStrings.allDictionaries, onClick = { onPick("") })
+            titles.forEach { title ->
+                DictionaryRow(text = "📖 $title", onClick = { onPick(title) })
+            }
+            Divider(color = Color(0xFF2E3344), thickness = 0.5.dp)
         }
-        Divider(color = Color(0xFF2E3344), thickness = 0.5.dp)
+        VerticalScrollbar(
+            adapter = rememberScrollbarAdapter(scrollState),
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+        )
     }
 }
 
@@ -306,9 +357,20 @@ private fun DictionaryRow(text: String, onClick: () -> Unit) {
 }
 
 /** Accurately estimates content height so window wraps definitions tightly without cutting text off. */
-internal fun estimateHeight(matches: List<TokenMatch>, dictMenuOpen: Boolean = false, dictionaryCount: Int = 0): Int {
+internal fun estimateHeight(
+    matches: List<TokenMatch>,
+    dictMenuOpen: Boolean = false,
+    dictionaryCount: Int = 0,
+    notice: Boolean = false,
+): Int {
     var pixels = 58 // Header bar (28px) + container padding + safety buffer
-    if (dictMenuOpen) pixels += DICTIONARY_ROW_HEIGHT * (dictionaryCount + 1) + 2
+    // The message sits above the definitions: measured, not guessed away, or the card would cut it.
+    if (notice) pixels += NOTICE_BLOCK_HEIGHT
+    // The list scrolls past [DICTIONARY_MENU_MAX_ROWS], so a large install no longer makes the
+    // card taller than the screen (the rows below the ceiling used to be unreachable).
+    if (dictMenuOpen) {
+        pixels += DICTIONARY_ROW_HEIGHT * minOf(dictionaryCount + 1, DICTIONARY_MENU_MAX_ROWS) + 2
+    }
     for (match in matches.take(3)) {
         pixels += 26 // Term & Reading line
         if (match.surface != match.entry.term) pixels += 18
@@ -336,6 +398,15 @@ private const val TOOLTIP_INITIAL_HEIGHT = 220
  * The row has no fixed height: a 12 sp line plus the 7 dp of padding on each side is ~30 px, and
  * giving it a `height` smaller than that cut the names in half — the list showed ten half-rows.
  */
+/** Height of the in-card notice (two lines plus its padding and divider), in pixels. */
+private const val NOTICE_BLOCK_HEIGHT = 58
+
+/** Rows of the dictionary list shown before it starts scrolling. */
+private const val DICTIONARY_MENU_MAX_ROWS = 6
+
+/** Room for the scrollbar, so a long name does not end under it. */
+private const val DICTIONARY_SCROLLBAR_GUTTER_DP = 10
+
 private const val DICTIONARY_ROW_HEIGHT = 32
 
 /**

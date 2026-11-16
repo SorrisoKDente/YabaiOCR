@@ -2,6 +2,7 @@ package dev.yabai.ocr.desktop
 
 import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,6 +51,30 @@ class HoverTooltipHeightTest {
         val five = estimateHeight(listOf(entry()), dictMenuOpen = true, dictionaryCount = 5)
 
         assertTrue("the card did not grow with the number of dictionaries", five > two)
+    }
+
+    @Test
+    fun `a long dictionary list stops growing the card and scrolls instead`() {
+        val six = estimateHeight(listOf(entry()), dictMenuOpen = true, dictionaryCount = 6)
+        val many = estimateHeight(listOf(entry()), dictMenuOpen = true, dictionaryCount = 40)
+
+        // Past six rows the list scrolls inside the card; before this it grew to the 640 px ceiling
+        // and the rows below it were unreachable, which is what the user saw on a full install.
+        assertEquals("the card still grows with the dictionary count", six, many)
+        assertTrue("even a huge install must stay a readable card: $many", many <= 640)
+    }
+
+    @Test
+    fun `the in-card notice is counted in the height`() {
+        // One entry, so the card is not clamped to its 130 px floor: the notice has to fit inside a
+        // card that would otherwise be taller anyway.
+        val without = estimateHeight(listOf(entry()), notice = false)
+        val with = estimateHeight(listOf(entry()), notice = true)
+
+        // «No entry in this dictionary» is drawn inside the card (a window of its own would open on
+        // every hover, over the text being read); an uncounted block would be cut at the bottom.
+        assertTrue("the notice added $with-$without px", with - without >= 40)
+        assertTrue("even with the notice the card stays readable: $with", with <= 640)
     }
 
     /**

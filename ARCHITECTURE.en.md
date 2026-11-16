@@ -62,7 +62,7 @@ Test flags that turn on real cases (none of them run by default):
 | `-PcompiledDicts="C:\compiled"` | `:core` | already compiled `.yabai` (translation index) |
 | `-Pppocr="C:\home"` | `:desktop` | PP-OCR models in `home/ppocr_v6` (end-to-end test) |
 
-Current counts: **`:core` 197 tests**, **`:desktop` 432**, **`:app` 424**. Confirm with the suite
+Current counts: **`:core` 197 tests**, **`:desktop` 456**, **`:app` 836**. Confirm with the suite
 before quoting them.
 
 ---
@@ -216,6 +216,10 @@ flags above.
 | `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close |
 | `HoverGeometry.kt` | crop around the pointer, local coordinates, HiDPI |
 | `HoverTextSelector.kt` | picks the line/word under the pointer and builds the hit; joins a word split across lines/columns of the same block (D56) |
+| `DictionaryInstallRun.kt` | one catalogue install and what it reports (installed/cancelled/failed/finished); the card reset runs in `NonCancellable` |
+| `HoverLookup.kt` | hover lookup limited to the chosen dictionary (`dictionaryScope`, `scopedHoverHit`), the card's dictionary-change decision answered from the kept reading (`cachedHoverAnswer`) and what a miss means (`japaneseWordAt`, `classifyHoverMiss`: a card only when a Japanese word is under the pointer, and that word's box is the anchor) — no more fallback answering from another dictionary (D77, D78) |
+| `PickerScanMemory.kt` | the picker scan that survives «Snippets»: handed out once and never from a failure (D76) |
+| `TrayGlyphs.kt` | tray menu icons drawn with Java2D, in colour (Swing cannot paint colour emoji) (D76) |
 | `HoverTooltipWindow.kt` | floating card (size, position, content); the position comes in the `WindowState` and is applied again once the window exists, because the compositor ignores a `setLocation` on a window still being mapped |
 | `WindowActivation.kt` | brings the window the user asked for to the screen (clears `ICONIFIED`, requests activation); never used by hover |
 | `HoverCapability.kt` | is hover supported in this session? (X11/Wayland/Win; on Wayland it picks between the KWin and the GNOME pointer) |
@@ -414,7 +418,7 @@ Settings (desktop/app) → PPOcrModelDownloader → ~23 MB in ppocr_v6/
 | engine order/fallback | `desktop/DesktopOcr.kt`, `app/ocr/OcrDispatcher.kt` |
 | new OCR engine | contract in `app/ocr/OcrEngine.kt`; on desktop, return `LensResult` |
 | desktop capture/picker | `ScreenCapture.kt`, `KWinScreenshotCapture.kt`, `SegmentPickerWindow.kt`, `PickerBoxes.kt` |
-| hover | `HoverOcrManager.kt`, `HoverGeometry.kt`, `HoverTextSelector.kt` |
+| hover | `HoverOcrManager.kt`, `HoverGeometry.kt`, `HoverTextSelector.kt`, `HoverLookup.kt` |
 | shortcuts | `HotkeyBindings.kt`, `HotkeyMatcher.kt`, `GlobalHotkeyManager.kt` |
 | tray | `SystemTrayManager.kt`, `StatusNotifierTray.kt`, `DbusMenu.kt`, `TrayMenu*.kt` |
 | dictionaries (search/import) | `core/dict/*`, then `app/dict/*` or `desktop/DictionaryManagerWindow.kt` |

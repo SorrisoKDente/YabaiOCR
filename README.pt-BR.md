@@ -29,7 +29,8 @@ desktop e no Android), então o app continua útil sem conexão.
 - **Tela inteira com seletor**: o app marca cada balão/parágrafo e você toca no que quer ler, em vez
   de receber a página toda.
 - **Hover no desktop**: pare o mouse sobre um texto japonês e o cartão aparece com a palavra e o
-  verbete.
+  verbete. Com um dicionário escolhido, é dele que vem a resposta; quando ele não tem o verbete o app
+  avisa, em vez de trocar de dicionário sozinho.
 - **Dicionários offline** no formato do Yomitan (Jitendex, JMdict, KANJIDIC e outros), com busca por
   termo, leitura ou definição, filtro por dicionário e ordem de preferência.
 - **Furigana**: leitura impressa preservada, leitura gerada pelo dicionário, ou as duas.

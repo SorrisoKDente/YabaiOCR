@@ -74,6 +74,17 @@ class DictionaryCatalogTest {
     }
 
     @Test
+    fun `the localized wiktionary entries are gone and the monolingual one stays`() {
+        val ids = DictionaryCatalog.entries.map { it.id }
+
+        assertTrue("the japanese → portuguese wiktionary is still offered", "wty-ja-pt" !in ids)
+        assertTrue("the japanese → english wiktionary is still offered", "wty-ja-en" !in ids)
+        val monolingual = DictionaryCatalog.find("wty-ja-ja")
+        assertTrue("the monolingual wiktionary was removed with the others", monolingual != null)
+        assertEquals("ja", monolingual!!.language)
+    }
+
+    @Test
     fun `the onomatopoeia dictionary is offered as a word dictionary`() {
         val entry = DictionaryCatalog.find("surasura-ja")
 

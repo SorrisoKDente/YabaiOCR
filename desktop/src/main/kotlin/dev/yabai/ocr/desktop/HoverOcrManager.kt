@@ -27,7 +27,11 @@ import kotlinx.coroutines.launch
  * OCR em tempo real sob o ponteiro — o «hover» no estilo Yomitan/Rikaichan.
  */
 internal class HoverOcrManager(
-    private val onResultsReady: (List<TokenMatch>, Point, String) -> Unit,
+    /**
+     * The card's content: the matches, where it goes, the filter in use, and — when empty matches
+     * are because the chosen dictionary has no entry — that dictionary's name.
+     */
+    private val onResultsReady: (List<TokenMatch>, Point, String, String?) -> Unit,
     private val onDismiss: () -> Unit,
     private val onStatus: (String) -> Unit = {},
     private val backendKind: HoverBackendKind = HoverBackendKind.AWT,
@@ -178,25 +182,43 @@ internal class HoverOcrManager(
         val currentSettings = DesktopSettings()
         val lookup = lookupEngine(currentSettings)
 
-        if (result != null && localPoint != null && screenPoint != null && cropRect != null && lookup != null) {
-            val only = filter.takeIf { it.isNotBlank() }?.let { setOf(it) } ?: emptySet()
-            var hit = HoverTextSelector.select(result, localPoint, lookup, only)
+        if (result != null && localPoint != null && screenPoint != null && cropRect != null) {
+            // The chosen dictionary is the answer. Switching to another one behind the user's back
+            // showed a definition from a source they had not picked; a miss is said in the card —
+            // both cases answered from the text already read, never by capturing the screen again.
+            val answer = cachedHoverAnswer(
+                result = result,
+                localPoint = localPoint,
+                lookup = lookup?.let { engine ->
+                    { text: String, only: Set<String> -> engine.lookup(text, maxMatches = 96, only = only) }
+                },
+                filter = filter,
+            )
 
-            // Fallback: se o dicionário escolhido não possui a palavra, busca em todos para o usuário não ficar no vácuo
-            if (hit == null && only.isNotEmpty()) {
-                hit = HoverTextSelector.select(result, localPoint, lookup, emptySet())
-            }
+            when (answer) {
+                is CachedHoverAnswer.Hit -> {
+                    val hit = answer.hit
+                    val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, cropRect.width, cropRect.height)
+                    val lineRect = hit.line.box?.let { HoverGeometry.toScreen(it, cropRect, cropRect.width, cropRect.height) }
+                    targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
+                    tooltipVisible = true
+                    dismissGate.reset()
+                    publishStatus("${hit.match.entry.term} — ${hit.match.dictionaryTitle}")
+                    val matches = listOf(hit.match)
+                    SwingUtilities.invokeLater { onResultsReady(matches, screenPoint, filter, null) }
+                    return
+                }
 
-            if (hit != null) {
-                val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, cropRect.width, cropRect.height)
-                val lineRect = hit.line.box?.let { HoverGeometry.toScreen(it, cropRect, cropRect.width, cropRect.height) }
-                targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
-                tooltipVisible = true
-                dismissGate.reset()
-                publishStatus("${hit.match.entry.term} — ${hit.match.dictionaryTitle}")
-                val matches = listOf(hit.match)
-                SwingUtilities.invokeLater { onResultsReady(matches, screenPoint, filter) }
-                return
+                is CachedHoverAnswer.MissingEntry -> {
+                    showMissingEntry(
+                        answer.filter,
+                        screenPoint,
+                        HoverGeometry.toScreen(answer.word, cropRect, cropRect.width, cropRect.height),
+                    )
+                    return
+                }
+
+                CachedHoverAnswer.NeedsLookup -> Unit
             }
         }
 
@@ -288,7 +310,6 @@ internal class HoverOcrManager(
 
                 val localPoint = HoverGeometry.localPoint(point, cropRect, image.width, image.height)
                 val filter = overrideFilter ?: currentSettings.hoverDictionaryFilter.ifBlank { currentSettings.dictionaryFilter }
-                val only = filter.takeIf { it.isNotBlank() }?.let { setOf(it) } ?: emptySet()
 
                 // Salva o cache da última leitura do Lens
                 lastLensResult = result
@@ -296,21 +317,36 @@ internal class HoverOcrManager(
                 lastScreenPoint = point
                 lastCropRect = cropRect
 
-                var hit = HoverTextSelector.select(result, localPoint, lookup, only)
-
-                // Fallback: Se o dicionário específico não contém a palavra, busca em todos
-                if (hit == null && only.isNotEmpty()) {
-                    hit = HoverTextSelector.select(result, localPoint, lookup, emptySet())
+                val query: (String, Set<String>) -> List<TokenMatch> = { text, only ->
+                    lookup.lookup(text, maxMatches = 96, only = only)
                 }
+                val hit = scopedHoverHit(result, localPoint, lookup, filter)
 
                 if (hit == null) {
-                    val text = result.joinLines().trim()
-                    if (text.isBlank()) {
-                        publishStatus(DesktopStrings.hoverNoTextNearCursor)
-                    } else {
-                        publishStatus(DesktopStrings.hoverNoMatchForText(text.take(40)))
+                    // «No entry in this dictionary» only when there is a Japanese word under the
+                    // pointer to be missing; anywhere else the card simply goes away.
+                    when (val miss = classifyHoverMiss(result, localPoint, query, filter)) {
+                        HoverMiss.NoText -> {
+                            publishStatus(DesktopStrings.hoverNoTextNearCursor)
+                            dismiss()
+                        }
+                        is HoverMiss.NoMatch -> {
+                            publishStatus(DesktopStrings.hoverNoMatchForText(miss.text.take(40)))
+                            dismiss()
+                        }
+                        is HoverMiss.MissingEntry -> {
+                            // The pointer may have walked away while the OCR ran.
+                            val current = pointerLocation()
+                            if (current == null || current.distance(point) > STALE_RADIUS_PX || !isEnabled) {
+                                return@launch
+                            }
+                            showMissingEntry(
+                                miss.filter,
+                                point,
+                                HoverGeometry.toScreen(miss.word, cropRect, image.width, image.height),
+                            )
+                        }
                     }
-                    dismiss()
                     return@launch
                 }
 
@@ -332,13 +368,30 @@ internal class HoverOcrManager(
                 dismissGate.reset()
                 publishStatus("${hit.match.entry.term} — ${hit.match.dictionaryTitle}")
                 val matches = listOf(hit.match)
-                SwingUtilities.invokeLater { onResultsReady(matches, point, filter) }
+                SwingUtilities.invokeLater { onResultsReady(matches, point, filter, null) }
             } catch (e: Exception) {
                 fail(DesktopStrings.hoverOcrFailure(e.message ?: e.javaClass.simpleName))
             } finally {
                 busy.set(false)
             }
         }
+    }
+
+    /**
+     * Shows the card saying the chosen dictionary has no entry for the word under the pointer.
+     *
+     * The card, not a window of its own: a notice window would open on every hover, on top of the
+     * very text being read. [wordBox] is the word's own rectangle on screen and becomes the anchor
+     * the card is held by — the same role the token box plays for a hit. With no anchor the card
+     * counted as «the pointer left» once the grace period ran out, closed, and the gate opened it
+     * again on the same spot: the card blinked instead of staying put.
+     */
+    private fun showMissingEntry(filter: String, point: Point, wordBox: Rectangle) {
+        publishStatus(DesktopStrings.hoverDictionaryMissingEntry(filter))
+        targetBox = wordBox
+        tooltipVisible = true
+        dismissGate.reset()
+        SwingUtilities.invokeLater { onResultsReady(emptyList(), point, filter, filter) }
     }
 
     private fun fail(message: String) {

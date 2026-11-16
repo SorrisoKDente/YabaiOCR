@@ -102,14 +102,14 @@ class DictionaryUpdateCheckerTest {
 
     @Test
     fun `a remote revision older than the installed one is not an update`() = runBlocking {
-        // The real case from the device: the Wiktionary PT-BR descriptor still announces
-        // 2025.08.12, while the archive it points at (and therefore the installed copy) was
-        // compiled with 2026.03.05. String inequality called that a downgrade «update».
-        val wty = DictionaryCatalog.find("wty-ja-pt")!!
+        // The real case from the device: a Wiktionary descriptor still announces 2025.08.12,
+        // while the archive it points at (and therefore the installed copy) was compiled with
+        // 2026.03.05. String inequality called that a downgrade «update».
+        val wty = DictionaryCatalog.find("wty-ja-ja")!!
         val remote = FakeRemote(
             descriptors = mapOf(wty.indexUrl!! to """{"revision":"2025.08.12"}"""),
         )
-        val result = DictionaryUpdateChecker(remote).check(installed("wty-ja-pt", revision = "2026.03.05"))
+        val result = DictionaryUpdateChecker(remote).check(installed("wty-ja-ja", revision = "2026.03.05"))
 
         assertEquals(UpdateState.CURRENT, result.state)
         assertFalse("an older label must never be offered as an update", result.hasUpdate)

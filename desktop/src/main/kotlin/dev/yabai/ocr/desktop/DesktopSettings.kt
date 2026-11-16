@@ -216,6 +216,16 @@ class DesktopSettings(
         get() = props.getProperty("last_dict_update_check", "0").toLongOrNull() ?: 0L
         set(value) { props.setProperty("last_dict_update_check", value.toString()); save() }
 
+    /**
+     * Folder the dictionary import chooser was left in.
+     *
+     * Importing three dictionaries used to mean walking the same path three times: the chooser opens
+     * in the last folder now, and nothing is opened when that folder is gone.
+     */
+    var lastDictionaryImportDirectory: String
+        get() = props.getProperty("last_dict_import_dir", "") ?: ""
+        set(value) { props.setProperty("last_dict_import_dir", value); save() }
+
     var customDictDirectoryPath: String
         get() = props.getProperty("custom_dict_dir")
             ?: props.getProperty("custom_dict_directory")

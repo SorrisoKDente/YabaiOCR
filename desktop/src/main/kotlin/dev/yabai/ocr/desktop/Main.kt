@@ -34,6 +34,8 @@ class HoverStateHolder(defaultFilter: String = "") {
     var activeFilter by mutableStateOf(defaultFilter)
     var active by mutableStateOf(false)
     var status by mutableStateOf(DesktopStrings.hoverStatusInactivePrefix)
+    /** The chosen dictionary that has no entry for the word under the pointer, if that is the case. */
+    var missingEntryIn by mutableStateOf<String?>(null)
 }
 
 /** A full-screen capture plus the screen rectangle it came from. */
@@ -124,16 +126,23 @@ fun main(args: Array<String>) {
     var hoverBackendReady by remember { mutableStateOf(hoverBackendKind == HoverBackendKind.AWT) }
     var hoverBackendFailure by remember { mutableStateOf<String?>(null) }
 
+    // Turning hover on where the session has no global pointer used to be a silent no-op: the
+    // failure is said out loud instead, in the same notice window a failed capture uses. A
+    // dictionary without the word is not this: it is said inside the card (see HoverStateHolder).
+    var hoverNotice by remember { mutableStateOf<String?>(null) }
+
     val hoverOcrManager = remember {
         HoverOcrManager(
-            onResultsReady = { matches, pt, filter ->
+            onResultsReady = { matches, pt, filter, missingEntryIn ->
                 hoverState.matches = matches
                 hoverState.point = pt
                 hoverState.activeFilter = filter
+                hoverState.missingEntryIn = missingEntryIn
             },
             onDismiss = {
                 hoverState.matches = emptyList()
                 hoverState.point = null
+                hoverState.missingEntryIn = null
             },
             onStatus = { message ->
                 hoverState.status = message
@@ -145,10 +154,6 @@ fun main(args: Array<String>) {
             },
         )
     }
-
-    // Turning hover on where the session has no global pointer used to be a silent no-op: the
-    // failure is said out loud instead, in the same notice window a failed capture uses.
-    var hoverNotice by remember { mutableStateOf<String?>(null) }
 
     fun applyHover(enabled: Boolean) {
         if (enabled && !hoverBackendReady) {
@@ -773,19 +778,25 @@ private fun HoverTooltipOverlay(
 ) {
     val hMatches = hoverState.matches
     val hPoint = hoverState.point
-    if ((hMatches.isNotEmpty()) && (hPoint != null)) {
+    val hMissing = hoverState.missingEntryIn
+    // «Empty» is not the same as «nothing to show»: the card is also the place where the chosen
+    // dictionary says it has no entry for the word.
+    if (hPoint != null && (hMatches.isNotEmpty() || hMissing != null)) {
         HoverTooltipWindow(
             matches = hMatches,
             mousePoint = hPoint,
             activeFilter = hoverState.activeFilter,
+            notice = hMissing?.let { DesktopStrings.hoverDictionaryMissingEntry(it) },
             installedDictTitles = hoverOcrManager.getInstalledDictionaryTitles(),
             onSelectDictionary = { chosen ->
+                hoverState.missingEntryIn = null
                 hoverOcrManager.setFilterAndRefresh(chosen)
                 hoverState.activeFilter = chosen
             },
             onDismiss = {
                 hoverState.matches = emptyList()
                 hoverState.point = null
+                hoverState.missingEntryIn = null
             },
             onBoundsChanged = { hoverOcrManager.setTooltipBounds(it) },
         )

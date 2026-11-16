@@ -6571,3 +6571,137 @@ app foi ativado na conta A e o desinstalador roda na conta B, a entrada de A fic
 compositor já tirou a janela; num sistema muito lento ainda pode escapar um frame. 4) O picker reaberto
 com o scan guardado não relê a tela: se algo mudou por baixo, as caixas são as da captura original — que
 é exatamente o que «trechos» significa. 5) Nada foi verificado visualmente no app.
+
+### D77 — Catálogo sem os Wikcionários localizados, hover sem troca de dicionário, menu com rolagem e remoção que funciona  `[x]` (16/11/2026)
+
+**1. Wikcionário pt e en fora do catálogo.** As entradas `wty-ja-pt` e `wty-ja-en` existiam no
+catálogo do desktop (`DesktopDictionaryCatalog.kt`) e no do app (`app/dict/DictionaryCatalog.kt`) e
+apresentavam as definições de forma errada nos dois idiomas; os dicionários que ficam já cobrem mais,
+e quem quiser aqueles importa o arquivo de outra fonte. Só o monolíngue (`wty-ja-ja`) ficou — é o
+único cujas definições são escritas na língua que se está aprendendo. O `ggjz-pt` (Jitendex traduzido)
+continua. Dois testes de atualização do app usavam `wty-ja-pt` como fixture e passaram a usar
+`wty-ja-ja` (o caso que eles exercitam — descritor antigo contra arquivo novo — não mudou).
+
+**2. O hover não troca mais de dicionário sozinho.** Havia **dois** «fallbacks» em
+`HoverOcrManager`: quando o dicionário escolhido não tinha o verbete, a busca era refeita em todos e o
+cartão mostrava a definição de um dicionário que o usuário não havia escolhido, sem dizer nada. Os dois
+saíram. A consulta foi para `HoverLookup.kt` (`dictionaryScope`, `scopedHoverHit`), que é o único lugar
+que decide o escopo, e o caso «não tem aqui» vira um aviso **dentro do próprio cartão**
+(`DesktopStrings.hoverDictionaryMissingEntry`, com `HoverStateHolder.missingEntryIn` e o parâmetro
+`notice` de `HoverTooltipWindow`), mais o status na bandeja. A primeira tentativa abria a janela de
+aviso do hover (`CaptureNoticeWindow`); ela foi descartada porque uma janela por leitura se abre em cima
+do texto que está sendo lido e cobre justamente o que se quer ver — o cartão já está ali. `estimateHeight`
+conta o bloco do aviso (`NOTICE_BLOCK_HEIGHT`), senão a mensagem seria cortada na base do cartão. Trocar
+de dicionário pelo cartão e continuar sem verbete não recaptura a tela: a decisão saiu do Compose para
+`cachedHoverAnswer` (em `HoverLookup.kt`, ao lado de `scopedHoverHit`), que devolve
+`Hit`/`MissingEntry`/`NeedsLookup` a partir da leitura já guardada (`lastLensResult`), daí `showMissingEntry`
+responder na hora. Sem filtro (ou só espaços) não há dicionário escolhido a quem atribuir a falta: aí, e só
+aí, o ponteiro volta a ser lido. (O âncora do cartão saiu errado nesta rodada — nulo —, e é o D78.)
+
+**3. A lista de dicionários do cartão encolheu e rola.** Ela era uma `Column` com todas as linhas
+dentro do cartão, e o cartão crescia até o teto de 640 px: num install completo as linhas abaixo do
+teto ficavam cortadas e não davam para clicar. Agora a lista tem no máximo 6 linhas
+(`DICTIONARY_MENU_MAX_ROWS`) com `VerticalScrollbar`, e `estimateHeight` conta a lista limitada — o
+cartão não cresce mais com o número de dicionários.
+
+**4. «Remover» que não removia.** A causa: o cartão de cada dicionário abria o `CompactDictionary`
+para ler título/revisão e só o fechava no fim da composição — no Windows um blob aberto é o que faz
+`deleteRecursively()` ser um no-op, e a falha era silenciosa (o botão parecia morto). A metadata passou
+a ser lida e fechada na hora (`CompactDictionary.open(file)?.use { it.info }`), e a remoção agora
+**reporta** a falha (`DesktopStrings.dictRemoveFailed`). No catálogo, cada entrada instalada ganhou o
+seu próprio botão «Remover», que apaga só `${entry.id}.yabai` (`installedDictionaryFilesFor`) — nunca
+um dicionário importado à mão que esteja na mesma pasta. E o download ganhou **Cancelar**
+(`DictionaryDownloadCancelled`, com `checkCancelled` no laço de 64 KB e antes de compilar; o `finally`
+que já existia apaga o `temp_<id>.zip`, então um cancelamento não deixa lixo nem `.yabai` pela metade).
+
+**Cancelar travava o cartão em «baixando».** O Cancelar só levanta a flag (`cancelRequested`) e o
+download para no próximo bloco de 64 KB — de propósito, para não interromper um `read` no meio. Só que o
+reset do cartão vivia num `finally` que fazia `withContext(Dispatchers.Main)`: assim que a tarefa era
+cancelada, esse `withContext` lança na hora, o reset nunca acontecia e o cartão ficava eternamente em
+«baixando», sem o botão de cancelar e sem nada rodando atrás. O ciclo de instalação foi para
+`DictionaryInstallRun.kt` (`runCatalogueInstall` + `CatalogueInstallHooks`): `installed`, `cancelled`,
+`failed` e `finished` são *suspend* (a produção os despacha para a UI) e `finished` roda em
+`NonCancellable`, porque é o único que **precisa** acontecer mesmo com a tarefa cancelada. O relato de
+cancelamento também roda em `NonCancellable`: o Cancelar cancela a tarefa *e* levanta a flag, então sem
+isso o cartão se resetaria em silêncio, sem dizer «cancelado».
+
+**5. A pasta da importação é lembrada.** `DesktopSettings.lastDictionaryImportDirectory`
+(`last_dict_import_dir`) guarda a pasta do último arquivo importado; o `JFileChooser` do gerenciador
+reabre nela, e ignora o valor se a pasta não existir mais.
+
+**Testes e mutações.** Novos: `DictionaryCatalogEntriesTest` (pt/en fora, monolíngue dentro, entrada do
+catálogo só apaga o que ela própria instalou, cancelamento interrompe no checkpoint),
+`DictionaryInstallRunTest` (o cartão volta ao normal depois de um cancelamento — inclusive com a tarefa
+já cancelada; cancelar é «cancelado», não «falha»; nada roda depois de instalar; erro reporta falha e
+ainda reseta), `HoverLookupTest` (dicionário escolhido responde e nada mais é consultado; sem filtro
+busca em todos; aviso nomeia o dicionário; troca de dicionário sem verbete responde da leitura guardada,
+com verbete responde com ele, sem filtro ou com filtro de espaços volta a ler o ponteiro, e sem leitura
+guardada não há o que responder), teto da lista e bloco do aviso em `HoverTooltipHeightTest`,
+um de ida e volta em `DesktopSettingsTest` e um no `DictionaryCatalogTest` do app. Mutações provadas e
+restauradas (cada uma derruba o seu teste): entrada `wty-ja-en` de volta ao catálogo, fallback
+reintroduzido em `scopedHoverHit`, `minOf` do teto removido, `installedDictionaryFilesFor` devolvendo
+todos os arquivos, `checkCancelled` sem efeito, o getter da pasta de importação fixo em `""`, o reset
+fora do `NonCancellable`, cancelamento caindo no `catch` genérico, o aviso fora de `estimateHeight`, a
+falta de verbete voltando a pedir captura, espaços tratados como dicionário escolhido e o `Hit` da leitura
+guardada jogado fora. **`:desktop` 452, `:core` 197, `:app` 836, 0 falhas.**
+
+**Limitações.** 1) Nada disto foi visto na GUI: o cartão, a rolagem, o botão do catálogo e o aviso
+foram compilados e testados na lógica, mas não abertos no app. 2) O cancelamento só age entre blocos
+de 64 KB (a leitura bloqueia); num link lento pode levar um instante. 3) Dicionários instalados antes
+desta rodada continuam no disco — inclusive um Wikcionário localizado — e se removem na aba
+«Instalados». 4) O aviso de «não tem o verbete» vive enquanto o cartão estiver aberto (é o próprio cartão que o
+mostra); ao sair do texto ele desaparece com o cartão.
+
+### D78 — O cartão de «sem verbete» piscava e aparecia em qualquer lugar da tela  `[x]` (16/11/2026)
+
+**Sintomas.** Com um dicionário escolhido no hover, o cartão de «dicionário sem o verbete» 1) piscava
+em vez de ficar parado sobre a palavra, e 2) aparecia e desaparecia em qualquer ponto da tela — menu,
+parágrafo em português, área vazia — não só sobre texto japonês.
+
+**Causa raiz (1).** `showMissingEntry` mostrava o cartão com `targetBox = null`. O `HoverDismissGate` usa
+essa caixa como o alvo que mantém o cartão vivo: sem alvo, um ponteiro *parado em cima da palavra* conta
+como «saiu», a carência de 220 ms vence, `dismiss()` fecha o cartão — e, pior, `dismiss()` faz
+`gate.reset()`, que esquece o ponto já atendido. O `observe` volta a disparar sobre a mesma palavra, o
+`lookupAt` repete o OCR, o cartão reabre e fecha de novo: o piscar. Um hit nunca teve esse problema
+porque sempre passa a caixa do token.
+
+**Causa raiz (2).** No caminho de erro o `lookupAt` só olhava `result.joinLines().isBlank()`. O recorte do
+hover é o monitor inteiro (`HoverGeometry.hoverCrop`), então esse texto quase nunca está em branco: qualquer
+tela com qualquer texto reconhecido — inclusive em português — e um filtro escolhido caíam em
+`showMissingEntry`. Não havia nenhuma pergunta «existe uma palavra japonesa aqui?». Faltava também o
+teste de ponteiro velho: o caminho do hit conferia `STALE_RADIUS_PX`, o do erro não, e um OCR lento
+mostrava o cartão na posição antiga.
+
+**O que mudou.** A decisão saiu do gerenciador para duas funções puras em `HoverLookup.kt`:
+
+- `japaneseWordAt(result, ponto, lookup)` — a palavra japonesa sob o ponteiro, com a caixa dela, sem
+  passar pelo dicionário escolhido. O ponteiro tem de estar **dentro** da caixa da linha: a tolerância de
+  36 px serve para *responder* uma palavra, não para afirmar que uma palavra *falta* num dicionário; e o
+  caractere na posição tem de ser letra japonesa (`JapaneseText.isKana`/`isKanji`, mais `々`) — pontuação
+  não conta. A caixa é a do termo quando algum dicionário o conhece, e a da célula do caractere quando
+  nenhum conhece: nos dois casos ela contém o ponteiro.
+- `classifyHoverMiss(...)` devolve `NoText` (nada reconhecido), `MissingEntry(filtro, caixa)` (há palavra
+  japonesa e o dicionário escolhido não tem) ou `NoMatch(texto)` (há texto, mas nenhum dicionário escolhido
+  a quem culpar). Só o `MissingEntry` mostra cartão; os outros dois fazem o status de sempre e fecham.
+
+O `MissingEntry` passou a carregar a caixa da palavra (`CachedHoverAnswer.MissingEntry(filtro, caixa)`, que
+o `cachedHoverAnswer` da troca de dicionário reaproveita via `classifyHoverMiss`), e `showMissingEntry`
+agora **usa essa caixa como `targetBox`** — o cartão fica parado enquanto o ponteiro está na palavra, e o
+`gate` não volta a disparar no mesmo ponto. O caminho de erro ganhou o mesmo teste de ponteiro parado e de
+`isEnabled` que o caminho do hit já tinha antes de abrir o cartão.
+
+**Testes e mutações.** Novos em `HoverLookupTest`: ponteiro sobre texto latino nunca é «sem verbete»;
+ponteiro no vazio (longe, 15 px fora da caixa — dentro da tolerância — e 60 px abaixo da linha) fecha em
+vez de abrir; a falta de verbete vem ancorada na célula do caractere e a âncora contém o ponteiro; com
+essa âncora o `HoverDismissGate` não fecha o cartão nem com 60 s parado; a troca de dicionário pelo cartão
+devolve `MissingEntry` com âncora. Mutações provadas e restauradas: qualquer caractere contado como
+japonês; tolerância da linha usada no lugar de «dentro»; âncora trocada por um ponto de 1 px; falta de
+verbete deixando de ser reportada. O caso do `targetBox` em si (gerenciador) não é testável sem Compose
+nem `Robot` — o contrato coberto é «o miss devolve a caixa da palavra» **e** «com essa caixa o gate não
+fecha».
+
+**Limitações.** 1) Nada disto foi visto na GUI: a lógica está coberta, mas o cartão parado no app não foi
+observado. 2) A âncora sendo a célula de um caractere (quando nenhum dicionário conhece a palavra) é menor
+que a palavra inteira — se a caixa do OCR estiver deslocada, o ponteiro na borda pode cair fora e o cartão
+fechar depois da carência. 3) O aviso continua só em `:desktop`; o app Android não tem hover.
+**`:desktop` 456, `:core` 197, `:app` 836, 0 falhas.**
