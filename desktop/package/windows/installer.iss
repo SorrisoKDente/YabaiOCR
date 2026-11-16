@@ -44,6 +44,15 @@ Name: "{autodesktop}\Yabai OCR"; Filename: "{app}\Yabai OCR.exe"; Tasks: desktop
 Filename: "{app}\Yabai OCR.exe"; Description: "Executar o Yabai OCR"; Flags: postinstall nowait skipifsilent
 
 [Code]
+const
+  { The app registers itself at logon in HKCU, and that value is not created by this installer:
+    it is `WindowsAutostart.kt` writing `APP_NAME = 'YabaiOCR'` into
+    `Software\Microsoft\Windows\CurrentVersion\Run`. Removing the files without it leaves Windows
+    starting a missing executable at every logon. }
+  AutostartRunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';
+  AutostartApprovedKey = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run';
+  AutostartValueName = 'YabaiOCR';
+
 { The tray app answers the close request by hiding its window, so a request to close it never ends
   the process and the update cannot replace the files. Ending it here is what the «close the running
   application» option is expected to do; the installer starts it again at the end. }
@@ -63,8 +72,28 @@ begin
   Sleep(600);
 end;
 
+procedure RemoveAutostartEntry;
+begin
+  { Windows keeps a StartupApproved flag beside the Run value; leaving it behind makes a later
+    reinstall look disabled in «Startup apps», so both go. }
+  RegDeleteValue(HKCU, AutostartRunKey, AutostartValueName);
+  RegDeleteValue(HKCU, AutostartApprovedKey, AutostartValueName);
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   TerminateRunningApp;
   Result := '';
+end;
+
+{ The uninstaller hits the same wall: while the app runs it keeps the jars and its own exe open, so
+  the files cannot be deleted and the user is left with a half-removed install. Same termination,
+  at the step where the uninstaller is about to delete. }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    TerminateRunningApp;
+    RemoveAutostartEntry;
+  end;
 end;

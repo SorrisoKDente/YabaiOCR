@@ -188,7 +188,7 @@ fun main(args: Array<String>) {
     // «Trechos»: the screenshot and the scan the last result came from, kept while that result is
     // open so the user can go back and click another paragraph without capturing the screen again.
     var snippetsCapture by remember { mutableStateOf<CapturedScreen?>(null) }
-    var pickerScanCache by remember { mutableStateOf<PickerScan?>(null) }
+    var pickerScanCache by remember { mutableStateOf<PickerScan.Ready?>(null) }
 
     /**
      * Monitor the capture settings ask for.
@@ -530,7 +530,9 @@ fun main(args: Array<String>) {
                 pickerCapture = null
             },
             initialScan = pickerScanCache,
-            onScanReady = { scanned -> pickerScanCache = scanned },
+            // A failure is not cached: reopening the picker after a failed scan should try
+            // again instead of showing the same error forever.
+            onScanReady = { scanned -> pickerScanCache = reusablePickerScan(scanned) },
         )
     }
 

@@ -40,6 +40,12 @@ dependencies {
 }
 
 tasks.withType<Test>().configureEach {
+    // `TrayGlyphsTest` reads the Inno script and the packaged executable name. Gradle cannot see
+    // those reads, so without this a change to the installer leaves the test task up to date (or
+    // restores it from the build cache) and the assertions never run against the new file.
+    inputs.file(layout.projectDirectory.file("package/windows/installer.iss"))
+        .withPropertyName("windowsInstallerScript")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
     // Folder holding the PP-OCR files, for the desktop engine's end-to-end test.
     // Enable with:  gradle :desktop:test -Pppocr="C:\path\to\home"  (home/ppocr_v6 holds the 3 files)
     (project.findProperty("ppocr") as String?)?.let { systemProperty("yabai.ppocr", it) }

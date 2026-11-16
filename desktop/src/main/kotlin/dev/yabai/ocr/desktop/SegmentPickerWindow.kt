@@ -101,7 +101,7 @@ fun SegmentPickerWindow(
      * paragraph: recognising the page again would cost a second round trip and could report the
      * boxes slightly differently from the ones the user is looking at.
      */
-    initialScan: PickerScan? = null,
+    initialScan: PickerScan.Ready? = null,
     onScanReady: (PickerScan) -> Unit = {},
 ) {
     val imageBitmap = remember { screenImage.toComposeImageBitmap() }
@@ -112,8 +112,12 @@ fun SegmentPickerWindow(
     var hovered by remember { mutableStateOf<Int?>(null) }
     var blockRects by remember { mutableStateOf<List<Rectangle?>>(emptyList()) }
 
+    // The scan that came from the previous visit, handed out once (see `PickerScanMemory`): the
+    // effect below reruns on a reading-mode or filter change and has to rescan then.
+    val scanMemory = remember { PickerScanMemory(initialScan) }
+
     LaunchedEffect(screenImage, readingMode, dictionaryFilter) {
-        val cached = initialScan
+        val cached = scanMemory.consume()
         if (cached != null) {
             scan = cached
             return@LaunchedEffect

@@ -101,6 +101,96 @@ class TrayGlyphsTest {
         )
     }
 
+    @Test
+    fun `the uninstaller terminates the tray app before deleting the files`() {
+        val text = File("package/windows/installer.iss").readText()
+
+        // Inno deletes the files after firing usUninstall, so the kill has to sit in that step; a
+        // [UninstallRun] entry would be too late for the jars the app still has open.
+        val step = text.substringAfter("procedure CurUninstallStepChanged(", "")
+        assertTrue("the uninstaller has no CurUninstallStepChanged step", step.isNotEmpty())
+        assertTrue(
+            "the uninstaller only kills in the usUninstall step",
+            step.contains("CurUninstallStep = usUninstall"),
+        )
+        assertTrue(
+            "the usUninstall step has to end the running app",
+            step.contains("TerminateRunningApp"),
+        )
+    }
+
+    @Test
+    fun `the executable name the installer kills is the one the packaging produces`() {
+        val packaged = File("build.gradle.kts").readText()
+        val name = Regex("""packageName = if \(isWindowsHost\) "([^"]+)"""")
+            .find(packaged)
+            ?.groupValues
+            ?.get(1)
+        assertEquals("Yabai OCR", name)
+
+        val exe = "$name.exe"
+        val text = File("package/windows/installer.iss").readText()
+        // taskkill matches on the image name only, so it has to be exactly the packaged one.
+        assertTrue(
+            "the installer does not kill $exe",
+            text.contains("/IM \"$exe\" /F"),
+        )
+        assertTrue("the installer does not launch $exe", text.contains("{app}\\$exe"))
+    }
+
+    @Test
+    fun `the uninstaller deletes the autostart entry the app writes`() {
+        val source = File("src/main/kotlin/dev/yabai/ocr/desktop/WindowsAutostart.kt").readText()
+        val valueName = Regex("""APP_NAME = "([^"]+)"""")
+            .find(source)
+            ?.groupValues
+            ?.get(1)
+        assertEquals("YabaiOCR", valueName)
+        // The Kotlin literal escapes the separators; the registry key needs the plain form.
+        val key = Regex("""REG_KEY = "([^"]+)"""")
+            .find(source)
+            ?.groupValues
+            ?.get(1)
+            ?.replace("\\\\", "\\")
+        assertEquals("Software\\Microsoft\\Windows\\CurrentVersion\\Run", key)
+
+        val text = File("package/windows/installer.iss").readText()
+        // Whole declarations, not `contains`: `...\\RunOnce` contains `...\\Run`, so a substring
+        // check would accept a key the app never writes.
+        assertTrue(
+            "the installer does not declare the Run key the app writes ($key)",
+            text.contains("AutostartRunKey = '$key';"),
+        )
+        assertTrue(
+            "the installer constants still say $valueName",
+            text.contains("AutostartValueName = '$valueName';"),
+        )
+        // Windows keeps the StartupApproved flag beside the Run value; a leftover flag makes a
+        // later reinstall show up as disabled in «Startup apps».
+        assertTrue(
+            "the StartupApproved flag is not declared",
+            text.contains(
+                "AutostartApprovedKey = " +
+                    "'Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run';",
+            ),
+        )
+
+        val body = text.substringAfter("procedure RemoveAutostartEntry;", "")
+        assertTrue("there is no RemoveAutostartEntry procedure", body.isNotEmpty())
+        assertTrue(
+            "the autostart value must be deleted from the Run key",
+            body.contains("RegDeleteValue(HKCU, AutostartRunKey, AutostartValueName)"),
+        )
+
+        // Inno deletes files after usUninstall, and the leftover entry points there — so the entry
+        // has to be gone in that same step, not after the files.
+        val step = text.substringAfter("procedure CurUninstallStepChanged(", "")
+        assertTrue(
+            "the uninstaller has to call RemoveAutostartEntry",
+            step.contains("RemoveAutostartEntry"),
+        )
+    }
+
     private fun alphaOf(argb: Int): Int = (argb ushr 24) and 0xFF
 
     private val Color.rgb: Int get() = (red shl 16) or (green shl 8) or blue

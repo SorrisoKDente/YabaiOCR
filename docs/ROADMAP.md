@@ -6480,12 +6480,29 @@ por linha, cada um com a sua cor (monitor azul, tesoura laranja, lupa violeta, b
 (`withoutEmojiPrefix`) — o menu nativo do Linux continua recebendo o texto com emoji, é ele que o
 desenha.
 
-**2. O instalador não fechava o app.** O `installer.iss` não pedia nada, e o pedido educado do Inno
-(Restart Manager) também não resolveria: com `close_to_tray=true` a janela do app só se esconde, o
-processo continua vivo e os jars não podem ser substituídos. Agora `CloseApplications=no` (o fechamento
-educado é declarado inútil, e não o é por acaso) e `[Code] PrepareToInstall` roda
-`taskkill /IM "Yabai OCR.exe" /F` antes de copiar os arquivos, com 600 ms de folga para os handles
-caírem; o `[Run]` que já existia reabre o app no fim.
+**2. O instalador não fechava o app — e o desinstalador também não.** O `installer.iss` não pedia
+nada, e o pedido educado do Inno (Restart Manager) também não resolveria: com `close_to_tray=true` a
+janela do app só se esconde, o processo continua vivo e os jars não podem ser substituídos. Agora
+`CloseApplications=no` (o fechamento educado é declarado inútil, e não o é por acaso) e
+`[Code] PrepareToInstall` roda `TerminateRunningApp` (`taskkill /IM "Yabai OCR.exe" /F`) antes de
+copiar os arquivos, com 600 ms de folga para os handles caírem; o `[Run]` que já existia reabre o app
+no fim. O desinstalador tropeçava no mesmo processo: o Inno só apaga depois do passo `usUninstall`, e
+o app aberto mantém os jars e o próprio `.exe` abertos, então a remoção parava no meio. O mesmo
+`TerminateRunningApp` passou a ser chamado em `CurUninstallStepChanged`, quando
+`CurUninstallStep = usUninstall` (um `[UninstallRun]` seria tarde demais para os arquivos em uso).
+O nome `"Yabai OCR.exe"` foi conferido contra a origem: `packageName = "Yabai OCR"` em
+`desktop/build.gradle.kts` (ramo do host Windows) é o nome do pacote gerado, e há teste para os dois
+lados não divergirem.
+
+O autostart é do app, não do instalador: quem escreve **`YabaiOCR`** em
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` é `WindowsAutostart.kt` (`APP_NAME`,
+`REG_KEY`, comando `"<exe>" --minimized`), e por isso o Inno não tinha nada para remover sozinho — a
+entrada sobrevivia à desinstalação apontando para um `.exe` que já não existia. O `[Code]` do
+desinstalador ganhou `RemoveAutostartEntry`, chamado no mesmo passo `usUninstall`, que apaga a chave
+`Run` **e** a flag `...\Explorer\StartupApproved\Run` de mesmo nome (sem essa segunda, uma
+reinstalação futura apareceria como «desativada» em «Aplicativos de inicialização»). O teste extrai a
+chave e o nome do valor do próprio `WindowsAutostart.kt` — não de uma cópia escrita à mão no teste —
+e exige que o `.iss` os apague no passo de desinstalação.
 
 **3. «Recortar» no resultado capturava a própria janela.** O botão chamava `onClose()` e pedia a
 captura na mesma hora, com a janela ainda no ecrã: o recorte pegava o que estava por baixo *e* a
@@ -6501,17 +6518,56 @@ imagem e as mesmas caixas** — `SegmentPickerWindow` recebeu `initialScan`/`onS
 guardado, não gasta uma segunda ida ao Lens nem muda as caixas debaixo do utilizador. O botão só existe
 quando o resultado veio do picker; um recorte à mão não tem para onde voltar.
 
-**Testes e mutações.** Cinco testes novos em `TrayGlyphsTest`: os sete rótulos sem emoji, texto simples
-intacto, cada glifo pintado com a sua cor saturada e distinta (pixels lidos do `BufferedImage`, não a
-constante), o tamanho do ícone e o script do instalador (tem de dizer `CloseApplications=no`, chamar
-`taskkill` com `/F` e fazê-lo em `PrepareToInstall`). Mutações provadas e restauradas: rótulo a manter o
-emoji, `CloseApplications=yes` outra vez e glifo do monitor em cinzento derrubam, cada uma, o seu teste.
-**`:core` 197, `:desktop` 424, 0 falhas.**
+**Revisão das mudanças com olhos frescos.** Três coisas apareceram e foram corrigidas: (a) o scan
+guardado para o modo «Trechos» era reaplicado a cada troca de modo de leitura dentro do picker, porque
+o `LaunchedEffect(screenImage, readingMode, dictionaryFilter)` voltava a ler `initialScan` — agora o
+scan guardado é consumido **uma vez**, e trocar de modo volta a reconhecer a tela; (b) varreduras que
+**falharam** não são guardadas, senão reabrir o picker mostraria o mesmo erro para sempre; (c)
+`WindowState` do Compose Desktop 1.12 não tem `isVisible` (o código nem compila com isso) — a ocultação
+usa a janela AWT, que é descartada em seguida junto com o resultado; o comentário no código diz isso em
+vez de deixar a dúvida.
 
-**Limitações.** 1) Ícones, instalador e janelas só se veem no Windows de verdade: aqui compilei e testei
-o desenho dos ícones e os textos, mas **não** abri o menu da bandeja nem corri o `ISCC` (o Inno Setup não
-está instalado nesta máquina) — a sintaxe do `[Code]` é a documentada e não foi compilada. 2) O atraso de
-180 ms é uma espera fixa, não uma confirmação de que o compositor já tirou a janela; num sistema muito
-lento ainda pode escapar um frame. 3) O picker reaberto com o scan guardado não relê a tela: se algo
-mudou por baixo, as caixas são as da captura original — que é exatamente o que «trechos» significa.
-4) Nada foi verificado visualmente no app.
+As regras de (a) e (b) saíram da janela para `PickerScanMemory.kt`, que não depende de Compose:
+`PickerScanMemory.consume()` entrega o `PickerScan.Ready` guardado no máximo uma vez, e
+`reusablePickerScan()` transforma um scan terminado em algo reutilizável — só `Ready`, nunca `Failed`
+nem `Scanning`. O `SegmentPickerWindow` ficou com `val scanMemory = remember { PickerScanMemory(initialScan) }`
+e o `Main` guarda `PickerScan.Ready?` (`onScanReady = { pickerScanCache = reusablePickerScan(it) }`).
+Isso permitiu testar as duas regras sem GUI, em `PickerScanMemoryTest` (5 testes: scan entregue uma vez
+e a segunda chamada nula; falha nunca reutilizada; scan em andamento nunca reutilizado; só `Ready` é
+guardável; a captura reaberta mantém os blocos).
+
+**Correção de método (importante).** As provas de mutação das rodadas anteriores deste item estavam
+**inválidas** por dois motivos, e foram refeitas: 1) o `gradlew.bat` era chamado por `subprocess` sem
+shell no Windows, então a "falha" observada era `'.' não é reconhecido…` (código 1 do interpretador,
+não teste vermelho); 2) depois disso, `:desktop:test` era servido **do build cache** (`Task
+:desktop:test FROM-CACHE`), porque o `.iss` não é input declarado da tarefa — as mutações no script do
+Inno nem chegavam a rodar os testes. Agora `desktop/build.gradle.kts` declara
+`package/windows/installer.iss` como `inputs.file` (com `PathSensitivity.RELATIVE`), e as provas rodam
+com `--no-build-cache`. Ainda no mesmo espírito: o teste do autostart passou a exigir a **declaração
+inteira** (`AutostartRunKey = '...\Run';`) em vez de `contains`, porque `...\RunOnce` contém
+`...\Run` e a versão antiga aceitava a mutação.
+
+**Testes e mutações.** Oito testes novos em `TrayGlyphsTest`: os sete rótulos sem emoji, texto simples
+intacto, cada glifo pintado com a sua cor saturada e distinta (pixels lidos do `BufferedImage`, não a
+constante), o tamanho do ícone, o script do instalador (tem de dizer `CloseApplications=no`, chamar
+`taskkill` com `/F` e fazê-lo em `PrepareToInstall`), o passo `usUninstall` do desinstalador a chamar o
+mesmo encerramento, o nome do executável igual ao `packageName` do `:desktop` (lido do
+`build.gradle.kts`, não escrito à mão no teste) e o desinstalador a apagar a entrada de autostart com
+a chave e o nome do valor lidos de `WindowsAutostart.kt`. Mutações provadas e restauradas (cada uma derruba o seu teste): rótulo a manter o emoji,
+`CloseApplications=yes` outra vez, glifo do monitor em cinzento, o encerramento do desinstalador
+removido, `RemoveAutostartEntry` fora do passo de desinstalação, o nome do valor trocado para
+`Yabai OCR`, a chave trocada por `RunOnce`, a chave do `StartupApproved` trocada, o `/IM` com um nome
+que o empacotamento não gera, o scan entregue duas vezes (`consume` sem limpar) e qualquer scan aceito
+como reutilizável. **`:core` 197, `:desktop` 432, 0 falhas.**
+
+**Limitações.** 1) Ícones, instalador, desinstalador e janelas só se veem no Windows de verdade: aqui
+compilei e testei o desenho dos ícones, os textos e o conteúdo do script, mas **não** abri o menu da
+bandeja nem corri o `ISCC` (o Inno Setup não está instalado nesta máquina) — a sintaxe Pascal do
+`[Code]` é a documentada (`PrepareToInstall`, `CurUninstallStepChanged`, `RegDeleteValue`,
+`TerminateRunningApp`) e não foi compilada; a desinstalação com o app aberto e a remoção do autostart
+não foram executadas. 2) O autostart só é apagado do `HKCU` do usuário que roda o desinstalador: se o
+app foi ativado na conta A e o desinstalador roda na conta B, a entrada de A fica (limitação do
+`PrivilegesRequired=lowest`). 3) O atraso de 180 ms é uma espera fixa, não uma confirmação de que o
+compositor já tirou a janela; num sistema muito lento ainda pode escapar um frame. 4) O picker reaberto
+com o scan guardado não relê a tela: se algo mudou por baixo, as caixas são as da captura original — que
+é exatamente o que «trechos» significa. 5) Nada foi verificado visualmente no app.

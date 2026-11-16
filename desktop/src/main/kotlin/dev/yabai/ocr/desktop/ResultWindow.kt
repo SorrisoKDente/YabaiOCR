@@ -260,6 +260,9 @@ fun ResultWindow(
                                 OutlinedButton(
                                     onClick = {
                                         // Out of the picture before the picker opens over it.
+                                        // `WindowState` has no visibility to set, and the window is
+                                        // torn down right after (the result state is cleared), so the
+                                        // AWT window is the one to hide here.
                                         window.isVisible = false
                                         scope.launch {
                                             delay(RESULT_WINDOW_HIDE_DELAY_MS)
