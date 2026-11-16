@@ -1,5 +1,7 @@
 package dev.yabai.ocr.core.lens
 
+import dev.yabai.ocr.core.layout.ReadingOrder
+
 /** Image bytes already encoded for transport, plus the dimensions they really have. */
 class EncodedImage(
     val bytes: ByteArray,
@@ -48,10 +50,20 @@ data class LensResult(
 ) {
     val isEmpty: Boolean get() = segments.none { it.text.isNotBlank() }
 
-    /** Lines joined in reading order. */
-    fun joinLines(): String = segments
-        .filter { it.text.isNotBlank() }
-        .joinToString("\n") { it.text }
+    /**
+     * Lines joined in reading order.
+     *
+     * The order comes from the boxes, not from the list: Lens reports the columns of a vertical page
+     * in its own arrangement, and the panel printed «え入れる。» *above* «…血の絨毯がまた誰かを迎» — the
+     * sentence cut and its second half shown first. [ReadingOrder] is the rule the blocks are built
+     * with as well.
+     */
+    fun joinLines(): String {
+        val lines = segments.filter { it.text.isNotBlank() }
+        if (lines.size < 2) return lines.joinToString("\n") { it.text }
+        return ReadingOrder.order(lines.map { it.box })
+            .joinToString("\n") { lines[it].text }
+    }
 }
 
 class LensException(

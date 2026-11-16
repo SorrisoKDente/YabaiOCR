@@ -6412,3 +6412,59 @@ o ponteiro em ら responde はだら (斑) — antes respondia らし (螺子), 
 dicionário, não da geometria. 3) Não testei com Lens sobre as suas imagens reais (os prints do chat não
 são arquivos): as páginas foram renderizadas com o texto deles. Se algum caso continuar errado, o
 caminho é repetir o probe com o PNG da página. 4) Nada foi verificado visualmente no app.
+
+### D75 — Hover no horizontal, ordem do texto reconhecido e o «Reentry» pela raiz  `[x]` (15/11/2026)
+
+**Relato.** Nas novels funcionou. No horizontal (bloco de notas) reconhece até certo ponto e depois
+para — «adicionei だが no começo e parou»; o erro «Reentry into ignoringRedrawRequests is not allowed»
+ainda aparece ao trocar de dicionário várias vezes mexendo o mouse; e o texto reconhecido vem fora de
+ordem («え入れる。» antes de «…血の絨毯がまた誰かを迎»).
+
+**Medido, não deduzido.** Outro probe temporário (apagado no fim) renderizou uma página de bloco de
+notas com a linha quebrada exatamente como no print — «だがこにはだ短い悲鳴が上がって、血の絨毯がまた
+誰かを迎» / «え入れる。» — e passou o ponteiro em 迎 pelo caminho real (recorte → Lens → seletor com os
+dicionários do usuário).
+
+**Causa raiz 1 — o vão entre linhas.** As duas linhas ficam a 19 px uma da outra, cada uma com 25 px de
+altura. O critério de adjacência (0,75 glifo, o mesmo do construtor de blocos) recusava: 19 > 18,75. Por
+isso funcionava numa diagramação e não em outra — e mexer no texto mudava o ajuste da linha o suficiente
+para virar o resultado. O hover agora julga vizinhança com **1,25 glifo**, que é o espaçamento normal de
+um bloco de notas ou de um livro; dois balões de mangá ficam bem mais longe, e a palavra continua
+tendo de ser mais longa que a da própria linha para vencer.
+
+**Causa raiz 2 — a largura do recorte.** A metade que falta de uma palavra quebrada não fica abaixo do
+ponteiro: fica na **margem esquerda da linha seguinte**, a mais de mil pixels de distância. Daí o
+recorte passou a ser o **monitor inteiro** (antes: 640 px de largura; no item D74 já era a altura toda).
+
+**Causa raiz 3 — ordem do texto.** `LensResult.joinLines()` concatenava na ordem em que o Lens devolve,
+e o Lens devolve as colunas de uma página vertical «em qualquer arranjo». Agora a ordem vem das caixas,
+com o mesmo `ReadingOrder` que monta os blocos — vale para o painel de resultado, para a cópia e para a
+tradução.
+
+**Causa raiz 4 — o «Reentry», enfim localizada.** Não é AWT nem o nosso `setSize`: está no Compose
+(`SwingWindow.desktop.kt`), que ao tornar uma janela visível chama `renderImmediately()` de dentro do
+próprio frame; o `SwingInteropContainer` recusa a renderização reentrante com essa mensagem, e o
+tratador padrão responde com o diálogo de erro. O cartão do hover é criado exatamente quando aparece,
+então trocar de dicionário e mexer o mouse (cartão nascendo e morrendo) cai nesse caminho. A correção
+**não** é reescrever o Compose: a janela do cartão passou a usar um `WindowExceptionHandlerFactory`
+próprio que descarta **somente** essa mensagem (a renderização que faltou acontece no frame seguinte) e
+repassa todo o resto para o tratador padrão.
+
+**Evidência do pipeline real (Lens + dicionários do usuário).** Bloco de notas com a linha quebrada:
+recorte 640 → 迎; monitor inteiro → **迎え入れる**. Novel vertical re-verificada depois das mudanças:
+救 → **救い**, 振 → **振り向かせて**, 絡 → 絡む (nenhuma linha perdida com o critério novo).
+
+**Testes e mutações.** Quatro testes novos: palavra quebrada entre duas linhas com espaçamento comum
+(`HoverTextSelectorTest`), recorte = monitor inteiro (`HoverGeometryTest`), ordem das colunas e das
+linhas em `joinLines` (`LensResultOrderTest`, no `:core`) e reconhecimento da mensagem de reentrância
+(`HoverTooltipHeightTest`). Mutações provadas e restauradas: vão de volta a 0,75 derruba o teste do
+horizontal; `joinLines` sem `ReadingOrder` derruba os dois testes de ordem. **`:core` 197, `:desktop`
+419, 0 falhas.** Também corrigido o corte dos nomes na lista de dicionários do cartão (linha com altura
+fixa de 26 dp e texto de 12 sp).
+
+**Limitações.** 1) O diálogo do «Reentry» deixou de aparecer, mas a renderização reentrante que o
+Compose tenta continua existindo — o frame seguinte desenha o cartão; se algum dia o cartão não
+aparecer, é aí que se olha. 2) O recorte do hover agora é a tela inteira: mais pixels por leitura
+(~3× o anterior) e o próprio cartão entra na imagem enviada ao Lens. 3) O probe usa páginas
+renderizadas com o texto dos prints (as imagens do chat não são arquivos); não rodei a GUI. 4) Nada
+foi verificado visualmente no app.

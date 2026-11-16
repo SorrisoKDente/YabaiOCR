@@ -370,6 +370,28 @@ class HoverTextSelectorTest {
     }
 
     /**
+     * Regression: a word wrapped in a notepad — «…血の絨毯がまた誰かを迎» / «え入れる。» — answered 迎
+     * alone. The two lines are 19 px apart under a 25 px line, and the block builder's «a glyph apart
+     * at most» refused them as neighbours: 19 > 0.75 × 25. A notepad and a book set their lines about
+     * a glyph and a quarter apart, so the hover judges adjacency with its own, looser rule.
+     */
+    @Test
+    fun `a word wrapped onto the next line is joined across ordinary line spacing`() {
+        val first = LensSegment("血の絨毯がまた誰かを迎", PixelBox(20, 38, 700, 25))
+        val second = LensSegment("え入れる。", PixelBox(20, 82, 112, 21))
+        val hit = HoverTextSelector.select(
+            result(first, second),
+            Point(710, 50), // 迎, the last character of the first line
+            lookup = { text, _ ->
+                if (text.contains("迎え入れる")) listOf(match("迎え入れる", 10, 15)) else emptyList()
+            },
+        )
+
+        assertNotNull("the wrapped word was not joined across the two lines", hit)
+        assertEquals("迎え入れる", hit!!.match.surface)
+    }
+
+    /**
      * Regression: Lens reports the columns of a vertical page in its own arrangement, not in the
      * order they are read, and with every column as its own block there is no block order to fall
      * back on either. The raw order put the column on the *left* after the pointed one, so «the next

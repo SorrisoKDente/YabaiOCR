@@ -28,13 +28,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DefaultWindowExceptionHandlerFactory
+import androidx.compose.ui.window.LocalWindowExceptionHandlerFactory
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowExceptionHandler
+import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import kotlinx.coroutines.delay
@@ -48,8 +54,37 @@ import java.awt.event.ComponentEvent
  * Tooltip window anchored next to the pointer with dictionary definitions.
  * Sized dynamically to wrap content tightly without empty space or cutting text at the bottom.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HoverTooltipWindow(
+    matches: List<TokenMatch>,
+    mousePoint: Point,
+    activeFilter: String = "",
+    installedDictTitles: List<String> = emptyList(),
+    onSelectDictionary: (String) -> Unit = {},
+    onDismiss: () -> Unit,
+    onBoundsChanged: (Rectangle?) -> Unit = {},
+) {
+    // The card's window is created while Compose is drawing the frame that first shows it, and
+    // Compose then renders it from inside that same pass: it throws «Reentry into
+    // ignoringRedrawRequests is not allowed» and the default handler answers with an Error dialog.
+    // The skipped inner render costs one frame — the next pass draws the card — so the dialog is
+    // the only thing worth removing. Nothing else is swallowed.
+    CompositionLocalProvider(LocalWindowExceptionHandlerFactory provides TooltipWindowExceptions) {
+        HoverTooltipCardWindow(
+            matches = matches,
+            mousePoint = mousePoint,
+            activeFilter = activeFilter,
+            installedDictTitles = installedDictTitles,
+            onSelectDictionary = onSelectDictionary,
+            onDismiss = onDismiss,
+            onBoundsChanged = onBoundsChanged,
+        )
+    }
+}
+
+@Composable
+private fun HoverTooltipCardWindow(
     matches: List<TokenMatch>,
     mousePoint: Point,
     activeFilter: String = "",
@@ -348,3 +383,26 @@ private fun placeWindow(window: java.awt.Window, anchor: Point) {
     )
     window.setLocation(point.x, point.y)
 }
+
+/**
+ * Swallows the one exception Compose throws while it is drawing the card for the first time.
+ *
+ * `SwingWindow` renders a window from inside `update`, and that update runs during a frame; when the
+ * window is becoming displayable it asks for an immediate render from within the render already in
+ * progress, and the interop bookkeeping refuses the reentry. The next frame draws the card, so the
+ * only visible effect of the exception was the Error dialog the user got while changing
+ * dictionaries. Everything else still goes to Compose's own handler.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+internal object TooltipWindowExceptions : WindowExceptionHandlerFactory {
+    override fun exceptionHandler(window: java.awt.Window) = WindowExceptionHandler { throwable ->
+        if (!isRedrawReentry(throwable)) {
+            DefaultWindowExceptionHandlerFactory.exceptionHandler(window).onException(throwable)
+        }
+    }
+}
+
+/** Whether [throwable] is Compose refusing a render it started from inside another render. */
+internal fun isRedrawReentry(throwable: Throwable): Boolean =
+    throwable is IllegalStateException &&
+        throwable.message?.contains("Reentry into ignoringRedrawRequests") == true

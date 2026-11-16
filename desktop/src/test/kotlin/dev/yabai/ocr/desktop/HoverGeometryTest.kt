@@ -171,12 +171,12 @@ class HoverGeometryTest {
         assertTrue(crop.contains(pointer))
     }
 
+    /** The whole monitor: a wrapped word's halves are at opposite margins, not next to the pointer. */
     @Test
-    fun `hover crop keeps the width that covers a dozen columns`() {
+    fun `hover crop is the whole monitor`() {
         val crop = HoverGeometry.hoverCrop(Point(900, 500), screen)
 
-        assertEquals(HoverGeometry.HOVER_CROP_WIDTH, crop.width)
-        assertEquals(screen.height, crop.height)
+        assertEquals(screen, crop)
     }
 
     @Test

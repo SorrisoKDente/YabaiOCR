@@ -22,9 +22,6 @@ object HoverGeometry {
 
     private const val MAX_MARGIN = 2
 
-    /** Width of the crop the hover hands to the engine; wide enough for a dozen columns. */
-    const val HOVER_CROP_WIDTH = 640
-
     /** Space between the pointer and the tooltip, so the card never covers the word read. */
     const val TOOLTIP_GAP = 18
 
@@ -92,7 +89,7 @@ object HoverGeometry {
     }
 
     /**
-     * The region the hover recognises: [HOVER_CROP_WIDTH] wide, as tall as the monitor.
+     * The region the hover recognises: the whole monitor.
      *
      * The height is the whole monitor on purpose. A word split between two columns of vertical text
      * has one half at the bottom of a column and the other at the *top* of the column beside it —
@@ -101,11 +98,13 @@ object HoverGeometry {
      * against Lens on a novel page: 640×360 answered 救 and 振 alone; the full-height crop answered
      * 救い and 振り向かせて, with every other character of the page unchanged.
      *
-     * Horizontal text is unaffected: the continuation is one line below the pointer, and a taller
-     * crop always contains it.
+     * Horizontal text needs the width for the same reason in another direction: a wrapped word has
+     * its first half at the end of one line and its second half at the **left margin of the next
+     * one**, over a thousand pixels away in a notepad. Measured with Lens on a page like that: a
+     * 640×hundreds crop answered 迎 alone; the whole monitor answered 迎え入れる.
      */
     fun hoverCrop(pointer: Point, screen: Rectangle): Rectangle =
-        planCrop(pointer, screen, HOVER_CROP_WIDTH, screen.height)
+        planCrop(pointer, screen, screen.width, screen.height)
 
     /** The pointer position in the pixels of the image Robot actually returned. */
     fun localPoint(pointer: Point, crop: Rectangle, imageWidth: Int, imageHeight: Int): Point {

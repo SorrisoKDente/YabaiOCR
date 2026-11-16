@@ -2,6 +2,7 @@ package dev.yabai.ocr.desktop
 
 import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -49,5 +50,19 @@ class HoverTooltipHeightTest {
         val five = estimateHeight(listOf(entry()), dictMenuOpen = true, dictionaryCount = 5)
 
         assertTrue("the card did not grow with the number of dictionaries", five > two)
+    }
+
+    /**
+     * The dialog that appeared while changing dictionaries. Compose renders the card's window from
+     * inside a render when it becomes displayable and refuses the reentry; the next frame draws it,
+     * so the report is dropped — but only that one.
+     */
+    @Test
+    fun `the redraw reentry is recognised and nothing else is`() {
+        assertTrue(
+            isRedrawReentry(IllegalStateException("Reentry into ignoringRedrawRequests is not allowed")),
+        )
+        assertFalse(isRedrawReentry(IllegalStateException("anything else")))
+        assertFalse(isRedrawReentry(RuntimeException("Reentry into ignoringRedrawRequests is not allowed")))
     }
 }

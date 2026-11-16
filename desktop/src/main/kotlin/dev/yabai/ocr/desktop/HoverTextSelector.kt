@@ -60,8 +60,16 @@ object HoverTextSelector {
      */
     const val BRIDGE_CHARS = 16
 
-    /** How far apart two lines may be and still be neighbours, in glyphs. */
-    private const val MERGE_GAP_RATIO = 0.75
+    /**
+     * How far apart two lines may be and still be neighbours, in glyphs.
+     *
+     * Larger than the block builder's 0.75 on purpose: a notepad (and a book) sets its lines about a
+     * glyph and a quarter apart, so a wrapped word's other half measured 19 px from a 25 px line and
+     * was refused as «another block» — the hover worked in some layouts and not in others, and
+     * adding a couple of characters to the line was enough to flip it. Two balloons of a manga are
+     * further apart than this, and a word still has to be longer than the line's own to win.
+     */
+    private const val MERGE_GAP_RATIO = 1.25
 
     /** Advance of a full-width Japanese cell; the unit every other weight is relative to. */
     private const val FULL_WIDTH = 1.0
