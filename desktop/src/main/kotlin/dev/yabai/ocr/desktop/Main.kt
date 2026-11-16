@@ -78,7 +78,39 @@ fun main(args: Array<String>) {
     // Before any window: when Windows starts the app with `--minimized` the settings window is
     // never created, so the logon entry has to be repaired from the stored preference here.
     val appSettings = DesktopSettings()
+    // The renderer log follows the interface language, so the language has to be known first.
     DesktopStrings.init(appSettings)
+
+    // The renderer has to be chosen before Skiko is loaded — the first window does that — and it is
+    // also the only way to survive the native Direct3D crash: the previous start is the witness that
+    // this one died. `--renderer=…` and the Settings window are the two ways to change it, since a
+    // packaged app has no JVM flags to give.
+    val rendererRequest = parseRendererArgument(args.toList())
+    val rendererRecovery = RendererRecovery.default()
+    // The marker alone says only that the previous run did not close through the app: Ctrl+C under
+    // Gradle leaves it behind too. The JVM's own crash report (`hs_err_pid<pid>.log`) is what says
+    // the process died in Skiko, and only that is worth changing the renderer for.
+    val previousRun = rendererRecovery.previousRun()
+    val rendererCrashed = previousRun.skikoCrashReport != null
+    val rendererDecision = decideRendererApi(
+        previousRunCrashed = rendererCrashed,
+        previousRunStoppedFromOutside = previousRun.stoppedFromOutside,
+        stored = appSettings.skikoRenderer,
+        requested = (rendererRequest as? RendererArgument.Chosen)?.level,
+        current = System.getProperty(SKIKO_RENDER_API_PROPERTY),
+    )
+    rendererDecision.value?.let { System.setProperty(SKIKO_RENDER_API_PROPERTY, it) }
+    rendererDecision.persist?.let { appSettings.skikoRenderer = it }
+    rendererDecision.message?.let { println(it) }
+    if (rendererRequest is RendererArgument.Invalid) {
+        println(
+            "[Renderer] --renderer=${rendererRequest.value} não é válido. " +
+                "Use automatic, opengl ou software.",
+        )
+    }
+    rendererRecovery.markRunning()
+    // Runs on every normal exit — window closed, tray quit, SIGTERM — and not when the JVM dies.
+    Runtime.getRuntime().addShutdownHook(Thread { rendererRecovery.markCleanExit() })
     StartupManager.reconcileStartOnBoot(appSettings.startOnBoot)
     // KWin refuses `org.kde.KWin.ScreenShot2` to a caller whose desktop entry does not declare the
     // interface, and the portal fallback presents a permission window per capture. Writing the entry
@@ -684,6 +716,8 @@ fun main(args: Array<String>) {
                     if (mainScreen == MainScreen.SETTINGS) {
                         SettingsContent(
                             settings = settings,
+                            // Shown in the renderer card: the run was moved after a native crash.
+                            rendererAfterCrash = if (rendererCrashed) rendererDecision.level else null,
                             hoverActive = hoverState.active,
                             hoverStatus = hoverState.status,
                             hotkeyBackendStatus = hotkeyStatus,

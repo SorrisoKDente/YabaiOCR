@@ -115,6 +115,17 @@ object HoverGeometry {
         return Point(x, y)
     }
 
+    /**
+     * A box of the recognised image translated back to AWT screen coordinates.
+     *
+     * [imageSize] is the size of the image Lens actually received, which a scaled display makes
+     * larger than [crop]; passing the crop's own size there scales the box by the display's factor
+     * twice and puts it away from the word. When nothing was kept, the crop is the only estimate
+     * left — better a slightly wrong box than none.
+     */
+    fun toScreen(box: PixelBox, crop: Rectangle, imageSize: Dimension?): Rectangle =
+        toScreen(box, crop, imageSize?.width ?: crop.width, imageSize?.height ?: crop.height)
+
     /** A box inside the submitted image translated back to AWT screen coordinates. */
     fun toScreen(box: PixelBox, crop: Rectangle, imageWidth: Int, imageHeight: Int): Rectangle {
         val scaleX = crop.width.toDouble() / imageWidth.coerceAtLeast(1)

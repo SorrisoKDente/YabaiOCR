@@ -1,8 +1,8 @@
 package dev.yabai.ocr.desktop
 
 import dev.yabai.ocr.core.dict.LookupEngine
-import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.core.dict.TokenMatch
+import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.core.lens.PixelBox
 import java.awt.Point
@@ -16,6 +16,13 @@ internal fun dictionaryScope(filter: String): Set<String> =
     filter.takeIf { it.isNotBlank() }?.let { setOf(it) } ?: emptySet()
 
 /**
+ * The hover's lookup over [engine]: the engine signature — the match cap and the scope — lives in
+ * one place instead of being rebuilt at every call site.
+ */
+internal fun hoverQuery(engine: LookupEngine): (String, Set<String>) -> List<TokenMatch> =
+    { text, only -> engine.lookup(text, maxMatches = 96, only = only) }
+
+/**
  * Looks the pointer up inside the chosen dictionary and nowhere else.
  *
  * There used to be a second search over every dictionary when the chosen one had no entry: the card
@@ -23,15 +30,10 @@ internal fun dictionaryScope(filter: String): Set<String> =
  * choice had been ignored. The chosen dictionary is the answer even when the answer is «not here» —
  * the caller says so ([dev.yabai.ocr.desktop.i18n.DesktopStrings.hoverDictionaryMissingEntry])
  * instead of silently changing the source.
+ *
+ * The lookup is injected rather than an engine taken directly: the engine signature (the match cap,
+ * the scope) lives in [hoverQuery], and the geometry can be tested without a dictionary on disk.
  */
-internal fun scopedHoverHit(
-    result: LensResult,
-    imagePoint: Point,
-    engine: LookupEngine,
-    filter: String,
-): HoverHit? = HoverTextSelector.select(result, imagePoint, engine, dictionaryScope(filter))
-
-/** Same rule, with the lookup injected so the geometry can be tested without a dictionary on disk. */
 internal fun scopedHoverHit(
     result: LensResult,
     imagePoint: Point,
@@ -101,8 +103,10 @@ internal fun japaneseWordAt(
 ): HoverWord? {
     val segment = result.segments
         .filter { it.text.isNotBlank() && it.box != null }
-        .sortedBy { HoverTextSelector.distanceToBox(imagePoint, it.box!!) }
-        .firstOrNull { HoverTextSelector.distanceToBox(imagePoint, it.box!!) <= 0.0 }
+        .map { it to HoverTextSelector.distanceToBox(imagePoint, it.box!!) }
+        .filter { it.second <= 0.0 }
+        .minByOrNull { it.second }
+        ?.first
         ?: return null
     val box = segment.box ?: return null
 

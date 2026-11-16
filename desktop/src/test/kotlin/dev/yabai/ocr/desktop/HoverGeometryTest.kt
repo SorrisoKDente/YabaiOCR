@@ -1,6 +1,7 @@
 package dev.yabai.ocr.desktop
 
 import dev.yabai.ocr.core.lens.PixelBox
+import java.awt.Dimension
 import java.awt.Point
 import java.awt.Rectangle
 import org.junit.Assert.assertEquals
@@ -63,6 +64,21 @@ class HoverGeometryTest {
         )
 
         assertEquals(Rectangle(420, 280, 40, 40), screenBox)
+    }
+
+    @Test
+    fun `an anchor is converted with the size of the recognised image`() {
+        val crop = Rectangle(100, 100, 640, 360)
+        // A 2x display: the image Lens received is twice the crop, and the box lives in its pixels.
+        val box = PixelBox(480, 270, 60, 60)
+
+        assertEquals(
+            Rectangle(340, 235, 30, 30),
+            HoverGeometry.toScreen(box, crop, Dimension(1280, 720)),
+        )
+        // With no kept size the crop is the only estimate; the conversion must not throw or halve
+        // the box twice by combining the two.
+        assertEquals(Rectangle(580, 370, 60, 60), HoverGeometry.toScreen(box, crop, null))
     }
 
     @Test

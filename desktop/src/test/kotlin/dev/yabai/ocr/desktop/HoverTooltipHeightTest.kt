@@ -2,6 +2,8 @@ package dev.yabai.ocr.desktop
 
 import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
+import java.awt.Point
+import java.awt.Rectangle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -75,6 +77,39 @@ class HoverTooltipHeightTest {
         // every hover, over the text being read); an uncounted block would be cut at the bottom.
         assertTrue("the notice added $with-$without px", with - without >= 40)
         assertTrue("even with the notice the card stays readable: $with", with <= 640)
+    }
+
+    @Test
+    fun `the card is only resized when its height really changed`() {
+        val screen = Rectangle(0, 0, 1920, 1080)
+        val bounds = Rectangle(100, 100, 460, 300)
+
+        // The pointer moving from word to word used to resize the window every time, because the
+        // placement was reapplied with the same height. On Windows with the Direct3D renderer a
+        // burst of those resizes is a native crash, so a same-size placement must only move.
+        assertFalse("the card was resized for the same height", planCardPlacement(bounds, Point(200, 200), 300, screen).resize)
+        assertTrue("a taller card has to be resized", planCardPlacement(bounds, Point(200, 200), 358, screen).resize)
+        // A width left over from a window-manager adjustment is a resize too.
+        assertTrue(planCardPlacement(Rectangle(0, 0, 500, 300), Point(200, 200), 300, screen).resize)
+
+        assertEquals(Point(218, 218), planCardPlacement(bounds, Point(200, 200), 300, screen).location)
+    }
+
+    @Test
+    fun `placing the card is retried while the window is not on screen yet`() {
+        // A new card is not showing when the effect first runs; the placement used to be dropped, and
+        // the card stayed at the initial height for as long as it lived.
+        assertTrue(shouldRetryCardPlacement(applied = false, attempts = 0))
+        assertTrue(shouldRetryCardPlacement(applied = false, attempts = CARD_PLACEMENT_MAX_ATTEMPTS - 1))
+
+        // …but not forever: a card that never becomes visible has to stop asking.
+        assertFalse(shouldRetryCardPlacement(applied = false, attempts = CARD_PLACEMENT_MAX_ATTEMPTS))
+        assertFalse(shouldRetryCardPlacement(applied = true, attempts = 0))
+        assertTrue(
+            "the retries have to end quickly enough not to be felt: " +
+                "${CARD_PLACEMENT_MAX_ATTEMPTS * CARD_PLACEMENT_RETRY_MS} ms",
+            CARD_PLACEMENT_MAX_ATTEMPTS * CARD_PLACEMENT_RETRY_MS <= 1_000,
+        )
     }
 
     /**

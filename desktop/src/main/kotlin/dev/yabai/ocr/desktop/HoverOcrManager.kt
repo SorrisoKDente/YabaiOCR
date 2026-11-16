@@ -5,6 +5,7 @@ import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
+import java.awt.Dimension
 import java.awt.GraphicsEnvironment
 import java.awt.Point
 import java.awt.Rectangle
@@ -66,6 +67,10 @@ internal class HoverOcrManager(
 
     @Volatile
     private var lastCropRect: Rectangle? = null
+
+    /** Size of the image Lens received; a scaled display makes it larger than [lastCropRect]. */
+    @Volatile
+    private var lastImageSize: Dimension? = null
 
     @Volatile
     private var lastLensResult: LensResult? = null
@@ -179,6 +184,10 @@ internal class HoverOcrManager(
         val localPoint = lastLocalPoint
         val screenPoint = lastScreenPoint
         val cropRect = lastCropRect
+        // The kept boxes are in the pixels of the image Lens received, which a scaled display makes
+        // larger than the crop: converting them with the crop's size put the card's anchor away
+        // from the word and it blinked on this path too.
+        val imageSize = lastImageSize
         val currentSettings = DesktopSettings()
         val lookup = lookupEngine(currentSettings)
 
@@ -189,17 +198,15 @@ internal class HoverOcrManager(
             val answer = cachedHoverAnswer(
                 result = result,
                 localPoint = localPoint,
-                lookup = lookup?.let { engine ->
-                    { text: String, only: Set<String> -> engine.lookup(text, maxMatches = 96, only = only) }
-                },
+                lookup = lookup?.let(::hoverQuery),
                 filter = filter,
             )
 
             when (answer) {
                 is CachedHoverAnswer.Hit -> {
                     val hit = answer.hit
-                    val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, cropRect.width, cropRect.height)
-                    val lineRect = hit.line.box?.let { HoverGeometry.toScreen(it, cropRect, cropRect.width, cropRect.height) }
+                    val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, imageSize)
+                    val lineRect = hit.line.box?.let { HoverGeometry.toScreen(it, cropRect, imageSize) }
                     targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
                     tooltipVisible = true
                     dismissGate.reset()
@@ -213,7 +220,7 @@ internal class HoverOcrManager(
                     showMissingEntry(
                         answer.filter,
                         screenPoint,
-                        HoverGeometry.toScreen(answer.word, cropRect, cropRect.width, cropRect.height),
+                        HoverGeometry.toScreen(answer.word, cropRect, imageSize),
                     )
                     return
                 }
@@ -312,15 +319,15 @@ internal class HoverOcrManager(
                 val filter = overrideFilter ?: currentSettings.hoverDictionaryFilter.ifBlank { currentSettings.dictionaryFilter }
 
                 // Salva o cache da última leitura do Lens
+                val imageSize = Dimension(image.width, image.height)
                 lastLensResult = result
                 lastLocalPoint = localPoint
                 lastScreenPoint = point
                 lastCropRect = cropRect
+                lastImageSize = imageSize
 
-                val query: (String, Set<String>) -> List<TokenMatch> = { text, only ->
-                    lookup.lookup(text, maxMatches = 96, only = only)
-                }
-                val hit = scopedHoverHit(result, localPoint, lookup, filter)
+                val query = hoverQuery(lookup)
+                val hit = scopedHoverHit(result, localPoint, query, filter)
 
                 if (hit == null) {
                     // «No entry in this dictionary» only when there is a Japanese word under the
@@ -343,7 +350,7 @@ internal class HoverOcrManager(
                             showMissingEntry(
                                 miss.filter,
                                 point,
-                                HoverGeometry.toScreen(miss.word, cropRect, image.width, image.height),
+                                HoverGeometry.toScreen(miss.word, cropRect, imageSize),
                             )
                         }
                     }
@@ -359,10 +366,8 @@ internal class HoverOcrManager(
                     return@launch
                 }
 
-                val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, image.width, image.height)
-                val lineRect = hit.line.box?.let {
-                    HoverGeometry.toScreen(it, cropRect, image.width, image.height)
-                }
+                val tokenRect = HoverGeometry.toScreen(hit.tokenBox, cropRect, imageSize)
+                val lineRect = hit.line.box?.let { HoverGeometry.toScreen(it, cropRect, imageSize) }
                 targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
                 tooltipVisible = true
                 dismissGate.reset()

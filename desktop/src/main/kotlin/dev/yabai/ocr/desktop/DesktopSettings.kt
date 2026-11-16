@@ -62,6 +62,16 @@ class DesktopSettings(
         get() = props.getProperty("hover_cycle_hotkey", "Ctrl + Shift + X")
         set(value) { props.setProperty("hover_cycle_hotkey", value); save() }
 
+    /**
+     * How this machine draws its windows.
+     *
+     * Stored here rather than in the crash marker because the Settings window writes it too: it is a
+     * preference, and the crash recovery only raises it a step (D79).
+     */
+    var skikoRenderer: SkikoRenderer
+        get() = SkikoRenderer.fromStored(props.getProperty("skiko_renderer"))
+        set(value) { props.setProperty("skiko_renderer", value.name); save() }
+
     // 2. Motor de Reconhecimento
     var engine: DesktopEngineChoice
         get() = when (props.getProperty("engine", "AUTO")) {

@@ -39,6 +39,8 @@ import kotlin.system.exitProcess
 fun SettingsContent(
     settings: DesktopSettings = remember { DesktopSettings() },
     onManageDictionariesRequested: (() -> Unit)? = null,
+    /** The renderer this run was moved to after a native crash, or null when it was not. */
+    rendererAfterCrash: SkikoRenderer? = null,
     hoverActive: Boolean = false,
     hoverStatus: String = "",
     hotkeyBackendStatus: String = "",
@@ -86,6 +88,8 @@ fun SettingsContent(
 
     var engineChoice by remember { mutableStateOf(settings.engine) }
     var enginePriority by remember { mutableStateOf(settings.enginePriorityList) }
+    // Skiko picks the renderer while the process loads, so this choice is for the next start.
+    var rendererChoice by remember { mutableStateOf(settings.skikoRenderer) }
 
     // PP-OCR install state: the models are ~23 MB and are not shipped with the app.
     val ppOcrScope = rememberCoroutineScope()
@@ -1038,6 +1042,63 @@ fun SettingsContent(
                     style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
                     color = MaterialTheme.colors.secondary
                 )
+            }
+        }
+
+        // --- Renderizador gráfico ---
+        item {
+            SettingCard(title = DesktopStrings.sectionRenderer) {
+                Text(
+                    text = DesktopStrings.rendererSubtitle,
+                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                SettingRadioOption(
+                    selected = rendererChoice == SkikoRenderer.AUTOMATIC,
+                    title = DesktopStrings.rendererAutomatic,
+                    description = DesktopStrings.rendererAutomaticDesc,
+                    onClick = {
+                        rendererChoice = SkikoRenderer.AUTOMATIC
+                        settings.skikoRenderer = SkikoRenderer.AUTOMATIC
+                    }
+                )
+                SettingRadioOption(
+                    selected = rendererChoice == SkikoRenderer.OPENGL,
+                    title = DesktopStrings.rendererOpenGl,
+                    description = DesktopStrings.rendererOpenGlDesc,
+                    onClick = {
+                        rendererChoice = SkikoRenderer.OPENGL
+                        settings.skikoRenderer = SkikoRenderer.OPENGL
+                    }
+                )
+                SettingRadioOption(
+                    selected = rendererChoice == SkikoRenderer.SOFTWARE,
+                    title = DesktopStrings.rendererSoftware,
+                    description = DesktopStrings.rendererSoftwareDesc,
+                    onClick = {
+                        rendererChoice = SkikoRenderer.SOFTWARE
+                        settings.skikoRenderer = SkikoRenderer.SOFTWARE
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = DesktopStrings.rendererRestartNote,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                if (rendererAfterCrash != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = DesktopStrings.rendererAfterCrash(
+                            DesktopStrings.rendererName(rendererAfterCrash),
+                        ),
+                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                        color = yabaiPalette().danger
+                    )
+                }
             }
         }
 

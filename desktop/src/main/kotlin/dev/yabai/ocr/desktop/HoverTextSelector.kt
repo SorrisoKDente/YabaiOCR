@@ -1,6 +1,5 @@
 package dev.yabai.ocr.desktop
 
-import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.core.layout.KanjiGrid
 import dev.yabai.ocr.core.layout.ReadingOrder
@@ -80,21 +79,10 @@ object HoverTextSelector {
     /** A space is narrower than a letter in most fonts. */
     private const val SPACE_WIDTH = 0.34
 
-    fun select(
-        result: LensResult,
-        imagePoint: Point,
-        engine: LookupEngine,
-        only: Set<String> = emptySet(),
-    ): HoverHit? = select(
-        result,
-        imagePoint,
-        lookup = { text, filter -> engine.lookup(text, maxMatches = 96, only = filter) },
-        only = only,
-    )
-
     /**
-     * Same selection with the lookup injected, so the geometry can be tested without a compiled
-     * dictionary on disk.
+     * The selection itself. The lookup is injected rather than a [LookupEngine] taken directly: the
+     * engine signature (the match cap, the scope) belongs to the caller, and the geometry can be
+     * tested without a compiled dictionary on disk.
      */
     fun select(
         result: LensResult,

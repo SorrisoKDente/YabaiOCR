@@ -6690,18 +6690,219 @@ agora **usa essa caixa como `targetBox`** — o cartão fica parado enquanto o p
 `gate` não volta a disparar no mesmo ponto. O caminho de erro ganhou o mesmo teste de ponteiro parado e de
 `isEnabled` que o caminho do hit já tinha antes de abrir o cartão.
 
+**Âncora em tela com escala.** A caixa do `HoverMiss` está nos pixels da imagem que o Lens recebeu, e
+numa tela a 150% essa imagem é maior que o recorte. A troca de dicionário pelo cartão convertia a âncora
+com `cropRect.width/height` enquanto o caminho do hit usava `image.width/height`: numa tela com escala a
+âncora caía fora da palavra, o ponteiro parado na palavra contava como «saiu» e o cartão voltava a
+piscar *nesse caminho*. O `HoverOcrManager` passou a guardar o tamanho real da última leitura
+(`lastImageSize`, gravado junto com `lastLensResult`) e a troca de dicionário converte os boxes com ele;
+`HoverGeometry.toScreen(box, crop, imageSize?)` é a conversão única, com o recorte como estimativa só
+quando nada foi guardado. O caminho do hit também passou a usar o mesmo `imageSize`.
+
+**Revisão com olhos frescos (simplificações).** As consultas ao motor estavam sendo montadas em dois
+lugares (o `lookup` do `scopedHoverHit` e um lambda equivalente no `lookupAt`, mais um terceiro na troca
+de dicionário); agora existe `hoverQuery(engine)`, um só lugar para o teto de 96 e o escopo, e o `lookupAt`
+usa a mesma consulta para o hit e para o miss. O overload `scopedHoverHit(engine)` e o
+`HoverTextSelector.select(engine)` ficaram sem uso depois disso e saíram — sobrou um único caminho de
+consulta, com o lookup injetado. `japaneseWordAt` mede a distância uma vez por segmento (antes media
+duas: na ordenação e no filtro).
+
 **Testes e mutações.** Novos em `HoverLookupTest`: ponteiro sobre texto latino nunca é «sem verbete»;
 ponteiro no vazio (longe, 15 px fora da caixa — dentro da tolerância — e 60 px abaixo da linha) fecha em
 vez de abrir; a falta de verbete vem ancorada na célula do caractere e a âncora contém o ponteiro; com
 essa âncora o `HoverDismissGate` não fecha o cartão nem com 60 s parado; a troca de dicionário pelo cartão
 devolve `MissingEntry` com âncora. Mutações provadas e restauradas: qualquer caractere contado como
 japonês; tolerância da linha usada no lugar de «dentro»; âncora trocada por um ponto de 1 px; falta de
-verbete deixando de ser reportada. O caso do `targetBox` em si (gerenciador) não é testável sem Compose
-nem `Robot` — o contrato coberto é «o miss devolve a caixa da palavra» **e** «com essa caixa o gate não
-fecha».
+verbete deixando de ser reportada. Em `HoverGeometryTest`, âncora convertida com o tamanho da imagem
+reconhecida (2x: caixa reduzida à metade e deslocada para a coordenada de tela) e, sem tamanho guardado,
+com o recorte; mutação: converter sempre com o recorte derruba o teste. O caso do `targetBox` em si
+(gerenciador) não é testável sem Compose nem `Robot` — o contrato coberto é «o miss devolve a caixa da
+palavra» **e** «com essa caixa o gate não fecha»; o mesmo vale para `lastImageSize`, coberto na conversão,
+não no gerenciador.
 
 **Limitações.** 1) Nada disto foi visto na GUI: a lógica está coberta, mas o cartão parado no app não foi
 observado. 2) A âncora sendo a célula de um caractere (quando nenhum dicionário conhece a palavra) é menor
 que a palavra inteira — se a caixa do OCR estiver deslocada, o ponteiro na borda pode cair fora e o cartão
 fechar depois da carência. 3) O aviso continua só em `:desktop`; o app Android não tem hover.
-**`:desktop` 456, `:core` 197, `:app` 836, 0 falhas.**
+**`:desktop` 457, `:core` 197, `:app` 836, 0 falhas.**
+
+### D79 — O app morria (crash nativo) ao trocar de dicionário, no segundo monitor  `[x]` (16/11/2026)
+
+**Sintoma.** Ao escolher outro dicionário na lista do cartão, com o hover num texto no segundo monitor, o
+processo morria com `EXCEPTION_ACCESS_VIOLATION (0xc0000005)` em `skiko-windows-x64.dll` — sem exceção
+Java, sem diálogo, o `:desktop:run` saindo com código 1. Dois `hs_err_pid*.log` da mesma sessão tinham a
+**mesma** pilha, os dois na `AWT-EventQueue-0`:
+
+```
+PictureRecorder.finishRecordingAsPicture  (nativo)
+SkiaLayer.update → AWTRedrawer.update → Direct3DRedrawer.renderImmediately
+SkiaLayer.reshape → Component.setBounds → ComposeContainer.setBounds
+ComposeWindowPanel.setBounds ← BorderLayout.layoutContainer ← Container.validate
+Window.dispatchEventImpl (COMPONENT_RESIZED)
+```
+
+Isto é, o JVM caía **redimensionando** a janela do cartão, com o redrawer Direct3D renderizando de forma
+síncrona de dentro do `reshape` do AWT.
+
+**Causa raiz.** Redimensionar rápido uma janela Compose no Windows com o renderizador Direct3D derruba o
+JVM — é bug conhecido do Skiko (`compose-multiplatform#4425`, `skiko#883`; a saída documentada é
+`-Dskiko.renderApi=SOFTWARE`), e o cartão é justamente uma janela `undecorated` + `transparent`. O nosso
+código piorava isso de três maneiras: (a) `applySizeAndPlacement` chamava `setSize` **duas** vezes por
+mudança de conteúdo (na hora e 120 ms depois); (b) o `LaunchedEffect(estimatedHeight, mousePoint, window)`
+reiniciava a cada mudança de `mousePoint` e reaplicava o `setSize` **com a mesma altura**; (c) a guarda era
+`isDisplayable`, que é verdadeira também para uma janela em processo de mapeamento ou de descarte — sem
+superfície Compose ainda. Trocar de dicionário produz exatamente a rajada que o bug precisa: o aviso de
+«sem verbete» aparece, a definição chega, o aviso volta, cada passo mudando a altura em ~58 px.
+
+**O que mudou.** O cartão agora se redimensiona **uma vez**, e só quando precisa:
+- `planCardPlacement(bounds, pointer, height, screen)` (puro) devolve `CardPlacement(resize, location)`;
+  `resize` só é verdadeiro quando a altura pedida (ou a largura, que o WM pode ter mexido) difere da atual,
+  e a posição continua sendo recalculada sempre — um cartão perto da base da tela vira para cima.
+- `applySizeAndPlacement` passou a exigir `window.isShowing` (não `isDisplayable`) e a chamar `setSize`
+  apenas quando `resize` é verdadeiro; `placeWindow` foi absorvido por ela.
+- O `LaunchedEffect` espera `TOOLTIP_PLACEMENT_DEBOUNCE_MS` (80 ms) antes de tocar na janela: uma rajada
+  de mudanças de altura colapsa num único redimensionamento do tamanho final, e a janela que ainda está
+  sendo mapeada termina antes. A segunda passada (correção de posição do WM) agora só move, porque o
+  tamanho já está certo.
+
+**O crash voltou.** Um terceiro `hs_err_pid29132.log`, com a **mesma** pilha, depois desta correção: o
+usuário alternou ~20 dicionários seguidos com o mouse em movimento, e cada troca ainda redimensiona o
+cartão uma vez (a definição e o aviso têm alturas diferentes). Ou seja: tirar a rajada reduz a chance, não
+elimina o defeito — um único `setSize` nessa máquina ainda pode cair dentro da corrida do Direct3D.
+
+**Recuperação depois do crash.** Como o crash mata o processo em código nativo, nada dentro do JVM pode
+pegá-lo: quem vê é a execução seguinte. `RendererRecovery.kt` (novo) escreve um marcador
+(`~/.yabai_ocr/run-in-progress`, ou sob `YABAI_HOME`) em toda partida e o apaga num encerramento normal; se
+o marcador existir na partida, a execução anterior morreu. A preferência em si mora em
+`settings.properties` (`skiko_renderer`), num enum `SkikoRenderer` com uma **escada de queda**: a primeira
+morte sai do Direct3D para **OPENGL** (continua usando a placa de vídeo) e só uma morte em OpenGL cai para
+**SOFTWARE**. `decideRendererApi` aplica o nível em `skiko.renderApi` **antes** de qualquer janela existir,
+grava o nível novo nos Ajustes e imprime:
+
+```
+[Renderer] A execução anterior foi encerrada por um crash nativo do Skiko (Direct3D), sem exceção Java.
+[Renderer] Iniciando com skiko.renderApi=OPENGL para não repetir o crash.
+[Renderer] Para trocar: Ajustes → Renderizador gráfico, ou iniciar com --renderer=automatic.
+```
+
+O nível lembrado é o que impede o vaivém: sem ele o app voltaria ao Direct3D a cada partida limpa e
+crasharia de novo em seguida. Um `-Dskiko.renderApi=…` definido pelo usuário nunca é sobrescrito — o log
+só registra que ele foi respeitado.
+
+**Escolher e voltar pela interface ou por argumento.** O app empacotado é um `.exe`: não há `-D` para
+passar. Por isso o renderizador virou preferência visível. Nos Ajustes, o cartão **«Renderizador
+gráfico»** (Automático / OpenGL / Software, com uma linha dizendo quais evitam o Direct3D, o aviso de que
+a mudança vale na próxima abertura, e — quando a execução subiu de nível por crash — uma linha vermelha
+dizendo com qual renderizador o app abriu). Na linha de comando, `--renderer=automatic|opengl|software`
+(aceita `--renderer opengl`, aliases `auto`/`default`/`gl`/`sw`/`cpu`, e maiúsculas/minúsculas). Precedência:
+`-Dskiko.renderApi` > `--renderer` > escada de crash > preferência salva. O argumento também **persiste** a
+escolha, e um valor inválido é dito no log (`--renderer=vulkan não é válido...`) em vez de ser ignorado em
+silêncio.
+
+**Posicionamento com novas tentativas.** A guarda `isShowing` (que existe para não redimensionar uma janela
+sem superfície Compose) tinha um efeito colateral: se o efeito rodava antes de a janela aparecer, o cartão
+ficava para sempre na altura inicial. Agora `applySizeAndPlacement` devolve se conseguiu aplicar, e o efeito
+tenta de novo a cada 25 ms por até 20 tentativas (`shouldRetryCardPlacement`) — meio segundo, para não
+ressuscitar o redimensionamento infinito que o debounce veio evitar.
+
+**Testes e mutações.** `HoverTooltipHeightTest`: mesma altura não redimensiona (só move, na posição que
+`placeTooltip` dá), altura maior redimensiona, largura diferente redimensiona, e a nova tentativa para de
+pedir depois de `CARD_PLACEMENT_MAX_ATTEMPTS` (com o total ≤ 1 s). `RendererRecoveryTest` (11): um run que
+não terminou é notado pelo seguinte; a saída limpa apaga o marcador; a escada é Direct3D → OpenGL →
+Software (e Software fica); o primeiro crash depois do Direct3D abre em OpenGL, é lembrado e o log nomeia o
+renderizador, explica o crash e mostra as duas saídas (`Ajustes` e `--renderer=automatic`); crash em
+OpenGL cai para Software; máquina sem crash usa a preferência salva sem reescrevê-la nem logar; máquina
+sem histórico não escolhe nada; o argumento é lido em `--renderer=x` e `--renderer x` (com aliases e
+maiúsculas) e um valor inválido vira `Invalid`; o argumento vence a preferência e é persistido; o
+argumento também vence a escada de crash; `-Dskiko.renderApi` explícito vence tudo e só é mencionado no
+log; valor desconhecido em `settings.properties` volta para Automático. Mutações provadas e restauradas:
+`resize = true` sempre; crash ignorado no `decideRendererApi`; marcador nunca notado; saída limpa mantendo
+o marcador; tentativa de posicionamento sem limite; primeiro crash pulando direto para Software;
+argumento da linha de comando ignorado; argumento deixando de vencer a preferência.
+
+**Limitações.** 1) O defeito de fundo é nativo do Skiko/Direct3D; o app agora se recupera dele, não o
+conserta. 2) A recuperação age na execução **seguinte**: a que crashou morre e o usuário precisa abrir o
+app de novo. 3) O nível escolhido continua valendo nas próximas aberturas até ser trocado nos Ajustes ou
+por `--renderer`. (A versão original desta entrada dizia que matar o processo à mão também mudava o
+renderizador; isso era o bug corrigido na D80.) 4) Se a pasta do usuário não for gravável, o marcador não é
+escrito e o app segue no Direct3D. 5) O `--renderer` só vale para o app do desktop; o Android não usa
+Skiko. 6) O crash em si não foi reproduzido aqui: a verificação foi a pilha dos três `hs_err`, os testes e
+as mutações. 7) O cartão pode aparecer com a altura inicial por ~80 ms antes de crescer.
+**`:desktop` 470, `:core` 197, `:app` 836, 0 falhas.**
+
+### D80 — O cartão não aparecia no OpenGL/Software, e fechar com CTRL+C era contado como crash  `[x]` (16/11/2026)
+
+**Sintomas.** Dois, e os dois vieram dos renderizadores alternativos da D79:
+
+1. Com `skiko.renderApi=OPENGL` ou `SOFTWARE`, o log mostrava o hover funcionando — `[Hover] 意識 — Jitendex
+   PT-BR [2026-09-29]` — e **nada** aparecia na tela. O cartão existia, era posicionado e não desenhava um
+   pixel.
+2. Fechar o app com `CTRL+C` no `gradlew :desktop:run` (ou pelo Gerenciador de Tarefas) fazia a partida
+   seguinte anunciar «A execução anterior também terminou em crash nativo do Skiko» e descer um degrau da
+   escada — OpenGL, Software, Software. Só houve crash de verdade no Direct3D.
+
+**Causa raiz (1).** `HoverTooltipWindow` fazia `window.background = java.awt.Color(0, 0, 0, 0)` na primeira
+composição. No Windows, `transparent = true` faz o Compose perguntar ao Skiko qual fundo AWT o renderizador
+em uso quer (`PlatformOperations.transparentWindowBackgroundHack`): Direct3D pede a cor transparente, e
+**OpenGL e Software pedem `null`**, porque a transparência deles vem de uma chamada DWM
+(`DwmEnableBlurBehindWindow`) no componente nativo. Escrever a cor transparente no `background` do AWT
+desfaz essa chamada: a janela continua lá, opaca ou sem superfície — e o Compose não pinta nada. O Direct3D
+não era afetado porque a cor pedida por ele é justamente essa. Ou seja: a linha era necessária para um
+renderizador e fatal para os outros dois, e o único jeito de servir aos três é não tocar no `background`.
+
+**Causa raiz (2).** O marcador `run-in-progress` era a única testemunha: se ele estivesse lá, a execução
+anterior tinha morrido. Isso confunde crash com qualquer encerramento que não passe pelo `onCloseRequest` —
+`CTRL+C`, `Stop-Process`, queda de energia.
+
+**O que mudou.** A linha do `background` saiu; o fundo da janela do cartão passa a ser exatamente o que o
+Compose decidiu para o renderizador em uso. E o marcador passou a gravar o **pid** (`pid=<pid>`), e a
+partida seguinte só acredita em crash quando encontra `hs_err_pid<pid>.log` — o relatório que o próprio JVM
+escreve ao morrer em código nativo — em `user.dir` ou na pasta do marcador, com menção a `skiko` (ignorando
+caixa) e não mais antigo que o marcador (`CRASH_REPORT_TIME_SLACK_MS = 2 s`, para relógios grosseiros; o
+que também evita o relatório de um processo anterior que teve o mesmo pid). O resultado ficou em duas
+metades testáveis: `RendererRecovery.previousRun()` devolve `PreviousRun(endedAbnormally, skikoCrashReport)`,
+e `endedAbnormally && skikoCrashReport == null` é `stoppedFromOutside` — o caso em que `decideRendererApi`
+mantém o renderizador e explica no log:
+
+```
+[Renderer] A execução anterior foi encerrada fora do app (Ctrl+C, processo finalizado ou queda de energia) e não deixou relatório de crash do Skiko. Renderizador mantido: Automático.
+```
+
+Marcador antigo, escrito antes desta mudança (sem `pid=`), não é tratado como crash: não há relatório para
+casar com ele. A escada da D79 continua a mesma (Direct3D → OpenGL → Software).
+
+**Testes e mutações.** `HoverCardTransparencyTest` (2): o cartão pede `transparent = true` e o arquivo não
+tem nenhum `window.background =`. `RendererRecoveryTest` cresceu para 19: saída limpa não deixa rastro; um
+run morto por fora não é crash; relatório do Skiko marca crash; relatório de **outra** biblioteca nativa não
+marca; relatório mais velho que o marcador não marca; relatório em outra pasta é encontrado (e não é
+encontrado na pasta errada); marcador legado sem pid não muda o renderizador; o marcador grava o pid do
+processo atual e o relatório desse pid é reconhecido; a escada e as decisões da D79 (crash real, argumento,
+`-Dskiko.renderApi`, preferência salva); run parado por fora mantém o renderizador e diz por quê. Mutações
+provadas e restauradas: `window.background = java.awt.Color(0,0,0,0)` de volta (derruba
+`HoverCardTransparencyTest`); marcador sozinho voltando a significar crash (derruba 5 testes); `markRunning`
+sem gravar o pid (derruba o teste do pid); checagem temporal do relatório removida (derruba o relatório
+antigo); checagem de `skiko` no relatório removida (derruba o relatório de outra biblioteca).
+
+**Evidência ponta a ponta.** O app real, `--minimized`, com uma sonda Java que abre uma janela branca opaca
+com «意識 瞬間 俺» em 56 pt, liga o Hover pelo atalho global e mede uma região de 470×330 px logo
+abaixo/direita do ponteiro (1 428 px escuros já são o texto da própria janela):
+
+| renderizador | antes | com o ponteiro sobre 意識 | depois de sair |
+| --- | --- | --- | --- |
+| OpenGL (`--renderer=opengl`) | `dark=1428/155100` | `dark=121644/155100` | `dark=1428/155100` |
+| Software (`--renderer=software`) | `dark=1428/155100` | `dark=121654/155100` | `dark=1428/155100` |
+| Automático (Direct3D), sem argumento | `dark=1428/155100` | `dark=121644/155100` | `dark=1428/155100` |
+
+O log das três partidas trouxe `[Hover] 意識 — Jitendex PT-BR [2026-09-29]`. Com a linha do `background`
+reintroduzida (mutação), OpenGL ficou em `dark=1428/155100` **com a mesma linha no log** — o defeito
+original, reproduzido e medido. O `CTRL+C` foi provado no caminho real: a partida seguinte, iniciada sem
+`--renderer`, imprimiu a mensagem de «encerrada fora do app» e continuou em Automático. `settings.properties`
+restaurado byte a byte (SHA-256 conferido) e nenhum processo deixado aberto.
+
+**Limitações.** 1) A causa do crash em Direct3D não mudou: o cartão continua sendo a janela transparente que
+o Skiko redimensiona. 2) `hs_err_pid<pid>.log` só existe se o JVM conseguir gravar (o diretório de trabalho
+ou `-XX:ErrorFile`); sem ele, um crash verdadeiro fica indistinguível de um processo morto por fora, e o app
+prefere **não** trocar o renderizador a trocar por engano. 3) A correção do cartão foi verificada numa tela
+(1280×720 de usuário, 150%), não no segundo monitor nem com escala diferente. 4) Um encerramento pelo
+`onCloseRequest` do próprio app não deixa marcador: só o que acontece por fora precisa ser adivinhado.
+**`:desktop` 480, `:core` 197, `:app` 836, 0 falhas.**

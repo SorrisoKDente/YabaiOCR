@@ -167,6 +167,23 @@ In **Automatic** mode the app walks the priority order you chose and only moves 
 when the previous one returns no text — that is how the offline engine takes over without a
 connection.
 
+
+## Graphics renderer
+
+The desktop app draws its windows with Skiko. The default renderer on Windows is Direct3D, which can
+close the app without any error in some drivers. Settings → **Graphics Renderer** chooses another one:
+**Automatic** (the system default), **OpenGL** (still uses the graphics card, avoids Direct3D) or
+**Software** (CPU, slowest and the most stable). The choice applies the next time the app starts.
+The same options are on the command line, for when the packaged app is hard to configure:
+
+```
+yabai-ocr --renderer=opengl      # or --renderer=software / --renderer=automatic
+```
+
+If a run is closed by that crash, the next start moves one step away from Direct3D on its own — OpenGL
+first, software only if that also crashes — and says so in the log. Nothing is permanent: pick
+Automatic in Settings to go back.
+
 ## Dictionaries
 
 Dictionaries are local, in the [Yomitan](https://github.com/yomidevs/yomitan) format: install them

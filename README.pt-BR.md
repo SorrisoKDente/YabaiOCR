@@ -167,6 +167,23 @@ o motor e toque em iniciar. A bolha flutuante dispara a captura.
 No modo **Automático** o app percorre a ordem de prioridade escolhida e só passa para o próximo motor
 quando o anterior não devolve texto — é assim que o offline assume quando não há conexão.
 
+
+## Renderizador gráfico
+
+O app de desktop desenha as janelas com Skiko. No Windows o renderizador padrão é o Direct3D, que em
+alguns drivers fecha o app sem nenhum erro. Em Ajustes → **Renderizador gráfico** dá para escolher
+outro: **Automático** (o padrão do sistema), **OpenGL** (continua usando a placa de vídeo e evita o
+Direct3D) ou **Software** (CPU, o mais lento e o mais estável). A escolha vale na próxima abertura do
+app. As mesmas opções existem na linha de comando, para quando o app empacotado é difícil de configurar:
+
+```
+yabai-ocr --renderer=opengl      # ou --renderer=software / --renderer=automatic
+```
+
+Se uma execução for fechada por esse crash, a seguinte sai sozinha um passo do Direct3D — OpenGL
+primeiro, software só se esse também cair — e avisa no log. Nada é definitivo: escolha Automático nos
+Ajustes para voltar.
+
 ## Dicionários
 
 Os dicionários são locais, no formato do [Yomitan](https://github.com/yomidevs/yomitan): instale pelo

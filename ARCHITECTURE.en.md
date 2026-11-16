@@ -62,7 +62,7 @@ Test flags that turn on real cases (none of them run by default):
 | `-PcompiledDicts="C:\compiled"` | `:core` | already compiled `.yabai` (translation index) |
 | `-Pppocr="C:\home"` | `:desktop` | PP-OCR models in `home/ppocr_v6` (end-to-end test) |
 
-Current counts: **`:core` 197 tests**, **`:desktop` 456**, **`:app` 836**. Confirm with the suite
+Current counts: **`:core` 197 tests**, **`:desktop` 470**, **`:app` 836**. Confirm with the suite
 before quoting them.
 
 ---
@@ -217,10 +217,11 @@ flags above.
 | `HoverGeometry.kt` | crop around the pointer, local coordinates, HiDPI |
 | `HoverTextSelector.kt` | picks the line/word under the pointer and builds the hit; joins a word split across lines/columns of the same block (D56) |
 | `DictionaryInstallRun.kt` | one catalogue install and what it reports (installed/cancelled/failed/finished); the card reset runs in `NonCancellable` |
+| `RendererRecovery.kt` | run-in-progress marker carrying the pid, the renderer ladder after a native Skiko/Direct3D crash (Direct3D → OpenGL → Software) that only counts as a crash when a Skiko `hs_err_pid<pid>.log` exists, `--renderer=…` and the `skiko_renderer` preference the Settings window writes (D79/D80) |
 | `HoverLookup.kt` | hover lookup limited to the chosen dictionary (`dictionaryScope`, `scopedHoverHit`), the card's dictionary-change decision answered from the kept reading (`cachedHoverAnswer`) and what a miss means (`japaneseWordAt`, `classifyHoverMiss`: a card only when a Japanese word is under the pointer, and that word's box is the anchor) — no more fallback answering from another dictionary (D77, D78) |
 | `PickerScanMemory.kt` | the picker scan that survives «Snippets»: handed out once and never from a failure (D76) |
 | `TrayGlyphs.kt` | tray menu icons drawn with Java2D, in colour (Swing cannot paint colour emoji) (D76) |
-| `HoverTooltipWindow.kt` | floating card (size, position, content); the position comes in the `WindowState` and is applied again once the window exists, because the compositor ignores a `setLocation` on a window still being mapped |
+| `HoverTooltipWindow.kt` | floating card (size, position, content); the position comes in the `WindowState` and is applied again once the window exists, because the compositor ignores a `setLocation` on a window still being mapped. It never writes the AWT `background`: on Windows the transparency depends on Skiko picking that background per renderer (D80) |
 | `WindowActivation.kt` | brings the window the user asked for to the screen (clears `ICONIFIED`, requests activation); never used by hover |
 | `HoverCapability.kt` | is hover supported in this session? (X11/Wayland/Win; on Wayland it picks between the KWin and the GNOME pointer) |
 | `PointerSource.kt` | pointer position source (AWT, KWin script or GNOME extension) |

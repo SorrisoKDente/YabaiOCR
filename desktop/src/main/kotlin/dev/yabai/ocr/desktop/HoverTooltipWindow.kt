@@ -50,7 +50,9 @@ import androidx.compose.ui.window.WindowExceptionHandler
 import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
+import kotlin.coroutines.resume
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
 import dev.yabai.ocr.core.dict.TokenMatch
 import java.awt.Point
 import java.awt.Rectangle
@@ -155,10 +157,33 @@ private fun HoverTooltipCardWindow(
     ) {
         LaunchedEffect(estimatedHeight, mousePoint, window) {
             window.isAutoRequestFocus = false
-            window.background = java.awt.Color(0, 0, 0, 0)
-            applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+            // The window background is left exactly as Compose set it. `transparent = true` makes
+            // ComposeWindowPanel ask Skiko for the right background for the renderer in use, and on
+            // Windows that answer is `null` for OpenGL and Software: those two make the window
+            // transparent through a DWM call that this AWT background would undo. Setting it to a
+            // transparent colour here (which is what Direct3D wants anyway) made the card draw
+            // nothing at all under OpenGL and Software, while the OCR and the log went on working.
+            // Waiting a beat before touching the window does two things. It collapses a burst of
+            // content changes — choosing dictionaries, the notice appearing and going away — into a
+            // single resize of the final size, and it lets a window that is still being mapped
+            // finish doing so first. Resizing this window quickly, or before it has drawn, kills the
+            // JVM natively inside Skiko's Direct3D redrawer
+            // (EXCEPTION_ACCESS_VIOLATION in PictureRecorder.finishRecordingAsPicture;
+            // compose-multiplatform #4425 / skiko #883).
+            delay(TOOLTIP_PLACEMENT_DEBOUNCE_MS)
+            var attempts = 0
+            var applied = applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+            // «Not on screen yet» is the normal first moment of a new card. Giving up there used to
+            // leave it at the initial height for its whole life, so the placement is retried for a
+            // while — and only for a while, or a card that never shows would keep resizing forever.
+            while (shouldRetryCardPlacement(applied, attempts)) {
+                delay(CARD_PLACEMENT_RETRY_MS)
+                attempts++
+                applied = applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+            }
             // The window exists now, so the placement is no longer decided by whoever mapped it.
-            // A WM that keeps its own position for the first frames is corrected here.
+            // A WM that keeps its own position for the first frames is corrected here; the size is
+            // already right, so this second pass only moves the card.
             delay(TOOLTIP_REPOSITION_DELAY_MS)
             applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
         }
@@ -410,6 +435,15 @@ private const val DICTIONARY_SCROLLBAR_GUTTER_DP = 10
 private const val DICTIONARY_ROW_HEIGHT = 32
 
 /**
+ * How long the card waits before it is sized.
+ *
+ * Long enough to swallow the burst of height changes a dictionary switch produces (the notice goes,
+ * the definition comes, or the other way round) and for a window that is still being mapped to
+ * finish; short enough that the card does not visibly resize after the user has read past it.
+ */
+private const val TOOLTIP_PLACEMENT_DEBOUNCE_MS = 80L
+
+/**
  * How long to wait before placing the card again.
  *
  * The first placement runs while the window is being mapped, and every compositor is free to put
@@ -426,33 +460,67 @@ private const val TOOLTIP_REPOSITION_DELAY_MS = 120L
  * ignoringRedrawRequests is not allowed» in an Error dialog. Deferring the call to the next turn of
  * the event loop lets the popup finish first, and the window is only touched while it is displayable.
  */
-private fun applySizeAndPlacement(
+private suspend fun applySizeAndPlacement(
     window: java.awt.Window,
     anchor: Point,
     height: Int,
     onBoundsChanged: (java.awt.Rectangle?) -> Unit,
-) {
+): Boolean = suspendCancellableCoroutine { continuation ->
     javax.swing.SwingUtilities.invokeLater {
-        if (!window.isDisplayable) return@invokeLater
+        // `isShowing`, not `isDisplayable`: a window that is being mapped or disposed is displayable
+        // and has no Compose surface yet, and resizing one is what took the JVM down natively.
+        if (!window.isShowing) {
+            if (continuation.isActive) continuation.resume(false)
+            return@invokeLater
+        }
+        val placement = planCardPlacement(
+            bounds = window.bounds,
+            pointer = anchor,
+            height = height,
+            screen = HoverGeometry.screenAt(anchor),
+        )
         runCatching {
-            window.setSize(TOOLTIP_WIDTH, height)
-            placeWindow(window, anchor)
+            if (placement.resize) window.setSize(TOOLTIP_WIDTH, height)
+            window.setLocation(placement.location.x, placement.location.y)
         }
         onBoundsChanged(window.bounds)
+        if (continuation.isActive) continuation.resume(true)
     }
 }
 
-private fun placeWindow(window: java.awt.Window, anchor: Point) {
-    val screen = HoverGeometry.screenAt(anchor)
-    val size = window.size
-    val width = if (size.width > 0) size.width else TOOLTIP_WIDTH
-    val height = if (size.height > 0) size.height else 220
-    val point = HoverGeometry.placeTooltip(
-        pointer = anchor,
-        size = java.awt.Dimension(width, height),
-        screen = screen,
-    )
-    window.setLocation(point.x, point.y)
+/** How many times the card tries to place itself while its window is not on screen yet. */
+internal const val CARD_PLACEMENT_MAX_ATTEMPTS = 20
+
+/** How long the card waits between those attempts, in milliseconds (half a second in total). */
+internal const val CARD_PLACEMENT_RETRY_MS = 25L
+
+/**
+ * Whether the card should try to place itself again.
+ *
+ * Only while it never managed to — a window that is not showing yet — and only up to
+ * [CARD_PLACEMENT_MAX_ATTEMPTS], so a card that never becomes visible cannot loop forever.
+ */
+internal fun shouldRetryCardPlacement(applied: Boolean, attempts: Int): Boolean =
+    !applied && attempts < CARD_PLACEMENT_MAX_ATTEMPTS
+
+/** What placing the card comes down to: a move, and a resize only when the size really changed. */
+internal data class CardPlacement(val resize: Boolean, val location: Point)
+
+/**
+ * Where the card goes and whether it has to be resized to get there.
+ *
+ * The resize is the expensive half — and, with Skiko's Direct3D redrawer, the dangerous one — so it
+ * only happens when the content height actually changed. The position keeps being recomputed
+ * because a card near the bottom of the screen flips above the pointer.
+ */
+internal fun planCardPlacement(
+    bounds: Rectangle,
+    pointer: Point,
+    height: Int,
+    screen: Rectangle,
+): CardPlacement {
+    val resize = bounds.height != height || bounds.width != TOOLTIP_WIDTH
+    return CardPlacement(resize, HoverGeometry.placeTooltip(pointer, java.awt.Dimension(TOOLTIP_WIDTH, height), screen))
 }
 
 /**

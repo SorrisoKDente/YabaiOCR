@@ -61,7 +61,7 @@ Opções de teste que ligam casos reais (nenhuma roda por padrão):
 | `-PcompiledDicts="C:\compiled"` | `:core` | `.yabai` já compilados (índice de tradução) |
 | `-Pppocr="C:\home"` | `:desktop` | modelos do PP-OCR em `home/ppocr_v6` (teste ponta a ponta) |
 
-Contagens atuais: **`:core` 197 testes**, **`:desktop` 456**, **`:app` 836**. Confirme com a suíte
+Contagens atuais: **`:core` 197 testes**, **`:desktop` 470**, **`:app` 836**. Confirme com a suíte
 antes de citá-los.
 
 ---
@@ -215,10 +215,11 @@ rodam com as flags acima.
 | `HoverGeometry.kt` | recorte ao redor do ponteiro, coordenadas locais, HiDPI |
 | `HoverTextSelector.kt` | escolhe a linha/palavra sob o ponteiro e monta o hit; junta palavra partida entre linhas/colunas do mesmo bloco (D56) |
 | `DictionaryInstallRun.kt` | um install do catálogo e o que ele reporta (instalado/cancelado/falhou/encerrado); o reset do cartão roda em `NonCancellable` |
+| `RendererRecovery.kt` | marcador de execução em andamento com o pid, escada de renderizador depois de um crash nativo do Skiko/Direct3D (Direct3D → OpenGL → Software) que só conta como crash com `hs_err_pid<pid>.log` do Skiko, `--renderer=…` e a preferência `skiko_renderer` que os Ajustes escrevem (D79/D80) |
 | `HoverLookup.kt` | consulta do hover limitada ao dicionário escolhido (`dictionaryScope`, `scopedHoverHit`), a decisão da troca de dicionário feita no cartão a partir da leitura guardada (`cachedHoverAnswer`) e o que fazer quando não vem verbete (`japaneseWordAt`, `classifyHoverMiss`: só há cartão se houver palavra japonesa sob o ponteiro, e a caixa dela é o âncora) — sem o «fallback» que respondia de outro dicionário (D77, D78) |
 | `PickerScanMemory.kt` | scan do picker que sobrevive ao «Trechos»: entregue uma vez e nunca a partir de uma falha (D76) |
 | `TrayGlyphs.kt` | ícones do menu da bandeja desenhados com Java2D, em cor (o Swing não pinta emoji colorido) (D76) |
-| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada |
+| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada. Não escreve no `background` do AWT: a transparência no Windows depende de o Skiko escolher o fundo por renderizador (D80) |
 | `WindowActivation.kt` | traz para a tela a janela que o usuário pediu (limpa `ICONIFIED`, pede ativação); no hover nunca é usado |
 | `HoverCapability.kt` | o hover é suportado nesta sessão? (X11/Wayland/Win; no Wayland decide entre ponteiro do KWin e do GNOME) |
 | `PointerSource.kt` | fonte da posição do ponteiro (AWT, script do KWin ou extensão do GNOME) |

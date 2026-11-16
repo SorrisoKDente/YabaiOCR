@@ -69,6 +69,45 @@ object DesktopStrings {
     val captureMonitorMouse: String get() = if (isEnglish) "Monitor under the pointer" else "Monitor onde está o ponteiro"
     fun captureMonitorDisplay(label: String, width: Int, height: Int): String = "$label ($width×$height)"
     val captureMonitorHint: String get() = if (isEnglish) "Hover always follows the pointer's monitor. On Wayland the selection window opens on the screen the app is on, because the compositor ignores absolute placement." else "O hover sempre segue o monitor do ponteiro. No Wayland a janela de seleção abre na tela em que o app está, porque o compositor ignora o posicionamento absoluto."
+    val sectionRenderer: String get() = if (isEnglish) "Graphics Renderer" else "Renderizador gráfico"
+    val rendererSubtitle: String get() = if (isEnglish) {
+        "How the app's windows are drawn."
+    } else {
+        "Como as janelas do app são desenhadas."
+    }
+    val rendererAutomatic: String get() = if (isEnglish) "Automatic" else "Automático"
+    val rendererAutomaticDesc: String get() = if (isEnglish) {
+        "The system's default (Direct3D on Windows). Fastest, and the one that crashes on some drivers."
+    } else {
+        "O padrão do sistema (Direct3D no Windows). Mais rápido, e o que cai em alguns drivers."
+    }
+    val rendererOpenGl: String get() = "OpenGL"
+    val rendererOpenGlDesc: String get() = if (isEnglish) {
+        "Uses the graphics card by another path; avoids Direct3D."
+    } else {
+        "Usa a placa de vídeo por outro caminho; evita o Direct3D."
+    }
+    val rendererSoftware: String get() = "Software"
+    val rendererSoftwareDesc: String get() = if (isEnglish) {
+        "Draws on the CPU. Slower, and the most stable."
+    } else {
+        "Desenha na CPU. Mais lento, e o mais estável."
+    }
+    val rendererRestartNote: String get() = if (isEnglish) {
+        "The change applies the next time the app starts (also available as --renderer=automatic|opengl|software)."
+    } else {
+        "A mudança vale na próxima abertura do app (também dá para escolher com --renderer=automatic|opengl|software)."
+    }
+    fun rendererAfterCrash(level: String): String = if (isEnglish) {
+        "The previous run was closed by a native Direct3D crash, so this run uses $level. Pick Automatic here when you want to go back."
+    } else {
+        "A execução anterior foi fechada por um crash nativo do Direct3D, então esta execução usa $level. Escolha Automático aqui quando quiser voltar."
+    }
+    fun rendererName(level: dev.yabai.ocr.desktop.SkikoRenderer): String = when (level) {
+        dev.yabai.ocr.desktop.SkikoRenderer.AUTOMATIC -> rendererAutomatic
+        dev.yabai.ocr.desktop.SkikoRenderer.OPENGL -> rendererOpenGl
+        dev.yabai.ocr.desktop.SkikoRenderer.SOFTWARE -> rendererSoftware
+    }
     val sectionEngine: String get() = if (isEnglish) "Recognition Engine" else "Motor de reconhecimento"
     val sectionBehaviour: String get() = if (isEnglish) "OCR & Result Behaviour" else "Comportamento do OCR e resultado"
     val sectionDicts: String get() = if (isEnglish) "Japanese Dictionaries & Data Folder" else "Dicionários de Japonês e Pasta de Dados"
