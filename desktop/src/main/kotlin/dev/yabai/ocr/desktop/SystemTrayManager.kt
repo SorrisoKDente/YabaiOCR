@@ -181,8 +181,13 @@ internal class SystemTrayManager(
                 }
             }
 
-            fun createTrayButton(text: String, action: () -> Unit): JButton {
-                val btn = JButton(text)
+            // The glyph is drawn by the app, in colour: Swing cannot paint colour emoji, and the
+            // Windows menu came out as flat white silhouettes. The emoji the label still carries for
+            // the Linux native menu is stripped here so there is one icon per row, not two.
+            fun createTrayButton(text: String, glyph: TrayGlyph, action: () -> Unit): JButton {
+                val btn = JButton(withoutEmojiPrefix(text))
+                btn.icon = TrayGlyphIcon(glyph)
+                btn.iconTextGap = 10
                 btn.font = trayButtonFont
                 btn.foreground = Color.WHITE
                 btn.background = Color(0x1B, 0x1E, 0x28)
@@ -212,20 +217,20 @@ internal class SystemTrayManager(
                 return btn
             }
 
-            panel.add(createTrayButton(DesktopStrings.trayFullScreen) { onFullScreenCaptureRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayFullScreen, TrayGlyph.MONITOR) { onFullScreenCaptureRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton(DesktopStrings.trayRegion) { onRegionCaptureRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayRegion, TrayGlyph.SCISSORS) { onRegionCaptureRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton(DesktopStrings.trayQuickDict) { onQuickDictRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayQuickDict, TrayGlyph.MAGNIFIER) { onQuickDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
 
             val hoverStatus = DesktopStrings.trayHover(isHoverActive())
-            panel.add(createTrayButton(hoverStatus) { onHoverRequested() })
+            panel.add(createTrayButton(hoverStatus, TrayGlyph.BUBBLE) { onHoverRequested() })
 
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton(DesktopStrings.trayManageDicts) { onFullDictRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayManageDicts, TrayGlyph.BOOK) { onFullDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton(DesktopStrings.traySettings) { onSettingsRequested() })
+            panel.add(createTrayButton(DesktopStrings.traySettings, TrayGlyph.GEAR) { onSettingsRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 4)))
 
             val sep = JSeparator()
@@ -235,7 +240,7 @@ internal class SystemTrayManager(
             panel.add(sep)
             panel.add(Box.createRigidArea(Dimension(0, 4)))
 
-            panel.add(createTrayButton(DesktopStrings.trayExit) { onExitRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayExit, TrayGlyph.EXIT) { onExitRequested() })
 
             popup.add(panel)
 

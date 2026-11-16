@@ -185,6 +185,10 @@ fun main(args: Array<String>) {
     var resultInitialText by remember { mutableStateOf<String?>(null) }
     var captureGeneration by remember { mutableStateOf(0L) }
     var captureNotice by remember { mutableStateOf<String?>(null) }
+    // «Trechos»: the screenshot and the scan the last result came from, kept while that result is
+    // open so the user can go back and click another paragraph without capturing the screen again.
+    var snippetsCapture by remember { mutableStateOf<CapturedScreen?>(null) }
+    var pickerScanCache by remember { mutableStateOf<PickerScan?>(null) }
 
     /**
      * Monitor the capture settings ask for.
@@ -202,6 +206,8 @@ fun main(args: Array<String>) {
     // the hand-drawn crop. Neither hides behind a preference the user cannot see.
     fun startFullScreenCapture() {
         try {
+            snippetsCapture = null
+            pickerScanCache = null
             val display = selectedCaptureDisplay()
             pickerCapture = CapturedScreen(
                 image = if (display != null) ScreenCapture.captureDisplay(display) else ScreenCapture.captureScreen(),
@@ -216,6 +222,8 @@ fun main(args: Array<String>) {
 
     fun startRegionCapture() {
         try {
+            snippetsCapture = null
+            pickerScanCache = null
             resultInitialText = null
             val display = selectedCaptureDisplay()
             regionCapture = CapturedScreen(
@@ -507,6 +515,8 @@ fun main(args: Array<String>) {
             dictionaryFilter = settings.dictionaryFilter,
             engineProvider = { DesktopDictLoader.cachedEngine(settings) },
             onBlockSelected = { cropped, text ->
+                // The capture is kept for the «Trechos» button of the result window.
+                snippetsCapture = picker
                 pickerCapture = null
                 resultInitialText = text
                 temporaryViewImage = cropped
@@ -519,6 +529,8 @@ fun main(args: Array<String>) {
             onDismiss = {
                 pickerCapture = null
             },
+            initialScan = pickerScanCache,
+            onScanReady = { scanned -> pickerScanCache = scanned },
         )
     }
 
@@ -592,6 +604,15 @@ fun main(args: Array<String>) {
                 },
                 onNewSelectionRequested = {
                     startRegionCapture()
+                },
+                onBackToPicker = snippetsCapture?.let { captured ->
+                    {
+                        temporaryViewImage = null
+                        resultInitialText = null
+                        snippetsCapture = null
+                        // Same screenshot, same scan: the picker opens at once with its boxes.
+                        pickerCapture = captured
+                    }
                 },
             )
         }

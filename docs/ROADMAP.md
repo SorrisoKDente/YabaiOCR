@@ -6468,3 +6468,50 @@ aparecer, é aí que se olha. 2) O recorte do hover agora é a tela inteira: mai
 (~3× o anterior) e o próprio cartão entra na imagem enviada ao Lens. 3) O probe usa páginas
 renderizadas com o texto dos prints (as imagens do chat não são arquivos); não rodei a GUI. 4) Nada
 foi verificado visualmente no app.
+
+### D76 — Ícones sem cor na bandeja, instalador que não fechava o app, «Recortar» escondendo o alvo e o modo «Trechos»  `[x]` (16/11/2026)
+
+**1. O menu da bandeja sem cores (Windows).** Cada linha era um `JButton` cujo rótulo começava com
+um emoji (`🖥️`, `✂️`, `🔍`…) e a fonte era a Segoe UI Emoji. O Swing não desenha emoji colorido: ele
+pede o glifo à fonte como texto e o Windows devolve a silhueta monocromática, por isso o menu saía
+branco. A correção não depende de fonte nenhuma: `TrayGlyphs.kt` desenha com Java2D um ícone de 16 px
+por linha, cada um com a sua cor (monitor azul, tesoura laranja, lupa violeta, balão verde, livro
+âmbar, engrenagem ciano, sair vermelho), e o rótulo perde o emoji antes de ir para o botão
+(`withoutEmojiPrefix`) — o menu nativo do Linux continua recebendo o texto com emoji, é ele que o
+desenha.
+
+**2. O instalador não fechava o app.** O `installer.iss` não pedia nada, e o pedido educado do Inno
+(Restart Manager) também não resolveria: com `close_to_tray=true` a janela do app só se esconde, o
+processo continua vivo e os jars não podem ser substituídos. Agora `CloseApplications=no` (o fechamento
+educado é declarado inútil, e não o é por acaso) e `[Code] PrepareToInstall` roda
+`taskkill /IM "Yabai OCR.exe" /F` antes de copiar os arquivos, com 600 ms de folga para os handles
+caírem; o `[Run]` que já existia reabre o app no fim.
+
+**3. «Recortar» no resultado capturava a própria janela.** O botão chamava `onClose()` e pedia a
+captura na mesma hora, com a janela ainda no ecrã: o recorte pegava o que estava por baixo *e* a
+própria janela, e o texto escondido por ela era impossível de recortar. Agora a janela é escondida
+(`window.isVisible = false`), espera-se `RESULT_WINDOW_HIDE_DELAY_MS` (180 ms — um ou dois frames para
+o compositor tirar a janela de cena) e só então se fecha e se abre a seleção.
+
+**4. Modo «Trechos».** No picker de tela cheia, escolher um bloco fechava o picker e a captura era
+esquecida; para ler outro parágrafo era preciso capturar a tela de novo. O `Main` passou a guardar a
+captura e o scan (`snippetsCapture`, `pickerScanCache`) de onde o resultado veio, e a janela de
+resultado ganhou o botão **Trechos** (`onBackToPicker`), que se esconde e reabre o picker com **a mesma
+imagem e as mesmas caixas** — `SegmentPickerWindow` recebeu `initialScan`/`onScanReady` e, com o scan
+guardado, não gasta uma segunda ida ao Lens nem muda as caixas debaixo do utilizador. O botão só existe
+quando o resultado veio do picker; um recorte à mão não tem para onde voltar.
+
+**Testes e mutações.** Cinco testes novos em `TrayGlyphsTest`: os sete rótulos sem emoji, texto simples
+intacto, cada glifo pintado com a sua cor saturada e distinta (pixels lidos do `BufferedImage`, não a
+constante), o tamanho do ícone e o script do instalador (tem de dizer `CloseApplications=no`, chamar
+`taskkill` com `/F` e fazê-lo em `PrepareToInstall`). Mutações provadas e restauradas: rótulo a manter o
+emoji, `CloseApplications=yes` outra vez e glifo do monitor em cinzento derrubam, cada uma, o seu teste.
+**`:core` 197, `:desktop` 424, 0 falhas.**
+
+**Limitações.** 1) Ícones, instalador e janelas só se veem no Windows de verdade: aqui compilei e testei
+o desenho dos ícones e os textos, mas **não** abri o menu da bandeja nem corri o `ISCC` (o Inno Setup não
+está instalado nesta máquina) — a sintaxe do `[Code]` é a documentada e não foi compilada. 2) O atraso de
+180 ms é uma espera fixa, não uma confirmação de que o compositor já tirou a janela; num sistema muito
+lento ainda pode escapar um frame. 3) O picker reaberto com o scan guardado não relê a tela: se algo
+mudou por baixo, as caixas são as da captura original — que é exatamente o que «trechos» significa.
+4) Nada foi verificado visualmente no app.

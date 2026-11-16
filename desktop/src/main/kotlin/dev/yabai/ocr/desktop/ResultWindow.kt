@@ -23,6 +23,7 @@ import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.*
 import dev.yabai.ocr.core.lens.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.Toolkit
@@ -35,6 +36,13 @@ fun ResultWindow(
     initialText: String? = null,
     onClose: () -> Unit,
     onNewSelectionRequested: () -> Unit,
+    /**
+     * Returns to the full-screen picker this result came from, with the same screenshot, so another
+     * paragraph can be clicked without capturing the screen again — the «trechos» mode of the phone
+     * app. Null when this result did not come from the picker (a hand-drawn crop has nothing to go
+     * back to).
+     */
+    onBackToPicker: (() -> Unit)? = null,
 ) {
     val settings = remember { DesktopSettings() }
 
@@ -247,11 +255,36 @@ fun ResultWindow(
                                 }
                             }
 
+                            // Trechos: back to the picker, same capture, another paragraph
+                            if (onBackToPicker != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        // Out of the picture before the picker opens over it.
+                                        window.isVisible = false
+                                        scope.launch {
+                                            delay(RESULT_WINDOW_HIDE_DELAY_MS)
+                                            onBackToPicker()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF8AB4FF)),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(DesktopStrings.btnSnippets, fontSize = 11.sp, maxLines = 1, softWrap = false)
+                                }
+                            }
+
                             // Nova Seleção
                             OutlinedButton(
                                 onClick = {
-                                    onClose()
-                                    onNewSelectionRequested()
+                                    // The capture happens immediately, and a window still on screen
+                                    // would be in the screenshot and over the text underneath it —
+                                    // that is why «new crop» could not crop what the result covered.
+                                    window.isVisible = false
+                                    scope.launch {
+                                        delay(RESULT_WINDOW_HIDE_DELAY_MS)
+                                        onClose()
+                                        onNewSelectionRequested()
+                                    }
                                 },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
@@ -583,3 +616,12 @@ private fun DictionaryMatchCard(match: TokenMatch) {
         }
     }
 }
+
+/**
+ * How long the result window stays hidden before the screen is captured again.
+ *
+ * The compositor needs a frame or two to take the window off screen; capturing sooner would save the
+ * window into the screenshot — and, on Wayland, the window is still there for the pixel the crop
+ * would have to see through.
+ */
+private const val RESULT_WINDOW_HIDE_DELAY_MS = 180L

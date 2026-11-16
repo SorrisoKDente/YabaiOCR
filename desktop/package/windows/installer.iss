@@ -20,6 +20,11 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+; The app lives in the tray: closing its window only hides it, so Restart Manager's polite close
+; leaves the process running and the installer cannot replace the jars. It is terminated below,
+; in [Code], before the files are written.
+CloseApplications=no
+RestartApplications=no
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
@@ -37,3 +42,29 @@ Name: "{autodesktop}\Yabai OCR"; Filename: "{app}\Yabai OCR.exe"; Tasks: desktop
 
 [Run]
 Filename: "{app}\Yabai OCR.exe"; Description: "Executar o Yabai OCR"; Flags: postinstall nowait skipifsilent
+
+[Code]
+{ The tray app answers the close request by hiding its window, so a request to close it never ends
+  the process and the update cannot replace the files. Ending it here is what the «close the running
+  application» option is expected to do; the installer starts it again at the end. }
+procedure TerminateRunningApp;
+var
+  ResultCode: Integer;
+begin
+  Exec(
+    ExpandConstant('{sys}\taskkill.exe'),
+    '/IM "Yabai OCR.exe" /F',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  );
+  { Give the process a moment to release the jars before the copy starts. }
+  Sleep(600);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  TerminateRunningApp;
+  Result := '';
+end;

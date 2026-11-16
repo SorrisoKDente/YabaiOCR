@@ -227,6 +227,7 @@ object DesktopStrings {
     val updateLinkOpenFailed: String get() = if (isEnglish) "Could not open the browser for the download link." else "Não foi possível abrir o navegador para o link de download."
     val aiLinkOpenFailed: String get() = if (isEnglish) "Could not open the browser. The link was copied to the clipboard." else "Não foi possível abrir o navegador. O link foi copiado para a área de transferência."
     val btnCropAgain: String get() = if (isEnglish) "✂️ New crop" else "✂️ Recortar"
+    val btnSnippets: String get() = if (isEnglish) "Snippets" else "Trechos"
     val resultEditLabel: String get() = if (isEnglish) "Recognized text (edit or select):" else "Texto Reconhecido (edite ou selecione):"
     val ocrFailedGeneric: String get() = if (isEnglish) "Could not recognize the image." else "Erro ao reconhecer a imagem."
     val flexionPrefix: String get() = if (isEnglish) "Inflection: " else "Flexão: "

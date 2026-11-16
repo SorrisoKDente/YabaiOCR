@@ -96,6 +96,13 @@ fun SegmentPickerWindow(
     onBlockSelected: (BufferedImage, String) -> Unit,
     onManualCrop: () -> Unit,
     onDismiss: () -> Unit,
+    /**
+     * A scan of this same screenshot, kept when the user goes back to the picker after reading a
+     * paragraph: recognising the page again would cost a second round trip and could report the
+     * boxes slightly differently from the ones the user is looking at.
+     */
+    initialScan: PickerScan? = null,
+    onScanReady: (PickerScan) -> Unit = {},
 ) {
     val imageBitmap = remember { screenImage.toComposeImageBitmap() }
     val imageSize = remember { Dimension(screenImage.width, screenImage.height) }
@@ -106,10 +113,17 @@ fun SegmentPickerWindow(
     var blockRects by remember { mutableStateOf<List<Rectangle?>>(emptyList()) }
 
     LaunchedEffect(screenImage, readingMode, dictionaryFilter) {
+        val cached = initialScan
+        if (cached != null) {
+            scan = cached
+            return@LaunchedEffect
+        }
         scan = PickerScan.Scanning
-        scan = withContext(Dispatchers.IO) {
+        val finished = withContext(Dispatchers.IO) {
             scanScreen(screenImage, readingMode, dictionaryFilter, engineProvider)
         }
+        scan = finished
+        onScanReady(finished)
     }
 
     // The window uses the whole screen rectangle — the same one that was captured — instead of the
