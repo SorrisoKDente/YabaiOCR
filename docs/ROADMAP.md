@@ -7428,3 +7428,41 @@ usuário ainda vê três leituras por pouso (400/800/1600 ms), não uma. O camin
 cartão reaparecendo depois de um erro) não foi visto em tela nesta VM: falha de captura não se injeta sem
 portal, e o cartão depende do renderizador (D87). O que está provado são as regras do portão e a ligação
 das duas falhas. Nada commitado.
+
+---
+
+## D89 — A barra de rolagem da lista de dicionários do cartão redimensionava o cartão (17/11/2026)
+
+**Pedido.** A lista de dicionários do cartão do hover não pode ser rolada com a barra: ao pousar o
+ponteiro nela, o cursor vira o de redimensionamento e o arrasto redimensiona o cartão.
+
+**Causa raiz.** `HoverTooltipWindow` abre o cartão com `undecorated = true` e deixava `resizable` no
+padrão do Compose, `true`. O Compose 1.12 responde a essa combinação com uma borda de redimensionamento
+própria: `ComposeWindow.setResizable` faz `undecoratedWindowResizer.enabled = isUndecorated &&
+isResizable`, e o `UndecoratedWindowResizer` cria uma faixa de **8 dp** em cada borda da janela
+(`WindowDecorationDefaults.resizerThickness`) onde o ponteiro vira cursor de redimensionamento e o
+arrasto muda o tamanho da janela. A barra de rolagem da lista fica nos últimos **12 dp** da direita
+(`DICTIONARY_SCROLLBAR_GUTTER_DP = 10` de recuo do texto + a barra encostada em `Alignment.CenterEnd`),
+ou seja, dentro da faixa: o `ScreenShot` do ponteiro era trocado antes de o `ScrollbarDragModifier`
+receber o clique. Não era o gerenciador de janelas — um `JFrame` sem decoração com `Robot` na borda
+não é redimensionado pelo Mutter (medido: janela de 460×400, arrasto na borda, tamanho inalterado), e
+o `xwd`/XFixes mostram `left_ptr` nessa mesma borda; a única diferença do cartão é o `SkiaLayer`.
+
+**O que mudou.** `resizable = false` na janela do cartão. O `UndecoratedWindowResizer` fica desligado,
+a faixa de 8 dp some e a barra de rolagem volta a receber o arrasto. O cartão não tinha o que oferecer
+ao usuário nesse gesto — largura fixa (`TOOLTIP_WIDTH = 460`) e altura vinda do conteúdo — e o app
+continua redimensionando por `window.setSize` em `applySizeAndPlacement` (`resizable` limita só o
+arrasto do usuário; o próprio Compose documenta que a aplicação ainda pode mudar o tamanho pelo
+estado). Os dois outros janelas sem decoração do desktop (`SegmentPickerWindow`,
+`RegionSelectionWindow`) já passavam `resizable = false`.
+
+**Testes e mutações.** `HoverCardResizeTest` (2 testes novos): o `Window(...)` do cartão exige
+`undecorated = true` **e** `resizable = false`, e o arquivo não pode chamar `setResizable(`. Guarda de
+fonte porque desenhar o cartão exige display, como `HoverCardTransparencyTest` e `ScrollbarCoverageTest`.
+Suíte desktop **532 testes, 0 falhas, 1 pulado**. Mutação derrubada: apagando `resizable = false,` do
+cartão, o guarda falha (**1 falha**) e, restaurado, volta a passar.
+
+**Limitações.** O arrasto da barra em si não foi exercitado em tela nesta VM: exige o cartão aberto com
+uma lista longa, que depende de captura pelo portal e do renderizador (D87). O que está provado é a
+causa raiz (o resizer do Compose ligado por `undecorated && resizable`), a bandeja de 8 dp contra os
+12 dp da barra, e o guarda que impede a volta do `resizable` padrão. Nada commitado.

@@ -150,6 +150,15 @@ private fun HoverTooltipCardWindow(
         onCloseRequest = onDismiss,
         title = "Yabai OCR - Hover",
         undecorated = true,
+        // Not user-resizable on purpose. Compose answers an undecorated *and* resizable window
+        // with a resize border of its own (`ComposeWindow.setResizable` enables
+        // `UndecoratedWindowResizer` while `isUndecorated && isResizable`): an 8 dp band along
+        // every edge where the pointer turns into a resize cursor and a drag resizes the window.
+        // The dictionary list's scrollbar is the last 12 dp on the right, so that band sat on top
+        // of it — hovering the scrollbar showed the resize cursor and grabbing it resized the card
+        // instead of scrolling. The card has no size to offer the user anyway (fixed width, height
+        // from the content), and the application still resizes it through `setSize`.
+        resizable = false,
         alwaysOnTop = true,
         focusable = false,
         transparent = true,
