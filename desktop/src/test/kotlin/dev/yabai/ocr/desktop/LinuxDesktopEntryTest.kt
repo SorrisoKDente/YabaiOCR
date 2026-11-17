@@ -39,6 +39,83 @@ class LinuxDesktopEntryTest {
         assertTrue(!entry.contains("--minimized"))
     }
 
+    /**
+     * The taskbar reads the entry's `Icon=`; the theme name goes through the desktop's icon cache,
+     * and the Steam Deck kept showing a placeholder there while the tray (which receives pixels
+     * itself) already had the new icon (ROADMAP D83). The installed file by absolute path needs no
+     * cache at all.
+     */
+    @Test
+    fun `the entry names the installed icon file by absolute path`() {
+        val entry = applicationDesktopEntry(
+            "/home/deck/Applications/Yabai OCR.AppImage",
+            wmClass,
+            "/home/deck/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png",
+        )
+
+        assertTrue(
+            entry.contains("Icon=/home/deck/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png"),
+        )
+        assertFalse(entry.contains("Icon=yabai-ocr\n"))
+    }
+
+    @Test
+    fun `without a file the theme name stays the icon`() {
+        val entry = applicationDesktopEntry("/home/deck/Applications/Yabai OCR.AppImage", wmClass)
+
+        assertTrue(entry.contains("Icon=yabai-ocr"))
+    }
+
+    /**
+     * A menu entry that names another app is how the taskbar lost the icon (ROADMAP D83): the entry's
+     * `Exec` was the AppImage of the program that launched the app, because `$APPIMAGE` was inherited
+     * through the environment.
+     */
+    @Test
+    fun `an APPIMAGE inherited from the launching app is ignored`() {
+        val env = mapOf(
+            "APPIMAGE" to "/home/deck/Downloads/Freebuff-0.0.203-linux-x86_64.AppImage",
+            "APPDIR" to "/tmp/.mount_FreebuZZZZZZ",
+        )
+        val candidates = linuxExecutableCandidates(
+            env = env,
+            userHome = "/home/deck",
+            command = "/tmp/.mount_YabaiAAAAAA/opt/yabai-ocr/bin/yabai-ocr",
+            jpackageAppPath = null,
+        )
+
+        assertFalse(candidates.any { it.contains("Freebuff") })
+        assertTrue(candidates.contains("/tmp/.mount_YabaiAAAAAA/opt/yabai-ocr/bin/yabai-ocr"))
+    }
+
+    @Test
+    fun `the APPIMAGE the process really came from is kept`() {
+        val env = mapOf(
+            "APPIMAGE" to "/home/deck/Downloads/Yabai_OCR-1.0.10.AppImage",
+            "APPDIR" to "/tmp/.mount_YabaiAAAAAA",
+        )
+        val candidates = linuxExecutableCandidates(
+            env = env,
+            userHome = "/home/deck",
+            command = "/tmp/.mount_YabaiAAAAAA/opt/yabai-ocr/bin/yabai-ocr",
+            jpackageAppPath = null,
+        )
+
+        assertEquals("/home/deck/Downloads/Yabai_OCR-1.0.10.AppImage", candidates.first())
+    }
+
+    @Test
+    fun `an APPIMAGE without APPDIR is trusted as before`() {
+        val candidates = linuxExecutableCandidates(
+            env = mapOf("APPIMAGE" to "/home/deck/Applications/Yabai.AppImage"),
+            userHome = "/home/deck",
+            command = "/usr/lib/jvm/java/bin/java",
+            jpackageAppPath = null,
+        )
+
+        assertEquals("/home/deck/Applications/Yabai.AppImage", candidates.first())
+    }
+
     @Test
     fun `the window class is derived from the main class`() {
         // `xprop` on the running app shows WM_CLASS dev-yabai-ocr-desktop-MainKt: AWT derives it from

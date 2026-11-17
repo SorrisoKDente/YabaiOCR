@@ -199,7 +199,7 @@ flags above.
 
 | file | role |
 | --- | --- |
-| `ScreenCapture.kt` | primary/region/monitor capture via `Robot`, native size on HiDPI, monitor list and preference (`PRIMARY`/`MOUSE`/`DISPLAY:n`) |
+| `ScreenCapture.kt` | primary/region/monitor capture via `Robot`, native size on HiDPI, monitor list and preference (`PRIMARY`/`MOUSE`/`DISPLAY:n`); `CaptureDiagnostics` times the last capture and names the transport that served it (`lastCaptureRoute`) (D81) |
 | `PlatformServices.kt` | picks the capture backend per platform/session |
 | `ScreenshotMethod.kt` | capture-method override (X11/Wayland/portal) via environment variable |
 | `KWinScreenshotCapture.kt` | primary path on KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + raw QImage, fallback to the portal |
@@ -213,11 +213,13 @@ flags above.
 | file | role |
 | --- | --- |
 | `HoverOcrManager.kt` | hover cycle: capture → OCR (chosen engine) → dictionary → card |
-| `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close |
+| `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close; the rest is a preference (`hover_rest_millis`, default 250 ms, 150/250/420 presets in Settings) applied to the run in progress (D82) |
+| `HoverLookupTracker.kt` | which lookup is still worth drawing as the pointer keeps moving: newest wins, at most two in flight (D83) |
+| `LensPayload.kt` | what goes up to Lens: PNG up to 400 KB, JPEG q85 above that — the upload is the bottleneck on the Deck (D83) |
 | `HoverGeometry.kt` | crop around the pointer, local coordinates, HiDPI |
 | `HoverTextSelector.kt` | picks the line/word under the pointer and builds the hit; joins a word split across lines/columns of the same block (D56) |
 | `DictionaryInstallRun.kt` | one catalogue install and what it reports (installed/cancelled/failed/finished); the card reset runs in `NonCancellable` |
-| `RendererRecovery.kt` | run-in-progress marker carrying the pid, the renderer ladder after a native Skiko/Direct3D crash (Direct3D → OpenGL → Software) that only counts as a crash when a Skiko `hs_err_pid<pid>.log` exists, `--renderer=…` and the `skiko_renderer` preference the Settings window writes (D79/D80) |
+| `RendererRecovery.kt` | run-in-progress marker carrying the pid, the renderer ladder after a native Skiko/Direct3D crash (Direct3D → OpenGL → Software) that only counts as a crash when a Skiko `hs_err_pid<pid>.log` exists, `--renderer=…` and the `skiko_renderer` preference the Settings window writes (D79/D80); `softwareSwitchOn`/`rendererAfterSoftwareSwitch` — the Linux card is a single switch (D83) |
 | `HoverLookup.kt` | hover lookup limited to the chosen dictionary (`dictionaryScope`, `scopedHoverHit`), the card's dictionary-change decision answered from the kept reading (`cachedHoverAnswer`) and what a miss means (`japaneseWordAt`, `classifyHoverMiss`: a card only when a Japanese word is under the pointer, and that word's box is the anchor) — no more fallback answering from another dictionary (D77, D78) |
 | `PickerScanMemory.kt` | the picker scan that survives «Snippets»: handed out once and never from a failure (D76) |
 | `TrayGlyphs.kt` | tray menu icons drawn with Java2D, in colour (Swing cannot paint colour emoji) (D76) |
@@ -235,7 +237,7 @@ flags above.
 | --- | --- |
 | `DesktopOcr.kt` | **single entry**: engine order (`AUTO`/`LENS`/`PP_OCR`), fallback and `DesktopOcrAnswer` |
 | `DesktopPPOcr.kt` | offline engine: cached sessions, `PPOcrOutcome` → `LensResult` conversion |
-| `DesktopDictLoader.kt` | opens/caches the `LookupEngine` from the dictionary folder; `sizeBytes` sums a `.yabai` (which is a folder) |
+| `DesktopDictLoader.kt` | opens/caches the `LookupEngine` from the dictionary folder; `installedTitles`/`dictionaryTitle` read **`meta.json` only** (a dictionary index is tens of MB and the hover card asks for the name list on every composition); `sizeBytes` sums a `.yabai` (which is a folder) |
 
 ### Shortcuts, tray and system
 

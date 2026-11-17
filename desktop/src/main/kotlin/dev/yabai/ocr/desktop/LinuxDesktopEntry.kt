@@ -53,6 +53,9 @@ internal fun autostartDesktopEntry(executable: String, wmClass: String?): String
     appendLine("X-GNOME-Autostart-enabled=true")
 }
 
+/** Names the installed PNG in that folder, so a theme lookup has something to find. */
+internal const val DEFAULT_ICON_NAME = "yabai-ocr"
+
 /**
  * KWin only lets a caller use `org.kde.KWin.ScreenShot2` when the desktop entry whose `Exec` matches
  * the caller's binary declares this interface. Without it every capture is refused with
@@ -61,13 +64,27 @@ internal fun autostartDesktopEntry(executable: String, wmClass: String?): String
  */
 internal const val KWIN_SCREENSHOT_INTERFACE = "org.kde.KWin.ScreenShot2"
 
-internal fun applicationDesktopEntry(executable: String, wmClass: String?): String = buildString {
+/**
+ * The menu entry that carries the window's icon and the KWin capture authorization.
+ *
+ * [iconPath] is the installed PNG. It goes in as an **absolute path** rather than the theme name:
+ * the theme name is resolved through the desktop's icon cache, and a cache that predates the file —
+ * or a cache that never indexed `~/.local/share/icons`, which is what the Steam Deck showed — leaves
+ * the taskbar with a placeholder while the tray, which receives the pixels themselves, already
+ * shows the new icon. Without [iconPath] the theme name stays, which is what a plain `Icon=` entry
+ * looks like on a desktop that resolves it fine.
+ */
+internal fun applicationDesktopEntry(
+    executable: String,
+    wmClass: String?,
+    iconPath: String? = null,
+): String = buildString {
     appendLine("[Desktop Entry]")
     appendLine("Type=Application")
     appendLine("Name=Yabai OCR")
     appendLine("Comment=Leitor de japonês com OCR")
     appendLine("Exec=${desktopEntryExec(executable)}")
-    appendLine("Icon=yabai-ocr")
+    appendLine("Icon=${iconPath ?: DEFAULT_ICON_NAME}")
     appendLine("Terminal=false")
     appendLine("Categories=Utility;")
     appendLine("StartupNotify=true")
@@ -140,7 +157,11 @@ internal fun linuxExecutableCandidates(
         if (!trimmed.isNullOrEmpty() && !candidates.contains(trimmed)) candidates.add(trimmed)
     }
 
-    add(env["APPIMAGE"])
+    // `$APPIMAGE` is inherited by every process the app starts — and by the app itself when it is
+    // started from inside another AppImage (Freebuff, a terminal opened from one). Trusting it wrote
+    // a menu entry whose `Exec` was another app's AppImage, so the launcher opened the wrong program
+    // and the taskbar had no entry to take the icon from (D83).
+    if (appImageIsOurs(env, command)) add(env["APPIMAGE"])
     add(jpackageAppPath)
 
     val commandName = command?.let { File(it).name.lowercase() }
@@ -154,6 +175,27 @@ internal fun linuxExecutableCandidates(
 
     extraCandidates.forEach(::add)
     return candidates
+}
+
+/**
+ * Whether `$APPIMAGE` belongs to the process asking, or was inherited from whoever launched it.
+ *
+ * The AppImage runtime exports `APPIMAGE` (the file) and `APPDIR` (where it mounted itself). When our
+ * binary really came from that mount, [command] lives under [APPDIR] and the pair agrees. When the
+ * shell already had `APPIMAGE` set from another AppImage, the paths cannot agree and the value is
+ * another program's.
+ *
+ * Without `APPDIR` there is nothing to compare — older runtimes exported only `APPIMAGE`, and that
+ * was never wrong for a run that owned it — so the value is trusted as before.
+ */
+internal fun appImageIsOurs(env: Map<String, String>, command: String?): Boolean {
+    val appImage = env["APPIMAGE"]?.trim().orEmpty()
+    if (appImage.isEmpty()) return false
+    val appDir = env["APPDIR"]?.trim()?.trimEnd('/').orEmpty()
+    if (appDir.isEmpty()) return true
+    val running = command?.trim().orEmpty()
+    if (running.isEmpty()) return false
+    return running.startsWith("$appDir/")
 }
 
 /**

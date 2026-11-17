@@ -123,20 +123,9 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
         }
     }
 
-    val installedDictTitles = remember(refreshKey) {
-        val list = mutableListOf<String>()
-        try {
-            if (dictDir.exists() && dictDir.isDirectory) {
-                dictDir.listFiles()?.forEach { file ->
-                    if (file.extension == "yabai" || file.isDirectory) {
-                        val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
-                        if (dict != null) list.add(dict.info.title)
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-        list.toList()
-    }
+    // Names only: opening each compiled dictionary here read every key index just to print its
+    // title, which delayed the window the user is waiting for (D81).
+    val installedDictTitles = remember(refreshKey) { DesktopDictLoader.installedTitles(dictDir) }
 
     val suggestions = remember(query, engine, selectedFilter, translationMode) {
         if (!translationMode && engine != null && query.isNotBlank()) {

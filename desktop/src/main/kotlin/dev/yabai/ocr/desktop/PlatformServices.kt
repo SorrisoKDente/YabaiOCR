@@ -26,6 +26,28 @@ internal fun captureBackendFor(
     else -> robot
 }
 
+/**
+ * Name of the capture path this session is expected to use.
+ *
+ * The log prints it at startup, before any capture, because the AppImage's usual symptom — a hover
+ * that takes seconds — has a single cause worth ruling out first: KDE Wayland answering through the
+ * portal because KWin refused `ScreenShot2`. What was *really* used is [CaptureDiagnostics]' line.
+ */
+internal fun captureBackendLabel(
+    family: OsFamily,
+    session: SessionType,
+    desktop: DesktopFamily,
+): String = when {
+    family == OsFamily.LINUX && session == SessionType.WAYLAND && desktop == DesktopFamily.KDE ->
+        "$ROUTE_KWIN (KDE Wayland)"
+    family == OsFamily.LINUX && session == SessionType.WAYLAND && desktop == DesktopFamily.GNOME ->
+        "$ROUTE_PORTAL (GNOME Wayland)"
+    family == OsFamily.LINUX && session == SessionType.WAYLAND -> "$ROUTE_SCREENCAST (Wayland)"
+    family == OsFamily.LINUX -> "$ROUTE_ROBOT (X11)"
+    family == OsFamily.WINDOWS -> "$ROUTE_ROBOT (Windows)"
+    else -> ROUTE_ROBOT
+}
+
 internal object PlatformServices {
     val autostart: Autostart = autostartFor(
         family = DesktopPlatform.family,

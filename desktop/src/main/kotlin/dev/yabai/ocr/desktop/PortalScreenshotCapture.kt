@@ -77,6 +77,8 @@ internal class PortalScreenshotCapture(
 
     override fun screenBounds(): Rectangle = primaryBounds()
 
+    override fun lastCaptureRoute(): String = ROUTE_PORTAL
+
     override fun captureScreen(): BufferedImage = guard {
         val workspace = captureWorkspace()
         cropWorkspace(workspace, virtualBounds(), primaryBounds()).also { failure = null }

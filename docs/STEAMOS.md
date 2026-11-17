@@ -140,7 +140,9 @@ app grava **não** autoriza nada (diretório de usuário é recusado) — ela é
 caminho em execução.
 
 Nesse caminho de portal o KDE mostra **«Permitir que aplicativos tirem capturas de tela?»** a cada
-chamada, e é isso que deixa o hover lento. A saída é **Ajustes → 🖼 Captura silenciosa no KDE**: grava
+chamada, e é isso que deixa o hover lento. Para saber qual dos dois caminhos está em uso, veja a
+linha `[Captura] …` no log (ou o fim da linha de status do hover nos Ajustes): `KWin ScreenShot2` é
+a captura direta; `portal Screenshot` é o caminho lento. A saída é **Ajustes → 🖼 Captura silenciosa no KDE**: grava
 `~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, que desliga a
 checagem dentro do KWin. A sessão só lê esse arquivo no login, então **saia e entre uma vez** depois
 de ligar — não é preciso repetir depois, e não é preciso reiniciar a cada abertura do app. A opção
@@ -396,7 +398,11 @@ rm -f ~/Applications/Yabai_OCR-*.AppImage
 | `packageAppImage` não gera `.AppImage` | o Compose 1.7 mapeia esse alvo para uma pasta | use `:desktop:packageLinuxAppImage` ou `:desktop:packagePortableTarGz` |
 | captura preta ou “permissão negada” | `ScreenShot2` e portal `Screenshot` indisponíveis, ou fallback negado | §5.2; confirme `XDG_SESSION_TYPE=wayland`, o backend KDE e, se o fallback for usado, permita a captura |
 | hover “indisponível” | sessão não é KDE Wayland, ou script KWin não carregou | use Desktop Mode/Plasma; veja o status nos Ajustes; confira `~/.local/share/kwin/scripts/yabai-ocr/` |
+| hover lento mesmo com a captura direta (`ScreenShot2 · ~75 ms`) | a espera é do OCR: o motor `Lens` é uma chamada de rede (~1,2 s por leitura neste hardware) e o `PP-OCRv6` offline mediu 2,3 s na mesma imagem | é o custo do motor escolhido, não da captura; veja o tempo de captura e o motor na linha de status/Ajustes. Dos ~1,4 s, ~250 ms são o **repouso do ponteiro** (padrão desde o D82), ajustável em **Ajustes → Modo Hover → «Espera para abrir o card»** (150/250/420 ms) |
+| o cartão «Renderizador gráfico» mostra só «Software» | no Linux o Skiko desenha com OpenGL e «Automático» **já é** OpenGL; oferecer os dois seria a mesma escolha com dois nomes, e Direct3D não existe ali (D82) | é o esperado. «Software» é o caminho de volta quando a placa de vídeo não desenha a janela (VM sem GL, desktop remoto, driver recusando o contexto) |
+| depois de fechar um AppImage à força, a próxima cópia diz «já existe uma instância aberta» | matar o **runtime** do AppImage não mata o app filho, que continua vivo segurando `~/.yabai_ocr/instance.lock` | encerre pelo app ou mate o processo `yabai-ocr` em si; confira com `ps -eo pid=,comm= \| awk '$2=="yabai-ocr"'` |
 | janela «Portal» aparece e o hover demora a cada leitura | o `ScreenShot2` recusou o app (`Error.NoAuthorized`) e a captura caiu no portal `Screenshot`. Em AppImage é o comportamento normal: o exe vive em `/tmp/.mount_*` e nunca casa com a entrada fixa exigida pelo KWin (D61) | ligue **Ajustes → 🖼 Captura silenciosa no KDE** e saia/entre na sessão uma vez; o log do app mostra `captura direta pelo KWin recusada (…)` |
+| não se sabe se a captura está no `ScreenShot2` ou no portal | o caminho realmente usado não aparecia em lugar nenhum (só a recusa era registrada) | o log imprime, no arranque, `[Captura] caminho esperado nesta sessão: KWin ScreenShot2 (KDE Wayland)` e, na primeira captura de cada transporte, `[Captura] captura: KWin ScreenShot2 · 1280×800 · 47 ms` (D81). A linha de status do hover nos Ajustes termina com a mesma medida. `ScreenShot2` = direto e rápido; `portal Screenshot` = diálogo e segundos por leitura |
 | atalho novo (ex.: busca rápida) não dispara, o antigo continua | o KGlobalAccel mantinha a combinação anterior daquele fallback do KWin | use o build atual (D45); se persistir, rode `kbuildsycoca6` uma vez ou reinicie o app para reaplicar o fallback |
 | “o KWin bridge recusou carregar o script” ao reabrir o app | o script da execução anterior continuou carregado no KWin | use o build atual (D45), que descarrega o script obsoleto antes de carregar; se aparecer mesmo assim, reinicie a sessão do Plasma |
 | atalhos “indisponíveis” | portal `GlobalShortcuts` ausente | no KDE o fallback KWin assume; fora do KDE use a bandeja |

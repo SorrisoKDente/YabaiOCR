@@ -6,8 +6,6 @@ import dev.yabai.ocr.core.lens.LensOptions
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
-import javax.imageio.ImageIO
 
 /** The answer plus the engine that produced it, so the window can say which reader read the page. */
 data class DesktopOcrAnswer(
@@ -92,11 +90,12 @@ object DesktopOcr {
     @Synchronized
     private fun lens(): LensClient = lensClient ?: LensClient().also { lensClient = it }
 
+    /**
+     * Sends the image to Lens in the smallest form that changes nothing: PNG when it is small, JPEG
+     * when PNG made it heavy enough that the upload, not the recognition, is the wait (D83).
+     */
     private fun recognizeWithLens(image: BufferedImage): LensResult {
-        val encoded = ByteArrayOutputStream().use { out ->
-            check(ImageIO.write(image, "png", out)) { "PNG encoder unavailable" }
-            out.toByteArray()
-        }
+        val encoded = LensPayload.encode(image)
         return lens().recognize(
             EncodedImage(encoded, image.width, image.height),
             LensOptions(language = "ja"),

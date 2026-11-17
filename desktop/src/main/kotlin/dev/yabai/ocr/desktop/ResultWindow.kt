@@ -72,16 +72,9 @@ fun ResultWindow(
         }
     }
 
-    val installedDictTitles = remember(settings) {
-        val list = mutableListOf<String>()
-        try {
-            DesktopDictLoader.loadInstalledFiles(settings).forEach { file ->
-                val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
-                if (dict != null) list.add(dict.info.title)
-            }
-        } catch (_: Exception) {}
-        list.toList()
-    }
+    // Names only: opening each compiled dictionary here read every key index just to print its
+    // title, which delayed the window the user is waiting for (D81).
+    val installedDictTitles = remember(settings) { DesktopDictLoader.installedTitles(settings) }
 
     // Run OCR asynchronously
     LaunchedEffect(croppedImage, initialText) {

@@ -70,7 +70,10 @@ internal class LinuxSystemIntegration(
         val executable = executableResolver()?.takeIf { it.isNotBlank() }
         if (executable != null && desktopFile.isFile) {
             runCatching {
-                val content = applicationDesktopEntry(executable, wmClass())
+                // The installed PNG by absolute path: the theme name alone left the taskbar with a
+                // placeholder on this Deck while the tray (which gets pixels) already showed the
+                // new icon (D83).
+                val content = applicationDesktopEntry(executable, wmClass(), iconFile.absolutePath)
                 if (desktopFile.readText() != content) desktopFile.writeText(content)
             }
         }
@@ -85,9 +88,9 @@ internal class LinuxSystemIntegration(
 
         return runCatching {
             desktopFile.parentFile?.mkdirs()
-            desktopFile.writeText(applicationDesktopEntry(executable, wmClass()))
             iconFile.parentFile?.mkdirs()
             iconFile.writeBytes(icon)
+            desktopFile.writeText(applicationDesktopEntry(executable, wmClass(), iconFile.absolutePath))
             true
         }.getOrDefault(false)
     }

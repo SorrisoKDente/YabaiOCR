@@ -206,12 +206,20 @@ class HoverLookupTest {
 
     @Test
     fun `the notice names the dictionary that has no entry`() {
-        val notice = DesktopStrings.hoverDictionaryMissingEntry("Wikcionário")
+        // The wording asserted below is Portuguese, so the interface language is pinned here: the
+        // notice comes from DesktopStrings, whose language otherwise follows the machine's locale.
+        val previous = DesktopStrings.currentChoice
+        DesktopStrings.updateLanguage(DesktopLanguageChoice.PT_BR)
+        try {
+            val notice = DesktopStrings.hoverDictionaryMissingEntry("Wikcionário")
 
-        assertTrue("the notice does not name the dictionary: $notice", notice.contains("Wikcionário"))
-        assertTrue(
-            "the notice has to say the dictionary lacks the word: $notice",
-            notice.contains("verbete"),
-        )
+            assertTrue("the notice does not name the dictionary: $notice", notice.contains("Wikcionário"))
+            assertTrue(
+                "the notice has to say the dictionary lacks the word: $notice",
+                notice.contains("verbete"),
+            )
+        } finally {
+            DesktopStrings.updateLanguage(previous)
+        }
     }
 }

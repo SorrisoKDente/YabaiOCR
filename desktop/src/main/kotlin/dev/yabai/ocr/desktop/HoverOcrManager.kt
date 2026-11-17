@@ -1,6 +1,5 @@
 package dev.yabai.ocr.desktop
 
-import dev.yabai.ocr.core.dict.CompactDictionary
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.core.lens.LensResult
@@ -12,7 +11,6 @@ import java.awt.Rectangle
 import java.awt.Robot
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.imageio.ImageIO
 import javax.swing.SwingUtilities
 import kotlinx.coroutines.CoroutineScope
@@ -40,9 +38,10 @@ internal class HoverOcrManager(
     private val captureProvider: ((Rectangle) -> BufferedImage)? = null,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val gate = HoverGate()
+    private val gate = HoverGate(stableMillis = DesktopSettings().hoverRestMillis)
     private val dismissGate = HoverDismissGate(graceMillis = DISMISS_GRACE_MS, margin = TARGET_MARGIN)
-    private val busy = AtomicBoolean(false)
+    /** Keeps the newest read and drops the older answers instead of locking the hover (see D83). */
+    private val lookups = HoverLookupTracker()
 
     @Volatile
     private var isEnabled = false
@@ -72,6 +71,14 @@ internal class HoverOcrManager(
     @Volatile
     private var lastImageSize: Dimension? = null
 
+    /**
+     * Engine and time of the last recognition («Google Lens 1 180 ms»), carried by every status
+     * line. This is what tells a slow Lens from a Lens that fell back to the offline reader, and
+     * from a Lens whose upload grew because the page is artwork (D83).
+     */
+    @Volatile
+    private var lastAnswer: String? = null
+
     @Volatile
     private var lastLensResult: LensResult? = null
 
@@ -98,6 +105,8 @@ internal class HoverOcrManager(
 
         if (enabled) {
             gate.reset()
+            // Read again on every start: the Ajustes window may have changed it while the hover was off.
+            gate.stableMillis = DesktopSettings().hoverRestMillis
             // The compositor bridges push the pointer over D-Bus; there is nothing to poll.
             if (backendKind != HoverBackendKind.KWIN && backendKind != HoverBackendKind.GNOME) startPolling()
             publishStatus(
@@ -122,6 +131,14 @@ internal class HoverOcrManager(
         tooltipBounds = bounds
     }
 
+    /**
+     * How long the pointer must rest before a read. Changing it applies to the next movement, without
+     * restarting the app or the hover.
+     */
+    fun setRestMillis(millis: Long) {
+        gate.stableMillis = millis
+    }
+
     fun triggerAtCursor(force: Boolean = false) {
         if (!force && !isEnabled) return
         val point = pointerLocation() ?: return
@@ -140,16 +157,14 @@ internal class HoverOcrManager(
         if (isEnabled) tick(point)
     }
 
-    fun getInstalledDictionaryTitles(): List<String> {
-        val settings = DesktopSettings()
-        val dir = settings.dictDirectory()
-        return if (dir.isDirectory) {
-            dir.listFiles()
-                ?.filter { it.extension == "yabai" || it.isDirectory }
-                ?.mapNotNull { file -> runCatching { CompactDictionary.open(file)?.use { it.info.title } }.getOrNull() }
-                .orEmpty()
-        } else emptyList()
-    }
+    /**
+     * Titles the card lets the user switch between.
+     *
+     * From each dictionary's `meta.json`, never by opening it: the card asks for this list on every
+     * composition, and opening the compiled dictionaries reads their whole key index (D81).
+     */
+    fun getInstalledDictionaryTitles(): List<String> =
+        DesktopDictLoader.installedTitles(DesktopSettings().dictDirectory())
 
     /** Define um filtro de dicionário específico para o Hover e atualiza instantaneamente. */
     fun setFilterAndRefresh(newFilter: String) {
@@ -210,7 +225,7 @@ internal class HoverOcrManager(
                     targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
                     tooltipVisible = true
                     dismissGate.reset()
-                    publishStatus("${hit.match.entry.term} — ${hit.match.dictionaryTitle}")
+                    publishStatus(withCapture("${hit.match.entry.term} — ${hit.match.dictionaryTitle}"))
                     val matches = listOf(hit.match)
                     SwingUtilities.invokeLater { onResultsReady(matches, screenPoint, filter, null) }
                     return
@@ -278,14 +293,20 @@ internal class HoverOcrManager(
             dismissGate.reset()
         }
 
-        if (busy.get()) return
         if (gate.observe(point, now)) {
             lookupAt(point)
         }
     }
 
     private fun lookupAt(point: Point, overrideFilter: String? = null) {
-        if (!busy.compareAndSet(false, true)) return
+        // A read already running used to swallow every word the pointer reached while it lasted.
+        // Now the newest lookup wins and the older answer is dropped (HoverLookupTracker).
+        val token = lookups.begin()
+        if (token == null) {
+            // Both slots are busy: let the gate ask again as soon as one of them finishes.
+            gate.reset()
+            return
+        }
         gate.markTriggered(point)
 
         scope.launch {
@@ -302,7 +323,11 @@ internal class HoverOcrManager(
                     return@launch
                 }
 
-                val result = DesktopOcr.recognize(image, DesktopSettings()).result
+                val answer = DesktopOcr.recognize(image, DesktopSettings())
+                // The pointer is already reading another word: this answer is history.
+                if (!lookups.isCurrent(token)) return@launch
+                val result = answer.result
+                lastAnswer = "${DesktopOcr.label(answer.engine)} ${result.elapsedMs} ms"
                 if (!isEnabled) {
                     dismiss()
                     return@launch
@@ -371,13 +396,13 @@ internal class HoverOcrManager(
                 targetBox = if (lineRect != null) tokenRect.union(lineRect) else tokenRect
                 tooltipVisible = true
                 dismissGate.reset()
-                publishStatus("${hit.match.entry.term} — ${hit.match.dictionaryTitle}")
+                publishStatus(withCapture("${hit.match.entry.term} — ${hit.match.dictionaryTitle}"))
                 val matches = listOf(hit.match)
                 SwingUtilities.invokeLater { onResultsReady(matches, point, filter, null) }
             } catch (e: Exception) {
                 fail(DesktopStrings.hoverOcrFailure(e.message ?: e.javaClass.simpleName))
             } finally {
-                busy.set(false)
+                lookups.finish(token)
             }
         }
     }
@@ -413,6 +438,18 @@ internal class HoverOcrManager(
         if (wasVisible) {
             SwingUtilities.invokeLater { onDismiss() }
         }
+    }
+
+    /**
+     * The status line with the capture that produced it: which transport served the screen and how
+     * long it took. The card is only as fast as the capture and the OCR behind it, and on Wayland
+     * the same app can be taking a direct `ScreenShot2` frame (tens of milliseconds) or falling back
+     * to the portal (a permission dialog, seconds) — the line is what tells the two apart.
+     */
+    private fun withCapture(message: String): String {
+        val engine = lastAnswer?.let { " · $it" }.orEmpty()
+        val capture = CaptureDiagnostics.lastSummary()?.let { " · $it" }.orEmpty()
+        return "$message$engine$capture"
     }
 
     private fun publishStatus(message: String) {

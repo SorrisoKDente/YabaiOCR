@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.core.DonationInfo
-import dev.yabai.ocr.core.dict.CompactDictionary
 import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +51,8 @@ fun SettingsContent(
     onKdeCapturePermissionChange: ((Boolean) -> Unit)? = null,
     onHoverToggle: () -> Unit = {},
     onHoverTest: () -> Unit = {},
+    /** Called with the new rest time, so the running hover takes it without a restart. */
+    onHoverRestChanged: (Long) -> Unit = {},
     onThemeChanged: (Boolean) -> Unit = {},
     onHotkeysChanged: (
         fullScreen: String,
@@ -90,6 +91,9 @@ fun SettingsContent(
     var enginePriority by remember { mutableStateOf(settings.enginePriorityList) }
     // Skiko picks the renderer while the process loads, so this choice is for the next start.
     var rendererChoice by remember { mutableStateOf(settings.skikoRenderer) }
+    // On Linux the card offers one switch instead of a radio list: software on, graphics card off.
+    // The stored `opengl`/`automatic` both mean «graphics card» there, so both leave it off (D83).
+    var softwareRendering by remember { mutableStateOf(softwareSwitchOn(settings.skikoRenderer)) }
 
     // PP-OCR install state: the models are ~23 MB and are not shipped with the app.
     val ppOcrScope = rememberCoroutineScope()
@@ -124,6 +128,7 @@ fun SettingsContent(
     var dictionaryLookup by remember { mutableStateOf(settings.dictionaryLookup) }
     var dictionaryFilter by remember { mutableStateOf(settings.dictionaryFilter) }
     var hoverDictionaryFilter by remember { mutableStateOf(settings.hoverDictionaryFilter) }
+    var hoverRestMillis by remember { mutableStateOf(settings.hoverRestMillis) }
     var dictionaryKeepLastSearch by remember { mutableStateOf(settings.dictionaryKeepLastSearch) }
     var stripSearchReadings by remember { mutableStateOf(settings.stripSearchReadings) }
     var dictionaryUpdateInterval by remember { mutableStateOf(settings.dictionaryUpdateInterval) }
@@ -138,21 +143,7 @@ fun SettingsContent(
     var aiCustomUrl by remember { mutableStateOf(settings.aiCustomUrl) }
 
     val installedDictTitles = remember(customDictDir) {
-        val dictDir = settings.dictDirectory()
-        val list = mutableListOf<String>()
-        try {
-            if (dictDir.exists() && dictDir.isDirectory) {
-                dictDir.listFiles()?.forEach { file ->
-                    if (file.extension == "yabai" || file.isDirectory) {
-                        val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
-                        if (dict != null) {
-                            list.add(dict.info.title)
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-        list.toList()
+        DesktopDictLoader.installedTitles(settings.dictDirectory())
     }
 
     val installedDictCount = installedDictTitles.size
@@ -940,6 +931,47 @@ fun SettingsContent(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = DesktopStrings.hoverRestTitle,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                var expandedHoverRest by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expandedHoverRest = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
+                    ) {
+                        Text(DesktopStrings.hoverRestOption(hoverRestMillis))
+                    }
+                    DropdownMenu(
+                        expanded = expandedHoverRest,
+                        onDismissRequest = { expandedHoverRest = false }
+                    ) {
+                        HOVER_REST_PRESETS.forEach { preset ->
+                            DropdownMenuItem(onClick = {
+                                hoverRestMillis = preset
+                                expandedHoverRest = false
+                                // Persists the preference and retunes the gate that is already running.
+                                onHoverRestChanged(preset)
+                            }) {
+                                Text(DesktopStrings.hoverRestOption(preset))
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = DesktopStrings.hoverRestDesc,
+                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                    color = MaterialTheme.colors.secondary
+                )
+
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = DesktopStrings.hoverExplanation,
@@ -1055,33 +1087,71 @@ fun SettingsContent(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
 
-                SettingRadioOption(
-                    selected = rendererChoice == SkikoRenderer.AUTOMATIC,
-                    title = DesktopStrings.rendererAutomatic,
-                    description = DesktopStrings.rendererAutomaticDesc,
-                    onClick = {
-                        rendererChoice = SkikoRenderer.AUTOMATIC
-                        settings.skikoRenderer = SkikoRenderer.AUTOMATIC
+                if (DesktopPlatform.isLinux) {
+                    // «Automatic» and «OpenGL» are the same renderer on Linux, so a radio list was
+                    // a choice that does not exist — and one loose radio showed up unselected while
+                    // the stored default was Automatic. A switch states the one real decision.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val on = !softwareRendering
+                                softwareRendering = on
+                                val level = rendererAfterSoftwareSwitch(on, settings.skikoRenderer)
+                                rendererChoice = level
+                                settings.skikoRenderer = level
+                            }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Switch(
+                            checked = softwareRendering,
+                            onCheckedChange = { on ->
+                                softwareRendering = on
+                                val level = rendererAfterSoftwareSwitch(on, settings.skikoRenderer)
+                                rendererChoice = level
+                                settings.skikoRenderer = level
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colors.onPrimary,
+                                checkedTrackColor = MaterialTheme.colors.primary,
+                                uncheckedThumbColor = if (MaterialTheme.colors.isLight) Color(0xFFB0B5C0) else Color(0xFF43485A),
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = DesktopStrings.rendererSoftwareToggle,
+                                style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colors.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = DesktopStrings.rendererSoftwareToggleDesc,
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.secondary
+                            )
+                        }
                     }
-                )
-                SettingRadioOption(
-                    selected = rendererChoice == SkikoRenderer.OPENGL,
-                    title = DesktopStrings.rendererOpenGl,
-                    description = DesktopStrings.rendererOpenGlDesc,
-                    onClick = {
-                        rendererChoice = SkikoRenderer.OPENGL
-                        settings.skikoRenderer = SkikoRenderer.OPENGL
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = DesktopStrings.rendererLinuxNote,
+                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                        color = MaterialTheme.colors.secondary
+                    )
+                } else {
+                    SkikoRenderer.entries.forEach { level ->
+                        SettingRadioOption(
+                            selected = rendererChoice == level,
+                            title = DesktopStrings.rendererName(level),
+                            description = DesktopStrings.rendererDescription(level),
+                            onClick = {
+                                rendererChoice = level
+                                settings.skikoRenderer = level
+                            }
+                        )
                     }
-                )
-                SettingRadioOption(
-                    selected = rendererChoice == SkikoRenderer.SOFTWARE,
-                    title = DesktopStrings.rendererSoftware,
-                    description = DesktopStrings.rendererSoftwareDesc,
-                    onClick = {
-                        rendererChoice = SkikoRenderer.SOFTWARE
-                        settings.skikoRenderer = SkikoRenderer.SOFTWARE
-                    }
-                )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(

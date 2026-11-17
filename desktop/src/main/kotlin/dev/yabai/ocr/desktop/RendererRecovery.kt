@@ -74,6 +74,29 @@ enum class SkikoRenderer(val api: String?) {
     }
 }
 
+/**
+ * Whether the «software rendering» switch of the Settings window is on.
+ *
+ * Linux has no Direct3D: Skiko draws with OpenGL, so «Automatic» and «OpenGL» are the same choice
+ * there. A radio pair offered a decision that does not exist, and with the default stored as
+ * Automatic the single «Software» radio showed up *unselected* — a loose circle nobody could read.
+ * One switch says what it does: software on, graphics card off (D83).
+ */
+internal fun softwareSwitchOn(stored: SkikoRenderer): Boolean = stored == SkikoRenderer.SOFTWARE
+
+/**
+ * The preference the switch writes when it is moved.
+ *
+ * Turning it off must not throw away a graphics-card path the user chose: `opengl` stays `opengl`
+ * and `automatic` stays `automatic` (which on Linux *is* OpenGL). Only a run that was on Software
+ * falls back to «Automatic», because its previous graphics choice is not recorded anywhere.
+ */
+internal fun rendererAfterSoftwareSwitch(on: Boolean, stored: SkikoRenderer): SkikoRenderer = when {
+    on -> SkikoRenderer.SOFTWARE
+    stored == SkikoRenderer.SOFTWARE -> SkikoRenderer.AUTOMATIC
+    else -> stored
+}
+
 /** What `--renderer=…` asked for. */
 internal sealed interface RendererArgument {
     data object None : RendererArgument

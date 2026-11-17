@@ -75,6 +75,17 @@ fun main(args: Array<String>) {
         session = DesktopPlatform.session,
         desktop = DesktopPlatform.desktop,
     )
+    // Says which capture path this session should take before the first capture, so the log answers
+    // «é o ScreenShot2 ou o portal?» even when no hover happened. The path actually used — which can
+    // differ, the AppImage falls back to the portal — is printed by [CaptureDiagnostics].
+    println(
+        "[Captura] caminho esperado nesta sessão: " +
+            captureBackendLabel(
+                family = DesktopPlatform.family,
+                session = DesktopPlatform.session,
+                desktop = DesktopPlatform.desktop,
+            ),
+    )
     // Before any window: when Windows starts the app with `--minimized` the settings window is
     // never created, so the logon entry has to be repaired from the stored preference here.
     val appSettings = DesktopSettings()
@@ -742,6 +753,10 @@ fun main(args: Array<String>) {
                             },
                             onHoverToggle = { applyHover(!hoverState.active) },
                             onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
+                            onHoverRestChanged = { millis ->
+                                settings.hoverRestMillis = millis
+                                hoverOcrManager.setRestMillis(millis)
+                            },
                             onThemeChanged = { isDark ->
                                 settings.darkTheme = isDark
                                 isDarkTheme = isDark

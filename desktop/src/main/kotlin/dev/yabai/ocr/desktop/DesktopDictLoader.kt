@@ -1,6 +1,7 @@
 package dev.yabai.ocr.desktop
 
 import dev.yabai.ocr.core.dict.CompactDictionary
+import dev.yabai.ocr.core.dict.DictFiles
 import dev.yabai.ocr.core.dict.LookupEngine
 import java.io.File
 
@@ -60,6 +61,36 @@ object DesktopDictLoader {
         cached = null
         cachedKey = null
     }
+
+    /**
+     * A dictionary's name, read from its own `meta.json`.
+     *
+     * Deliberately not [CompactDictionary.open]: opening a compiled dictionary reads its whole key
+     * index into memory — 69 MB across the five dictionaries of a real Steam Deck install, measured
+     * there — and a name is all these screens need. The hover card lists the dictionaries on every
+     * composition, so that read happened once per hover, on the UI thread, while the card was being
+     * drawn (see ROADMAP D81).
+     *
+     * Null when [entry] is not a compiled dictionary, has no readable metadata, or was compiled
+     * without a title.
+     */
+    fun dictionaryTitle(entry: File): String? =
+        runCatching { CompactDictionary.readMeta(File(entry, DictFiles.META)).title }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+
+    /** Names of the dictionaries installed in [directory], in the order the folder lists them. */
+    fun installedTitles(directory: File): List<String> {
+        if (!directory.isDirectory) return emptyList()
+        return directory.listFiles()
+            ?.filter { it.extension == "yabai" || it.isDirectory }
+            ?.mapNotNull(::dictionaryTitle)
+            .orEmpty()
+    }
+
+    /** Names of the enabled dictionaries, in the priority order the settings ask for. */
+    fun installedTitles(settings: DesktopSettings): List<String> =
+        loadInstalledFiles(settings).mapNotNull(::dictionaryTitle)
 
     /**
      * Bytes a dictionary entry occupies on disk.

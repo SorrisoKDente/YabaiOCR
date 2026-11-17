@@ -197,7 +197,7 @@ rodam com as flags acima.
 
 | arquivo | papel |
 | --- | --- |
-| `ScreenCapture.kt` | captura primária/região/monitor via `Robot`, tamanho nativo em HiDPI, lista de monitores e preferência (`PRIMARY`/`MOUSE`/`DISPLAY:n`) |
+| `ScreenCapture.kt` | captura primária/região/monitor via `Robot`, tamanho nativo em HiDPI, lista de monitores e preferência (`PRIMARY`/`MOUSE`/`DISPLAY:n`); `CaptureDiagnostics` mede a última captura e diz qual transporte a serviu (`lastCaptureRoute`) (D81) |
 | `PlatformServices.kt` | escolhe o backend de captura por plataforma/sessão |
 | `ScreenshotMethod.kt` | override de método (X11/Wayland/portal) por variável de ambiente |
 | `KWinScreenshotCapture.kt` | caminho principal no KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + QImage cru, fallback para o portal |
@@ -211,11 +211,13 @@ rodam com as flags acima.
 | arquivo | papel |
 | --- | --- |
 | `HoverOcrManager.kt` | ciclo do hover: captura → OCR (motor escolhido) → dicionário → cartão |
-| `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar |
+| `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar; o repouso é preferência (`hover_rest_millis`, padrão 250 ms, presets 150/250/420 nos Ajustes) e vale para a execução em curso (D82) |
+| `HoverLookupTracker.kt` | qual leitura ainda vale quando o ponteiro segue andando: o mais novo vence, no máximo duas em voo (D83) |
+| `LensPayload.kt` | o que sobe para o Lens: PNG até 400 KB, JPEG q85 acima disso — o upload é o gargalo no Deck (D83) |
 | `HoverGeometry.kt` | recorte ao redor do ponteiro, coordenadas locais, HiDPI |
 | `HoverTextSelector.kt` | escolhe a linha/palavra sob o ponteiro e monta o hit; junta palavra partida entre linhas/colunas do mesmo bloco (D56) |
 | `DictionaryInstallRun.kt` | um install do catálogo e o que ele reporta (instalado/cancelado/falhou/encerrado); o reset do cartão roda em `NonCancellable` |
-| `RendererRecovery.kt` | marcador de execução em andamento com o pid, escada de renderizador depois de um crash nativo do Skiko/Direct3D (Direct3D → OpenGL → Software) que só conta como crash com `hs_err_pid<pid>.log` do Skiko, `--renderer=…` e a preferência `skiko_renderer` que os Ajustes escrevem (D79/D80) |
+| `RendererRecovery.kt` | marcador de execução em andamento com o pid, escada de renderizador depois de um crash nativo do Skiko/Direct3D (Direct3D → OpenGL → Software) que só conta como crash com `hs_err_pid<pid>.log` do Skiko, `--renderer=…` e a preferência `skiko_renderer` que os Ajustes escrevem (D79/D80); `softwareSwitchOn`/`rendererAfterSoftwareSwitch` — no Linux o cartão é um interruptor só (D83) |
 | `HoverLookup.kt` | consulta do hover limitada ao dicionário escolhido (`dictionaryScope`, `scopedHoverHit`), a decisão da troca de dicionário feita no cartão a partir da leitura guardada (`cachedHoverAnswer`) e o que fazer quando não vem verbete (`japaneseWordAt`, `classifyHoverMiss`: só há cartão se houver palavra japonesa sob o ponteiro, e a caixa dela é o âncora) — sem o «fallback» que respondia de outro dicionário (D77, D78) |
 | `PickerScanMemory.kt` | scan do picker que sobrevive ao «Trechos»: entregue uma vez e nunca a partir de uma falha (D76) |
 | `TrayGlyphs.kt` | ícones do menu da bandeja desenhados com Java2D, em cor (o Swing não pinta emoji colorido) (D76) |
@@ -233,7 +235,7 @@ rodam com as flags acima.
 | --- | --- |
 | `DesktopOcr.kt` | **porta única**: ordem dos motores (`AUTO`/`LENS`/`PP_OCR`), fallback e `DesktopOcrAnswer` |
 | `DesktopPPOcr.kt` | motor offline: sessões em cache, conversão `PPOcrOutcome` → `LensResult` |
-| `DesktopDictLoader.kt` | abre/caches o `LookupEngine` a partir da pasta de dicionários; `sizeBytes` soma o conteúdo de um `.yabai` (que é pasta) |
+| `DesktopDictLoader.kt` | abre/caches o `LookupEngine` a partir da pasta de dicionários; `installedTitles`/`dictionaryTitle` leem **só o `meta.json`** (o índice de um dicionário tem dezenas de MB, e a lista de nomes do cartão é pedida a cada composição); `sizeBytes` soma o conteúdo de um `.yabai` (que é pasta) |
 
 ### Atalhos, bandeja e sistema
 

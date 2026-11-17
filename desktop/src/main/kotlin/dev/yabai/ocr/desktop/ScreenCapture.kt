@@ -2,6 +2,7 @@ package dev.yabai.ocr.desktop
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.Dimension
 import java.awt.GraphicsDevice
 import java.awt.GraphicsEnvironment
@@ -60,6 +61,16 @@ internal interface ScreenCaptureBackend {
     fun captureRegion(rect: Rectangle): BufferedImage
 
     /**
+     * Name of the transport that served the last capture, or null when the backend cannot tell.
+     *
+     * Two backends can sit behind one [ScreenCaptureBackend] — KDE Wayland asks KWin directly and
+     * falls back to the portal — and which one answered is the difference between a hover that
+     * takes tens of milliseconds and one that opens a permission window per read. Naming it is what
+     * lets the user (and the log) tell them apart; see [CaptureDiagnostics].
+     */
+    fun lastCaptureRoute(): String? = null
+
+    /**
      * Captures exactly [bounds], the rectangle of one monitor.
      *
      * Backends that capture the whole workspace already crop a rectangle for the hover, so the
@@ -81,7 +92,14 @@ internal object RobotScreenCapture : ScreenCaptureBackend {
     override fun captureScreen(): BufferedImage = capturePrimaryScreenWithRobot()
     override fun captureRegion(rect: Rectangle): BufferedImage = captureRegionWithRobot(rect)
     override fun captureMonitor(bounds: Rectangle): BufferedImage = captureScreenWithRobot(bounds)
+    override fun lastCaptureRoute(): String = ROUTE_ROBOT
 }
+
+/** Names the capture transports answer with, shared by the diagnostics and the session label. */
+internal const val ROUTE_ROBOT = "Robot"
+internal const val ROUTE_KWIN = "KWin ScreenShot2"
+internal const val ROUTE_PORTAL = "portal Screenshot"
+internal const val ROUTE_SCREENCAST = "ScreenCast do JDK"
 
 internal fun primaryScreenBounds(): Rectangle {
     val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
@@ -282,6 +300,8 @@ internal class ScreencastScreenCapture(
 
     override fun screenBounds(): Rectangle = primaryScreenBounds()
 
+    override fun lastCaptureRoute(): String = ROUTE_SCREENCAST
+
     override fun captureScreen(): BufferedImage = guard {
         captureAction().also { failure = null }
     }
@@ -311,6 +331,56 @@ internal class ScreencastScreenCapture(
 }
 
 /**
+ * What the last screen capture cost, and which transport served it.
+ *
+ * The hover card is only as fast as the capture and the OCR behind it, and an AppImage on KDE
+ * Wayland captures through the `Screenshot` portal (KWin refuses `ScreenShot2` to an `Exec` living
+ * in `/tmp/.mount_*`), which costs a permission window and seconds instead of tens of milliseconds.
+ * Nothing on screen said which one was in use. Now the first capture of each transport, and every
+ * change between them, is written to the log, and the hover status line carries the same summary:
+ *
+ * ```
+ * [Captura] captura: KWin ScreenShot2 · 1280×800 · 47 ms
+ * [Hover] が — Jitendex PT-BR · captura: KWin ScreenShot2 · 1280×800 · 47 ms
+ * ```
+ */
+internal object CaptureDiagnostics {
+    private data class Measurement(
+        val route: String,
+        val width: Int,
+        val height: Int,
+        val millis: Long,
+    )
+
+    @Volatile
+    private var last: Measurement? = null
+
+    /** Route already announced in the log, so a steady path does not write a line per hover. */
+    @Volatile
+    private var announced: String? = null
+
+    /** The last capture, as the status line shows it; null before the first capture. */
+    fun lastSummary(): String? = last?.summary()
+
+    fun record(route: String?, image: BufferedImage, millis: Long) {
+        val measurement = Measurement(
+            route = route ?: DesktopStrings.captureRouteUnknown,
+            width = image.width,
+            height = image.height,
+            millis = millis,
+        )
+        last = measurement
+        if (announced != measurement.route) {
+            announced = measurement.route
+            println("[Captura] ${measurement.summary()}")
+        }
+    }
+
+    private fun Measurement.summary(): String =
+        DesktopStrings.captureSummary(route, width, height, millis)
+}
+
+/**
  * Public facade used by the pickers and by [Main]. The backend is chosen once by [PlatformServices].
  */
 internal object ScreenCapture {
@@ -329,9 +399,26 @@ internal object ScreenCapture {
      */
     fun screenBounds(): Rectangle = PlatformServices.capture.screenBounds()
 
-    fun captureScreen(): BufferedImage = PlatformServices.capture.captureScreen()
+    fun captureScreen(): BufferedImage = measured { PlatformServices.capture.captureScreen() }
 
-    fun captureRegion(rect: Rectangle): BufferedImage = PlatformServices.capture.captureRegion(rect)
+    fun captureRegion(rect: Rectangle): BufferedImage = measured { PlatformServices.capture.captureRegion(rect) }
+
+    /**
+     * Runs one capture and records which transport served it and how long it took.
+     *
+     * The measurement is the only thing added here: the image, the rectangle and the backend are
+     * exactly what the caller would have got.
+     */
+    private fun measured(capture: () -> BufferedImage): BufferedImage {
+        val started = System.nanoTime()
+        val image = capture()
+        CaptureDiagnostics.record(
+            route = PlatformServices.capture.lastCaptureRoute(),
+            image = image,
+            millis = (System.nanoTime() - started) / 1_000_000,
+        )
+        return image
+    }
 
     /** Connected displays, primary first. */
     fun displays(): List<CaptureDisplay> = captureDisplays(screens())
@@ -342,7 +429,7 @@ internal object ScreenCapture {
 
     /** Captures the whole of [display] at its native resolution. */
     fun captureDisplay(display: CaptureDisplay): BufferedImage =
-        PlatformServices.capture.captureMonitor(display.bounds)
+        measured { PlatformServices.capture.captureMonitor(display.bounds) }
 
     fun captureScreenAsImageBitmap(): ImageBitmap {
         return captureScreen().toComposeImageBitmap()

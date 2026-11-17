@@ -6906,3 +6906,296 @@ prefere **não** trocar o renderizador a trocar por engano. 3) A correção do c
 (1280×720 de usuário, 150%), não no segundo monitor nem com escala diferente. 4) Um encerramento pelo
 `onCloseRequest` do próprio app não deixa marcador: só o que acontece por fora precisa ser adivinhado.
 **`:desktop` 480, `:core` 197, `:app` 836, 0 falhas.**
+
+### D81 — Hover lento no Steam Deck: o cartão lia os índices dos dicionários, e nada dizia qual captura foi usada  `[x]` (16/11/2026)
+
+**Relato (SteamOS 3.9.5, Desktop Mode, KDE Wayland, AppImage 1.0.9).** O cartão do hover demora
+**vários segundos** para aparecer depois que o ponteiro para sobre o japonês — muito mais do que na
+mesma build no Windows. O usuário também perguntou como saber se o app está de fato usando o
+`org.kde.KWin.ScreenShot2` ou caindo em outro caminho de captura.
+
+**Medição nesta máquina antes de mexer em nada** (1280×800, `KdeWaylandCapture`, sem nenhuma linha
+`captura direta pelo KWin recusada` — ou seja, o `ScreenShot2` **estava** sendo usado, com
+`KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` já ativo na sessão):
+
+| etapa do hover | medição (1ª / seguintes) |
+| --- | --- |
+| captura pelo KWin `ScreenShot2` (tela inteira) | 381 ms / **75 ms** |
+| OCR — Lens (rede) | 2 009 ms / **1 230 ms** |
+| OCR — PP-OCRv6 offline (mesmos modelos, mesma imagem) | 3 254 ms / 2 349 ms |
+| lista de dicionários do cartão (código antigo) | 103 ms / 52 ms / 42 ms |
+| lista de dicionários do cartão (agora) | 32 ms / **1–2 ms** |
+
+Ou seja: o Lens domina a espera (é rede, e o `AUTO` tenta ele primeiro), o PP-OCR é **mais lento**
+que ele neste APU, e o que sobrava de desperdício era a lista de dicionários do cartão.
+
+**Causa raiz (1) — o cartão abria todos os dicionários para saber o nome deles.**
+`HoverOcrManager.getInstalledDictionaryTitles()` (e a mesma cópia em `ResultWindow`,
+`QuickDictWindow`, `SettingsWindow` e `DictionaryManagerWindow`) chamava `CompactDictionary.open`
+em cada `.yabai` só para ler `info.title`. `open` lê o **índice de chaves inteiro** — `terms.keys`,
+`keyoff`, `keystart`, `refs`, `eflags` e o lado kanji — em memória: **69 MB** nos cinco dicionários
+instalados nesta máquina (16 + 16 + 16 + 19 + 0 MB). O cartão pede essa lista a cada composição, do
+fio da interface, então a leitura de 69 MB acontecia **em cada hover**, atrasando o desenho de um
+cartão que já tinha a resposta. Num AppImage com o cache de página frio (eMMC do Deck) isso custa
+bem mais que os 42–103 ms medidos com o arquivo já em cache.
+
+**Causa raiz (2) — nada dizia qual captura estava em uso.** A única testemunha era uma linha no
+`stderr` quando o `ScreenShot2` era **recusado**; um AppImage aberto pelo menu não tem `stderr`
+visível, e não havia linha nenhuma quando o caminho direto funcionava. O usuário não tinha como
+distinguir «captura direta, 75 ms» de «portal com diálogo, segundos» — e o sintoma dos dois é o
+mesmo: hover lento.
+
+**O que mudou.**
+
+- `DesktopDictLoader.dictionaryTitle` / `installedTitles` leem **só o `meta.json`** de cada
+  dicionário; o índice não é tocado. As cinco telas passaram a usar essa função (o cartão, o painel
+  de resultado, a busca rápida, os Ajustes e o gerenciador). O nome de um dicionário é o dado que a
+  lista mostra, e ele vive no `meta.json`.
+- `ScreenCaptureBackend.lastCaptureRoute()`: cada backend diz qual transporte serviu a última
+  captura (`Robot`, `KWin ScreenShot2`, `portal Screenshot`, `ScreenCast do JDK`), e o
+  `KdeWaylandCapture` diz **qual dos dois** dele respondeu de fato. `CaptureDiagnostics`
+  (`ScreenCapture.kt`) mede o tempo da captura e escreve **uma linha por transporte novo**:
+  `[Captura] captura: KWin ScreenShot2 · 1280×800 · 47 ms`.
+- A mesma medida entra no fim da linha de status do hover (visível nos Ajustes):
+  `が — Jitendex PT-BR · captura: KWin ScreenShot2 · 1280×800 · 47 ms`. Textos em pt/en
+  (`DesktopStrings.captureSummary`, `captureRouteUnknown`).
+- `Main` imprime no arranque o caminho **esperado** para a sessão
+  (`[Captura] caminho esperado nesta sessão: KWin ScreenShot2 (KDE Wayland)`), o que responde a
+  pergunta antes de qualquer hover; `captureBackendLabel` é a função pura que escolhe esse nome.
+- A medição é a única coisa acrescentada ao caminho de captura: imagem, retângulo e backend são os
+  mesmos.
+
+**Testes e mutações.** `:desktop:test` **492 testes, 0 falhas** (1 pulado, o opt-in do PP-OCR).
+Novos: `DictionaryTitlesTest` (6) — o primeiro é o da causa raiz (um `.yabai` com `meta.json` e
+**sem** índice é nomeado; com `CompactDictionary.open` ele sumia da lista), mais pasta que não é
+dicionário, dicionário sem título, pasta inexistente, `meta.json` quebrado que não leva os outros
+nomes junto; `CaptureDiagnosticsTest` (6) — captura direta diz `KWin ScreenShot2`, recusa do direto
+diz `portal Screenshot`, nada antes da primeira captura, nomes por sessão, e o resumo com
+transporte/tamanho/tempo.
+
+| mutação | teste que acusa | resultado |
+| --- | --- | --- |
+| `dictionaryTitle` voltar a usar `CompactDictionary.open` | `DictionaryTitlesTest` (4 dos 6) | falhou e voltou a passar |
+| `KdeWaylandCapture` não registrar o transporte do direto | `a direct capture says ScreenShot2 served it` | falhou e voltou a passar |
+
+`HoverLookupTest > the notice names the dictionary that has no entry` passou a fixar o idioma
+(`DesktopLanguageChoice.PT_BR`) antes de afirmar a palavra «verbete»: ele dependia do locale da
+máquina e falhava neste Deck (`LANG=en_GB`), ao contrário da máquina Windows onde foi escrito.
+
+**Evidência ponta a ponta (app real, ponteiro sobre japonês).** Harness em `/tmp/yabai-e2e`:
+
+- uma sonda Java desenha uma janela opaca 900×300 em (80,120) com 「日本語を勉強する」 e
+  「猫が魚を食べた」 em Noto Sans CJK 44 pt e publica o ponto de tela do meio de 「食べ」;
+- o ponteiro chega pelo **mesmo caminho que o script do KWin usa** —
+  `dev.yabai.Ocr.Hover.CursorMoved(x,y)` no barramento da sessão —, e o hover é ligado por
+  `dev.yabai.Ocr.Shortcuts.ShortcutPressed("hover-toggle")`;
+- a latência é o intervalo entre a **chegada do ponteiro em 「食べ」** e a linha `[Hover]` que o app
+  escreve quando o cartão está pronto (só as linhas depois de cada chegada contam). O `t0` inclui a
+  espera de repouso do `HoverGate`, porque é isso que o usuário sente.
+
+| build | leituras | mediana | min | max | captura reportada |
+| --- | --- | --- | --- | --- | --- |
+| distributable (`:desktop:createDistributable`) | 5 | **1 455 ms** | 1 331 ms | 1 630 ms | 61–91 ms |
+| **AppImage `1.0.10-e2e`** | 3 | **1 623 ms** | 1 427 ms | 1 708 ms | 51–88 ms |
+
+Linha de uma leitura completa, como o app a escreve:
+
+```
+[Hover] 食べる — Jitendex PT-BR [2026-09-29] · captura: KWin ScreenShot2 · 1280×800 · 88 ms
+[Captura] captura: KWin ScreenShot2 · 1280×800 · 113 ms
+```
+
+O AppImage roda de `/tmp/.mount_*` e **mesmo assim** pegou o `ScreenShot2` (51–88 ms por captura, sem
+diálogo): com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` na sessão a checagem do KWin não acontece. As
+1 400–1 700 ms se decompõem em ~420 ms do repouso do `HoverGate`, ~70 ms de captura e **~960 ms de
+OCR + dicionário + cartão** (o Lens é rede).
+
+**O ganho, medido do jeito certo (A/B).** O mesmo harness rodou contra uma build **mutada** (a
+mutação confirmada dentro do jar do app: `readMeta` presente = corrigido, ausente = antigo):
+
+| build | leituras | mediana |
+| --- | --- | --- |
+| corrigido | 5 | 1 455 ms |
+| antigo (`CompactDictionary.open` para o título) | 5 | 1 376 ms |
+
+A diferença está **dentro do ruído** do Lens (300–700 ms entre leituras). Ou seja: a correção tira
+trabalho real do caminho do cartão — 42–103 ms medidos no componente — mas **não** muda a espera
+percebida de ~1,5 s neste hardware; quem manda nela é o OCR (~0,96 s) e o repouso do gate (0,42 s).
+Dizer o contrário seria vender o que a medição não mostra.
+
+**Limitações.** 1) A correção da lista de dicionários **não** move o número de ponta a ponta (tabela
+acima); o que ela garante é que o cartão não lê 69 MB de índice a cada hover. 2) O **Lens** continua
+sendo ~0,96 s do total e não foi tocado; o PP-OCRv6 mediu 2,3 s na mesma imagem neste APU, então
+trocar de motor piora. 3) O repouso de 420 ms do `HoverGate` é **29%** da espera sentida e ficou como
+está: reduzi-lo é decisão de comportamento (dispara mais cedo ao passar sobre o texto), não de bug.
+4) O ponteiro do E2E é forjado no D-Bus do app — o mesmo caminho do script do KWin, mas não um mouse
+físico — e o texto é sintético (Noto Sans CJK), não uma página real. 5) Um dicionário com `meta.json`
+válido e índice corrompido passa a **aparecer** na lista de nomes (antes sumia ao falhar no `open`);
+escolhê-lo responde «sem verbete», como um dicionário desabilitado. 6) O `AppImage 1.0.10-e2e`
+(`desktop/build/distributions/appimage/`, 158 480 888 bytes, sha256
+`137ae9ba8596…6e3e7d`) foi gerado para teste e **não** é um release: nada foi commitado nem publicado.
+
+### D82 — Repouso do hover a 250 ms (medido A/B), por que o PP-OCR offline é mais lento, e um renderizador só no Linux  `[x]` (16/11/2026)
+
+**O que estava errado.** Três coisas que o usuário cobrou:
+
+1. **Os 420 ms de repouso** do `HoverGate` eram **29%** da espera sentida (~1,4 s). O gate não precisa
+   saber que o leitor terminou de ler: precisa saber que o ponteiro **parou**. 420 ms é conservador
+   para quem lê palavra por palavra.
+2. **«Por que o PP-OCR offline é mais lento que o Lens?»** Offline tira a rede do caminho, mas põe no
+   caminho local **um passo de rede neural por linha de texto** — e a tela tem dezenas de linhas.
+3. **A escada de renderizador** mostrava «Automático», «OpenGL» e «Software» em todo sistema, e o texto
+   de recuperação falava em Direct3D. No Linux o Skiko desenha com OpenGL e «Automático» **é** OpenGL:
+   eram dois nomes para a mesma escolha, mais uma opção que ali não existe.
+
+**O que mudou.**
+
+- `DesktopSettings.hoverRestMillis` (`hover_rest_millis`): padrão **250 ms**, faixa 120–1000, presets
+  **150 / 250 / 420** em **Ajustes → Modo Hover → «Espera para abrir o card»**.
+- `HoverGate.stableMillis` deixou de ser `val` de construção: é `@Volatile var` com clamp (80–2000), então
+  mudar o ajuste vale para o **próximo** movimento, sem reabrir o app. `HoverOcrManager.setRestMillis()`
+  aplica na hora e `setEnabled(true)` relê a preferência.
+- `offeredRenderers(isLinux)`: no Linux a tela oferece **só «Software»** mais uma nota dizendo que o
+  padrão ali já é OpenGL; no Windows/macOS continuam as três. `rendererAfterCrash` deixou de citar
+  Direct3D e fala em «crash nativo do renderizador gráfico (Skiko)».
+- Testes: `HoverGateTest` (2), `DesktopSettingsTest` (2), `RendererOffersTest` (3, novo).
+  Suíte `:desktop:test`: **499 testes, 0 falhas, 1 pulado**.
+
+**Medição A/B (o antes e o depois).** Mesmo harness (`/tmp/yabai-e2e/hover_e2e.py`), mesma build, mesma
+imagem, mesma janela, ponteiro forjado pelo mesmo caminho do script do KWin; só a chave
+`hover_rest_millis` mudou entre as rodadas, e os ajustes do usuário foram restaurados no fim
+(`sha256 50540e6f…b2964` conferido):
+
+| repouso | leituras | mediana | min | max | captura |
+| --- | --- | --- | --- | --- | --- |
+| **420 ms** (o valor antigo) | 5 | **1 375 ms** | 1 163 ms | 1 417 ms | 43–88 ms |
+| **250 ms** (novo padrão) | 5 | **1 128 ms** | 1 001 ms | 1 333 ms | 53–92 ms |
+| 150 ms (opção «Rápido») | 5 | 1 165 ms | 1 000 ms | 1 418 ms | 48–71 ms |
+
+**−247 ms** de mediana (−18%) indo de 420 para 250. De 250 para 150 **não** há ganho medível: o ruído
+do Lens (±300 ms entre leituras) engole 100 ms de repouso, e é por isso que 250 ms é o padrão e 150 fica
+como escolha de quem quiser. A espera restante é OCR (~0,96 s) e captura (~70 ms).
+
+**Onde está o custo do PP-OCR** (medido com uma sonda temporária, `DesktopPPOcr.recognize` na tela real
+e num recorte, e o decodificador CTC isolado):
+
+| medida | valor |
+| --- | --- |
+| tela cheia 1280×800 | 3 129 ms, **56 linhas** |
+| recorte 360×260 | 490 ms, 9 linhas |
+| cópia `getRGB` → `IntArray` da tela | 21 ms |
+| `PPOcrDecoding.decode` de **uma** linha (T=64, V=19 055) | **0,8 ms** (≈45 ms para 56 linhas) |
+
+O decodificador — o primeiro suspeito, o argmax em Kotlin sobre `[1,T,19 055]` — **não** é o gargalo.
+Resolvendo o sistema com os dois primeiros pontos (o detector normaliza o lado maior para 960, então
+custa quase o mesmo nos dois casos): **~50 ms de detecção** + **~49 ms por linha** no reconhecedor
+(49 + 56×49 ≈ 2 793 ms, exatamente o `engineMs` medido). O PP-OCR é offline, mas reconhece **uma linha
+por vez** num APU de 4 núcleos sem inferência de GPU: 56 linhas = 56 passadas do CNN + LSTM. O Lens
+gasta os mesmos ~1,2 s fazendo **uma** chamada de rede e o trabalho pesado na máquina do Google. Offline
+não é rápido: é só sem rede.
+
+**Prova de mutação.** Cada correção foi desfeita de propósito e o teste que a cobre falhou:
+
+| mutação | teste que falhou | resultado |
+| --- | --- | --- |
+| `HoverGate.stableMillis` com setter que ignora o valor | `a shorter rest time fires sooner…` + `a rest time below the floor…` | falhou e voltou a passar |
+| `offeredRenderers` voltando a devolver as três no Linux | `RendererOffersTest > linux offers only the software renderer` | falhou e voltou a passar |
+| `HOVER_REST_DEFAULT_MS` de volta a 420 | `the hover rest time defaults to 250 ms and round-trips` | falhou e voltou a passar |
+
+(A primeira tentativa de mutação do gate trocou o `var` por `val` e **quebrou a compilação** — isso não
+prova nada, e por isso o teste de mutação foi refeito com um setter que aceita e descarta o valor.)
+
+**Limitações.** 1) O E2E continua com ponteiro forjado no D-Bus e texto sintético, não um mouse físico
+numa página real. 2) O ganho de 247 ms foi medido **neste** hardware; num Deck mais frio o Lens pode
+dominar ainda mais a espera. 3) A tela de Ajustes com um único renderizador no Linux foi compilada e
+coberta por teste, mas **não** foi olhada nesta rodada — quem for validar visualmente: Modo Hover deve
+mostrar o seletor «Espera para abrir o card» com «250 ms — Padrão» e o cartão «Renderizador gráfico»
+deve mostrar **só «Software»** com a nota do OpenGL. 4) Matar o **runtime** de um AppImage em execução
+não mata o app filho: ele fica vivo segurando `~/.yabai_ocr/instance.lock` e a próxima cópia sai com
+«já existe uma instância aberta». Ao encerrar um AppImage à força, mate o processo `yabai-ocr` em si.
+5) O binário usado no A/B é o `createDistributable` desta árvore, porque é o mesmo caminho de código; o
+AppImage de teste foi regerado depois com o D82 (`desktop/build/distributions/appimage/`,
+158 489 080 bytes, sha256 `23768f18ac2f…8d69b8`) e um smoke run de 14 s abriu a janela sem exceção de
+composição — mas o cartão novo **não** foi olhado. Nada foi commitado nem publicado.
+
+### D83 — O PNG de 1,5 MB era o gargalo do hover, o switch do renderizador e o ícone que vinha de outro app  `[x]` (16/11/2026)
+**Sintomas.** Três, todos relatados pelo usuário no Steam Deck: (1) o hover sobre um mangá aberto no
+navegador levando **3–4 s**, às vezes 2 s, e a palavra nova só sendo reconhecida depois de sair e
+voltar o mouse; (2) no Linux, o cartão «Renderizador gráfico» ficando com um **rádio solto,
+desmarcado**; (3) o ícone da barra de tarefas antigo enquanto o da bandeja já era o novo.
+
+**Causa 1 — o envio, não o reconhecimento.** O hover manda **o monitor inteiro** para o Lens (decisão
+antiga: palavra partida entre colunas). Num desktop de texto isso dá ~150 KB de PNG; numa página de
+mangá, arte não comprime e o PNG passa de 1,5 MB. Medido nesta máquina, mesmo cliente, só o conteúdo
+mudando:
+
+| imagem | PNG | Lens |
+| --- | --- | --- |
+| tela de desktop, texto claro | 149 KB | 688–793 ms |
+| faixa de 700 px da página de mangá | 852 KB | 2 022–2 273 ms |
+| página de mangá inteira | 1 540 KB | 3 220–4 498 ms |
+
+A tela de desktop tinha **mais** segmentos (46) que a página de mangá (65) e era cinco vezes mais
+rápida: o tempo acompanha **bytes na rede**, não texto na página. É por isso que só o SteamOS sofre —
+o wifi do Deck é o gargalo.
+
+**Correção.** `LensPayload`: PNG até **400 KB** (o caso comum, sem perda nenhuma); acima disso JPEG
+**q85**, e só se ficar menor. Medido na página de mangá: **299 KB**, **916–1 183 ms** em vez de
+3 370–3 541 ms, e **nenhum segmento perdido** contra quatro execuções PNG da mesma página (achou um
+「ツ」 solto a mais, ruído de arte). **q75 foi rejeitado**: trocou 「プレイして」 por 「ブレイして」 e
+「NEW」 por 「HEWE」 — exatamente o dano que a regra de precisão proíbe.
+
+**Ponta a ponta no app real** (mangá em tela cheia, ponteiro pelo caminho do script do KWin, status do
+próprio app):
+
+| build | Lens medido pelo app | leitura completa (hover) |
+| --- | --- | --- |
+| antiga (mutação: tudo PNG) | 3 340 / 3 428 / 3 454 / 3 648 ms | — |
+| **com o `LensPayload`** | **540–1 609 ms** | mediana **1 712 ms** em 3 pontos (repouso 150 ms + captura ~55 ms + cartão) |
+
+**Causa 2 — a fila do hover.** `HoverOcrManager` tinha um `busy` que **travava o hover inteiro**
+durante a leitura: com 3–4 s de Lens, toda palavra que o ponteiro alcançava nessa janela era
+descartada — daí «tenho que sair e voltar o mouse». Agora `HoverLookupTracker` faz **o mais novo
+vencer**: a leitura nova começa mesmo com a antiga em voo, e a resposta velha é jogada fora em vez de
+ser desenhada sobre a palavra atual. No máximo 2 leituras simultâneas; quando as duas estão ocupadas,
+o portão é resetado para a palavra nova ser pega assim que uma vaga abrir. A linha `[Hover]` (e o
+status nos Ajustes) passou a trazer **motor e tempo** — «Google Lens 1 180 ms» —, que é como as
+medições acima puderam ser lidas do app em vez de adivinhadas.
+
+**Causa 3 — o rádio solto.** No Linux «Automático» **é** OpenGL, então a lista de rádios oferecia uma
+decisão que não existe e, com o padrão guardado como `automatic`, o único rádio («Software») aparecia
+desmarcado. O cartão agora mostra **um interruptor**: «Renderização por software» — ligado grava
+`software`, desligado **preserva** o caminho de placa que estava guardado (`opengl` continua `opengl`,
+`automatic` continua `automatic`; só quem veio de Software volta para «Automático»). Windows/macOS
+seguem com os três rádios. Screenshot em `docs/img/ajustes-renderizador-grafico.png`.
+
+**Causa 4 — o ícone da barra de tarefas.** O `.desktop` do app é regravado a cada arranque, e o
+`Exec=` apontava para **outro aplicativo**: `resolveLinuxExecutable` confiava em `$APPIMAGE`, que é
+herdado por todo processo filho — inclusive por este app quando ele é iniciado de dentro de outro
+AppImage (aqui, o Freebuff). Sem entrada que case com o binário em execução, a barra de tarefas não
+tem de onde tirar o ícone e mostra o marcador genérico; a bandeja continuava certa porque recebe os
+**pixels** (`IconPixmap`), não um nome de tema. Duas correções: `appImageIsOurs` compara `$APPDIR` com
+o binário em execução e ignora o `$APPIMAGE` herdado de outro app; e o `Icon=` passou a ser o
+**caminho absoluto** do PNG instalado, que não depende do cache de ícones do tema.
+
+**Prova de mutação.** Cada correção foi desfeita e o teste que a cobre falhou:
+
+| mutação | teste que falhou |
+| --- | --- |
+| `rendererAfterSoftwareSwitch` sempre `AUTOMATIC` ao desligar | `turning it off keeps the graphics card path that was stored` |
+| `LensPayload.encode` sempre PNG | `an image PNG cannot compress goes as JPEG` |
+| `HoverLookupTracker.isCurrent` sempre `true` | `a newer lookup makes the older one stale` (+1) |
+| `Icon=` de volta ao nome do tema | `the entry names the installed icon file by absolute path` |
+| `add(env["APPIMAGE"])` sem validação | `an APPIMAGE inherited from the launching app is ignored` |
+
+Suíte `:desktop:test`: **515 testes, 0 falhas, 1 pulado**.
+
+**Limitações.** 1) A página de teste é o print do mangá do usuário reduzido a 1280×800 (o original é
+768×557), então os bytes não são os do navegador dele naquele instante — a relação bytes→tempo é que
+foi medida. 2) O Lens **não é determinístico**: quatro execuções PNG da mesma página não devolvem
+exatamente o mesmo conjunto de segmentos, então «nenhum segmento perdido» vale com essa ressalva. 3) O
+limite de 400 KB é heurística tirada destas medições, não um número do Lens. 4) O **pixel** da barra de
+tarefas não foi verificado: o Plasma guarda o ícone da sessão em curso, então a entrada foi provada por
+teste e conferida no arquivo, mas a troca visual só aparece depois de sair e entrar na sessão (ou
+reiniciar o Plasma). 5) Os ajustes do usuário (`engine=LENS`, `hover_rest_millis=150`,
+`skiko_renderer=SOFTWARE`) foram deixados como estavam. 6) Nada foi commitado nem publicado.

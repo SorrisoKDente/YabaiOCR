@@ -135,6 +135,37 @@ class DesktopSettingsTest {
         assertEquals("Ctrl + Alt + R", settings.regionHotkey)
     }
 
+    /**
+     * The hover's rest time left 420 ms for 250 ms: 420 ms was a third of the whole latency the user
+     * waits for, and the gate only has to know the pointer stopped (ROADMAP D82).
+     */
+    @Test
+    fun `the hover rest time defaults to 250 ms and round-trips`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertEquals(250L, settings.hoverRestMillis)
+
+        settings.hoverRestMillis = 150
+
+        assertEquals(150L, DesktopSettings(file).hoverRestMillis)
+        assertEquals("150", read(file).getProperty("hover_rest_millis"))
+    }
+
+    @Test
+    fun `a hover rest time outside the allowed range is clamped`() {
+        val file = tempSettings()
+
+        write(file, "hover_rest_millis" to "0")
+        assertEquals(HOVER_REST_MIN_MS, DesktopSettings(file).hoverRestMillis)
+
+        write(file, "hover_rest_millis" to "99999")
+        assertEquals(HOVER_REST_MAX_MS, DesktopSettings(file).hoverRestMillis)
+
+        write(file, "hover_rest_millis" to "nao e numero")
+        assertEquals(HOVER_REST_DEFAULT_MS, DesktopSettings(file).hoverRestMillis)
+    }
+
     @Test
     fun `darkTheme defaults to true and persists changes`() {
         val file = tempSettings()

@@ -76,6 +76,8 @@ internal class KWinScreenshotCapture(
 
     override fun screenBounds(): Rectangle = primaryBounds()
 
+    override fun lastCaptureRoute(): String = ROUTE_KWIN
+
     override fun captureScreen(): BufferedImage = guard {
         cropWorkspace(captureWorkspace(), virtualBounds(), primaryBounds()).also { failure = null }
     }
@@ -159,6 +161,12 @@ internal class KdeWaylandCapture(
     @Volatile
     private var directRetryAt = 0L
 
+    /** Which of the two transports served the last capture; see [CaptureDiagnostics]. */
+    @Volatile
+    private var route: String? = null
+
+    override fun lastCaptureRoute(): String? = route
+
     private fun directReady(): Boolean =
         clock() >= directRetryAt && direct.availability() == CaptureAvailability.READY
 
@@ -173,11 +181,12 @@ internal class KdeWaylandCapture(
 
     override fun captureRegion(rect: Rectangle): BufferedImage = capture { it.captureRegion(rect) }
 
-    private inline fun <T> capture(action: (ScreenCaptureBackend) -> T): T {
+    private fun <T> capture(action: (ScreenCaptureBackend) -> T): T {
         if (directReady()) {
             try {
                 val captured = action(direct)
                 directRetryAt = 0L
+                route = direct.lastCaptureRoute()
                 return captured
             } catch (e: ScreenCaptureException) {
                 reportRefusal(e.message)
@@ -187,7 +196,9 @@ internal class KdeWaylandCapture(
                 directRetryAt = clock() + retryDelayMillis
             }
         }
-        return action(portal)
+        val captured = action(portal)
+        route = portal.lastCaptureRoute()
+        return captured
     }
 
     /**

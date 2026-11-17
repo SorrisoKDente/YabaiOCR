@@ -1,6 +1,7 @@
 package dev.yabai.ocr.desktop
 
 import java.awt.Point
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -23,6 +24,34 @@ class HoverGateTest {
         assertFalse(gate.observe(Point(101, 100), 50))
         assertFalse(gate.observe(Point(101, 100), 99))
         assertTrue(gate.observe(Point(101, 100), 100))
+    }
+
+    /**
+     * The rest time is a preference, and the gate is the one that has to honour it while it runs.
+     *
+     * A hover turned on from the tray at 250 ms must not keep the 420 ms it was built with, and a
+     * user who changes it in the Ajustes window must not have to restart the app for it.
+     */
+    @Test
+    fun `a shorter rest time fires sooner, without restarting anything`() {
+        val tunable = HoverGate(stableMillis = 420, stableRadiusPx = 3, repeatRadiusPx = 10)
+        assertFalse(tunable.observe(Point(100, 100), 0))
+        assertFalse(tunable.observe(Point(101, 100), 250))
+
+        tunable.stableMillis = 250
+
+        assertTrue("250 ms of rest must fire once the setting says 250", tunable.observe(Point(101, 100), 251))
+    }
+
+    @Test
+    fun `a rest time below the floor is clamped instead of firing on arrival`() {
+        val tunable = HoverGate(stableMillis = 420, stableRadiusPx = 3, repeatRadiusPx = 10)
+
+        tunable.stableMillis = 0
+
+        assertEquals(HoverGate.MIN_STABLE_MILLIS, tunable.stableMillis)
+        assertFalse(tunable.observe(Point(100, 100), 0))
+        assertFalse("the hand is still landing", tunable.observe(Point(101, 100), 10))
     }
 
     @Test

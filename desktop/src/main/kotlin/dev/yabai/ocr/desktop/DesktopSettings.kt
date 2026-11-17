@@ -15,6 +15,25 @@ enum class DesktopUpdateInterval(val days: Long) {
 enum class DesktopAiProvider { CHATGPT, GEMINI, DEEPSEEK, CLAUDE, CUSTOM }
 enum class DesktopLanguageChoice { SYSTEM, PT_BR, EN_US }
 
+/**
+ * How long the pointer must rest before the hover reads the screen.
+ *
+ * The hover used to wait 420 ms, which is a third of the whole latency the user feels on a slow
+ * machine. What the gate has to be sure of is that the pointer **stopped** — not that the reader has
+ * finished a sentence — so the default is 250 ms, and the value stays configurable for the reader
+ * who moves word to word and does not want the card opening under a pointer still on its way.
+ */
+internal const val HOVER_REST_DEFAULT_MS = 250L
+
+/** Below this the card opens while the hand is still landing, which is guessing, not resting. */
+internal const val HOVER_REST_MIN_MS = 120L
+
+/** Above this the hover stops feeling like a hover. */
+internal const val HOVER_REST_MAX_MS = 1_000L
+
+/** The values the Settings window offers, in the order it lists them. */
+internal val HOVER_REST_PRESETS = listOf(150L, HOVER_REST_DEFAULT_MS, 420L)
+
 class DesktopSettings(
     private val file: File = File(defaultDesktopHome(), "settings.properties"),
     private val desktopHome: File = defaultDesktopHome(),
@@ -61,6 +80,20 @@ class DesktopSettings(
     var hoverCycleHotkey: String
         get() = props.getProperty("hover_cycle_hotkey", "Ctrl + Shift + X")
         set(value) { props.setProperty("hover_cycle_hotkey", value); save() }
+
+    /**
+     * Time, in milliseconds, the pointer has to stay still before the hover reads the screen.
+     *
+     * Clamped on the way in and on the way out: a hand-edited file with `0` or `99999` must not turn
+     * the hover into a Lens flood or into something that never opens.
+     */
+    var hoverRestMillis: Long
+        get() = (props.getProperty("hover_rest_millis")?.trim()?.toLongOrNull() ?: HOVER_REST_DEFAULT_MS)
+            .coerceIn(HOVER_REST_MIN_MS, HOVER_REST_MAX_MS)
+        set(value) {
+            props.setProperty("hover_rest_millis", value.coerceIn(HOVER_REST_MIN_MS, HOVER_REST_MAX_MS).toString())
+            save()
+        }
 
     /**
      * How this machine draws its windows.

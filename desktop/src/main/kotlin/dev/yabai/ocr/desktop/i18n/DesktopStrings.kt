@@ -98,10 +98,39 @@ object DesktopStrings {
     } else {
         "A mudança vale na próxima abertura do app (também dá para escolher com --renderer=automatic|opengl|software)."
     }
-    fun rendererAfterCrash(level: String): String = if (isEnglish) {
-        "The previous run was closed by a native Direct3D crash, so this run uses $level. Pick Automatic here when you want to go back."
+
+    /** Shown under the switch on Linux, where «Automatic» and «OpenGL» are the same thing. */
+    val rendererLinuxNote: String get() = if (isEnglish) {
+        "On Linux there is no Direct3D: the app draws with OpenGL (graphics card) by default."
     } else {
-        "A execução anterior foi fechada por um crash nativo do Direct3D, então esta execução usa $level. Escolha Automático aqui quando quiser voltar."
+        "No Linux não existe Direct3D: o app desenha com OpenGL (placa de vídeo) por padrão."
+    }
+
+    /** The one renderer choice the Linux card offers; on Windows/macOS the three radios stay. */
+    val rendererSoftwareToggle: String get() = if (isEnglish) {
+        "Software rendering"
+    } else {
+        "Renderização por software"
+    }
+
+    val rendererSoftwareToggleDesc: String get() = if (isEnglish) {
+        "On: the app draws on the CPU, which is slower but works when the graphics card does not " +
+            "draw the windows. Off: it draws with the graphics card (the default)."
+    } else {
+        "Ligado: o app desenha na CPU, que é mais lento mas funciona quando a placa de vídeo não " +
+            "desenha as janelas. Desligado: desenha com a placa de vídeo (o padrão)."
+    }
+
+    fun rendererAfterCrash(level: String): String = if (isEnglish) {
+        "The previous run was closed by a native crash of the graphics renderer (Skiko), so this run uses $level. Pick Automatic here when you want to go back."
+    } else {
+        "A execução anterior foi fechada por um crash nativo do renderizador gráfico (Skiko), então esta execução usa $level. Escolha Automático aqui quando quiser voltar."
+    }
+
+    fun rendererDescription(level: dev.yabai.ocr.desktop.SkikoRenderer): String = when (level) {
+        dev.yabai.ocr.desktop.SkikoRenderer.AUTOMATIC -> rendererAutomaticDesc
+        dev.yabai.ocr.desktop.SkikoRenderer.OPENGL -> rendererOpenGlDesc
+        dev.yabai.ocr.desktop.SkikoRenderer.SOFTWARE -> rendererSoftwareDesc
     }
     fun rendererName(level: dev.yabai.ocr.desktop.SkikoRenderer): String = when (level) {
         dev.yabai.ocr.desktop.SkikoRenderer.AUTOMATIC -> rendererAutomatic
@@ -587,6 +616,37 @@ object DesktopStrings {
     // Hover OCR Statuses & Defaults
     val hoverNoDictsInstalled: String get() = if (isEnglish) "No dictionaries installed — open 'Dictionary Manager'." else "Nenhum dicionário instalado — abra «Gerenciar Dicionários»."
     val hoverNoTextNearCursor: String get() = if (isEnglish) "No text recognized near the cursor." else "Nenhum texto reconhecido perto do cursor."
+
+    /** How long the pointer has to rest before the card opens — the debounce in the Ajustes card. */
+    val hoverRestTitle: String get() = if (isEnglish) "Wait before the card opens" else "Espera para abrir o card"
+    val hoverRestDesc: String get() = if (isEnglish) {
+        "How long the pointer has to stay still on the text. Less wait opens the card sooner; more " +
+            "wait keeps it from opening while the pointer is just passing over."
+    } else {
+        "Quanto tempo o ponteiro precisa ficar parado sobre o texto. Menos espera abre o card mais " +
+            "rápido; mais espera evita abrir enquanto o ponteiro só está passando por cima."
+    }
+
+    /** One choice of [hoverRestTitle]; the faster ones are named for the reader who wants speed. */
+    fun hoverRestOption(millis: Long): String = when (millis) {
+        150L -> if (isEnglish) "150 ms — Fast" else "150 ms — Rápido"
+        250L -> if (isEnglish) "250 ms — Default" else "250 ms — Padrão"
+        else -> if (isEnglish) "$millis ms — Calm" else "$millis ms — Calmo"
+    }
+
+    /** Name used when the capture backend does not say which transport served the frame. */
+    val captureRouteUnknown: String get() = if (isEnglish) "screen capture" else "captura de tela"
+
+    /**
+     * Which capture served the last read and what it cost, appended to the hover status.
+     *
+     * [route] is a transport name (`KWin ScreenShot2`, `portal Screenshot`), not translated.
+     */
+    fun captureSummary(route: String, width: Int, height: Int, millis: Long): String = if (isEnglish) {
+        "capture: $route · ${width}×${height} · $millis ms"
+    } else {
+        "captura: $route · ${width}×${height} · $millis ms"
+    }
     /**
      * The chosen dictionary has no entry here.
      *

@@ -9,6 +9,10 @@ import java.awt.Point
  * has rested inside a few pixels for [stableMillis]. It also remembers where it last fired, so a
  * pointer parked on one word does not send a request every frame.
  *
+ * [stableMillis] is a preference (`DesktopSettings.hoverRestMillis`): it is a third of the latency
+ * the user feels, and how much rest is «enough» depends on how they read — word by word or line by
+ * line. Changing it while the pointer rests applies to the very next tick.
+ *
  * The memory has to expire on its own. An earlier version cleared it when the tooltip closed, which
  * looked right but made words whose on-screen box does not perfectly contain the pointer (a link,
  * whose underline sits below the glyphs; a line with an English prefix, where the box estimate is
@@ -17,10 +21,17 @@ import java.awt.Point
  * spot stays quiet and every other word still opens a card.
  */
 class HoverGate(
-    private val stableMillis: Long = 420L,
+    stableMillis: Long = HOVER_REST_DEFAULT_MS,
     private val stableRadiusPx: Int = 5,
     private val repeatRadiusPx: Int = 14,
 ) {
+    /** How long the pointer must rest inside [stableRadiusPx] before a lookup starts. */
+    @Volatile
+    var stableMillis: Long = stableMillis.coerceIn(MIN_STABLE_MILLIS, MAX_STABLE_MILLIS)
+        set(value) {
+            field = value.coerceIn(MIN_STABLE_MILLIS, MAX_STABLE_MILLIS)
+        }
+
     private var lastPoint: Point? = null
     private var stableSince = 0L
     private var lastTrigger: Point? = null
@@ -61,5 +72,11 @@ class HoverGate(
         lastPoint = null
         stableSince = 0L
         lastTrigger = null
+    }
+
+    companion object {
+        /** Even a deliberate setting cannot make the gate fire on the same frame the hand lands. */
+        const val MIN_STABLE_MILLIS = 80L
+        const val MAX_STABLE_MILLIS = 2_000L
     }
 }
