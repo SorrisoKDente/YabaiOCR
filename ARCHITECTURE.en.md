@@ -213,7 +213,7 @@ flags above.
 | file | role |
 | --- | --- |
 | `HoverOcrManager.kt` | hover cycle: capture → OCR (chosen engine) → dictionary → card |
-| `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close; the rest is a preference (`hover_rest_millis`, default 250 ms, 150/250/420 presets in Settings) applied to the run in progress (D82) |
+| `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close; the rest is a preference (`hover_rest_millis`, default 250 ms, 150/250/420 presets in Settings) applied to the run in progress (D82); also the retry of the same spot when a capture or OCR read fails, paced and capped (D88) |
 | `HoverLookupTracker.kt` | which lookup is still worth drawing as the pointer keeps moving: newest wins, at most two in flight (D83) |
 | `LensPayload.kt` | what goes up to Lens: PNG up to 400 KB, JPEG q85 above that — the upload is the bottleneck on the Deck (D83) |
 | `HoverGeometry.kt` | crop around the pointer, local coordinates, HiDPI |

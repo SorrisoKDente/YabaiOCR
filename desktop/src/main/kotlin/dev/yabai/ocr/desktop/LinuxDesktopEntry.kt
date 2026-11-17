@@ -230,4 +230,24 @@ internal fun resolveLinuxExecutable(
     command = command,
     jpackageAppPath = jpackageAppPath,
     extraCandidates = appImageCandidates(userHome),
-).firstOrNull { path -> File(path).let { it.isFile && it.canExecute() } }
+).firstOrNull { path ->
+    val file = File(path)
+    // A path inside the mount is gone as soon as the app closes: writing it would leave an entry
+    // that only works until the user quits, which is what made a reboot look necessary.
+    file.isFile && file.canExecute() && !isInsideAppImageMount(path, env)
+}
+
+/**
+ * Whether [path] lives inside the folder this AppImage extracted itself into (`$APPDIR`,
+ * `/tmp/.mount_*`).
+ *
+ * That folder disappears when the app exits, so a menu entry or an autostart line written with it can
+ * never start the app again — reopening would take a reboot, with autostart bringing the app back.
+ * The `.AppImage` file is what has to be written, and it comes first in [linuxExecutableCandidates]
+ * whenever `$APPIMAGE` is really ours ([appImageIsOurs]).
+ */
+internal fun isInsideAppImageMount(path: String, env: Map<String, String>): Boolean {
+    val appDir = env["APPDIR"]?.trim()?.trimEnd('/').orEmpty()
+    if (appDir.isEmpty()) return false
+    return path.trim().startsWith("$appDir/")
+}

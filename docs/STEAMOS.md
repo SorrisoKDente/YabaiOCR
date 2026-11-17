@@ -89,6 +89,68 @@ find desktop/build/distributions/appimage -maxdepth 1 -name '*.AppImage'
 > mesma pasta do `:desktop:createDistributable`. Use `:desktop:packageLinuxAppImage`, que chama o
 > `appimagetool`. Se você não tiver o `appimagetool`, use o `.tar.gz` abaixo.
 
+Onde colocar o `appimagetool`: baixe o AppImage oficial, deixe executável e aponte a variável para
+**ele**, sem `sudo` e sem instalar em `/usr/local/bin`:
+
+```bash
+chmod +x ~/appimagetool
+APPIMAGETOOL=~/appimagetool ./gradlew :desktop:packageLinuxAppImage --console=plain
+```
+
+Se o `appimagetool` vier de um `.AppImage` e a máquina não tiver FUSE: `./appimagetool.AppImage
+--appimage-extract` e use `squashfs-root/AppRun` como `APPIMAGETOOL`.
+
+**Compile fora da pasta compartilhada.** Numa máquina virtual com pasta compartilhada (vboxsf, SMB,
+9p) o `jlink` — a tarefa `:desktop:createRuntimeImage` — não consegue escrever na árvore e o build
+para com `FileSystemException: ... Operation not permitted`. Copie a árvore para um disco local e
+compile lá:
+
+```bash
+B=~/yabai-build
+rm -rf "$B" && mkdir -p "$B"
+rsync -a --exclude .git --exclude build --exclude '*/build' --exclude .gradle ./ "$B"/
+cd "$B"
+APPIMAGETOOL=~/appimagetool ./gradlew :desktop:packageLinuxAppImage --console=plain
+cp desktop/build/distributions/appimage/Yabai_OCR-*.AppImage ~/Downloads/
+```
+
+Medido numa Ubuntu 24.04 em VirtualBox (pasta vboxsf): 2m07s do `rsync` ao AppImage.
+
+**Dois erros de checkout que não são do código.** Numa pasta compartilhada ou num clone feito no
+Windows, `gradlew` e `build-appimage.sh` podem chegar com CRLF:
+
+| sintoma | causa | correção |
+| --- | --- | --- |
+| `bash: ./gradlew: cannot execute: required file not found` | o `#!` do `gradlew` termina em `\r`, então o kernel procura um interpretador `/bin/sh\r` | `git checkout -- gradlew` |
+| `./gradlew: line 2: $'\r': command not found` ou `set: pipefail\r: invalid option name` | CRLF em `gradlew`/`build-appimage.sh` | `git checkout -- gradlew desktop/package/linux/build-appimage.sh` |
+| `appimagetool ... ERROR: ... has mode 0770` | a cópia herdou o modo da pasta compartilhada | o `build-appimage.sh` já aplica `chmod -R a+rX` no AppDir |
+
+O `.gitattributes` do repositório fixa `gradlew`/`*.sh` em LF e `*.bat` em CRLF, então um checkout
+de hoje em diante não repete isso.
+
+Onde colocar o `appimagetool`: baixe o AppImage oficial, deixe executável e aponte a variável para
+**ele**, sem `sudo` e sem instalar em `/usr/local/bin`:
+
+```bash
+chmod +x ~/appimagetool
+APPIMAGETOOL=~/appimagetool ./gradlew :desktop:packageLinuxAppImage --console=plain
+```
+
+Se o `appimagetool` vier de um `.AppImage` e a máquina não tiver FUSE: `./appimagetool.AppImage
+--appimage-extract` e use `squashfs-root/AppRun` como `APPIMAGETOOL`.
+
+**Dois erros de checkout que não são do código.** Numa pasta compartilhada (VirtualBox/SMB) ou num
+clone feito no Windows, `gradlew` e `build-appimage.sh` podem chegar com CRLF:
+
+| sintoma | causa | correção |
+| --- | --- | --- |
+| `bash: ./gradlew: cannot execute: required file not found` | o `#!` do `gradlew` termina em `\r`, então o kernel procura um interpretador `/bin/sh\r` | `git checkout -- gradlew` |
+| `./gradlew: line 2: $'\r': command not found` ou `set: pipefail\r: invalid option name` | CRLF em `gradlew`/`build-appimage.sh` | `git checkout -- gradlew desktop/package/linux/build-appimage.sh` |
+| `appimagetool ... ERROR: ... has mode 0770` | a cópia herdou o modo da pasta compartilhada | o `build-appimage.sh` já aplica `chmod -R a+rX` no AppDir |
+
+O `.gitattributes` do repositório fixa `gradlew`/`*.sh` em LF e `*.bat` em CRLF, então um checkout
+de hoje em diante não repete isso.
+
 Sem `appimagetool`, o pacote portátil é:
 
 ```bash

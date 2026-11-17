@@ -39,6 +39,39 @@ class LinuxAutostartTest {
     }
 
     @Test
+    fun `a stale entry is refreshed on reconcile so login starts the new build`() {
+        // After updating the AppImage, autostart kept naming the older file: the next login started
+        // that build, which then rewrote the menu entry back to itself — "Integrar ao sistema" looked
+        // like it did nothing. Reconcile has to keep an existing entry current, not just present.
+        val configHome = tempDir()
+        val old = "/home/deck/Applications/Yabai_OCR-1.0.9-x86_64.AppImage"
+        val current = "/home/deck/Applications/Yabai_OCR-1.0.10-x86_64.AppImage"
+        LinuxAutostart(configHome, { "old-wm-class" }) { old }.setEnabled(true)
+        val autostart = LinuxAutostart(configHome, { "dev-yabai-ocr-desktop-MainKt" }) { current }
+
+        assertTrue(autostart.reconcile(true))
+
+        val text = autostart.entryFile.readText()
+        assertTrue(text.contains("Exec=\"$current\" \"--minimized\""))
+        assertFalse("the old build must not stay in the entry", text.contains(old))
+        assertTrue(text.contains("StartupWMClass=dev-yabai-ocr-desktop-MainKt"))
+        assertFalse(text.contains("old-wm-class"))
+    }
+
+    @Test
+    fun `a missing executable leaves the existing entry untouched`() {
+        val configHome = tempDir()
+        LinuxAutostart(configHome) { "/home/deck/Applications/Yabai.AppImage" }.setEnabled(true)
+        val before = LinuxAutostart(configHome) { "/home/deck/Applications/Yabai.AppImage" }
+            .entryFile.readText()
+
+        val autostart = LinuxAutostart(configHome) { null }
+
+        assertTrue("the entry is still there", autostart.isEnabled())
+        assertEquals(before, autostart.entryFile.readText())
+    }
+
+    @Test
     fun `a missing executable does not leave a broken entry`() {
         val configHome = tempDir()
         val autostart = LinuxAutostart(configHome) { null }

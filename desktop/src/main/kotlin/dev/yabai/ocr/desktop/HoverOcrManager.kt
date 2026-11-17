@@ -319,7 +319,7 @@ internal class HoverOcrManager(
                 val image = captureProvider?.invoke(cropRect)
                     ?: robotFor(cropRect).createScreenCapture(cropRect)
                 if (image.width <= 0 || image.height <= 0) {
-                    fail("Recorte de tela vazio.")
+                    fail("Recorte de tela vazio.", point)
                     return@launch
                 }
 
@@ -400,7 +400,7 @@ internal class HoverOcrManager(
                 val matches = listOf(hit.match)
                 SwingUtilities.invokeLater { onResultsReady(matches, point, filter, null) }
             } catch (e: Exception) {
-                fail(DesktopStrings.hoverOcrFailure(e.message ?: e.javaClass.simpleName))
+                fail(DesktopStrings.hoverOcrFailure(e.message ?: e.javaClass.simpleName), point)
             } finally {
                 lookups.finish(token)
             }
@@ -424,9 +424,18 @@ internal class HoverOcrManager(
         SwingUtilities.invokeLater { onResultsReady(emptyList(), point, filter, filter) }
     }
 
-    private fun fail(message: String) {
+    /**
+     * A read that broke on the way, with no answer to be quiet about.
+     *
+     * [retryAt] is the spot to try again: an empty capture or a failed OCR is usually transient, and
+     * [dismiss] alone would keep that spot quiet until the pointer walked away — leaving the word the
+     * user was resting on unreadable. A read that simply found no text keeps the spot quiet instead;
+     * only a failure asks for another attempt, paced and capped by [HoverGate.retryLater].
+     */
+    private fun fail(message: String, retryAt: Point? = null) {
         publishStatus(message)
         dismiss()
+        if (retryAt != null) gate.retryLater(retryAt, System.currentTimeMillis())
     }
 
     private fun dismiss() {
@@ -434,7 +443,10 @@ internal class HoverOcrManager(
         tooltipVisible = false
         targetBox = null
         dismissGate.reset()
-        gate.reset() // Reseta o portão para que novos movimentos do mouse voltem a funcionar imediatamente!
+        // The spot that just answered stays quiet until the pointer walks away from it. Resetting
+        // the gate here re-armed it, and a pointer parked on background re-captured the screen —
+        // sound and all — at every rest interval, forever (see HoverGate.keepQuiet).
+        gate.keepQuiet()
         if (wasVisible) {
             SwingUtilities.invokeLater { onDismiss() }
         }

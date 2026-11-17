@@ -24,7 +24,28 @@ internal class LinuxAutostart(
             runCatching { entryFile.delete() }
             return
         }
+        writeEntry()
+    }
 
+    override fun isEnabled(): Boolean = entryFile.isFile
+
+    /**
+     * Keeps an existing entry current, not just present.
+     *
+     * An entry that exists but names an older AppImage is as broken as a missing one: at login it
+     * starts that older build, and that build then rewrites the menu entry back to itself — which is
+     * why «Integrar ao sistema» looked like it had no effect after an update. [Autostart] already
+     * documents this drift; the Linux side used to check only whether the file existed. Whether the
+     * entry should exist at all stays with [setEnabled]: only the "start with the system" switch
+     * creates or deletes it.
+     */
+    override fun reconcile(enabled: Boolean): Boolean {
+        if (enabled) writeEntry()
+        return super.reconcile(enabled)
+    }
+
+    /** Single writer: creates the entry and refreshes its contents, skipping an unchanged file. */
+    private fun writeEntry() {
         val executable = executableResolver()
         if (executable.isNullOrBlank()) {
             System.err.println("[Autostart] executable not found; keeping the preference for later")
@@ -33,11 +54,10 @@ internal class LinuxAutostart(
 
         runCatching {
             entryFile.parentFile?.mkdirs()
-            entryFile.writeText(autostartDesktopEntry(executable, wmClass()))
+            val content = autostartDesktopEntry(executable, wmClass())
+            if (!entryFile.isFile || entryFile.readText() != content) entryFile.writeText(content)
         }.onFailure {
             System.err.println("[Autostart] could not write ${entryFile.path}: ${it.message}")
         }
     }
-
-    override fun isEnabled(): Boolean = entryFile.isFile
 }

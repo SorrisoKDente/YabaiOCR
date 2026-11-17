@@ -545,7 +545,11 @@ fun main(args: Array<String>) {
     }
     val installLinuxIntegration: (() -> Unit)? = linuxIntegration?.let { integration ->
         {
-            linuxIntegrationStatus = if (integration.install()) {
+            // Exactly what the button does, in one testable place: write the menu entry, then
+            // keep the autostart entry (the one that starts the app at login) on the same binary.
+            linuxIntegrationStatus = if (
+                integrateLinuxSystem(integration, PlatformServices.autostart, settings.startOnBoot)
+            ) {
                 DesktopStrings.linuxIntegrationInstalledSuccess
             } else {
                 DesktopStrings.linuxIntegrationInstalledError
@@ -752,7 +756,6 @@ fun main(args: Array<String>) {
                                 null
                             },
                             onHoverToggle = { applyHover(!hoverState.active) },
-                            onHoverTest = { hoverOcrManager.triggerAtCursor(force = true) },
                             onHoverRestChanged = { millis ->
                                 settings.hoverRestMillis = millis
                                 hoverOcrManager.setRestMillis(millis)

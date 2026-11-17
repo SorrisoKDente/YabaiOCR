@@ -27,13 +27,13 @@ class DesktopAppUpdateCheckerTest {
 
     @Test
     fun `a blank resource and environment fall back to the constant`() {
-        assertEquals("1.0.9", DesktopAppUpdateChecker.resolveVersion("", "  "))
+        assertEquals("1.1.0", DesktopAppUpdateChecker.resolveVersion("", "  "))
     }
 
     @Test
     fun testCurrentVersion() {
         // The test build passes no -PyabaiVersion, so the generated resource stamps the default;
         // a release build stamps the tag instead of the hardcoded constant it used to report.
-        assertEquals("1.0.9", DesktopAppUpdateChecker.getCurrentVersion())
+        assertEquals("1.1.0", DesktopAppUpdateChecker.getCurrentVersion())
     }
 }

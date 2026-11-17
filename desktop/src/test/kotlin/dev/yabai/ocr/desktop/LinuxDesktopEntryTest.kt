@@ -11,6 +11,33 @@ import org.junit.Test
 class LinuxDesktopEntryTest {
 
     @Test
+    fun `a path inside the appimage mount is never written`() {
+        // `/tmp/.mount_*` disappears when the app closes: an entry written with it opens nothing
+        // until the next login brings the app back, which is what made reopening look like it
+        // needed a reboot. The .AppImage file is the only usable target.
+        val appDir = Files.createTempDirectory("yabai-mount").toFile().apply { deleteOnExit() }
+        val launching = File(appDir, "opt/yabai-ocr/bin/yabai-ocr").apply {
+            parentFile?.mkdirs()
+            writeText("#!/bin/sh\n")
+            setExecutable(true)
+        }
+
+        val resolved = resolveLinuxExecutable(
+            env = mapOf("APPDIR" to appDir.absolutePath),
+            userHome = "/home/deck",
+            command = launching.absolutePath,
+            jpackageAppPath = launching.absolutePath,
+        )
+
+        assertNull("the mount path never outlives the app: $resolved", resolved)
+        assertTrue(isInsideAppImageMount(launching.absolutePath, mapOf("APPDIR" to appDir.absolutePath)))
+        assertFalse(
+            isInsideAppImageMount("/home/deck/Applications/Yabai_OCR.AppImage", mapOf("APPDIR" to appDir.absolutePath)),
+        )
+        assertFalse("no APPDIR means nothing to compare", isInsideAppImageMount(launching.absolutePath, emptyMap()))
+    }
+
+    @Test
     fun `exec arguments are always quoted and escaped`() {
         val raw = "C:\\Users\\Eric PC\\a\"b\$c`d"
 

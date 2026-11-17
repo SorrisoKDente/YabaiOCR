@@ -211,7 +211,7 @@ rodam com as flags acima.
 | arquivo | papel |
 | --- | --- |
 | `HoverOcrManager.kt` | ciclo do hover: captura → OCR (motor escolhido) → dicionário → cartão |
-| `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar; o repouso é preferência (`hover_rest_millis`, padrão 250 ms, presets 150/250/420 nos Ajustes) e vale para a execução em curso (D82) |
+| `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar; o repouso é preferência (`hover_rest_millis`, padrão 250 ms, presets 150/250/420 nos Ajustes) e vale para a execução em curso (D82); também a retentativa do mesmo ponto quando a leitura falha por captura/OCR, com pausa e teto (D88) |
 | `HoverLookupTracker.kt` | qual leitura ainda vale quando o ponteiro segue andando: o mais novo vence, no máximo duas em voo (D83) |
 | `LensPayload.kt` | o que sobe para o Lens: PNG até 400 KB, JPEG q85 acima disso — o upload é o gargalo no Deck (D83) |
 | `HoverGeometry.kt` | recorte ao redor do ponteiro, coordenadas locais, HiDPI |

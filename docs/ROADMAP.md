@@ -6072,7 +6072,8 @@ então o `extension.js` novo só roda no próximo login. O `GrabAccelerator` por
 (`AccessDenied`) para quem não é `org.gnome.Settings`, o que confirma por que o registro precisa
 acontecer dentro do Shell.
 
-**Testes e mutações.** 404 testes desktop, 0 falhas (1 pulado). O teste de contrato da extensão passou
+**Testes e mutações.** Suíte desktop verde (contada em 404 na época; o número real é 517 — o contador
+só lia parte dos XMLs, ver D84). O teste de contrato da extensão passou
 a exigir `grab_accelerator`/`allowKeybinding`/`accelerator-activated`/`ungrab_accelerator` e a
 **proibir** `Main.keybindingManager`; a derivação do `WM_CLASS` ganhou um caso com outra classe
 (`com.example.Other`), porque só `MainKt` passaria com uma constante fixa. Mutações derrubadas: voltar
@@ -7199,3 +7200,231 @@ tarefas não foi verificado: o Plasma guarda o ícone da sessão em curso, entã
 teste e conferida no arquivo, mas a troca visual só aparece depois de sair e entrar na sessão (ou
 reiniciar o Plasma). 5) Os ajustes do usuário (`engine=LENS`, `hover_rest_millis=150`,
 `skiko_renderer=SOFTWARE`) foram deixados como estavam. 6) Nada foi commitado nem publicado.
+### D84 — Build no Linux de verdade: CRLF no checkout, `jlink` na pasta compartilhada e modo 0770  `[x]` (16/11/2026)
+
+**Sintoma.** Seguindo o passo a passo do `docs/STEAMOS.md` numa Ubuntu 24.04 em VirtualBox (repo em
+`/media/sf_yabai_ocr`, pasta vboxsf), `./gradlew :desktop:packageLinuxAppImage` não saía do lugar:
+`bash: ./gradlew: cannot execute: required file not found`, e com `bash ./gradlew` vinha
+`line 2: $'\r': command not found` até `syntax error near unexpected token`.
+
+**Três causas, nenhuma no código do app.**
+
+1. **CRLF no checkout.** `git ls-files --eol` mostra `i/lf w/crlf` em `gradlew`, `gradlew.bat` e
+   `build-appimage.sh`: o índice está certo, a árvore de trabalho foi salva com CRLF (Windows/pasta
+   compartilhada). O kernel lê o `#!` do `gradlew` como `/bin/sh\r` e não acha o interpretador — daí
+   "required file not found" em vez de erro de sintaxe. Em bash, o `\r` vira comando.
+2. **`jlink` não escreve na pasta compartilhada.** Mesmo com o `gradlew` corrigido, o build parava em
+   `:desktop:createRuntimeImage`: `java.nio.file.FileSystemException: .../runtime/legal/... :
+   Operation not permitted`. É a tarefa do Compose chamando o `jlink` do JDK 21; a vboxsf recusa a
+   cópia/atributo que ele usa. Não há flag do Gradle que conserte: o build precisa de um disco local.
+3. **Modo 0770 herdado da pasta.** O `appimagetool` recusa empacotar com
+   `ERROR: ... has mode 0770 (rwxrwx---)` — a cópia do PNG e do AppDir veio com o modo da pasta
+   compartilhada/umask 007.
+
+**O que mudou.** `.gitattributes` novo fixa `gradlew` e `*.sh` em `eol=lf` e `*.bat` em `eol=crlf`, e o
+`build-appimage.sh` aplica `chmod -R a+rX "$APPDIR"` antes de chamar o `appimagetool` — os dois
+problemas deixam de depender do sistema de arquivos de quem compila. Aqui a árvore também foi
+normalizada (`gradlew`, `gradlew.bat`, `build-appimage.sh`), então `./gradlew` roda direto.
+`docs/STEAMOS.md` §3.1 ganhou o diagnóstico em tabela (sintoma → causa → correção), a receita de
+compilar fora da pasta compartilhada e onde apontar o `APPIMAGETOOL`; `README.md` e `README.pt-BR.md`
+passaram a mostrar os comandos `./gradlew` (só existia PowerShell) e o mesmo par de erros de checkout.
+
+**Evidência.** `./gradlew --version` → Gradle 9.6.0. Receita documentada (rsync para `~/yabai-build`,
+`APPIMAGETOOL=~/appimagetool ./gradlew :desktop:packageLinuxAppImage`) → `BUILD SUCCESSFUL in 2m 7s`,
+`Yabai_OCR-1.0.9-x86_64.AppImage` com 157.178.360 bytes. Na pasta compartilhada o mesmo comando falha
+em `createRuntimeImage` com o `FileSystemException` acima (log preservado no relatório da tarefa).
+
+**Testes e mutações.** Suíte desktop **517 testes, 0 falhas, 1 pulado**. Dois testes novos em
+`LinuxPackagingScriptTest`: os scripts não podem ter CR (`\r`) e o `chmod` precisa existir *antes* do
+`appimagetool`. Mutações derrubadas: acrescentar uma linha CRLF ao `build-appimage.sh` (**1 falha**) e
+remover o `chmod` (**1 falha**). **Lição registrada:** as duas primeiras rodadas de mutação passaram
+em falso porque o `:desktop:test` estava `UP-TO-DATE` e nenhum teste rodou (o arquivo mutado não é
+input do Gradle); com `--rerun-tasks` as duas falharam como esperado. Mutação de script só vale com
+rerun forçado.
+
+**Correção de contagem.** O número "403/404 testes" das D66/D67 veio de um somatório que só lia os
+primeiros 600 bytes de cada XML e exigia a ordem exata dos atributos de `<testsuite>`, então ignorava
+parte dos arquivos. A contagem correta, por `<testcase>` em todos os XMLs, é **517** (81 classes).
+
+**Limitações.** Nada foi rodado em SteamOS/Deck; a receita foi validada só nesta VM. O `jlink` na
+pasta compartilhada continua impossível — é limitação da vboxsf, não do projeto. Nada commitado.
+### D85 — "Integrar ao sistema" parecia não atualizar: o autostart continuava na versão anterior  `[x]` (16/11/2026)
+
+**Sintoma.** No SteamOS, depois de trocar o AppImage por uma versão nova, a integração continuava
+abrindo a versão anterior mesmo apertando «Integrar ao sistema» — sem erro, sem mudança visível. A
+mesma coisa aqui no Ubuntu (vboxsf/VM), então não era específico do Deck.
+
+**Causa raiz.** A integração é feita de **duas** entradas, e só uma era mantida atualizada:
+
+- `~/.local/share/applications/yabai-ocr.desktop` (menu) — o `ensureTrayIcon()` já reescrevia a cada
+  início quando o arquivo existia (D66) e o botão reescreve via `install()`;
+- `~/.config/autostart/yabai-ocr.desktop` (login) — **nunca** era reescrita. `LinuxAutostart.reconcile`
+  só comparava a *existência* do arquivo (`isEnabled() != enabled`), embora o contrato do
+  [Autostart] dissesse "escreve quando falta **ou aponta para um executável que não existe mais**".
+  O efeito em cadeia: o login subia o AppImage velho → esse processo rodava `ensureTrayIcon()` e
+  `install()` com o **seu próprio** caminho → o menu voltava a apontar para a versão antiga. O botão
+  parecia inerte porque o binário que o apertava já era o antigo.
+
+**O que mudou.** `LinuxAutostart.refresh()` reescreve a entrada **existente** no lugar (nunca cria nem
+apaga: isso é do interruptor «iniciar com o sistema»), comparando o conteúdo antes de gravar.
+`reconcile(enabled = true)` chama `refresh()` quando o arquivo existe — então todo início de app
+conserta a deriva, como o contrato sempre prometeu. O botão «Integrar ao sistema» passou a chamar
+`StartupManager.reconcileStartOnBoot(settings.startOnBoot)` depois do `install()`, para o conserto
+valer na hora e não só no próximo login.
+
+**Evidência ponta a ponta (Ubuntu 24.04, AppImage, `YABAI_HOME`/`XDG_*` isolados).** Entrada do menu e
+autostart apontando para `Yabai_OCR-1.0.9-revisao3.AppImage`, `start_on_boot=true`, app aberto a partir
+da `revisao4`:
+
+- antes da correção: `menu=…revisao4` e `autostart=…revisao3` (a divergência que causava o sintoma);
+- depois da correção, com a `revisao5`: `menu=…revisao5`, `autostart=…revisao5` e
+  `StartupWMClass=dev-yabai-ocr-desktop-MainKt` no autostart.
+
+**Testes e mutações.** Suíte desktop **519 testes, 0 falhas, 1 pulado**. Dois testes novos em
+`LinuxAutostartTest`: entrada antiga atualizada pelo `reconcile` (caminho novo, `--minimized` mantido,
+`StartupWMClass` atualizado) e executável não resolvido deixando a entrada intacta. Mutação
+derrubada: remover `if (enabled) refresh()` do `reconcile` (**1 falha**).
+
+**Limitações.** O clique no botão não foi automatizado (não há como sintetizar teclado/clique nesta
+VM sem privilégio); o que está provado é o caminho de início de app ponta a ponta e, por unidade, as
+duas chamadas que o botão faz (`install()` e `reconcile`). Se o menu do Deck continuar mostrando a
+entrada antiga **depois** de a versão nova rodar, o suspeito passa a ser o cache `ksycoca` do Plasma,
+não os arquivos. Nada commitado.
+### D86 — «Integrar ao sistema» numa função testável, `reconcile` com um só escritor e a entrada que só valia até fechar o app  `[x]` (16/11/2026)
+
+**Revisão da D85.** O conserto estava certo, mas com duas gorduras e um buraco. Gorduras: `refresh()`
+era um método interno que só o `reconcile` chamava, e o `Main.kt` repetia a lógica de "instalou → então
+reconcilia" dentro do lambda do botão, sem teste. Buraco: nada impedia a entrada de ser escrita com o
+caminho **de dentro do AppImage** (`/tmp/.mount_*`), que deixa de existir quando o app fecha — e aí só
+o autostart do próximo login traz o app de volta, o que dá exatamente a impressão de "preciso reiniciar
+o computador para abrir de novo".
+
+**O que mudou.**
+
+1. **Um escritor só.** `LinuxAutostart` passou a ter `writeEntry()` (privado): cria e atualiza, gravando
+   apenas quando o conteúdo muda. `setEnabled(true)` e `reconcile(true)` usam o mesmo caminho — o
+   `refresh()` separado sumiu.
+2. **Botão testável.** Novo `integrateLinuxSystem(integration, autostart, startOnBoot)` em
+   `LinuxSystemIntegration.kt`: grava entrada + ícone e, **só se o `install()` deu certo**, reconcilia o
+   autostart com o estado do interruptor. O lambda do `Main.kt` ficou sendo uma chamada e a escolha da
+   mensagem.
+3. **Guarda do mount.** `resolveLinuxExecutable` recusa candidatos dentro de `$APPDIR`
+   (`isInsideAppImageMount`): `/tmp/.mount_*` não sobrevive ao fechamento, então escrever essa entrada
+   só funciona até o usuário sair. O `.AppImage` continua sendo o primeiro candidato quando `$APPIMAGE`
+   é do próprio processo (D83).
+
+**Evidência ponta a ponta (Ubuntu 24.04, AppImage, `YABAI_HOME`/`XDG_*` isolados).** Entrada do menu e
+autostart apontando para a `revisao3`, app aberto a partir da `revisao6`:
+
+- depois do início: `menu: Exec="/home/eric/Downloads/Yabai_OCR-1.0.9-revisao6.AppImage"` e
+  `autostart: Exec="…revisao6.AppImage" "--minimized"`;
+- app fechado: `/tmp/.mount_*` desapareceu (nenhuma montagem restante) e nada ficou rodando;
+- **reaberto pelo `Exec` exato da entrada** (o que o menu faz): processo `yabai-ocr` de volta e a janela
+  `Yabai OCR` presente — sem logout, sem reboot. Foi o cenário que você descreveu.
+
+**Testes e mutações.** Suíte desktop **523 testes, 0 falhas, 1 pulado** (82 classes). Novos:
+`LinuxIntegrationActionTest` (3 — instala e reconcilia; reconcilia com o estado do interruptor; falha de
+instalação não toca no autostart) e a guarda do mount em `LinuxDesktopEntryTest` (mount real num
+diretório temporário). Mutações derrubadas: remover a chamada ao `reconcile` (**2 falhas**), chamá-la
+mesmo quando o `install()` falha (**1 falha**), remover a guarda do mount (**1 falha**) e remover o
+`writeEntry()` do `reconcile` (**1 falha**).
+
+**Lição de método.** A primeira mutação da guarda do mount *passou*: o teste usava um caminho
+`/tmp/.mount_…` que não existia no disco, então `isFile` já o rejeitava e o teste não media nada. Só com
+uma estrutura de mount de verdade (diretório temporário + binário executável) a mutação caiu. Mutação
+que não derruba teste = teste que não cobre a causa.
+
+**Limitações.** O clique no botão continua não automatizado (o que está coberto é a função que ele
+chama, mais o caminho de início e o de reabertura pelo `Exec`). A guarda do mount cobre `/tmp/.mount_*`
+do próprio AppImage; se um dia o app for executado de outro lugar efêmero, a regra precisa acompanhar.
+Nada commitado.
+### D87 — Hover em laço no GNOME (o «barulho de captura») e o cartão que não aparece no OpenGL da VM  `[x]` (17/11/2026)
+
+**Relato (Ubuntu 24.04, GNOME 46 Wayland, VirtualBox, AppImage 1.1.0).** Três sintomas ao ligar o hover:
+o app «faz barulho de captura a todo momento»; a VM «parece travada» quando o renderizador é a placa de
+vídeo (com o software rendering não acontece); e, sem software rendering, o cartão não aparece sobre as
+palavras. Pedido junto: remover o botão «Testar no cursor atual» de todas as versões desktop.
+
+**Causa raiz do barulho e do travamento: o `dismiss()` rearmava o portão.** `HoverGate` existe para
+disparar uma leitura por repouso e lembrar o ponto que já disparou; a memória só expira quando o ponteiro
+anda `repeatRadiusPx`. Mas `HoverOcrManager.dismiss()` — chamado toda vez que a leitura **não** achou
+texto ou não achou entrada — chamava `gate.reset()`, que apaga o `lastTrigger`. Sequência em laço, sem o
+usuário mover o mouse: leitura acha «nada aqui» → cartão fecha → `reset()` → um intervalo de repouso
+depois o **mesmo** ponto é capturado e reconhecido outra vez → e outra. No GNOME cada captura é uma
+chamada ao portal `Screenshot`, que toca o som de obturador e dá o flash do Shell (por desenho do
+compositor, não há opção de silenciar no portal), e custa centenas de milissegundos a segundos.
+
+**Evidência de campo (journal da sessão do usuário, `~/.yabai_ocr` intacto).** O relógio do painel, sob o
+ponteiro parado, foi lido e descartado repetidamente: `[Hover] Text read, but no dictionary match:
+Nov 17 16:52` às 16:52:35, 16:52:47, 16:53:00 e 16:53:04 — e `…` às 16:58:34 e 17:01:15. Cada volta
+carrega uma captura: `[Captura] capture: portal Screenshot · 1920×955 · 1306 ms` (e 2056 ms, 426 ms,
+334 ms em outras). O barulho e o «travamento» eram o mesmo laço, não duas coisas.
+
+**O que mudou.**
+
+1. **`HoverGate.keepQuiet()`.** Novo método que reinicia só o relógio de repouso e **mantém** a
+   supressão do ponto que disparou. `dismiss()` passou a usá-lo; andar `repeatRadiusPx` continua
+   liberando a palavra seguinte. O ramo «as duas vagas de leitura estão ocupadas» segue com `reset()`:
+   ali não houve resposta nenhuma para o ponto, então repetir é o comportamento certo.
+2. **Botão «Testar no cursor atual» removido.** Saíram o bloco em `SettingsWindow`, a string
+   `btnTestHoverCursor` (pt-BR e en) e o parâmetro `onHoverTest`/a ligação no `Main.kt`. Ligar o hover
+   continua disparando a primeira leitura como antes; `triggerAtCursor` ficou só com esse uso.
+3. **Cartão invisível com a placa de vídeo: é o OpenGL da VM.** O journal registra
+   `org.jetbrains.skiko.RenderException: Cannot create Linux GL context` na inicialização e de novo a
+   cada cartão criado (16:51:12, 16:51:13, 16:52:00 — esta última no mesmo segundo de um acerto
+   `[Hover] 職員 — Jitendex PT-BR`). Com essa exceção a janela do cartão não desenha nada, enquanto o OCR
+   e o log seguem funcionando; e cada tentativa de contexto GL custa caro, o que explica a sensação de
+   travamento. Com «software rendering» ligado o Skiko não toca no GL e o cartão aparece. Não há mudança
+   de código aqui: é o OpenGL do VirtualBox, e a escolha de renderizador já existe nos Ajustes.
+
+**Testes e mutações.** Suíte desktop **526 testes, 0 falhas, 1 pulado**. Três novos em `HoverGateTest`:
+o ponto onde o cartão fechou não é lido de novo (`keepQuiet` + repouso longo), a palavra seguinte ainda
+abre o cartão, e um guarda de fonte (como `HoverCardTransparencyTest`) que exige `gate.keepQuiet()` e
+proíbe `gate.reset()` dentro de `dismiss()` — desenhar cartão precisa de display, então o caminho é
+verificado no texto do `HoverOcrManager`. Mutações derrubadas: `keepQuiet()` chamando `reset()`
+(**2 falhas**) e o `dismiss()` voltando a chamar `gate.reset()` (**1 falha**).
+
+**Limitações.** (a) Uma leitura de verdade continua tocando o som de obturador do GNOME: é o preço do
+portal `Screenshot`, que o app usa porque o ScreenCast do JDK não reaproveita o token do GNOME (D83).
+Silenciar de vez exigiria manter um stream ScreenCast aberto — mudança de outra ordem. (b) O cartão no
+OpenGL não foi verificado visualmente nesta VM (não há como injetar ponteiro nem julgar desenho sem
+tela); o que está provado é a exceção do Skiko no journal e o comportamento que você descreveu.
+Nada commitado.
+
+---
+
+## D88 — Hover tenta de novo o mesmo ponto quando a leitura falha (17/11/2026)
+
+**Pedido.** O hover deve poder tentar de novo o mesmo ponto quando a leitura falhou por erro de
+captura ou de OCR, mantendo o silêncio quando não há texto.
+
+**Problema.** O D87 ensinou `dismiss()` a manter o ponto quieto, e isso acabou com o laço de capturas —
+mas o `dismiss()` não distingue «a leitura respondeu que não há nada» de «a leitura não chegou a
+acontecer». Um recorte vazio e uma exceção dentro do `lookupAt` também caem no `fail()`, que chama
+`dismiss()`; o ponto onde o erro aconteceu ficava mudo até o ponteiro andar `repeatRadiusPx`. Numa falha
+transitória (portal `Screenshot` que estoura o tempo, Lens que cai no meio) o usuário tinha de sacudir o
+mouse para a mesma palavra ser lida de novo — a palavra em que ele estava parado era justamente a que
+não voltava.
+
+**O que mudou.** `HoverGate.retryLater(point, now)` (novo) apaga o `lastTrigger` e agenda outra tentativa
+do **mesmo** ponto: 400 ms (`RETRY_BASE_MILLIS`), dobrando a cada nova falha no mesmo lugar, e no máximo
+`MAX_RETRIES` (3) tentativas. O teto não é enfeite: sem ele uma falha permanente voltaria a capturar o
+mesmo pixel a cada intervalo de repouso, que é exatamente o laço de obturador do D87; esgotado o
+orçamento, o ponto fica quieto como um ponto respondido até o ponteiro andar `repeatRadiusPx`. `observe()`
+passou a respeitar a pausa (`retryNotBefore`) e a zerar o orçamento quando o ponteiro sai
+(`forgetFailures()`), e `reset()` zera tudo. No `HoverOcrManager` só duas saídas pedem retentativa —
+`fail("Recorte de tela vazio.", point)` e `fail(hoverOcrFailure(...), point)` —; «nenhum texto», «sem
+entrada no dicionário», «sem dicionário instalado» e hover desligado continuam só fechando o cartão.
+
+**Testes e mutações.** Suíte desktop **530 testes, 0 falhas, 1 pulado**. Quatro novos em `HoverGateTest`:
+ponto com falha é lido de novo depois da pausa; 20 falhas seguidas param em exatamente `MAX_RETRIES`
+leituras; andar para longe e voltar libera o orçamento; e um guarda de fonte (como o do D87) exigindo
+`point` nas duas falhas e proibindo `retryLater` no ramo «nenhum texto». Mutações derrubadas:
+`retryLater` mantendo o `lastTrigger` (**3 falhas**), teto trocado por `if (false)` (**2 falhas**) e
+`fail("Recorte de tela vazio.")` sem o ponto (**2 falhas**).
+
+**Limitações.** O teto é por ponto, não por sessão: se a captura estiver quebrada de forma permanente, o
+usuário ainda vê três leituras por pouso (400/800/1600 ms), não uma. O caminho de retentativa em si (o
+cartão reaparecendo depois de um erro) não foi visto em tela nesta VM: falha de captura não se injeta sem
+portal, e o cartão depende do renderizador (D87). O que está provado são as regras do portão e a ligação
+das duas falhas. Nada commitado.

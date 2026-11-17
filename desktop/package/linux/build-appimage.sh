@@ -73,5 +73,8 @@ EOF
 chmod +x "$APPDIR/AppRun"
 
 mkdir -p "$OUT"
+# A checkout on a shared folder (vboxsf, SMB) or a umask of 007 leaves the copies at 0770, and
+# appimagetool refuses to package a file its other users cannot read.
+chmod -R a+rX "$APPDIR"
 ARCH=x86_64 "$TOOL" --no-appstream "$APPDIR" "$OUT/Yabai_OCR-${VERSION}-x86_64.AppImage"
 echo "AppImage gerado em: $OUT/Yabai_OCR-${VERSION}-x86_64.AppImage"

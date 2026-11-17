@@ -50,7 +50,6 @@ fun SettingsContent(
     kdeCapturePermissionNote: String = "",
     onKdeCapturePermissionChange: ((Boolean) -> Unit)? = null,
     onHoverToggle: () -> Unit = {},
-    onHoverTest: () -> Unit = {},
     /** Called with the new rest time, so the running hover takes it without a restart. */
     onHoverRestChanged: (Long) -> Unit = {},
     onThemeChanged: (Boolean) -> Unit = {},
@@ -993,15 +992,6 @@ fun SettingsContent(
                         style = MaterialTheme.typography.caption,
                         color = palette.warning
                     )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = onHoverTest,
-                    enabled = hoverActive,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
-                ) {
-                    Text(DesktopStrings.btnTestHoverCursor)
                 }
             }
         }

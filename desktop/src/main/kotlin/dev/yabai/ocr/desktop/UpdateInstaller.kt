@@ -53,7 +53,7 @@ internal object UpdateInstaller {
     /**
      * File the downloaded release is written to.
      *
-     * The asset already carries the version in its name (`Yabai_OCR-1.0.9-x86_64.AppImage`). Writing
+     * The asset already carries the version in its name (`Yabai_OCR-1.1.0-x86_64.AppImage`). Writing
      * it under the *running* file's name is what made an updated app keep the old version in its
      * file name, so the release keeps its own.
      */

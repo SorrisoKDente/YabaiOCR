@@ -172,7 +172,6 @@ object DesktopStrings {
     val hoverInactive: String get() = if (isEnglish) "⚪ Inactive — enable to translate on hover." else "⚪ Inativo — ative para traduzir só passando o mouse."
     val hoverDefaultDict: String get() = if (isEnglish) "Default Hover Dictionary:" else "Dicionário Padrão do Modo Hover:"
     val hoverAllDicts: String get() = if (isEnglish) "🌐 All Dictionaries (Default)" else "🌐 Todos os Dicionários (Padrão)"
-    val btnTestHoverCursor: String get() = if (isEnglish) "Test at current cursor" else "Testar no cursor atual"
 
     // Engine
     val engineAuto: String get() = if (isEnglish) "Automatic (Use Priority Order)" else "Automático (Usa Ordem de Prioridades)"

@@ -1,0 +1,10 @@
+# Line endings that the build depends on.
+#
+# `gradlew` is a /bin/sh script and `build-appimage.sh` runs under bash: a CRLF checkout makes
+# `./gradlew` die with "required file not found" (the shebang carries a \r) and bash fail with
+# "$'\r': command not found" / "set: pipefail\r: invalid option name". Those files must always be
+# written with LF, whatever the OS or the shared folder they were checked out into.
+gradlew text eol=lf
+*.sh    text eol=lf
+# Batch files need the opposite: cmd.exe does not tolerate LF-only files in every construct.
+*.bat   text eol=crlf

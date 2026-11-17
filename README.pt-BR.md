@@ -200,7 +200,19 @@ catálogo do app ou importe um ZIP. Nada do que você pesquisa sai do aparelho.
 ```
 
 Os pacotes do desktop saem de `:desktop:packagePortableTarGz` e `:desktop:packageLinuxAppImage`
-(Linux) ou do instalador gerado pelo Compose Desktop no Windows.
+(Linux) ou do instalador gerado pelo Compose Desktop no Windows. No Linux/macOS é o mesmo comando
+com `./gradlew`:
+
+```bash
+./gradlew :desktop:run                     # roda o desktop
+./gradlew :desktop:test                    # suíte do desktop
+./gradlew :desktop:packagePortableTarGz    # .tar.gz portátil
+APPIMAGETOOL=~/appimagetool ./gradlew :desktop:packageLinuxAppImage   # .AppImage de arquivo único
+```
+
+Se `./gradlew` responder `required file not found` ou `$'\r': command not found`, o checkout veio
+com CRLF: `git checkout -- gradlew desktop/package/linux/build-appimage.sh` resolve (o
+`.gitattributes` do repositório mantém os dois em LF daqui para frente).
 
 ## Estrutura do projeto
 
