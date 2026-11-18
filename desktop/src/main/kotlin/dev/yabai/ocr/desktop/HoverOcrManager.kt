@@ -1,6 +1,5 @@
 package dev.yabai.ocr.desktop
 
-import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
@@ -36,6 +35,13 @@ internal class HoverOcrManager(
     private val backendKind: HoverBackendKind = HoverBackendKind.AWT,
     private val pointerSource: PointerSource = AwtPointerSource(),
     private val captureProvider: ((Rectangle) -> BufferedImage)? = null,
+    private val dictionaryCache: HoverDictionaryCache = HoverDictionaryCache(),
+    /**
+     * Lets the offline reader's ONNX sessions go when the hover is turned off: one recognition
+     * allocates ~245 MB of native memory that stays with the process until the sessions are closed
+     * (measured; see [DesktopPPOcr]). Injected so the lifecycle can be tested without models.
+     */
+    private val releaseOcrSessions: () -> Unit = { DesktopPPOcr.close() },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gate = HoverGate(stableMillis = DesktopSettings().hoverRestMillis)
@@ -84,10 +90,6 @@ internal class HoverOcrManager(
 
     private val robots = HashMap<Int, Robot>()
 
-    private var engine: LookupEngine? = null
-    private var engineDir: String? = null
-    private var engineStamp = 0L
-
     fun isRunning(): Boolean = isEnabled
 
     fun toggle(): Boolean {
@@ -107,8 +109,13 @@ internal class HoverOcrManager(
             gate.reset()
             // Read again on every start: the Ajustes window may have changed it while the hover was off.
             gate.stableMillis = DesktopSettings().hoverRestMillis
-            // The compositor bridges push the pointer over D-Bus; there is nothing to poll.
-            if (backendKind != HoverBackendKind.KWIN && backendKind != HoverBackendKind.GNOME) startPolling()
+            // Every backend is polled, including the compositor bridges. Their events only arrive
+            // when the pointer *moves*, so a gate waiting to retry a failed read, a dismissal
+            // grace period or a lookup dropped because both slots were busy could never advance
+            // while the hand rested — the card stayed away until the pointer was moved off the
+            // word and back. The poll only feeds the gate with the last known position; it never
+            // captures twice at the same spot.
+            startPolling(if (backendKind.usesCompositorBridge) BRIDGE_PUMP_MILLIS else POLL_MILLIS)
             publishStatus(
                 when (backendKind) {
                     HoverBackendKind.KWIN ->
@@ -122,6 +129,13 @@ internal class HoverOcrManager(
         } else {
             stopPolling()
             dismiss()
+            // Off means off: the dictionaries are ~123 MB of key index on a real install and the
+            // offline reader's sessions are ~245 MB of native memory, and the hover is using
+            // neither. The next hover opens them again.
+            dictionaryCache.release()
+            // Closing the ONNX sessions waits for a recognition in flight, and this runs on the UI
+            // thread (tray, shortcut, Settings); the memory is given back either way.
+            scope.launch { releaseOcrSessions() }
             publishStatus("Modo Hover desativado.")
         }
         return isEnabled
@@ -204,7 +218,7 @@ internal class HoverOcrManager(
         // from the word and it blinked on this path too.
         val imageSize = lastImageSize
         val currentSettings = DesktopSettings()
-        val lookup = lookupEngine(currentSettings)
+        val lookup = dictionaryCache.get(currentSettings)
 
         if (result != null && localPoint != null && screenPoint != null && cropRect != null) {
             // The chosen dictionary is the answer. Switching to another one behind the user's back
@@ -255,17 +269,16 @@ internal class HoverOcrManager(
         isEnabled = false
         pollJob?.cancel()
         pollJob = null
+        dictionaryCache.release()
         scope.cancel()
-        runCatching { engine?.close() }
-        engine = null
     }
 
-    private fun startPolling() {
+    private fun startPolling(intervalMillis: Long) {
         pollJob?.cancel()
         pollJob = scope.launch {
             while (isActive && isEnabled) {
                 pointerLocation()?.let { tick(it) }
-                delay(POLL_MILLIS)
+                delay(intervalMillis)
             }
         }
     }
@@ -323,7 +336,11 @@ internal class HoverOcrManager(
                     return@launch
                 }
 
-                val answer = DesktopOcr.recognize(image, DesktopSettings())
+                // The point the answer is about, in the pixels the recogniser received: only the
+                // lines around it are read, which is what keeps a hover on a full page from
+                // costing a full-page recognition (see PPOcrEngine.recognizePixels).
+                val localPoint = HoverGeometry.localPoint(point, cropRect, image.width, image.height)
+                val answer = DesktopOcr.recognize(image, DesktopSettings(), focus = localPoint)
                 // The pointer is already reading another word: this answer is history.
                 if (!lookups.isCurrent(token)) return@launch
                 val result = answer.result
@@ -334,13 +351,12 @@ internal class HoverOcrManager(
                 }
 
                 val currentSettings = DesktopSettings()
-                val lookup = lookupEngine(currentSettings)
+                val lookup = dictionaryCache.get(currentSettings)
                 if (lookup == null) {
                     fail(DesktopStrings.hoverNoDictsInstalled)
                     return@launch
                 }
 
-                val localPoint = HoverGeometry.localPoint(point, cropRect, image.width, image.height)
                 val filter = overrideFilter ?: currentSettings.hoverDictionaryFilter.ifBlank { currentSettings.dictionaryFilter }
 
                 // Salva o cache da última leitura do Lens
@@ -487,26 +503,10 @@ internal class HoverOcrManager(
         return created
     }
 
-    private fun lookupEngine(settings: DesktopSettings): LookupEngine? {
-        val dir = settings.dictDirectory()
-        val path = dir.absolutePath
-        val stamp = dir.lastModified()
-
-        if (engineDir == path && engineStamp == stamp) {
-            return engine
-        }
-
-        runCatching { engine?.close() }
-        engine = null
-        engineDir = path
-        engineStamp = stamp
-
-        engine = DesktopDictLoader.loadEngine(settings)
-        return engine
-    }
-
     private companion object {
         const val POLL_MILLIS = 60L
+        /** Resting pointer on a bridge backend: no capture, only gate bookkeeping. */
+        const val BRIDGE_PUMP_MILLIS = 120L
         const val DISMISS_GRACE_MS = 220L
         const val TARGET_MARGIN = 6
         const val STALE_RADIUS_PX = 56.0

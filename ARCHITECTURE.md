@@ -113,7 +113,8 @@ antes de citá-los.
 | `PPOcrSpec.kt` | constantes e geometria: lado maior 960 (ou orçamento 3:4 em tiras), limiar 0,15, caixa 0,25, unclip 1,4, altura 48 |
 | `PPOcrPreprocess.kt` | tensor do detector (ImageNet) e da linha (girada à esquerda, 48 px, −1..1) |
 | `PPOcrPostprocess.kt` | mapa DB → caixas (componentes conexos, confiança, unclip) e ordem de leitura direita→esquerda |
-| `PPOcrEngine.kt` | sessões ONNX (det + rec), CTC guloso; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine` |
+| `PPOcrEngine.kt` | sessões ONNX (det + rec), CTC guloso; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; leitura **focada** com `focus`/`focusRadiusPx` (só reconhece as linhas perto do ponto — D94) |
+| `PPOcrFocus.kt` | `linesToRecognize`: quais linhas detectadas o reconhecedor precisa ler quando a pergunta é sobre um ponto (hover); sem foco, lê todas |
 | `PPOcrModelStore.kt` | caminhos e URLs dos três arquivos (`manga_det.onnx`, `manga_rec.onnx`, `ppocrv6_dict.txt`) |
 | `PPOcrModelDownloader.kt` | download com `.tmp`, retomada por arquivo e progresso |
 
@@ -211,7 +212,8 @@ rodam com as flags acima.
 
 | arquivo | papel |
 | --- | --- |
-| `HoverOcrManager.kt` | ciclo do hover: captura → OCR (motor escolhido) → dicionário → cartão |
+| `HoverOcrManager.kt` | ciclo do hover: captura → OCR (motor escolhido, focado no ponteiro) → dicionário → cartão; o gate avança por poll também nos bridges do compositor (`BRIDGE_PUMP_MILLIS`) e desligar o hover devolve o que ele alocou (D94) |
+| `HoverDictionaryCache.kt` | os dicionários abertos do hover (~123 MB de índice), reaproveitados enquanto a pasta não muda e liberados no `release()` quando o hover desliga (D94) |
 | `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar; o repouso é preferência (`hover_rest_millis`, padrão 250 ms, presets 150/250/420 nos Ajustes) e vale para a execução em curso (D82); também a retentativa do mesmo ponto quando a leitura falha por captura/OCR, com pausa e teto (D88) |
 | `HoverLookupTracker.kt` | qual leitura ainda vale quando o ponteiro segue andando: o mais novo vence, no máximo duas em voo (D83) |
 | `LensPayload.kt` | o que sobe para o Lens: PNG até 400 KB, JPEG q85 acima disso — o upload é o gargalo no Deck (D83) |

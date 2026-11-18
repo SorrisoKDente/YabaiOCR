@@ -7633,3 +7633,85 @@ por PID.
 sempre (`LinuxDesktopEntryTest`, caminho curto `ERICPC~1` do `Files.createTempDirectory` no Windows). A
 primeira captura de tela saiu cortada porque o PowerShell não é DPI-aware (a janela é 726×433 físicos num
 display a 150%); refeita com `SetProcessDPIAware`. Nada commitado.
+
+## D94 — O hover devolvia memória ao desligar e reconhecia a página inteira a cada leitura (18/11/2026)
+
+**Pedido.** Dois problemas relatados pelo usuário: no Windows o app passava de 1 GB de RAM só aberto na
+bandeja, **com o hover desativado**; e no Ubuntu (VM, GNOME Wayland) o hover às vezes levava mais de 5 s,
+com palavras que só eram identificadas depois de tirar o mouse e voltar.
+
+Medido antes de mexer (VM de 4 núcleos, 12 GB, 9 dicionários, `engine=PP_OCR`):
+
+| o quê | número |
+| --- | --- |
+| índice dos 9 dicionários abertos | **123 MB** de heap (431 ms para abrir) |
+| uma leitura PP-OCR da tela (1920×892) | **3,0–5,9 s** para 54–55 linhas |
+| captura pelo portal `Screenshot` (GNOME) | 1,2 s na primeira, **~300 ms** nas seguintes |
+| sessões ONNX do PP-OCR depois de uma leitura | **+245 MB** nativos, e `close()` devolvia 166 MB |
+
+- **Causa raiz.** Três, independentes.
+  - O hover abria o `LookupEngine` e as sessões ONNX na primeira leitura e **nunca os soltava**:
+    `setEnabled(false)` parava o poll e fechava o cartão, mas o índice dos dicionários e as sessões
+    do PP-OCR ficavam no processo. Desligar o recurso para parar o trabalho não devolvia nada.
+  - O hover reconhecia **todas** as linhas do monitor (`PPOcrEngine.recognizePixels` sem foco). O
+    detector já roda num lado maior de 960 px e custa o mesmo; o reconhecedor custa ~100 ms por
+    linha, e a página tinha cinquenta. O hover é uma pergunta sobre uma palavra.
+  - Nos bridges do compositor (KWin/GNOME) o `HoverOcrManager` só era acordado pelo evento de
+    ponteiro. O gate que espera a parada, a contagem da carência de fechamento e a **retentativa**
+    de uma leitura que falhou (D88) só avançam em `tick()`, e uma leitura recusada por já haver
+    duas em voo (D83) chama `gate.reset()` — que depende de novos ticks para rearmar. Com o mouse
+    parado não havia tick nenhum: a palavra ficava sem resposta até o ponteiro sair e voltar.
+- **Correção.**
+  - `HoverDictionaryCache` (novo): mantém o motor enquanto a pasta não muda e `release()` o fecha;
+    `HoverOcrManager.setEnabled(false)` chama `release()` e `releaseOcrSessions()` (padrão:
+    `DesktopPPOcr.close()`), então desligar o hover devolve dicionários **e** sessões ONNX.
+  - `PPOcrEngine.recognizePixels(..., focus, focusRadiusPx)` e `linesToRecognize` (novo, em
+    `PPOcrFocus.kt`): o detector continua vendo a imagem inteira — é o que mantém legível uma palavra
+    partida entre duas colunas — e só as linhas a até 160 px do ponteiro são reconhecidas. Cada
+    linha é lida nos próprios pixels, então o texto das linhas lidas não muda. O hover passa o ponto
+    local (`DesktopPPOcr`/`DesktopOcr` ganharam o parâmetro `focus`); janela de resultado, picker e
+    Android continuam sem foco, lendo tudo.
+  - O hover passa a fazer poll também nos bridges (`BRIDGE_PUMP_MILLIS = 120 ms`): só alimenta o
+    gate com a última posição conhecida, nunca captura duas vezes no mesmo ponto.
+  - `jvmArgs += "-Xmx1g"`: sem teto o G1 cresce até 1/4 da RAM da máquina antes de coletar.
+  - Menores: a lista de dicionários do cartão é lida uma vez por cartão (`remember`), não a cada
+    recomposição da raiz; a captura de tela do «Trechos» é liberada ao fechar a janela de resultado.
+- **Arquivos.** `desktop/.../HoverOcrManager.kt` · `desktop/.../HoverDictionaryCache.kt` ·
+  `core/.../ppocr/PPOcrFocus.kt` · `core/.../ppocr/PPOcrEngine.kt` · `desktop/.../DesktopPPOcr.kt` ·
+  `desktop/.../DesktopOcr.kt` · `desktop/.../Main.kt` · `desktop/build.gradle.kts`
+
+Testes: **562 no desktop** (6 novos: `HoverDictionaryCacheTest` com 3, `HoverOcrManagerLifecycleTest`
+com 3) e **202 no core** (5 novos em `PPOcrFocusTest`). Quatro mutações, cada uma derrubando o teste
+certo e voltando ao verde ao restaurar:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `linesToRecognize` ignora o raio e devolve todas as linhas | `PPOcrFocusTest > dropsEveryLineOfARestingPageWhenThePointerIsOnNothing` (e mais duas) |
+| `setEnabled(false)` deixa de chamar `dictionaryCache.release()` | `HoverOcrManagerLifecycleTest > turningTheHoverOffReleasesTheDictionaries` |
+| `setEnabled(false)` deixa de chamar `releaseOcrSessions()` | `HoverOcrManagerLifecycleTest > turningTheHoverOffAlsoReleasesTheOfflineReaderSessions` |
+| poll só no backend AWT (como antes) | `HoverOcrManagerLifecycleTest > aBridgeBackendRetriesAFailedReadWithoutMovingThePointer` |
+
+Ponta a ponta (app rodando em `--minimized`, GNOME Wayland, 9 dicionários, `engine=PP_OCR`; hover
+ligado e desligado pelo `ShortcutPressed("hover-toggle")` do D-Bus): RSS **176 MB** recém-aberto →
+**605 MB** com o hover ligado depois de duas leituras → **281 MB** ao desligar e coletar. Com só a
+liberação dos dicionários (medida intermediária da mesma sessão) o ciclo ia a **717 MB e voltava a
+453 MB**: as sessões ONNX, ~172 MB, continuavam no processo. No mesmo screenshot, leitura completa × focada
+com o mesmo motor: **4081–4700 ms / 54–55 linhas** contra **543–1434 ms / 4–6 linhas**, com a linha
+sob o ponteiro **idêntica** nos três pontos medidos (`identical=true`).
+
+Confirmado no vertical do navegador (modo タテ読み do Comic Walker, páginas reais lidas do canvas do
+Chromium): 6 quadros 1920×955 e **48 leituras focadas** contra a completa nos mesmos pontos (centro
+das linhas e borda de coluna) — **palavra, caixa do token e texto da linha idênticos nas 48**. A
+leitura completa levou 320–736 ms para 7–16 linhas; a focada, **285 ms em média para 2,8 linhas**.
+
+Teto de heap provado: harness com o mesmo `DesktopPPOcr` e o mesmo `LookupEngine` do app, rodando com
+`-Xmx1g` exato (1024 MB de máximo), sobre um quadro **4K (3840×2160)** com oito páginas de mangá e
+**os 9 dicionários abertos** — 85 linhas lidas em 2015 ms, **pico de heap de 295 MB**, 171 MB
+retidos depois do GC e **587 MB de RSS de pico** do processo; nenhum OOM e ~71% de folga no heap. O
+`-Xmx1g` fica.
+
+Limitação conhecida: com `engine=PP_OCR` a primeira leitura depois de religar o hover paga de novo
+a abertura das sessões (~3 s nesta VM) — é o preço de não manter 245 MB parados. A captura pelo
+portal do GNOME (~300 ms) e o detector sobre a imagem inteira continuam no caminho. A medição de 4K
+é da pilha OCR + dicionários num harness, não do app inteiro: esta VM não tem saída 4K, e a janela
+Compose/skiko não entra nesse número de heap.

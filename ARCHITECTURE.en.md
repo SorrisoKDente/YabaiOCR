@@ -114,7 +114,8 @@ before quoting them.
 | `PPOcrSpec.kt` | constants and geometry: longest side 960 (or 3:4 budget on strips), 0.15 threshold, 0.25 box, 1.4 unclip, height 48 |
 | `PPOcrPreprocess.kt` | detector tensor (ImageNet) and line tensor (rotated left, 48 px, −1..1) |
 | `PPOcrPostprocess.kt` | DB map → boxes (connected components, confidence, unclip) and right-to-left reading order |
-| `PPOcrEngine.kt` | ONNX sessions (det + rec), greedy CTC; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine` |
+| `PPOcrEngine.kt` | ONNX sessions (det + rec), greedy CTC; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; **focused** read with `focus`/`focusRadiusPx` (only the lines near the point are recognised — D94) |
+| `PPOcrFocus.kt` | `linesToRecognize`: which detected lines the recogniser has to read when the question is about a point (hover); without a focus every line is read |
 | `PPOcrModelStore.kt` | paths and URLs of the three files (`manga_det.onnx`, `manga_rec.onnx`, `ppocrv6_dict.txt`) |
 | `PPOcrModelDownloader.kt` | download with `.tmp`, per-file resume and progress |
 
@@ -213,7 +214,8 @@ flags above.
 
 | file | role |
 | --- | --- |
-| `HoverOcrManager.kt` | hover cycle: capture → OCR (chosen engine) → dictionary → card |
+| `HoverOcrManager.kt` | hover cycle: capture → OCR (chosen engine, focused on the pointer) → dictionary → card; the gate also advances by polling on the compositor bridges (`BRIDGE_PUMP_MILLIS`), and turning the hover off gives back what it allocated (D94) |
+| `HoverDictionaryCache.kt` | the hover's open dictionaries (~123 MB of index), reused while the folder is unchanged and released by `release()` when the hover is turned off (D94) |
 | `HoverGate.kt` / `HoverDismissGate.kt` | when to fire (pointer stopped) and when to close; the rest is a preference (`hover_rest_millis`, default 250 ms, 150/250/420 presets in Settings) applied to the run in progress (D82); also the retry of the same spot when a capture or OCR read fails, paced and capped (D88) |
 | `HoverLookupTracker.kt` | which lookup is still worth drawing as the pointer keeps moving: newest wins, at most two in flight (D83) |
 | `LensPayload.kt` | what goes up to Lens: PNG up to 400 KB, JPEG q85 above that — the upload is the bottleneck on the Deck (D83) |

@@ -714,6 +714,9 @@ fun main(args: Array<String>) {
                 onClose = {
                     temporaryViewImage = null
                     resultInitialText = null
+                    // The screenshot «Trechos» goes back to is a whole monitor in memory; it is
+                    // only useful while this window is open.
+                    snippetsCapture = null
                 },
                 onNewSelectionRequested = {
                     startRegionCapture()
@@ -888,7 +891,11 @@ private fun HoverTooltipOverlay(
             mousePoint = hPoint,
             activeFilter = hoverState.activeFilter,
             notice = hMissing?.let { DesktopStrings.hoverDictionaryMissingEntry(it) },
-            installedDictTitles = hoverOcrManager.getInstalledDictionaryTitles(),
+            // Read once per card, not once per recomposition: every status line the hover publishes
+            // recomposes this overlay, and the list is nine `meta.json` reads on the UI thread.
+            installedDictTitles = remember(hMatches, hPoint) {
+                hoverOcrManager.getInstalledDictionaryTitles()
+            },
             onSelectDictionary = { chosen ->
                 hoverState.missingEntryIn = null
                 hoverOcrManager.setFilterAndRefresh(chosen)

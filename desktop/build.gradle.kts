@@ -110,7 +110,13 @@ tasks.named("processResources") { dependsOn(generateLicenseResource) }
 compose.desktop {
     application {
         mainClass = "dev.yabai.ocr.desktop.MainKt"
-        jvmArgs += listOf("-Dfile.encoding=UTF-8")
+        // A ceiling on the heap the packaged app may grow to. The JVM sizes its default maximum at
+        // a quarter of the machine's RAM and lets the garbage-first heap climb to it before it
+        // bothers collecting; an app that lives in the tray for days was reported at over a
+        // gigabyte of RSS that way. Measured worst case (a 3840x2160 frame of manga, all nine
+        // dictionaries open, PP-OCR reading its 85 lines, at exactly this ceiling): 295 MB of peak
+        // heap and 587 MB of process RSS, so 1 GB is generous.
+        jvmArgs += listOf("-Dfile.encoding=UTF-8", "-Xmx1g")
         // CMP-9994 / JDK-8379560: on Ubuntu 24.04+ a native library that formats through
         // std::ostream (PP-OCR's ONNX Runtime, for instance) crashes the JVM inside libstdc++
         // when Compose has configured the Swing/AWT globals. Compose 1.10 fixed the root cause

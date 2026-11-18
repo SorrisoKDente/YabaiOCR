@@ -5,6 +5,7 @@ import dev.yabai.ocr.core.lens.LensClient
 import dev.yabai.ocr.core.lens.LensOptions
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
+import java.awt.Point
 import java.awt.image.BufferedImage
 
 /** The answer plus the engine that produced it, so the window can say which reader read the page. */
@@ -53,14 +54,19 @@ object DesktopOcr {
      * once the models are there. When every engine fails the exception carries all the reasons —
      * «Lens indisponível» alone would hide the one that matters.
      */
-    fun recognize(image: BufferedImage, settings: DesktopSettings = DesktopSettings()): DesktopOcrAnswer {
+    fun recognize(
+        image: BufferedImage,
+        settings: DesktopSettings = DesktopSettings(),
+        /** The image point a hover is asking about; null reads the whole image. */
+        focus: Point? = null,
+    ): DesktopOcrAnswer {
         val failures = mutableListOf<String>()
 
         for (engine in engineOrder(settings.engine, settings.enginePriorityList)) {
             val attempt = runCatching {
                 when (engine) {
                     DesktopEngineChoice.LENS -> recognizeWithLens(image)
-                    DesktopEngineChoice.PP_OCR -> DesktopPPOcr.recognize(image, settings)
+                    DesktopEngineChoice.PP_OCR -> DesktopPPOcr.recognize(image, settings, focus)
                     DesktopEngineChoice.AUTO -> error("AUTO is not an engine")
                 }
             }

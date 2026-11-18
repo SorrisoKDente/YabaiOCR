@@ -9,6 +9,7 @@ import dev.yabai.ocr.core.ppocr.PPOcrEngine
 import dev.yabai.ocr.core.ppocr.PPOcrModelStore
 import dev.yabai.ocr.core.ppocr.PPOcrOutcome
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
+import java.awt.Point
 import java.awt.image.BufferedImage
 
 /**
@@ -36,8 +37,17 @@ object DesktopPPOcr {
         cached = null
     }
 
+    /**
+     * [focus] is the image point the answer is about — the hover's pointer. With it the recogniser
+     * only reads the lines around that point; without it the whole image is read, as the result
+     * window and the picker need.
+     */
     @Synchronized
-    fun recognize(image: BufferedImage, settings: DesktopSettings = DesktopSettings()): LensResult {
+    fun recognize(
+        image: BufferedImage,
+        settings: DesktopSettings = DesktopSettings(),
+        focus: Point? = null,
+    ): LensResult {
         val models = store(settings)
         if (!models.isAvailable()) throw IllegalStateException(DesktopStrings.ppOcrMissingModels)
 
@@ -55,7 +65,8 @@ object DesktopPPOcr {
 
         val pixels = IntArray(width * height)
         image.getRGB(0, 0, width, height, pixels, 0, width)
-        return toLensResult(engine.recognizePixels(pixels, width, height))
+        val focusBox = focus?.let { PixelBox(it.x, it.y, 1, 1) }
+        return toLensResult(engine.recognizePixels(pixels, width, height, focus = focusBox))
     }
 
     /**
