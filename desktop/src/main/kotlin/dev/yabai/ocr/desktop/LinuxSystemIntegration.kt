@@ -2,7 +2,11 @@ package dev.yabai.ocr.desktop
 
 
 
+import java.awt.image.BufferedImage
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import javax.imageio.ImageIO
 
 
 
@@ -47,7 +51,19 @@ internal class LinuxSystemIntegration(
 
     val iconFile: File
 
-        get() = File(File(dataHome, "icons/hicolor/256x256/apps"), "yabai-ocr.png")
+        get() = File(File(dataHome, "icons/hicolor/256x256/apps"), "$TRAY_ICON_NAME.png")
+
+
+
+    val hoverOnIconFile: File
+
+        get() = File(File(dataHome, "icons/hicolor/256x256/apps"), "$TRAY_HOVER_ON_ICON_NAME.png")
+
+
+
+    val hoverOffIconFile: File
+
+        get() = File(File(dataHome, "icons/hicolor/256x256/apps"), "$TRAY_HOVER_OFF_ICON_NAME.png")
 
 
 
@@ -99,13 +115,15 @@ internal class LinuxSystemIntegration(
 
     /**
 
-     * Writes [iconFile] on every start and keeps an existing menu entry current.
+     * Writes [iconFile] and the two hover theme variants on every start, and keeps an existing menu
+     * entry current.
 
      *
 
      * The StatusNotifier item names the icon (`IconName`), and the AppIndicator host resolves that
 
-     * name through the icon theme: with no file installed it fell back to its generic gear.
+     * name through the icon theme: with no file installed it fell back to its generic gear. The two
+     * variants are what make the dot visible on a host that prefers `IconName` over `IconPixmap`.
 
      *
 
@@ -125,17 +143,7 @@ internal class LinuxSystemIntegration(
 
         val icon = runCatching(iconBytes).getOrNull()?.takeIf { it.isNotEmpty() } ?: return false
 
-        val iconWritten = runCatching {
-
-            if (iconFile.isFile && iconFile.readBytes().contentEquals(icon)) return@runCatching true
-
-            iconFile.parentFile?.mkdirs()
-
-            iconFile.writeBytes(icon)
-
-            true
-
-        }.getOrDefault(false)
+        val iconWritten = writeTrayIcons(icon)
 
 
 
@@ -187,9 +195,7 @@ internal class LinuxSystemIntegration(
 
             desktopFile.parentFile?.mkdirs()
 
-            iconFile.parentFile?.mkdirs()
-
-            iconFile.writeBytes(icon)
+            if (!writeTrayIcons(icon)) return@runCatching false
 
             desktopFile.writeText(applicationDesktopEntry(executable, wmClass(), iconFile.absolutePath))
 
@@ -198,6 +204,52 @@ internal class LinuxSystemIntegration(
             true
 
         }.getOrDefault(false)
+
+    }
+
+    /**
+     * Writes the base PNG and the two hover variants used by [StatusNotifierItemDbus.IconName].
+     *
+     * A fake/truncated icon in a unit test still writes the base; only a readable PNG can produce
+     * the variants, and that is not a reason to fail the integration.
+     */
+    private fun writeTrayIcons(icon: ByteArray): Boolean = runCatching {
+
+        writeIfChanged(iconFile, icon)
+
+        val base = runCatching { ImageIO.read(ByteArrayInputStream(icon)) }.getOrNull()
+
+        if (base != null) {
+
+            writeIfChanged(hoverOnIconFile, pngBytes(createTrayStatusImage(base, hoverActive = true)))
+
+            writeIfChanged(hoverOffIconFile, pngBytes(createTrayStatusImage(base, hoverActive = false)))
+
+        }
+
+        true
+
+    }.getOrDefault(false)
+
+    private fun writeIfChanged(file: File, bytes: ByteArray): Boolean {
+
+        if (file.isFile && file.readBytes().contentEquals(bytes)) return true
+
+        file.parentFile?.mkdirs()
+
+        file.writeBytes(bytes)
+
+        return true
+
+    }
+
+    private fun pngBytes(image: BufferedImage): ByteArray {
+
+        val output = ByteArrayOutputStream()
+
+        ImageIO.write(image, "png", output)
+
+        return output.toByteArray()
 
     }
 

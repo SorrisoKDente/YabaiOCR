@@ -222,6 +222,8 @@ Com o app aberto, vá em **Ajustes → Integração com o Linux → “Integrar 
 
 - `~/.local/share/applications/yabai-ocr.desktop`
 - `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png`
+- `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr-hover-on.png`
+- `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr-hover-off.png`
 
 O app já pede ao Plasma para reconstruir o índice ao concluir a integração. Se o menu ainda não
 atualizar na hora, rode o fallback manual (ou saia e entre na sessão):
@@ -413,7 +415,7 @@ Não prometa hover/atalhos nessa sessão.
 | `~/.local/share/applications/yabai-ocr.desktop` | atalho do menu (declara a interface do KWin) | “Integrar” ou apague |
 | `~/.local/share/applications/yabai-ocr-screenshot.desktop` | entrada oculta com o caminho do binário em execução (não autoriza `ScreenShot2`: usuário não é diretório privilegiado) | apague; o app regrava no próximo início |
 | `~/.config/environment.d/yabai-ocr.conf` | `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, só se você ligar «Captura silenciosa no KDE» | desligue a opção ou apague o arquivo (vale no próximo login) |
-| `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png` | ícone | apague |
+| `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr*.png` | ícone base e variantes de hover | apague |
 | `~/.config/autostart/yabai-ocr.desktop` | início automático | desligue o toggle ou apague |
 | `~/.local/share/kwin/scripts/yabai-ocr/` | script KWin do hover | apague; o app reinstala |
 | `~/.java/robot/screencast-tokens.properties` | token legado do `ScreenCast` do JDK | não é usado no KDE Wayland; pode apagar |
@@ -428,6 +430,8 @@ Nada é gravado em `/usr`, `/etc` ou `/var` pelo app.
 # atalho e ícone
 rm -f ~/.local/share/applications/yabai-ocr.desktop
 rm -f ~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png
+rm -f ~/.local/share/icons/hicolor/256x256/apps/yabai-ocr-hover-on.png
+rm -f ~/.local/share/icons/hicolor/256x256/apps/yabai-ocr-hover-off.png
 
 # autostart
 rm -f ~/.config/autostart/yabai-ocr.desktop

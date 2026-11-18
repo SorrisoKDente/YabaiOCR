@@ -118,8 +118,9 @@ triggers the capture.
 .\gradlew.bat :desktop:run
 ```
 
-The app opens on Settings and stays in the tray. The interface exists in **Portuguese and English**,
-chosen in Settings. Default shortcuts (all configurable):
+The app opens on Settings and stays in the tray. The tray icon shows the hover state at a glance: a
+green dot means hover is on; a red dot with a white minus means it is off. The interface exists in
+**Portuguese and English**, chosen in Settings. Default shortcuts (all configurable):
 
 | shortcut | action |
 | --- | --- |

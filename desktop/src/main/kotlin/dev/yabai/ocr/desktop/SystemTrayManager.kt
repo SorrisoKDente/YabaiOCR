@@ -45,6 +45,10 @@ internal class SystemTrayManager(
     /** Returns true only when the icon was really added to the system tray. */
     fun setup(): Boolean {
         lastFailure = null
+        // The first icon must already carry the current state: the tray can be created after the
+        // user enabled hover, and an icon that starts «off» would lie until the next toggle.
+        val active = isHoverActive()
+        hoverActive = active
         // Publish the standard StatusNotifierItem plus a DBusMenu; Plasma draws and dismisses the
         // menu natively, and on GNOME the AppIndicator extension reads the same interface. On
         // Wayland it is also the only backend whose clicks reach the process at all. The old Swing
@@ -55,6 +59,7 @@ internal class SystemTrayManager(
                 onSecondaryActivate = { SwingUtilities.invokeLater { onRegionCaptureRequested() } },
                 onContextMenu = { x, y -> showCustomTrayMenu(Point(x, y)) },
                 menuItems = { trayMenuItems() },
+                initialHoverActive = active,
             )
             if (notifier.start()) {
                 statusNotifier = notifier
@@ -71,7 +76,7 @@ internal class SystemTrayManager(
         }
 
         val tray = SystemTray.getSystemTray()
-        val bi = AppIconGenerator.createTrayImage(16)
+        val bi = AppIconGenerator.createTrayImage(active)
 
         val icon = TrayIcon(bi, "Yabai OCR Desktop").apply {
             isImageAutoSize = true
@@ -146,11 +151,14 @@ internal class SystemTrayManager(
         StatusMenuItem(7, DesktopStrings.trayExit, action = onExitRequested),
     )
 
-    /** Keeps the native menu label truthful after the hover is toggled anywhere. */
+    /** Keeps the icon and the native menu label truthful after hover is toggled anywhere. */
     fun updateHover(active: Boolean) {
+        if (hoverActive == active) return
         hoverActive = active
+        statusNotifier?.updateHover(active)
         SwingUtilities.invokeLater {
             nativeHoverItem?.label = DesktopStrings.trayHover(active)
+            runCatching { trayIcon?.image = AppIconGenerator.createTrayImage(active) }
         }
     }
 

@@ -123,8 +123,10 @@ class StatusNotifierTrayTest {
         assertEquals("Active", item.getStatus())
         assertTrue(item.getIconPixmap().isNotEmpty())
         // GNOME's AppIndicator host resolves IconName through the icon theme; empty made it draw
-        // its generic gear instead of the app icon.
-        assertEquals("yabai-ocr", item.getIconName())
+        // its generic gear instead of the app icon. The two installed names carry the status dot.
+        assertEquals(TRAY_HOVER_OFF_ICON_NAME, item.getIconName())
+        item.setHoverActive(true)
+        assertEquals(TRAY_HOVER_ON_ICON_NAME, item.getIconName())
     }
 
     @Test
@@ -154,7 +156,7 @@ class StatusNotifierTrayTest {
             "Properties.Get must answer with a variant, got ${iconName?.javaClass?.name}",
             iconName is Variant<*>,
         )
-        assertEquals("yabai-ocr", (iconName as Variant<*>).value)
+        assertEquals(TRAY_HOVER_OFF_ICON_NAME, (iconName as Variant<*>).value)
         assertEquals("s", iconName.sig)
 
         for (property in listOf("Category", "Id", "IconName", "Title", "Status", "IconPixmap", "ToolTip", "ItemIsMenu", "Menu", "WindowId")) {
@@ -206,7 +208,7 @@ class StatusNotifierTrayTest {
         val all = item.GetAll(SNI_INTERFACE_NAME)
 
         assertEquals(10, all.size)
-        assertEquals("yabai-ocr", all.getValue("IconName").value)
+        assertEquals(TRAY_HOVER_OFF_ICON_NAME, all.getValue("IconName").value)
         assertEquals("a(iiay)", all.getValue("IconPixmap").sig)
         assertEquals("(sa(iiay)ss)", all.getValue("ToolTip").sig)
         assertEquals(SNI_MENU_PATH, all.getValue("Menu").value)
@@ -238,6 +240,50 @@ class StatusNotifierTrayTest {
                 (testItem().Get<Any>(SNI_INTERFACE_NAME, property.name) as Variant<*>).sig,
             )
         }
+    }
+
+    @Test
+    fun `the status notifier icon follows the hover state`() {
+        val item = StatusNotifierItem(
+            onActivate = {},
+            onSecondaryActivate = {},
+            onContextMenu = { _, _ -> },
+            currentStatus = { "" },
+            initialHoverActive = false,
+        )
+
+        val inactive = item.getIconPixmap().single()
+        assertFalse("the initial state is already off", item.setHoverActive(false))
+        assertTrue("turning hover on changes the pixmap", item.setHoverActive(true))
+        val active = item.getIconPixmap().single()
+        assertFalse("on and off cannot share the same pixels", inactive.data.contentEquals(active.data))
+        assertFalse("the same state is not published twice", item.setHoverActive(true))
+    }
+
+    @Test
+    fun `the status notifier starts with the requested hover state`() {
+        val activeItem = StatusNotifierItem(
+            onActivate = {},
+            onSecondaryActivate = {},
+            onContextMenu = { _, _ -> },
+            currentStatus = { "" },
+            initialHoverActive = true,
+        )
+        val inactiveItem = StatusNotifierItem(
+            onActivate = {},
+            onSecondaryActivate = {},
+            onContextMenu = { _, _ -> },
+            currentStatus = { "" },
+            initialHoverActive = false,
+        )
+
+        val active = activeItem.getIconPixmap().single()
+        val inactive = inactiveItem.getIconPixmap().single()
+        assertFalse(
+            "an icon created after hover was enabled starts green, not red",
+            active.data.contentEquals(inactive.data),
+        )
+        assertFalse("the initial active state is not a transition", activeItem.setHoverActive(true))
     }
 
     private fun testItem() = StatusNotifierItem(

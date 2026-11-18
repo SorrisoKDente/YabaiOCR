@@ -20,6 +20,11 @@ import org.freedesktop.dbus.interfaces.Properties
 import org.freedesktop.dbus.messages.DBusSignal
 import org.freedesktop.dbus.types.Variant
 
+/** Theme icons installed by [LinuxSystemIntegration]; the hover variants carry the status dot. */
+internal const val TRAY_ICON_NAME = "yabai-ocr"
+internal const val TRAY_HOVER_ON_ICON_NAME = "yabai-ocr-hover-on"
+internal const val TRAY_HOVER_OFF_ICON_NAME = "yabai-ocr-hover-off"
+
 // KDE/Plasma talks to modern tray icons through org.kde.StatusNotifierItem. AWT's TrayIcon is
 // still XEmbed; Plasma's xembedsniproxy loses the click events on Wayland (KDE bug 498824), so the
 // native menu never appears. This file publishes the standard SNI object, a com.canonical.dbusmenu
@@ -177,6 +182,7 @@ internal interface StatusNotifierItemDbus : DBusInterface, Properties {
     fun ContextMenu(x: Int, y: Int)
     fun Scroll(delta: Int, orientation: String)
 
+    class NewIcon(objectPath: String) : DBusSignal(objectPath)
     class NewToolTip(objectPath: String) : DBusSignal(objectPath)
     class NewStatus(objectPath: String, status: String) : DBusSignal(objectPath, status)
 }
@@ -192,23 +198,43 @@ internal class StatusNotifierItem(
     private val onSecondaryActivate: () -> Unit,
     private val onContextMenu: (Int, Int) -> Unit,
     private val currentStatus: () -> String,
+    initialHoverActive: Boolean = false,
 ) : StatusNotifierItemDbus {
 
-    private val pixmaps by lazy { statusNotifierPixmap(AppIconGenerator.createTrayImage()) }
+    @Volatile
+    private var hoverActive: Boolean = initialHoverActive
+
+    private val activePixmaps by lazy {
+        statusNotifierPixmap(AppIconGenerator.createTrayImage(hoverActive = true))
+    }
+    private val inactivePixmaps by lazy {
+        statusNotifierPixmap(AppIconGenerator.createTrayImage(hoverActive = false))
+    }
 
     override fun getObjectPath(): String = SNI_OBJECT_PATH
 
     override fun getCategory(): String = "ApplicationStatus"
 
-    override fun getId(): String = "yabai-ocr"
+    override fun getId(): String = TRAY_ICON_NAME
 
-    override fun getIconName(): String = "yabai-ocr"
+    // GNOME's AppIndicator host resolves IconName through the icon theme and can ignore IconPixmap.
+    // The two names are installed by LinuxSystemIntegration, so the dot survives both hosts.
+    override fun getIconName(): String =
+        if (hoverActive) TRAY_HOVER_ON_ICON_NAME else TRAY_HOVER_OFF_ICON_NAME
 
     override fun getTitle(): String = "Yabai OCR"
 
     override fun getStatus(): String = "Active"
 
-    override fun getIconPixmap(): List<StatusNotifierIconPixmap> = pixmaps
+    override fun getIconPixmap(): List<StatusNotifierIconPixmap> =
+        if (hoverActive) activePixmaps else inactivePixmaps
+
+    /** Returns true when the state changed, so the caller knows whether to emit `NewIcon`. */
+    internal fun setHoverActive(active: Boolean): Boolean {
+        if (hoverActive == active) return false
+        hoverActive = active
+        return true
+    }
 
     override fun getToolTip(): StatusNotifierToolTip =
         StatusNotifierToolTip("", emptyList(), "Yabai OCR", currentStatus())
@@ -288,6 +314,7 @@ internal class StatusNotifierTray(
     private val onSecondaryActivate: () -> Unit,
     private val onContextMenu: (Int, Int) -> Unit,
     private val menuItems: () -> List<StatusMenuItem> = { emptyList() },
+    private val initialHoverActive: Boolean = false,
     private val trayBusName: String = statusNotifierBusName(ProcessHandle.current().pid()),
     private val watcherService: String = SNI_WATCHER_SERVICE,
 ) {
@@ -318,6 +345,7 @@ internal class StatusNotifierTray(
                 onSecondaryActivate = onSecondaryActivate,
                 onContextMenu = onContextMenu,
                 currentStatus = { status },
+                initialHoverActive = initialHoverActive,
             )
             created.exportObject(SNI_OBJECT_PATH, sni)
 
@@ -343,6 +371,16 @@ internal class StatusNotifierTray(
             registeredBusName = null
             item = null
             false
+        }
+    }
+
+    /** Swaps the pixels and tells the host to read them again. */
+    fun updateHover(active: Boolean) {
+        val item = item ?: return
+        if (!item.setHoverActive(active)) return
+        val connection = connection ?: return
+        runCatching {
+            connection.sendMessage(StatusNotifierItemDbus.NewIcon(SNI_OBJECT_PATH))
         }
     }
 

@@ -7504,3 +7504,42 @@ sessão; no host o baseline continua 1 pulado). Mutações derrubadas: remover o
 que está provado é a chamada no ponto certo, a escolha dos comandos e o comportamento não fatal. A
 confirmação final é no Deck: integrar na build nova e abrir pelo menu sem sair da sessão. Se o
 `kbuildsycoca6` não existir no sistema, o fallback manual está em `STEAMOS.md`. Nada commitado.
+
+---
+
+## D91 — O ícone da bandeja mostra o estado do hover (17/11/2026)
+
+**Pedido.** O ícone da bandeja, no Windows e no Linux, deve mostrar de relance se o hover está ligado,
+sem abrir o menu nem esperar o tooltip.
+
+**Causa raiz.** `AppIconGenerator.createTrayImage()` devolvia sempre o mesmo PNG/ICO. O estado do hover
+só existia no rótulo do menu e no cartão; a bandeja — a única parte do app sempre visível — não dizia
+nada. No Windows o `TrayIcon` AWT ficava com a mesma imagem para sempre; no Linux o
+`StatusNotifierItem` publicava um `IconPixmap` fixo e um `IconName` fixo.
+
+**O que mudou.** `createTrayImage(hoverActive)` compõe o ícone base com um selo no canto inferior
+direito: ponto verde quando ligado, ponto vermelho com traço branco quando desligado. O anel branco e o
+contorno escuro mantêm o selo legível em painel claro e escuro, e o traço é a pista de forma para quem
+não distingue as cores. `trayHoverBadgeGeometry()` mantém o selo inteiro dentro do quadrado (8 px de
+diâmetro a 16 px, 12 px a 32 px e 86 px a 256 px). `SystemTrayManager.setup()` lê `isHoverActive()` e
+já cria o primeiro ícone no estado certo; `updateHover()` troca `TrayIcon.image` no AWT e chama
+`StatusNotifierTray.updateHover()`. No SNI, `StatusNotifierItem` guarda os dois pixmaps, troca de
+`IconName` (`yabai-ocr-hover-on`/`-off`) e `setHoverActive()` diz se houve mudança; `NewIcon` faz o
+host reler. `LinuxSystemIntegration` grava as duas variantes de tema junto do PNG base, para o
+AppIndicator do GNOME que resolve `IconName` pela tema também mostrar o ponto.
+
+**Testes e mutações.** Suíte desktop **546 testes, 0 falhas, 3 pulados** (sandbox sem display nem
+barramento de sessão; no host o baseline continua 1 pulado). Sete testes novos: quatro em
+`TrayHoverStatusIconTest` (cor do ponto ativo, ponto inativo com traço, geometria que não corta a 16 px
+e guarda de fonte das duas ligações AWT/SNI), dois em `StatusNotifierTrayTest` (o pixmap e o `IconName`
+seguem o estado; o item já começa no estado pedido) e um em `LinuxSystemIntegrationTest` (as duas
+variantes de tema são gravadas e são imagens diferentes). Mutações derrubadas: apagar o desenho do selo
+(**2 falhas**), `setHoverActive` não atualizar o estado (**1**), remover `trayIcon?.image = ...` (**1**),
+não repassar o estado inicial (**1**), fixar `IconName` no nome desligado (**1**) e não gravar as
+variantes de tema (**1**).
+
+**Limitações.** O painel real do Windows, do Plasma e do GNOME não foi visto nesta VM: não há Windows,
+display nem sessão gráfica. O que está provado são os pixels gerados pela função de produção (prévias
+inspecionadas a 16, 32 e 256 px), a troca de estado no SNI e as duas ligações que não rodam sem display,
+cobertas por guarda de fonte. A confirmação final é abrir a build no Deck e no Windows e alternar o
+hover pelo atalho e pelo menu. Nada commitado.

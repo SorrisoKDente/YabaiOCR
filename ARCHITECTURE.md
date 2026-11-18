@@ -61,7 +61,7 @@ Opções de teste que ligam casos reais (nenhuma roda por padrão):
 | `-PcompiledDicts="C:\compiled"` | `:core` | `.yabai` já compilados (índice de tradução) |
 | `-Pppocr="C:\home"` | `:desktop` | modelos do PP-OCR em `home/ppocr_v6` (teste ponta a ponta) |
 
-Contagens atuais: **`:core` 197 testes**, **`:desktop` 470**, **`:app` 836**. Confirme com a suíte
+Contagens atuais: **`:core` 197 testes**, **`:desktop` 546**, **`:app` 836**. Confirme com a suíte
 antes de citá-los.
 
 ---
@@ -188,7 +188,7 @@ rodam com as flags acima.
 | `QuickDictWindow.kt` | busca rápida de dicionário em janela própria |
 | `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos |
 | `DesktopTheme.kt` | paletas clara/escura, `contrastRatio`, aplicação do tema |
-| `AppIconGenerator.kt` | ícone em runtime (janela, bandeja) |
+| `AppIconGenerator.kt` | ícone em runtime (janela, bandeja) e selo de hover no canto inferior direito |
 | `AppScrollbar.kt` | `ScrollableLazyColumn`/`ScrollableColumn`: os containers roláveis com a barra de rolagem que o Compose Desktop não desenha |
 | `CaptureNoticeWindow.kt` | aviso flutuante de captura |
 | `i18n/DesktopStrings.kt` | **todas** as strings pt/en do desktop (nada fixo nas telas) |
@@ -245,10 +245,10 @@ rodam com as flags acima.
 | `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal/KWin), combinação de teclas e catálogo de ações; no KDE Wayland os atalhos são do script do KWin (KGlobalAccel), que não precisa de app id |
 | `PortalGlobalShortcuts.kt` | atalhos globais no Wayland fora do KDE via portal D-Bus (o portal exige app id, que um AppImage aberto do arquivo não tem) |
 | `XdgTrigger.kt` | atalhos por `gsettings`/XDG no Linux |
-| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | bandeja: StatusNotifier + DBusMenu em todo Linux (Plasma e GNOME com AppIndicator), AWT no Windows/macOS e como fallback, motivo da ausência em `lastFailure`, menu Swing fallback e posicionamento; o SNI publica `org.freedesktop.DBus.Properties` próprio (`Get`/`GetAll` com `Variant`, porque o `Get` de `@DBusBoundProperty` não devolve `v`) |
+| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | bandeja: StatusNotifier + DBusMenu em todo Linux (Plasma e GNOME com AppIndicator), AWT no Windows/macOS e como fallback, motivo da ausência em `lastFailure`, menu Swing fallback e posicionamento; o SNI publica `org.freedesktop.DBus.Properties` próprio (`Get`/`GetAll` com `Variant`, porque o `Get` de `@DBusBoundProperty` não devolve `v`); o ícone segue o hover por `IconPixmap`/`IconName` e `NewIcon` |
 | `ExternalBrowser.kt` | abre URL no navegador do usuário: lançadores do desktop (`xdg-open`, `gio open`, `kde-open*`) e `Desktop.browse` como último recurso |
 | `YabaiDbusService.kt` | serviço D-Bus próprio (hover, atalhos) |
-| `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | iniciar com o sistema e integração com o desktop |
+| `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | iniciar com o sistema, integração com o desktop e variantes do ícone de hover no tema |
 | `ClipboardMonitor.kt` | observa o clipboard (copiar do cartão) |
 | `DesktopPlatform.kt` | detecção de SO/sessão (SteamOS, Wayland, X11) |
 | `DesktopAppUpdateChecker.kt` | procura release nova e escolhe o asset do SO |
@@ -264,6 +264,7 @@ valem destaque:
 - `DesktopPPOcrEndToEndTest` — **opt-in** (`-Pppocr`), lê uma página desenhada com os modelos reais.
 - `PortalGlobalShortcutsTest`, `StatusNotifierTrayTest`, `DbusMenuTest`, `KWinScreenshotCaptureTest`,
   `KWinScriptTest` — D-Bus/Wayland sem sessão.
+- `TrayHoverStatusIconTest` — pixels e geometria do selo de hover no ícone da bandeja.
 - `NativeRuntimeModulesTest` — o runtime empacotado declara `jdk.net` e `jdk.security.auth`.
 - `KWinScreenshotCaptureTest` — também confere que o único transporte UNIX do classpath suporta FD.
 

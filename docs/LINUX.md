@@ -45,8 +45,8 @@ dicionários passou a comparar a **tag da publicação** (não o asset `latest`,
 uma publicação sim e outra não → o fallback era oferecido como “atualização”), a trava de instância
 espera até 3 s (o restart pós-atualização não mostra mais “already running”), o portal `Screenshot`
 só trata o código 1 como permissão negada (antes qualquer erro dizia “permissão negada” sem nunca
-ter pedido) e o SNI publica `IconName = yabai-ocr` com o PNG gravado em
-`~/.local/share/icons/hicolor/256x256/apps/` a cada início. O item SNI passou a servir
+ter pedido) e o SNI publica `IconName = yabai-ocr-hover-on` ou `-off` com o PNG base e as duas
+variantes gravadas em `~/.local/share/icons/hicolor/256x256/apps/` a cada início. O item SNI passou a servir
 `org.freedesktop.DBus.Properties` ele mesmo: o `Get` com `@DBusBoundProperty` do `dbus-java` 5.1.1
 responde com o tipo cru (`s`), e o AppIndicator do GNOME pede `(v)` e descarta a resposta — era a
 engrenagem genérica mesmo com `IconName` preenchido (D65). Ver D64/D65 no [ROADMAP](ROADMAP.md).
@@ -727,7 +727,8 @@ X-GNOME-Autostart-enabled=true
 2. `chmod +x` no arquivo.
 3. Abrir uma vez; o app oferece “Integrar ao sistema” (cartão “Integração com o Linux”), que copia:
    - `yabai-ocr.desktop` para `$XDG_DATA_HOME/applications/` (padrão `~/.local/share/applications/`);
-   - `yabai-ocr.png` para `$XDG_DATA_HOME/icons/hicolor/256x256/apps/`;
+   - `yabai-ocr.png`, `yabai-ocr-hover-on.png` e `yabai-ocr-hover-off.png` para
+     `$XDG_DATA_HOME/icons/hicolor/256x256/apps/`;
    - (opcional) atalho na área de trabalho.
 4. O `.desktop` usa `Exec=<caminho real do AppImage>` e `Icon=yabai-ocr`. Depois de gravar, o app
    reconstrói o índice do menu do Plasma (`kbuildsycoca6 --noincremental`, com `kbuildsycoca5` de
@@ -936,8 +937,9 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 
 - Dados do app: `~/.yabai_ocr` (settings, dicionários, índices). Não muda.
 - Autostart: `~/.config/autostart/yabai-ocr.desktop`.
-- Integração: `~/.local/share/applications/yabai-ocr.desktop` e
-  `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png`.
+- Integração: `~/.local/share/applications/yabai-ocr.desktop` e os três PNGs em
+  `~/.local/share/icons/hicolor/256x256/apps/` (`yabai-ocr.png`, `yabai-ocr-hover-on.png`,
+  `yabai-ocr-hover-off.png`).
 - Script KWin: `~/.local/share/kwin/scripts/yabai-ocr/`.
 - Token legado do ScreenCast: `~/.java/robot/screencast-tokens.properties` (do JDK; não é usado no KDE Wayland).
 - Captura do KDE: `ScreenShot2` no caminho direto; quando o fallback `Screenshot` é usado, a permissão
@@ -969,7 +971,7 @@ sistema”. Se o update checker passar a escolher asset, a função deve ser pur
 | `DesktopEntryExecTest` | escape de espaço, `"`, `\`, `$`, backtick no campo `Exec` |
 | `LinuxDesktopEntryTest` | `.desktop` do AppImage aponta para `$APPIMAGE`/caminho real; ícone e categoria corretos |
 | `TrayMenuTest` | Linux usa `PopupMenu` nativo em qualquer sessão; Windows mantém o menu customizado; `--minimized` sem bandeja abre a janela |
-| `LinuxSystemIntegrationTest` | grava `.desktop` + PNG em `$XDG_DATA_HOME`; executável vazio/ausente ou ícone ausente não deixam atalho quebrado |
+| `LinuxSystemIntegrationTest` | grava `.desktop` + PNG + variantes de hover em `$XDG_DATA_HOME`; executável vazio/ausente ou ícone ausente não deixam atalho quebrado |
 | `IconResourceTest` | `ic_scan_linux.png` existe e abre; `.ico` do Windows continua |
 | `ScreenCaptureBackendTest` | Windows/X11 → Robot; KDE Wayland → `ScreenShot2` (portal como fallback); outros Wayland → screencast; mensagens distintas para cada `CaptureAvailability`; nunca `x11` no Wayland |
 | `KWinScreenshotCaptureTest` | conversão raw `RGBX8888`/`RGBA8888` com `stride`, backend KDE escolhido, falha do direto cai no portal e não repete a tentativa |

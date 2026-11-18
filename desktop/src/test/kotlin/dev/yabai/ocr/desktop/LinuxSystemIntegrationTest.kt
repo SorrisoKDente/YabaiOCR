@@ -2,6 +2,7 @@ package dev.yabai.ocr.desktop
 
 import java.io.File
 import java.nio.file.Files
+import javax.imageio.ImageIO
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -212,8 +213,33 @@ class LinuxSystemIntegrationTest {
     }
 
     @Test
+    fun `the tray icon path also installs the two hover variants`() {
+        // GNOME's AppIndicator host reads IconName from the theme, so the dot needs two real files
+        // under the names the StatusNotifier item advertises.
+        val dataHome = tempDir()
+        val icon = javaClass.getResourceAsStream("/ic_scan_linux.png")!!.use { it.readBytes() }
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { null },
+            iconBytes = { icon },
+        )
+
+        assertTrue(integration.ensureTrayIcon())
+
+        assertTrue(integration.hoverOnIconFile.isFile)
+        assertTrue(integration.hoverOffIconFile.isFile)
+        assertFalse(
+            "the two theme variants must not be the same image",
+            integration.hoverOnIconFile.readBytes()
+                .contentEquals(integration.hoverOffIconFile.readBytes()),
+        )
+        assertEquals(256, ImageIO.read(integration.hoverOnIconFile).width)
+        assertEquals(256, ImageIO.read(integration.hoverOffIconFile).width)
+    }
+
+    @Test
     fun `the tray icon is written on its own, without installing the menu entry`() {
-        // The StatusNotifier item advertises `IconName=yabai-ocr`; without the file in the user's
+        // The StatusNotifier item advertises the installed IconName; without the file in the user's
         // icon theme GNOME drew its generic gear instead of the app icon.
         val dataHome = tempDir()
         val icon = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)

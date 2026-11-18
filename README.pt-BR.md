@@ -119,8 +119,9 @@ iniciar. A bolha flutuante dispara a captura.
 .\gradlew.bat :desktop:run
 ```
 
-O app abre nos Ajustes e fica na bandeja. A interface existe em **português e inglês**, escolhido nos
-Ajustes. Atalhos padrão (todos configuráveis):
+O app abre nos Ajustes e fica na bandeja. O ícone da bandeja mostra o estado do hover de relance: um
+ponto verde significa ligado; um ponto vermelho com um traço branco significa desligado. A interface
+existe em **português e inglês**, escolhido nos Ajustes. Atalhos padrão (todos configuráveis):
 
 | atalho | ação |
 | --- | --- |

@@ -62,7 +62,7 @@ Test flags that turn on real cases (none of them run by default):
 | `-PcompiledDicts="C:\compiled"` | `:core` | already compiled `.yabai` (translation index) |
 | `-Pppocr="C:\home"` | `:desktop` | PP-OCR models in `home/ppocr_v6` (end-to-end test) |
 
-Current counts: **`:core` 197 tests**, **`:desktop` 470**, **`:app` 836**. Confirm with the suite
+Current counts: **`:core` 197 tests**, **`:desktop` 546**, **`:app` 836**. Confirm with the suite
 before quoting them.
 
 ---
@@ -190,7 +190,7 @@ flags above.
 | `DictionaryManagerWindow.kt` | manager content: search, installed, catalog, credits |
 | `DictLookup.kt` | runs one dictionary query and reports failure instead of throwing inside a `LaunchedEffect` |
 | `DesktopTheme.kt` | light/dark palettes, `contrastRatio`, theme application |
-| `AppIconGenerator.kt` | runtime icon (window, tray) |
+| `AppIconGenerator.kt` | runtime icon (window, tray) and the hover badge in the bottom-right corner |
 | `AppScrollbar.kt` | `ScrollableLazyColumn`/`ScrollableColumn`: the scrollable containers with the scrollbar Compose Desktop does not draw |
 | `CaptureNoticeWindow.kt` | floating capture notice |
 | `i18n/DesktopStrings.kt` | **every** pt/en desktop string (nothing hardcoded in the screens) |
@@ -247,10 +247,10 @@ flags above.
 | `HotkeyBackend.kt` / `HotkeyMatcher.kt` / `HotkeyBindings.kt` | backend (JNativeHook/portal/KWin), key matching and action catalog; on KDE Wayland the shortcuts belong to the KWin script (KGlobalAccel), which needs no app id |
 | `PortalGlobalShortcuts.kt` | global shortcuts on Wayland outside KDE through the D-Bus portal (the portal requires an app id an AppImage opened from its file does not have) |
 | `XdgTrigger.kt` | `gsettings`/XDG shortcuts on Linux |
-| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | tray: StatusNotifier + DBusMenu on every Linux session (Plasma and GNOME with AppIndicator), AWT on Windows/macOS and as the fallback, missing-tray reason in `lastFailure`, Swing menu fallback and placement |
+| `SystemTrayManager.kt` / `StatusNotifierTray.kt` / `DbusMenu.kt` / `TrayMenu.kt` / `TrayMenuPlacement.kt` / `TrayMenuInvoker.kt` | tray: StatusNotifier + DBusMenu on every Linux session (Plasma and GNOME with AppIndicator), AWT on Windows/macOS and as the fallback, missing-tray reason in `lastFailure`, Swing menu fallback and placement; the icon follows hover through `IconPixmap`/`IconName` and `NewIcon` |
 | `ExternalBrowser.kt` | opens a URL in the user's browser: desktop launchers (`xdg-open`, `gio open`, `kde-open*`) with `Desktop.browse` as the last resort |
 | `YabaiDbusService.kt` | own D-Bus service (hover, shortcuts) |
-| `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | start with the system and desktop integration |
+| `StartupManager.kt` / `Autostart.kt` / `WindowsAutostart.kt` / `LinuxAutostart.kt` / `LinuxDesktopEntry.kt` / `LinuxSystemIntegration.kt` | start with the system, desktop integration and the hover icon variants in the theme |
 | `ClipboardMonitor.kt` | watches the clipboard (copy from the card) |
 | `DesktopPlatform.kt` | OS/session detection (SteamOS, Wayland, X11) |
 | `DesktopAppUpdateChecker.kt` | looks for a new release and picks the asset for the OS |
@@ -266,6 +266,7 @@ worth knowing:
 - `DesktopPPOcrEndToEndTest` — **opt-in** (`-Pppocr`), reads a drawn page with the real models.
 - `PortalGlobalShortcutsTest`, `StatusNotifierTrayTest`, `DbusMenuTest`, `KWinScreenshotCaptureTest`,
   `KWinScriptTest` — D-Bus/Wayland without a session.
+- `TrayHoverStatusIconTest` — pixels and geometry of the hover badge in the tray icon.
 - `NativeRuntimeModulesTest` — the packaged runtime declares `jdk.net` and `jdk.security.auth`.
 - `KWinScreenshotCaptureTest` — also checks that the only UNIX transport on the classpath supports FDs.
 - `DictLookupTest` — a failing dictionary query is reported, not thrown out of the window.

@@ -1,9 +1,18 @@
 package dev.yabai.ocr.desktop
 
+import java.awt.BasicStroke
+import java.awt.Color
+import java.awt.Graphics2D
 import java.awt.Image
+import java.awt.RenderingHints
+import java.awt.geom.Ellipse2D
+import java.awt.geom.Line2D
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import javax.imageio.ImageIO
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Resource order for the window/tray icon. Linux gets a real PNG so the desktop theme picks it up;
@@ -33,9 +42,15 @@ object AppIconGenerator {
         return getTaskbarImage()
     }
 
-    fun createTrayImage(size: Int = 16): Image {
-        return getTrayImage()
-    }
+    /**
+     * The tray icon with the hover status badge.
+     *
+     * A tray icon is the only part of the app that is always on screen, so the same pixels carry the
+     * state on Windows (AWT) and on Linux (StatusNotifier `IconPixmap`). The badge is drawn at the
+     * base PNG's native size and let the host scale it down, which keeps the app glyph sharp.
+     */
+    fun createTrayImage(hoverActive: Boolean): Image =
+        createTrayStatusImage(getTrayImage(), hoverActive)
 
     private fun loadResourceIcon(resourceName: String): Image? {
         return runCatching {
@@ -107,5 +122,105 @@ object AppIconGenerator {
 
     private fun createEmptyImage(): BufferedImage {
         return BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB)
+    }
+}
+
+/** Green reads as «hover is on»; red as «hover is off», with a white minus for shape. */
+internal val TRAY_HOVER_ACTIVE_COLOR = Color(0x3D, 0xDC, 0x97)
+internal val TRAY_HOVER_INACTIVE_COLOR = Color(0xFF, 0x6B, 0x6B)
+internal val TRAY_HOVER_RING_COLOR = Color.WHITE
+internal val TRAY_HOVER_OUTLINE_COLOR = Color(0x0B, 0x0D, 0x12)
+internal val TRAY_HOVER_SLASH_COLOR = Color.WHITE
+
+/** Where the status dot sits, in pixels, for a square [size]. */
+internal data class TrayHoverBadgeGeometry(
+    val centerX: Int,
+    val centerY: Int,
+    val radius: Int,
+    val ringRadius: Int,
+    val outlineRadius: Int,
+)
+
+internal fun trayHoverBadgeGeometry(size: Int): TrayHoverBadgeGeometry {
+    val radius = max(2, (size * 0.14f).roundToInt())
+    val ringRadius = radius + max(1, (size * 0.025f).roundToInt())
+    val outlineRadius = ringRadius + max(1, (size * 0.005f).roundToInt())
+    // Keep the whole badge inside the square: on a 16 px icon the ideal bottom-right position would
+    // clip the ring, and a clipped ring is exactly what makes a status dot unreadable.
+    val center = min((size * 0.80f).roundToInt(), size - outlineRadius - 1)
+        .coerceAtLeast(outlineRadius)
+    return TrayHoverBadgeGeometry(center, center, radius, ringRadius, outlineRadius)
+}
+
+/**
+ * Composes [base] with the hover badge.
+ *
+ * [size] is only for tests and previews; production uses the base image's own size so Windows and
+ * the StatusNotifier host do the one downscale they already do.
+ */
+internal fun createTrayStatusImage(base: Image, hoverActive: Boolean, size: Int = 0): BufferedImage {
+    val nativeWidth = base.getWidth(null)
+    val nativeHeight = base.getHeight(null)
+    val canvasSize = when {
+        size > 0 -> size
+        nativeWidth > 0 && nativeHeight > 0 -> max(nativeWidth, nativeHeight)
+        else -> 256
+    }
+    val image = BufferedImage(canvasSize, canvasSize, BufferedImage.TYPE_INT_ARGB)
+    val graphics = image.createGraphics()
+    try {
+        graphics.setRenderingHint(
+            RenderingHints.KEY_INTERPOLATION,
+            RenderingHints.VALUE_INTERPOLATION_BICUBIC,
+        )
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        graphics.drawImage(base, 0, 0, canvasSize, canvasSize, null)
+        paintTrayHoverBadge(graphics, hoverActive, canvasSize)
+    } finally {
+        graphics.dispose()
+    }
+    return image
+}
+
+/** Draws the rounded status dot at the bottom-right of a [size]×[size] image. */
+internal fun paintTrayHoverBadge(graphics: Graphics2D, hoverActive: Boolean, size: Int) {
+    val badge = trayHoverBadgeGeometry(size)
+    graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+    graphics.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
+
+    fun circle(radius: Int, color: Color) {
+        graphics.color = color
+        graphics.fill(
+            Ellipse2D.Float(
+                badge.centerX - radius.toFloat(),
+                badge.centerY - radius.toFloat(),
+                radius * 2f,
+                radius * 2f,
+            ),
+        )
+    }
+
+    // The dark outline separates a white ring from both a dark panel and the icon's white bracket.
+    circle(badge.outlineRadius, TRAY_HOVER_OUTLINE_COLOR)
+    circle(badge.ringRadius, TRAY_HOVER_RING_COLOR)
+    circle(badge.radius, if (hoverActive) TRAY_HOVER_ACTIVE_COLOR else TRAY_HOVER_INACTIVE_COLOR)
+
+    if (!hoverActive) {
+        // The minus is the shape cue: red/green alone would fail for a colour-blind user.
+        graphics.color = TRAY_HOVER_SLASH_COLOR
+        graphics.stroke = BasicStroke(
+            max(1.5f, size * 0.07f),
+            BasicStroke.CAP_ROUND,
+            BasicStroke.JOIN_ROUND,
+        )
+        val half = badge.radius * 0.55f
+        graphics.draw(
+            Line2D.Float(
+                badge.centerX - half,
+                badge.centerY.toFloat(),
+                badge.centerX + half,
+                badge.centerY.toFloat(),
+            ),
+        )
     }
 }

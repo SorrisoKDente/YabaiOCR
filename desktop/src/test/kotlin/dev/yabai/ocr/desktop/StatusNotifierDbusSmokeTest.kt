@@ -89,7 +89,7 @@ class StatusNotifierDbusSmokeTest {
                 // tells GDBus to expect `(v)`. dbus-java's client unwraps the variant here, so the
                 // wire type is asserted by `every property is readable through Properties Get as a
                 // variant` (the reply must be a Variant) and by `dbus-send` in the E2E notes.
-                assertEquals("yabai-ocr", properties.Get<Any>(SNI_INTERFACE_NAME, "IconName"))
+                assertEquals(TRAY_HOVER_OFF_ICON_NAME, properties.Get<Any>(SNI_INTERFACE_NAME, "IconName"))
                 assertEquals("Yabai OCR", properties.Get<Any>(SNI_INTERFACE_NAME, "Title"))
 
                 val dbusMenu = client.getRemoteObject(service, SNI_MENU_PATH, DbusMenuDbus::class.java)
