@@ -67,8 +67,8 @@ chmod +x ~/Applications/Yabai_OCR*.AppImage
 ```
 
 The app opens on Settings and stays in the tray. **Settings → Integrate with the system** adds it to
-the application menu (nothing is written outside `$HOME`); **Start in the tray at login** enables
-autostart. No FUSE on the machine? Run the AppImage with `--appimage-extract-and-run`, or use the
+the application menu, points the entry at the running AppImage and refreshes the menu index (nothing
+is written outside `$HOME`); **Start in the tray at login** enables autostart. No FUSE on the machine? Run the AppImage with `--appimage-extract-and-run`, or use the
 `.tar.gz` (`tar -xzf … -C ~/Applications/yabai-ocr`) or the `.deb`. Full guide:
 [STEAMOS.md](docs/STEAMOS.md).
 

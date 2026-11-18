@@ -7466,3 +7466,41 @@ cartão, o guarda falha (**1 falha**) e, restaurado, volta a passar.
 uma lista longa, que depende de captura pelo portal e do renderizador (D87). O que está provado é a
 causa raiz (o resizer do Compose ligado por `undecorated && resizable`), a bandeja de 8 dp contra os
 12 dp da barra, e o guarda que impede a volta do `resizable` padrão. Nada commitado.
+
+---
+
+## D90 — «Integrar ao sistema» gravava a entrada nova, mas o menu do Plasma abria o AppImage anterior (17/11/2026)
+
+**Relato (Steam Deck, AppImage 1.1.0).** Depois de apertar «Integrar ao sistema» na build nova, abrir
+o app pela aba de aplicativos do sistema continuava levantando a versão anterior.
+
+**Causa raiz.** As duas entradas já estavam corretas no disco — a do menu apontava para
+`Yabai_OCR-1.1.0-x86_64.AppImage` e o autostart para o mesmo arquivo — mas o Plasma mantém o índice
+`ksycoca` e não refez o cache quando o `.desktop` foi reescrito. Na máquina do relato, o
+`~/.local/share/applications/yabai-ocr.desktop` era de **21:54** e o `ksycoca6` mais recente de
+**21:10**: o menu ainda lia a entrada antiga, abria o AppImage velho, e esse processo reescrevia a
+entrada para si mesmo (o laço já descrito na D85/D86). A D85 já apontava o `ksycoca` como suspeito
+para este sintoma; faltava agir sobre ele.
+
+**O que mudou.** `LinuxDesktopEntry.kt` ganhou `refreshLinuxApplicationMenu()`: em KDE roda
+`kbuildsycoca6 --noincremental`, com `kbuildsycoca5 --noincremental` de fallback; nos outros desktops
+roda `update-desktop-database <applications>`. O comando é disparado depois que `install()` grava a
+entrada e depois que `ensureTrayIcon()` muda uma entrada existente — não a cada início quando o
+conteúdo já está igual. A execução é limitada a 5 s, tem saída descartada e falha em silêncio: a
+entrada já está no disco, então um helper ausente não pode desfazer a integração. `Main.kt` injeta o
+refresh real; o default do `LinuxSystemIntegration` é vazio para os testes não tocarem no cache do
+host.
+
+**Testes e mutações.** Sete testes novos: três em `LinuxSystemIntegrationTest` (o `install()` chama o
+refresh; uma entrada alterada chama uma vez e a seguinte não chama; falha do refresh não derruba a
+instalação) e quatro em `LinuxMenuRefreshTest` (`kbuildsycoca6` antes do 5, parada no primeiro sucesso,
+`update-desktop-database` nos outros desktops e o ambiente do helper sem `LD_LIBRARY_PATH`/`APPDIR` do
+AppImage). Suíte desktop **539 testes, 0 falhas, 3 pulados** (aqui, sem display nem barramento de
+sessão; no host o baseline continua 1 pulado). Mutações derrubadas: remover o refresh do `install()`
+(**1 falha**), remover o refresh da entrada alterada (**1 falha**) e trocar a ordem/tirar o
+`kbuildsycoca6` (**2 falhas**).
+
+**Limitações.** O comando externo não foi executado nesta VM (não há Plasma nem `kbuildsycoca6`); o
+que está provado é a chamada no ponto certo, a escolha dos comandos e o comportamento não fatal. A
+confirmação final é no Deck: integrar na build nova e abrir pelo menu sem sair da sessão. Se o
+`kbuildsycoca6` não existir no sistema, o fallback manual está em `STEAMOS.md`. Nada commitado.

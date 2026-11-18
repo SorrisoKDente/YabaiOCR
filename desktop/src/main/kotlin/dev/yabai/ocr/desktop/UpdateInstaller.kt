@@ -8,6 +8,23 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.concurrent.TimeUnit
 
+/**
+ * Variables the AppImage runtime exports for the mount it created.
+ *
+ * A child that inherits them starts the new runtime against the *previous* mount, which vanishes as
+ * soon as this process exits — the restart that seemed to do nothing. The same cleanup keeps a host
+ * helper (the menu cache rebuild) from loading libraries from the AppImage mount.
+ */
+internal val appImageRuntimeVariables = setOf(
+    "APPIMAGE",
+    "APPDIR",
+    "APPDIR_LIBRARY_PATH",
+    "APPIMAGE_EXTRACT_AND_RUN",
+    "ARGV0",
+    "OWD",
+    "LD_LIBRARY_PATH",
+)
+
 /** What happened to a downloaded update. */
 internal sealed interface UpdateOutcome {
     /** The running AppImage was replaced; the new file — under the release's own name — is ready. */
@@ -70,24 +87,8 @@ internal object UpdateInstaller {
         else installed
     }
 
-    /**
-     * Variables the AppImage runtime exports for the mount it created.
-     *
-     * A child that inherits them starts the new runtime against the *previous* mount, which vanishes
-     * as soon as this process exits — the restart that seemed to do nothing.
-     */
-    private val APPIMAGE_RUNTIME_VARIABLES = setOf(
-        "APPIMAGE",
-        "APPDIR",
-        "APPDIR_LIBRARY_PATH",
-        "APPIMAGE_EXTRACT_AND_RUN",
-        "ARGV0",
-        "OWD",
-        "LD_LIBRARY_PATH",
-    )
-
     fun relaunchEnvironment(environment: Map<String, String>): Map<String, String> =
-        environment.filterKeys { it !in APPIMAGE_RUNTIME_VARIABLES }
+        environment.filterKeys { it !in appImageRuntimeVariables }
 
     fun plan(family: OsFamily, downloadUrl: String, environment: Map<String, String>): UpdatePlan? = when (family) {
         OsFamily.LINUX -> appImagePath(environment)?.let(UpdatePlan::AppImage)

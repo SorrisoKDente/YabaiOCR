@@ -34,6 +34,9 @@ internal class LinuxSystemIntegration(
 
     },
 
+    // The UI injects the real menu refresh; the default keeps unit tests away from the host cache.
+    private val menuRefresher: () -> Unit = {},
+
 ) {
 
     val desktopFile: File
@@ -150,7 +153,13 @@ internal class LinuxSystemIntegration(
 
                 val content = applicationDesktopEntry(executable, wmClass(), iconFile.absolutePath)
 
-                if (desktopFile.readText() != content) desktopFile.writeText(content)
+                if (desktopFile.readText() != content) {
+
+                    desktopFile.writeText(content)
+
+                    runCatching { menuRefresher() }
+
+                }
 
             }
 
@@ -164,7 +173,7 @@ internal class LinuxSystemIntegration(
 
 
 
-    /** Writes both files atomically enough for the menu to pick them up on its next refresh. */
+    /** Writes both files and rebuilds the menu index so the entry is usable right away. */
 
     fun install(): Boolean {
 
@@ -183,6 +192,8 @@ internal class LinuxSystemIntegration(
             iconFile.writeBytes(icon)
 
             desktopFile.writeText(applicationDesktopEntry(executable, wmClass(), iconFile.absolutePath))
+
+            runCatching { menuRefresher() }
 
             true
 

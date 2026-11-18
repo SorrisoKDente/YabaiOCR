@@ -16,6 +16,9 @@ class LinuxDesktopEntryTest {
         // until the next login brings the app back, which is what made reopening look like it
         // needed a reboot. The .AppImage file is the only usable target.
         val appDir = Files.createTempDirectory("yabai-mount").toFile().apply { deleteOnExit() }
+        // Do not scan the real ~/Applications: a real AppImage (e.g. Cemu) would be a legitimate
+        // fallback and this test is about the mount path, not about what else is installed.
+        val userHome = Files.createTempDirectory("yabai-home").toFile().apply { deleteOnExit() }
         val launching = File(appDir, "opt/yabai-ocr/bin/yabai-ocr").apply {
             parentFile?.mkdirs()
             writeText("#!/bin/sh\n")
@@ -24,7 +27,7 @@ class LinuxDesktopEntryTest {
 
         val resolved = resolveLinuxExecutable(
             env = mapOf("APPDIR" to appDir.absolutePath),
-            userHome = "/home/deck",
+            userHome = userHome.absolutePath,
             command = launching.absolutePath,
             jpackageAppPath = launching.absolutePath,
         )

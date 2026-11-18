@@ -138,7 +138,9 @@ fun main(args: Array<String>) {
     // The tray item advertises the icon by name; without the PNG in the user's hicolor theme the
     // StatusNotifier host draws its generic placeholder instead of the app icon.
     if (DesktopPlatform.isLinux) {
-        LinuxSystemIntegration().ensureTrayIcon()
+        // The entry can point at a newer AppImage after an update; rebuilding the menu index here
+        // keeps the launcher from opening the previous build until the next login.
+        LinuxSystemIntegration(menuRefresher = { refreshLinuxApplicationMenu() }).ensureTrayIcon()
     }
 
     application {
@@ -532,7 +534,11 @@ fun main(args: Array<String>) {
     // Linux: "Integrar ao sistema" writes a per-user desktop entry and icon. The card only exists
     // when the integration can name an executable, so Windows keeps the exact same UI as before.
     val linuxIntegration = remember {
-        if (DesktopPlatform.isLinux) LinuxSystemIntegration() else null
+        if (DesktopPlatform.isLinux) {
+            LinuxSystemIntegration(menuRefresher = { refreshLinuxApplicationMenu() })
+        } else {
+            null
+        }
     }
     var linuxIntegrationStatus by remember {
         mutableStateOf(

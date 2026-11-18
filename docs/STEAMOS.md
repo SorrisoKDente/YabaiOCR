@@ -223,10 +223,14 @@ Com o app aberto, vá em **Ajustes → Integração com o Linux → “Integrar 
 - `~/.local/share/applications/yabai-ocr.desktop`
 - `~/.local/share/icons/hicolor/256x256/apps/yabai-ocr.png`
 
-Se o menu não atualizar na hora, saia e entre na sessão ou rode:
+O app já pede ao Plasma para reconstruir o índice ao concluir a integração. Se o menu ainda não
+atualizar na hora, rode o fallback manual (ou saia e entre na sessão):
 
 ```bash
-update-desktop-database ~/.local/share/applications 2>/dev/null || true
+kbuildsycoca6 --noincremental 2>/dev/null \
+  || kbuildsycoca5 --noincremental 2>/dev/null \
+  || update-desktop-database ~/.local/share/applications 2>/dev/null \
+  || true
 ```
 
 O botão só funciona quando o app consegue identificar o executável real (o AppImage em execução). Se

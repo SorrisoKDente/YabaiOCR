@@ -729,7 +729,9 @@ X-GNOME-Autostart-enabled=true
    - `yabai-ocr.desktop` para `$XDG_DATA_HOME/applications/` (padrão `~/.local/share/applications/`);
    - `yabai-ocr.png` para `$XDG_DATA_HOME/icons/hicolor/256x256/apps/`;
    - (opcional) atalho na área de trabalho.
-4. O `.desktop` usa `Exec=<caminho real do AppImage>` e `Icon=yabai-ocr`.
+4. O `.desktop` usa `Exec=<caminho real do AppImage>` e `Icon=yabai-ocr`. Depois de gravar, o app
+   reconstrói o índice do menu do Plasma (`kbuildsycoca6 --noincremental`, com `kbuildsycoca5` de
+   fallback); sem isso o menu podia continuar abrindo o AppImage anterior.
 5. Autostart é criado pelo toggle dos Ajustes em `~/.config/autostart/`.
 6. Se o release publicar um AppImage, o botão “Baixar Atualização” abre o asset direto; sem asset
    correspondente ao SO, abre a página do release.

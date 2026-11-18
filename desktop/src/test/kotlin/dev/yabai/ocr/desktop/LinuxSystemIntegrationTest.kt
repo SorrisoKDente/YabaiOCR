@@ -69,6 +69,60 @@ class LinuxSystemIntegrationTest {
     }
 
     @Test
+    fun `installing refreshes the desktop menu index`() {
+        // Plasma keeps a ksycoca database: rewriting the entry on disk is not enough, the menu can
+        // keep launching the previous AppImage until the cache is rebuilt (D88).
+        val dataHome = tempDir()
+        var refreshes = 0
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { "/home/deck/Applications/Yabai OCR.AppImage" },
+            iconBytes = { byteArrayOf(0x89.toByte(), 0x50) },
+            menuRefresher = { refreshes++ },
+        )
+
+        assertTrue(integration.install())
+
+        assertEquals("the menu must reread the new Exec without a logout", 1, refreshes)
+    }
+
+    @Test
+    fun `a changed entry refreshes the menu once, not on every start`() {
+        val dataHome = tempDir()
+        var refreshes = 0
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { "/home/deck/Applications/Yabai OCR.AppImage" },
+            iconBytes = { byteArrayOf(0x89.toByte(), 0x50) },
+            menuRefresher = { refreshes++ },
+        )
+        integration.desktopFile.parentFile?.mkdirs()
+        integration.desktopFile.writeText(applicationDesktopEntry("/home/deck/Applications/Old.AppImage", null))
+
+        assertTrue(integration.ensureTrayIcon())
+        assertEquals(1, refreshes)
+
+        assertTrue(integration.ensureTrayIcon())
+        assertEquals("an unchanged entry must not rebuild the cache on every launch", 1, refreshes)
+    }
+
+    @Test
+    fun `a failed menu refresh does not undo the installation`() {
+        val dataHome = tempDir()
+        val integration = LinuxSystemIntegration(
+            dataHome = dataHome,
+            executableResolver = { "/home/deck/Applications/Yabai OCR.AppImage" },
+            iconBytes = { byteArrayOf(0x89.toByte(), 0x50) },
+            menuRefresher = { error("kbuildsycoca6 is not available") },
+        )
+
+        assertTrue(integration.install())
+
+        assertTrue(integration.desktopFile.isFile)
+        assertTrue(integration.iconFile.isFile)
+    }
+
+    @Test
     fun `an absent entry is not created by the tray icon path`() {
         val dataHome = tempDir()
         val integration = LinuxSystemIntegration(

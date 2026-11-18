@@ -67,8 +67,8 @@ chmod +x ~/Applications/Yabai_OCR*.AppImage
 ```
 
 O app abre nos Ajustes e fica na bandeja. **Ajustes → Integrar ao sistema** coloca no menu de
-aplicativos (nada é escrito fora de `$HOME`); **Iniciar na bandeja ao entrar na sessão** liga o
-autostart. Sem FUSE na máquina? Rode o AppImage com `--appimage-extract-and-run`, ou use o `.tar.gz`
+aplicativos, aponta a entrada para o AppImage em execução e atualiza o índice do menu (nada é escrito
+fora de `$HOME`); **Iniciar na bandeja ao entrar na sessão** liga o autostart. Sem FUSE na máquina? Rode o AppImage com `--appimage-extract-and-run`, ou use o `.tar.gz`
 (`tar -xzf … -C ~/Applications/yabai-ocr`) ou o `.deb`. Guia completo:
 [STEAMOS.md](docs/STEAMOS.md).
 

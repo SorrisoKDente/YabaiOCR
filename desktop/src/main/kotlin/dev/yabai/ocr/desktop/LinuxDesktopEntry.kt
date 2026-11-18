@@ -1,6 +1,7 @@
 package dev.yabai.ocr.desktop
 
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Builds the `Exec` field of a Desktop Entry.
@@ -250,4 +251,72 @@ internal fun isInsideAppImageMount(path: String, env: Map<String, String>): Bool
     val appDir = env["APPDIR"]?.trim()?.trimEnd('/').orEmpty()
     if (appDir.isEmpty()) return false
     return path.trim().startsWith("$appDir/")
+}
+
+/** Seconds allowed for the desktop to rebuild its application menu index. */
+private const val MENU_REFRESH_TIMEOUT_SECONDS = 5L
+
+/** Drops the AppImage mount variables before starting a host helper (see [appImageRuntimeVariables]). */
+internal fun menuRefreshEnvironment(environment: Map<String, String>): Map<String, String> =
+    environment.filterKeys { it !in appImageRuntimeVariables }
+
+/**
+ * Commands that make the desktop reread the `.desktop` files after one is written.
+ *
+ * KDE is the target: it keeps a `ksycoca` database and does not always notice a per-user entry
+ * rewritten while the session is running. Without rebuilding it, the menu can keep launching the
+ * previous AppImage even though the file on disk already names the new one. `kbuildsycoca6` is
+ * Plasma 6, `kbuildsycoca5` the fallback for an older session. Other desktops read the files
+ * directly, so there only the MIME database has to be refreshed.
+ */
+internal fun menuRefreshCommands(
+    family: DesktopFamily,
+    applicationsDir: File,
+): List<List<String>> = when (family) {
+    DesktopFamily.KDE -> listOf(
+        listOf("kbuildsycoca6", "--noincremental"),
+        listOf("kbuildsycoca5", "--noincremental"),
+    )
+    else -> listOf(listOf("update-desktop-database", applicationsDir.absolutePath))
+}
+
+/**
+ * Rebuilds the menu index after [applicationDesktopEntry] changed.
+ *
+ * Returns true when one command succeeded. A missing command or a non-zero exit is not fatal: the
+ * entry is already on disk and the next login indexes it. The wait is bounded so a broken helper
+ * cannot hang the button.
+ */
+internal fun refreshLinuxApplicationMenu(
+    family: DesktopFamily = DesktopPlatform.desktop,
+    applicationsDir: File = File(defaultDataHome(), "applications"),
+    run: (List<String>) -> Boolean = ::runMenuRefreshCommand,
+): Boolean = menuRefreshCommands(family, applicationsDir).any(run)
+
+private fun runMenuRefreshCommand(command: List<String>): Boolean {
+    val process = try {
+        ProcessBuilder(command)
+            .apply {
+                environment().apply {
+                    clear()
+                    putAll(menuRefreshEnvironment(System.getenv()))
+                }
+            }
+            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
+    } catch (_: Throwable) {
+        return false
+    }
+    return try {
+        if (process.waitFor(MENU_REFRESH_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            process.exitValue() == 0
+        } else {
+            process.destroyForcibly()
+            false
+        }
+    } catch (_: Throwable) {
+        runCatching { process.destroyForcibly() }
+        false
+    }
 }
