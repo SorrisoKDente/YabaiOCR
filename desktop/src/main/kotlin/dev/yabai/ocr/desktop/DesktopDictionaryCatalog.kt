@@ -128,3 +128,18 @@ object DesktopDictionaryCatalog {
         ),
     )
 }
+
+/**
+ * The catalogue entry behind an installed dictionary file, or null.
+ *
+ * Same rule the installer already uses to recognise its own installs (it writes `<id>.yabai`); a
+ * hand-imported file with an unrelated name has no source to update from. The manager, the background
+ * check and the notice all need this answer, so there is one copy of the rule.
+ */
+internal fun catalogEntryForDictionaryFile(fileName: String): DesktopDictionaryCatalog.Entry? {
+    val stem = fileName.substringBeforeLast('.').lowercase()
+    return DesktopDictionaryCatalog.entries.find { entry ->
+        stem.contains(entry.id.lowercase()) ||
+            stem.contains(entry.name.lowercase().take(6))
+    }
+}

@@ -395,76 +395,20 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         updateError = null
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                val client = OkHttpClient.Builder()
-                                    .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-                                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                                    .build()
-
-                                val available = mutableMapOf<String, Boolean>()
-                                val remotes = mutableMapOf<String, String>()
-
-                                installedFiles.forEach { file ->
-                                    val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
-                                    val installedRev = dict?.info?.revision.orEmpty()
-                                    dict?.close()
-
-                                    val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
-                                        file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
-                                        file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
-                                    }
-
-                                    if (catalogEntry != null) {
-                                        val indexUrl = catalogEntry.indexUrl
-                                        if (indexUrl != null) {
-                                            runCatching {
-                                                val req = Request.Builder().url(indexUrl).build()
-                                                client.newCall(req).execute().use { resp ->
-                                                    val jsonText = resp.body?.string().orEmpty()
-                                                    val obj = com.google.gson.JsonParser.parseString(jsonText).asJsonObject
-                                                    val remoteRev = obj.get("revision")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
-                                                    if (remoteRev.isNotBlank()) {
-                                                        val order = compareRevisions(installedRev, remoteRev)
-                                                        val hasUpdate = installedRev.isBlank() || (order != null && order < 0)
-                                                        available[file.name] = hasUpdate
-                                                        if (hasUpdate) {
-                                                            remotes[file.name] = remoteRev
-                                                        }
-                                                    } else {
-                                                        available[file.name] = false
-                                                    }
-                                                }
-                                            }
-                                        } else if (catalogEntry.url != null) {
-                                            runCatching {
-                                                // Same rule as the background check: a GitHub release is
-                                                // compared by publication, so an install made from the
-                                                // fallback is not offered an update that reinstalls it.
-                                                val remote = newestReleaseFor(catalogEntry.url) { url ->
-                                                    runCatching {
-                                                        client.newCall(Request.Builder().url(url).build()).execute()
-                                                            .use { resp -> if (resp.isSuccessful) resp.body?.string() else null }
-                                                    }.getOrNull()
-                                                }
-                                                if (remote == null) {
-                                                    available[file.name] = false
-                                                } else {
-                                                    val hasUpdate = dictionaryUpdateAvailable(readDictionarySignature(file), remote)
-                                                    available[file.name] = hasUpdate
-                                                    if (hasUpdate) remotes[file.name] = remote.tag
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                // The same check the tray runs, not a copy of it: this button used to
+                                // carry its own network walk and the two drifted apart, so «Verificar
+                                // Atualizações» and the automatic notice could disagree.
+                                val result = DesktopDictionaryUpdateChecker.checkUpdates(settings)
 
                                 // Compose state is read by the UI thread: writing it from
                                 // Dispatchers.IO does not schedule a recomposition, which is why
                                 // this button looked dead on Windows.
                                 withContext(Dispatchers.Main) {
-                                    updateAvailableMap = available
-                                    remoteRevisionMap = remotes
-                                    val count = available.values.count { it }
-                                    checkMessage = DesktopStrings.checkCompletedMessage(count)
+                                    updateAvailableMap = result.updateAvailableMap
+                                    remoteRevisionMap = result.remoteRevisionMap
+                                    checkMessage = DesktopStrings.checkCompletedMessage(
+                                        result.updatesAvailableCount,
+                                    )
                                 }
                             } catch (e: Exception) {
                                 withContext(Dispatchers.Main) {
@@ -570,10 +514,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                         try {
                             val updates = installedFiles.filter { updateAvailableMap[it.name] == true }
                             updates.forEach { file ->
-                                val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
-                                    file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
-                                    file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
-                                }
+                                val catalogEntry = catalogEntryForDictionaryFile(file.name)
                                 if (catalogEntry != null) {
                                     updatingId = file.name
                                     downloadAndInstallDictionary(
@@ -645,10 +586,7 @@ private fun InstalledTab(refreshKey: Int, onRefresh: () -> Unit) {
                     val title = info?.title?.ifBlank { file.nameWithoutExtension } ?: file.nameWithoutExtension
                     val revision = info?.revision.orEmpty()
                     val sizeMb = "%.1f MB".format(DesktopDictLoader.sizeBytes(file).toDouble() / (1024 * 1024))
-                    val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
-                        file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
-                        file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
-                    }
+                    val catalogEntry = catalogEntryForDictionaryFile(file.name)
                     val isUpdating = updatingId == file.name
                     val hasUpdate = updateAvailableMap[file.name] == true
 
@@ -1088,7 +1026,7 @@ internal fun installedDictionaryFilesFor(
     files: List<File>,
 ): List<File> = files.filter { file -> file.nameWithoutExtension.equals(entry.id, ignoreCase = true) }
 
-private fun downloadAndInstallDictionary(
+internal fun downloadAndInstallDictionary(
     entry: DesktopDictionaryCatalog.Entry,
     dictDir: File,
     onProgress: (String, Float) -> Unit,
@@ -1364,35 +1302,6 @@ private fun CreditsAndLicensesSection(installedFiles: List<File>) {
         }
     }
 }
-
-private fun compareRevisions(installed: String, remote: String): Int? {
-    val left = revisionParts(installed) ?: return null
-    val right = revisionParts(remote) ?: return null
-    val size = maxOf(left.size, right.size)
-    for (index in 0 until size) {
-        val a = left.getOrElse(index) { 0L }
-        val b = right.getOrElse(index) { 0L }
-        if (a != b) return a.compareTo(b)
-    }
-    return 0
-}
-
-private fun revisionParts(label: String): List<Long>? {
-    val parts = ArrayList<Long>(4)
-    var index = 0
-    while (index < label.length) {
-        if (!label[index].isDigit()) {
-            index++
-            continue
-        }
-        val start = index
-        while (index < label.length && label[index].isDigit()) index++
-        val value = label.substring(start, index).toLongOrNull() ?: return null
-        parts.add(value)
-    }
-    return parts.ifEmpty { null }
-}
-
 
 private fun formatRemoteLabel(lastModified: String?, etag: String?): String {
     if (!lastModified.isNullOrBlank()) {

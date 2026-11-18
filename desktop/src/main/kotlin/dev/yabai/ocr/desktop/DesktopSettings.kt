@@ -260,6 +260,19 @@ class DesktopSettings(
         set(value) { props.setProperty("last_dict_update_check", value.toString()); save() }
 
     /**
+     * The dictionary updates the reader was already shown, as `<file>:<remote revision>` entries.
+     *
+     * An app that lives in the tray wakes up every 15 minutes for the interval question and only hits
+     * the network when the period really elapsed. Without this key, every period would re-open the
+     * same notice for the update the reader chose to ignore — and the reader would end up turning the
+     * check off. A newer upstream revision changes the key and earns a new notice. The Android side
+     * keeps the same rule in `UpdateStateStore.notifiedKey()`.
+     */
+    var lastDictUpdateNotice: String
+        get() = props.getProperty("last_dict_update_notice", "").orEmpty()
+        set(value) { props.setProperty("last_dict_update_notice", value); save() }
+
+    /**
      * Folder the dictionary import chooser was left in.
      *
      * Importing three dictionaries used to mean walking the same path three times: the chooser opens

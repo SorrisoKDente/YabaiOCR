@@ -455,6 +455,13 @@ fun main(args: Array<String>) {
     // makes the app bring it to the screen.
     var mainWindowRequest by remember { mutableStateOf(0) }
 
+    // Everything newer that the application scope found. Declared before the tray because its menu
+    // has to reopen the notice while every window is closed.
+    var updatesNotice by remember { mutableStateOf<UpdatesNotice?>(null) }
+    var pendingDictionaryUpdates by remember { mutableStateOf<List<DictionaryUpdateOffer>>(emptyList()) }
+    var appUpdateOffered by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var appUpdateNotes by remember { mutableStateOf<AppUpdateInfo?>(null) }
+
     // Setup System Tray (Steam-like behavior)
     val trayManager = remember {
         SystemTrayManager(
@@ -484,6 +491,19 @@ fun main(args: Array<String>) {
                 showMainWindow = true
                 mainWindowRequest++
             },
+            onUpdatesRequested = {
+                // The tray is reachable while no window exists; reopening keeps what was already
+                // announced instead of asking the network again.
+                val reopened = UpdatesNotice(app = appUpdateOffered, dictionaries = pendingDictionaryUpdates)
+                if (reopened.app != null || reopened.dictionaries.isNotEmpty()) {
+                    updatesNotice = reopened
+                } else {
+                    mainScreen = MainScreen.SETTINGS
+                    showMainWindow = true
+                    mainWindowRequest++
+                }
+            },
+            updatesCount = { pendingDictionaryUpdates.size },
             onExitRequested = {
                 exitApplication()
             },
@@ -515,8 +535,6 @@ fun main(args: Array<String>) {
     // settings window happens to be open: a `--minimized` launch lives in the tray, and a version
     // notice must still reach the user there. Finding a newer release opens the notice window with
     // the download inside it, so acting on the news does not require walking to Settings.
-    var appUpdateNotice by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var appUpdateNotes by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var appUpdateCheckStarted by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         if (!shouldCheckAppUpdateOnStart(settings.checkUpdatesOnStart, appUpdateCheckStarted)) {
@@ -527,7 +545,37 @@ fun main(args: Array<String>) {
         val notice = startupUpdateNotice(appUpdate)
         if (notice != null) {
             trayManager.setStatus(DesktopStrings.appVersionNotice(notice.latestVersion))
-            appUpdateNotice = notice
+            appUpdateOffered = notice
+            updatesNotice = (updatesNotice ?: UpdatesNotice()).copy(app = notice)
+        }
+    }
+
+    // The periodic dictionary check. A preference with an interval cannot be «once per launch, inside
+    // a window»: a reader who keeps the app in the tray for a month still wants to be told. The
+    // monitor wakes on its own and reaches the network only when the interval really elapsed, so a
+    // `--minimized` run behaves exactly like an open window.
+    val dictionaryMonitor = remember { DictionaryUpdateMonitor(settings) }
+    LaunchedEffect(dictionaryMonitor) {
+        withContext(Dispatchers.IO) {
+            dictionaryMonitor.run { result ->
+                println(
+                    "[Dicionários] verificação automática: " +
+                        "${result.updatesAvailableCount} atualização(ões) disponível(is)",
+                )
+                val offers = dictionaryOffersToAnnounce(result, settings.lastDictUpdateNotice)
+                if (offers.isEmpty()) {
+                    // Nothing is on offer any more (or it is exactly what the reader already saw):
+                    // forget the announcement so a genuinely newer revision pops again later.
+                    if (settings.lastDictUpdateNotice.isNotEmpty()) settings.lastDictUpdateNotice = ""
+                } else {
+                    settings.lastDictUpdateNotice = dictionaryNoticeKey(offers)
+                    withContext(Dispatchers.Main) {
+                        pendingDictionaryUpdates = offers
+                        trayManager.setStatus(DesktopStrings.dictUpdatesCountNotice(offers.size))
+                        updatesNotice = (updatesNotice ?: UpdatesNotice()).copy(dictionaries = offers)
+                    }
+                }
+            }
         }
     }
 
@@ -620,13 +668,18 @@ fun main(args: Array<String>) {
         )
     }
 
-    // The automatic update check found a release: say so and carry the download itself.
-    val updateNotice = appUpdateNotice
+    // Anything newer the application scope found: the app, the dictionaries, or both at once.
+    val updateNotice = updatesNotice
     if (updateNotice != null) {
-        AppUpdateNoticeWindow(
-            info = updateNotice,
-            onDismiss = { appUpdateNotice = null },
-            onOpenReleaseNotes = { appUpdateNotes = updateNotice },
+        UpdatesNoticeWindow(
+            notice = updateNotice,
+            onDismiss = { updatesNotice = null },
+            onOpenReleaseNotes = { updateNotice.app?.let { appUpdateNotes = it } },
+            onDictionaryUpdatesInstalled = {
+                pendingDictionaryUpdates = emptyList()
+                settings.lastDictUpdateNotice = ""
+                updatesNotice = updateNotice.copy(dictionaries = emptyList()).takeIf { it.app != null }
+            },
         )
     }
     // The update notice is always on top, so its release notes must be too; otherwise the notes
@@ -714,19 +767,9 @@ fun main(args: Array<String>) {
             LaunchedEffect(Unit) {
                 window.isAutoRequestFocus = false
                 window.iconImage = AppIconGenerator.createWindowImage(64)
-                withContext(Dispatchers.IO) {
-                    // 1. The app's own update check now runs once per launch from the application
-                    // scope (above), so it also covers a tray-only start. What is left here is the
-                    // periodic dictionary check.
-
-                    // 2. Periodic background check for dictionary updates
-                    if (DesktopDictionaryUpdateChecker.shouldCheck(settings)) {
-                        val dictResult = DesktopDictionaryUpdateChecker.checkUpdates(settings)
-                        if (dictResult.updatesAvailableCount > 0) {
-                            trayManager.setStatus(DesktopStrings.dictUpdatesCountNotice(dictResult.updatesAvailableCount))
-                        }
-                    }
-                }
+                // Neither update check lives here any more: the app's and the dictionaries' both run
+                // from the application scope, so a tray-only start is covered too. This window used
+                // to own the dictionary check, which is why «daily» never fired while minimized.
             }
 
             YabaiDesktopTheme(darkTheme = isDarkTheme) {

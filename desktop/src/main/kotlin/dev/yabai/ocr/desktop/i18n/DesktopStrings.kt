@@ -606,6 +606,32 @@ object DesktopStrings {
     fun appVersionNotice(version: String): String = if (isEnglish) "✨ New version v$version available!" else "✨ Nova versão v$version disponível!"
     fun dictUpdatesCountNotice(count: Int): String = if (isEnglish) "📚 $count dictionary update(s) available" else "📚 $count atualização(ões) de dicionário disponível(is)"
 
+    // Updates notice (application + dictionaries)
+    val updatesTitle: String get() = if (isEnglish) "Updates Available" else "Atualizações Disponíveis"
+    fun trayUpdates(count: Int): String = if (isEnglish) {
+        if (count > 0) "⬆️ Updates… ($count)" else "⬆️ Updates…"
+    } else {
+        if (count > 0) "⬆️ Atualizações… ($count)" else "⬆️ Atualizações…"
+    }
+    fun updatesDictionariesHeader(count: Int): String = if (isEnglish) {
+        "📚 $count dictionary update${if (count == 1) "" else "s"}"
+    } else {
+        "📚 $count ${if (count == 1) "atualização de dicionário" else "atualizações de dicionário"}"
+    }
+    fun dictionaryUpdateVersions(installed: String, remote: String): String = if (isEnglish) {
+        if (installed.isBlank()) "new: $remote" else "$installed → $remote"
+    } else {
+        if (installed.isBlank()) "nova: $remote" else "$installed → $remote"
+    }
+    val btnUpdateDictionaries: String get() = if (isEnglish) "🔄 Update dictionaries" else "🔄 Atualizar dicionários"
+    val updatesDictInstalledNotice: String get() = if (isEnglish) "Dictionaries updated." else "Dicionários atualizados."
+    val updatesDictInstallError: String get() = if (isEnglish) "Could not update the dictionaries." else "Não foi possível atualizar os dicionários."
+    val updatesDictBlockedByApp: String get() = if (isEnglish) {
+        "The application update restarts the app. Update the dictionaries after it restarts."
+    } else {
+        "A atualização do aplicativo reinicia o app. Atualize os dicionários depois que ele reiniciar."
+    }
+
     // AI Provider Strings
     fun aiOpensUrl(url: String): String = if (isEnglish) "Opens $url" else "Abre $url"
     val aiCustomTitle: String get() = if (isEnglish) "Custom (URL with {text})" else "Personalizado (URL com {text})"

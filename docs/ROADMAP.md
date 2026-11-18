@@ -7543,3 +7543,93 @@ display nem sessão gráfica. O que está provado são os pixels gerados pela fu
 inspecionadas a 16, 32 e 256 px), a troca de estado no SNI e as duas ligações que não rodam sem display,
 cobertas por guarda de fonte. A confirmação final é abrir a build no Deck e no Windows e alternar o
 hover pelo atalho e pelo menu. Nada commitado.
+
+## D92 — A checagem periódica de dicionários não rodava fora da janela, e o achado não aparecia (18/11/2026)
+
+**Pedido.** A verificação automática dos dicionários (diária/semanal/mensal) não parecia funcionar nem
+no Windows nem no Ubuntu. Em vez de um segundo popup, um só: o mesmo aviso do aplicativo, carregando
+app e dicionários quando as duas coisas têm versão nova.
+
+**Causa raiz.** Três defeitos na mesma cadeia. (1) A checagem morava no `LaunchedEffect(Unit)` de dentro
+do `Window` que só existe `if (showMainWindow)` — com `--minimized` (bandeja) ou depois de fechar para a
+bandeja ela nunca rodava, e abrir a janela uma vez gravava `last_dict_update_check`, adiando o próximo
+período inteiro. (2) Mesmo quando rodava, o resultado ia só para `SystemTrayManager.setStatus()`, que é
+tooltip do ícone: no GNOME sem AppIndicator nem bandeja existe, então nada aparecia. (3) Nada guardava o
+que já tinha sido avisado, então um app de bandeja repetiria o mesmo aviso a cada período.
+
+**O que mudou.** `DictionaryUpdateMonitor.kt` (novo) é o laço: acorda a cada 15 min, pergunta o
+intervalo a `DesktopDictionaryUpdateChecker.shouldCheck`, só então toca a rede, e faz backoff de 1 h
+depois de falha; `Main.kt` cria o monitor no escopo da aplicação, ao lado da checagem do app (o bloco
+saiu de dentro da janela). O monitor grava `last_dict_update_notice` com a chave
+`arquivo:revisão`, a mesma ideia do `UpdateStateStore.notifiedKey()` do Android, e só um conjunto novo
+de revisões abre aviso de novo; sem oferta, a chave é limpa para uma revisão futura voltar a aparecer.
+`DesktopDictCheckResult` ganhou `installedRevisionMap` para o aviso imprimir «instalada → nova».
+`UpdatesNoticeWindow.kt` (novo, no lugar de `AppUpdateNoticeWindow.kt`) é a janela única: seção do app
+(baixar, reiniciar, notas) e seção dos dicionários (nome, revisões, «Atualizar dicionários»); enquanto
+o download do app está em curso ou há «Reiniciar agora» pendente, a seção de dicionários fica
+desabilitada com o motivo escrito, porque o reinício mataria o download pela metade. A instalação
+reaproveita `downloadAndInstallDictionary` do gerenciador (agora `internal`), com `closeCached()` já no
+caminho. `SystemTrayManager` ganhou o item «⬆️ Atualizações… (N)» que reabre o aviso sem checar de novo.
+
+**Testes e mutações.** Suíte desktop **555 testes, 1 falha** (a mesma antes e depois desta mudança:
+`LinuxDesktopEntryTest` falha nesta máquina porque `Files.createTempDirectory` devolve o caminho curto
+`ERICPC~1`; provado com `git stash` na árvore limpa). Nove testes novos: quatro em
+`DictionaryUpdateMonitorTest` (o período vencido checa sem janela e checa de novo no período seguinte;
+«desativado» nunca toca a rede; falha espera o backoff em vez de repetir a cada acordar; o laço segue
+sozinho até ser cancelado) e cinco em `DictionaryUpdateOffersTest` (oferta com as duas revisões;
+mesma revisão remota anunciada uma vez; revisão nova anuncia de novo; dicionário sem entrada no catálogo
+não é ofertado; checagem vazia não anuncia nada). Mutações derrubadas: `shouldCheck` trocado por
+`true` (**3 falhas**), laço trocado por `repeat(1)` (**1**), chave de aviso ignorada na dedupe (**1**) e
+arquivo sem catálogo caindo no primeiro item da lista (**1**).
+
+**Evidência ponta a ponta.** `YABAI_HOME` temporário (o `settings.properties` do usuário não foi
+tocado), `dictionary_update_interval=DAILY`, `last_dict_update_check=0`, `--minimized`: o log trouxe
+`[Dicionários] verificação automática: 0 atualização(ões) disponível(is)` com o app só na bandeja, e o
+arquivo temporário terminou com `last_dict_update_check=1795023332151`. Antes desta mudança essa linha
+não podia existir sem a janela de Ajustes composta. Processo encerrado por PID.
+
+**Limitações.** Não houve checagem com dicionário realmente desatualizado (o E2E usou a pasta vazia):
+prova que o gatilho roda minimizado, não que a janela lista os itens. A janela em si não foi vista
+rodando; o layout é o mesmo da janela anterior, com a guarda `NoticeWindowLayoutTest` apontada para o
+arquivo novo. Nada commitado.
+
+## D93 — Revisão da rodada anterior: uma checagem só, e o E2E com dicionário de verdade (18/11/2026)
+
+**Pedido.** Olhar o D92 com olhos frescos: parâmetros que só existem para o teste, lógica duplicada entre
+a janela nova e `DictionaryManagerWindow` (o botão «Verificar Atualizações» parecia uma cópia do checker),
+simplificar sem mudar comportamento, e um E2E com um `.yabai` realmente antigo.
+
+**O que estava duplicado.** O botão «Verificar Atualizações» do gerenciador carregava a própria caminhada
+de rede (OkHttp, leitura do `index.json`, fallback de release do GitHub e um `compareRevisions` próprio):
+uma segunda cópia de `DesktopDictionaryUpdateChecker.checkUpdates`, que já existia para a checagem
+automática. A regra «qual entrada do catálogo é este arquivo» aparecia em três lugares (checker,
+«Atualizar todos» e a lista de instalados), e `compareRevisions` tinha duas versões no desktop.
+
+**O que mudou.** O botão agora chama `DesktopDictionaryUpdateChecker.checkUpdates(settings)` e só leva o
+resultado para a UI; a cópia interna e o `compareRevisions`/`revisionParts` do gerenciador saíram. A
+regra do catálogo virou `catalogEntryForDictionaryFile()` em `DesktopDictionaryCatalog.kt`, usada pelos
+três pontos. O monitor perdeu `idleMillis` e `retryMillis` do construtor (eram só botões de teste,
+idênticos às constantes) e ficou com `now` e `check`, o mínimo para provar o relógio e a rede sem
+esperar um dia; `retryAt` e as constantes continuam internos. Efeito colateral aceito: a checagem manual
+também grava `last_dict_update_check`, então o próximo período conta a partir dela.
+
+**Teste que pega o bug original.** `UpdateCheckScopeTest` lê `Main.kt` (como `NoticeWindowLayoutTest`) e
+exige a criação do monitor e o `LaunchedEffect(dictionaryMonitor)` com quatro espaços de indentação,
+antes do bloco `// Main Window`; a chamada a `run` precisa cair entre os dois. Mutação: monitor movido
+para dentro do `Window` → **1 falha** na asserção da declaração; restaurado e conferido por `grep`.
+
+**E2E com dicionário desatualizado.** Com `YABAI_HOME` temporário, um `jmdict-en.yabai` compilado pelo
+próprio `DictionaryCompiler` com `revision=2020-01-01`, `dictionary_update_interval=DAILY` e
+`last_dict_update_check=0`, iniciado com `--minimized`: o log trouxe «1 atualização(ões) disponível(is)»,
+o `settings.properties` terminou com `last_dict_update_notice=jmdict-en.yabai:2026-11-18`, e a janela
+(capturada por `GetWindowRect` num processo DPI-aware) listou «JMdict (inglês) —
+2020-01-01 → 2026-11-18» com o botão «Atualizar dicionários». O clique real no botão baixou o release
+(15.639.076 bytes), compilou e gravou `revision=JMdict.2026-11-18` com 528.070 verbetes, mais o
+`signature.properties`; `DesktopDictLoader.cachedEngine` com o mesmo `YABAI_HOME` — o provedor do picker —
+passou a responder「日本」, que a compilação antiga (só「食べる」) não tinha. Janela e processo encerrados
+por PID.
+
+**Suíte e limitações.** `:desktop:test` fechou em **556 testes, 1 falha, 6 pulados**; a falha é a mesma de
+sempre (`LinuxDesktopEntryTest`, caminho curto `ERICPC~1` do `Files.createTempDirectory` no Windows). A
+primeira captura de tela saiu cortada porque o PowerShell não é DPI-aware (a janela é 726×433 físicos num
+display a 150%); refeita com `SetProcessDPIAware`. Nada commitado.

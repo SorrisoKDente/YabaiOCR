@@ -184,7 +184,8 @@ flags above.
 | `UpdateInstaller.kt` | downloads the asset with progress, swaps the running AppImage (`.old` backup), opens the installer on Windows/macOS and restarts |
 | `InstanceLock.kt` | file lock at `~/.yabai_ocr/instance.lock`: one instance per user, before D-Bus and the tray |
 | `KdeCapturePermission.kt` | the «silent capture on KDE» switch: writes `~/.config/environment.d/yabai-ocr.conf` with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, because KWin only authorizes `ScreenShot2` to a fixed `Exec` under a root-writable directory |
-| `AppUpdateNoticeWindow.kt` | startup update notice: downloads with progress, restarts and opens the notes without walking to Settings |
+| `UpdatesNoticeWindow.kt` | single updates notice: the app version (downloads with progress, restarts, opens the notes) and the dictionaries with a newer revision, in one window |
+| `DictionaryUpdateMonitor.kt` | periodic dictionary check in the application scope (including `--minimized`), offer per remote revision and the «already announced» key |
 | `NativeLibraryPath.kt` | points `jnativehook.lib.path` at `~/.cache/yabai-ocr/native` on Linux before `GlobalScreen` is touched (an AppImage is read-only) |
 | `QuickDictWindow.kt` | quick dictionary lookup in its own window |
 | `DictionaryManagerWindow.kt` | manager content: search, installed, catalog, credits |
@@ -254,7 +255,7 @@ flags above.
 | `ClipboardMonitor.kt` | watches the clipboard (copy from the card) |
 | `DesktopPlatform.kt` | OS/session detection (SteamOS, Wayland, X11) |
 | `DesktopAppUpdateChecker.kt` | looks for a new release and picks the asset for the OS |
-| `DesktopDictionaryCatalog.kt` / `DesktopDictionaryUpdateChecker.kt` | dictionary catalog and update check |
+| `DesktopDictionaryCatalog.kt` / `DesktopDictionaryUpdateChecker.kt` / `DictionaryUpdateMonitor.kt` | dictionary catalog, revision comparison and the self-driven check loop (outside any window) |
 
 ### Desktop tests
 
@@ -429,7 +430,8 @@ Settings (desktop/app) → PPOcrModelDownloader → ~23 MB in ppocr_v6/
 | furigana | `core/dict/Furigana.kt`, `core/lens/FuriganaMode.kt`, `overlay/PickerReadingLayout.kt` |
 | interface texts | `desktop/i18n/DesktopStrings.kt`; `app/src/main/res/values*/strings.xml` |
 | theme | `desktop/DesktopTheme.kt`; `app/src/main/res/values*/themes.xml` |
-| app update | `desktop/DesktopAppUpdateChecker.kt`, `UpdateInstaller.kt`, `AppUpdateNoticeWindow.kt`; `app/update/AppUpdateChecker.kt`, `ApkInstall.kt` |
+| app update | `desktop/DesktopAppUpdateChecker.kt`, `UpdateInstaller.kt`, `UpdatesNoticeWindow.kt`; `app/update/AppUpdateChecker.kt`, `ApkInstall.kt` |
+| dictionary update | `desktop/DictionaryUpdateMonitor.kt`, `DesktopDictionaryUpdateChecker.kt` (the one check behind both the notice and the «Check for Updates» button), `DesktopDictionaryCatalog.kt` (`catalogEntryForDictionaryFile`), `UpdatesNoticeWindow.kt`, `DictionaryManagerWindow.kt` (`downloadAndInstallDictionary`); `app/dict/DictionaryUpdates.kt` |
 
 ---
 

@@ -149,10 +149,17 @@ instala nem pede a permissão «instalar apps desconhecidos» — você abre o A
 AppImage — `gradle run`, distribuição descompactada — o desktop não substitui a instalação sozinho e
 abre a página do release.
 
-**Aviso ao abrir.** Com «Verificar atualizações ao abrir o aplicativo» ligado, o desktop abre uma
+**Aviso de atualização.** Com «Verificar atualizações ao abrir o aplicativo» ligado, o desktop abre uma
 janela com o download (e as notas) assim que encontra uma versão nova, mesmo iniciando na bandeja; no
 Android a checagem automática mostra um diálogo com «⬇️ Baixar». Depois disso os mesmos controles
 continuam no cartão de atualizações.
+
+**Atualização de dicionário usa a mesma janela.** A checagem automática de dicionários (desativada,
+diária, semanal ou mensal nos Ajustes) roda também com o app só na bandeja: o aviso lista cada
+dicionário com a revisão instalada e a nova, e um botão «Atualizar dicionários». A mesma janela carrega
+a versão do app quando as duas existem, porque a atualização do app termina em reinício — que
+interromperia o download de um dicionário; cada uma é avisada uma vez por revisão remota, então uma
+atualização ignorada não volta a aparecer.
 
 **Android**: instale o APK, conceda **sobreposição** e **captura de tela** (MediaProjection), escolha
 o motor e toque em iniciar. A bolha flutuante dispara a captura.

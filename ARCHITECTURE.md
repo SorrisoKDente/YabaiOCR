@@ -183,7 +183,8 @@ rodam com as flags acima.
 | `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
 | `InstanceLock.kt` | trava de arquivo em `~/.yabai_ocr/instance.lock`: uma instância por usuário, antes de D-Bus e bandeja |
 | `KdeCapturePermission.kt` | opção «captura silenciosa no KDE»: grava `~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, porque o KWin só autoriza `ScreenShot2` a um `Exec` fixo em diretório de root |
-| `AppUpdateNoticeWindow.kt` | aviso de atualização no arranque: baixa com progresso, reinicia e abre as notas sem passar pelos Ajustes |
+| `UpdatesNoticeWindow.kt` | aviso único de atualizações: a versão do app (baixa com progresso, reinicia, abre as notas) e os dicionários com revisão nova, na mesma janela |
+| `DictionaryUpdateMonitor.kt` | checagem periódica dos dicionários no escopo da aplicação (`--minimized` incluso), oferta por revisão remota e chave de «já avisado» |
 | `NativeLibraryPath.kt` | aponta `jnativehook.lib.path` para `~/.cache/yabai-ocr/native` no Linux, antes de tocar em `GlobalScreen` (AppImage é somente leitura) |
 | `QuickDictWindow.kt` | busca rápida de dicionário em janela própria |
 | `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos |
@@ -252,7 +253,7 @@ rodam com as flags acima.
 | `ClipboardMonitor.kt` | observa o clipboard (copiar do cartão) |
 | `DesktopPlatform.kt` | detecção de SO/sessão (SteamOS, Wayland, X11) |
 | `DesktopAppUpdateChecker.kt` | procura release nova e escolhe o asset do SO |
-| `DesktopDictionaryCatalog.kt` / `DesktopDictionaryUpdateChecker.kt` | catálogo de dicionários e checagem de atualização |
+| `DesktopDictionaryCatalog.kt` / `DesktopDictionaryUpdateChecker.kt` / `DictionaryUpdateMonitor.kt` | catálogo de dicionários, comparação de revisões e o laço que checa sozinho (fora da janela) |
 
 ### Testes do desktop
 
@@ -425,7 +426,8 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 | furigana | `core/dict/Furigana.kt`, `core/lens/FuriganaMode.kt`, `overlay/PickerReadingLayout.kt` |
 | textos de interface | `desktop/i18n/DesktopStrings.kt`; `app/src/main/res/values*/strings.xml` |
 | tema | `desktop/DesktopTheme.kt`; `app/src/main/res/values*/themes.xml` |
-| atualização do app | `desktop/DesktopAppUpdateChecker.kt`, `UpdateInstaller.kt`, `AppUpdateNoticeWindow.kt`; `app/update/AppUpdateChecker.kt`, `ApkInstall.kt` |
+| atualização do app | `desktop/DesktopAppUpdateChecker.kt`, `UpdateInstaller.kt`, `UpdatesNoticeWindow.kt`; `app/update/AppUpdateChecker.kt`, `ApkInstall.kt` |
+| atualização dos dicionários | `desktop/DictionaryUpdateMonitor.kt`, `DesktopDictionaryUpdateChecker.kt` (a mesma checagem do aviso e do botão «Verificar Atualizações»), `DesktopDictionaryCatalog.kt` (`catalogEntryForDictionaryFile`), `UpdatesNoticeWindow.kt`, `DictionaryManagerWindow.kt` (`downloadAndInstallDictionary`); `app/dict/DictionaryUpdates.kt` |
 
 ---
 

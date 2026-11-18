@@ -148,10 +148,16 @@ the app neither installs it nor asks for the «install unknown apps» permission
 whenever you want. Outside an AppImage — `gradle run`, an unpacked distribution — the desktop build
 does not replace its own installation and opens the release page instead.
 
-**Startup notice.** With «Check for updates when the app starts» on, the desktop opens a window with
+**Update notice.** With «Check for updates when the app starts» on, the desktop opens a window with
 the download (and the release notes) as soon as it finds a newer version, even when it started in the
 tray; on Android the automatic check shows a dialog with **⬇️ Download**. The same controls stay in
 the updates card afterwards.
+
+**Dictionary updates use the same window.** The automatic dictionary check (off, daily, weekly or
+monthly in Settings) also runs while the app is only in the tray: the notice lists each dictionary with
+the installed and the new revision and an **Update dictionaries** button. The same window carries the
+app release when both exist, because an app update ends in a restart that would interrupt a dictionary
+download; each is announced once per remote revision, so an ignored update is not offered again.
 
 **Android**: install the APK, grant **overlay** and **screen capture** (MediaProjection), pick an
 engine and tap start. The floating bubble triggers the capture.

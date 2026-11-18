@@ -20,6 +20,8 @@ internal class SystemTrayManager(
     private val onExitRequested: () -> Unit,
     private val menuKind: TrayMenuKind = trayMenuKindFor(DesktopPlatform.family, DesktopPlatform.session),
     private val showMenuOnLeftClick: Boolean = !DesktopPlatform.isLinux,
+    private val onUpdatesRequested: () -> Unit = {},
+    private val updatesCount: () -> Int = { 0 },
 ) {
     private var trayIcon: TrayIcon? = null
     private var nativeHoverItem: MenuItem? = null
@@ -130,6 +132,7 @@ internal class SystemTrayManager(
 
         menu.addSeparator()
         add(DesktopStrings.trayManageDicts) { onFullDictRequested() }
+        add(DesktopStrings.trayUpdates(updatesCount())) { onUpdatesRequested() }
         add(DesktopStrings.traySettings) { onSettingsRequested() }
         menu.addSeparator()
         add(DesktopStrings.trayExit) { onExitRequested() }
@@ -146,6 +149,7 @@ internal class SystemTrayManager(
         StatusMenuItem(4, hoverMenuItemLabel(), action = onHoverRequested),
         StatusMenuItem(10, separator = true),
         StatusMenuItem(5, DesktopStrings.trayManageDicts, action = onFullDictRequested),
+        StatusMenuItem(8, DesktopStrings.trayUpdates(updatesCount()), action = onUpdatesRequested),
         StatusMenuItem(6, DesktopStrings.traySettings, action = onSettingsRequested),
         StatusMenuItem(11, separator = true),
         StatusMenuItem(7, DesktopStrings.trayExit, action = onExitRequested),
@@ -237,6 +241,8 @@ internal class SystemTrayManager(
 
             panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton(DesktopStrings.trayManageDicts, TrayGlyph.BOOK) { onFullDictRequested() })
+            panel.add(Box.createRigidArea(Dimension(0, 2)))
+            panel.add(createTrayButton(DesktopStrings.trayUpdates(updatesCount()), TrayGlyph.BOOK) { onUpdatesRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton(DesktopStrings.traySettings, TrayGlyph.GEAR) { onSettingsRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 4)))

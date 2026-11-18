@@ -24,7 +24,7 @@ class NoticeWindowLayoutTest {
 
     @Test
     fun `notice windows fit their content instead of the default 800x600 frame`() {
-        for (name in listOf("CaptureNoticeWindow.kt", "AppUpdateNoticeWindow.kt")) {
+        for (name in listOf("CaptureNoticeWindow.kt", "UpdatesNoticeWindow.kt")) {
             val source = sourceFile(name).readText()
             assertTrue(
                 "$name must pack its window to the content",
@@ -35,7 +35,7 @@ class NoticeWindowLayoutTest {
 
     @Test
     fun `the update notice has no scroll container an auto-sized window cannot measure`() {
-        val source = sourceFile("AppUpdateNoticeWindow.kt").readText()
+        val source = sourceFile("UpdatesNoticeWindow.kt").readText()
 
         assertFalse("verticalScroll without a bounded height throws when the window packs", source.contains("verticalScroll"))
     }
@@ -44,7 +44,7 @@ class NoticeWindowLayoutTest {
     fun `the notice surface wraps its content instead of filling the packed frame`() {
         // `fillMaxSize` made the first measure report the frame instead of the content, so the packed
         // window ended above the button: the pill appeared cut and without its label.
-        for (name in listOf("CaptureNoticeWindow.kt", "AppUpdateNoticeWindow.kt")) {
+        for (name in listOf("CaptureNoticeWindow.kt", "UpdatesNoticeWindow.kt")) {
             val source = sourceFile(name).readText()
             assertFalse("$name must wrap its content", source.contains("Modifier.fillMaxSize()"))
         }

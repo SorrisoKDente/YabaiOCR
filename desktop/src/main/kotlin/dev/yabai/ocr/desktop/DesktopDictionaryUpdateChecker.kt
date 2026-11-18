@@ -12,6 +12,8 @@ data class DesktopDictCheckResult(
     val updatesAvailableCount: Int,
     val updateAvailableMap: Map<String, Boolean>,
     val remoteRevisionMap: Map<String, String>,
+    /** Revision each installed file reports, so the notice can print «old → new». */
+    val installedRevisionMap: Map<String, String> = emptyMap(),
 )
 
 object DesktopDictionaryUpdateChecker {
@@ -51,6 +53,7 @@ object DesktopDictionaryUpdateChecker {
 
         val available = mutableMapOf<String, Boolean>()
         val remotes = mutableMapOf<String, String>()
+        val installedRevisions = mutableMapOf<String, String>()
         // One release list per repository per check: GitHub allows 60 unauthenticated calls an hour.
         val releaseLists = mutableMapOf<String, String?>()
         val fetchText: (String) -> String? = { url ->
@@ -69,11 +72,9 @@ object DesktopDictionaryUpdateChecker {
             val dict = runCatching { CompactDictionary.open(file) }.getOrNull()
             val installedRev = dict?.info?.revision.orEmpty()
             dict?.close()
+            if (installedRev.isNotBlank()) installedRevisions[file.name] = installedRev
 
-            val catalogEntry = DesktopDictionaryCatalog.entries.find { entry ->
-                file.nameWithoutExtension.lowercase().contains(entry.id.lowercase()) ||
-                        file.nameWithoutExtension.lowercase().contains(entry.name.lowercase().take(6).lowercase())
-            }
+            val catalogEntry = catalogEntryForDictionaryFile(file.name)
 
             if (catalogEntry != null) {
                 val indexUrl = catalogEntry.indexUrl
@@ -116,7 +117,7 @@ object DesktopDictionaryUpdateChecker {
 
         settings.lastDictUpdateCheck = now
         val count = available.values.count { it }
-        return DesktopDictCheckResult(now, count, available, remotes)
+        return DesktopDictCheckResult(now, count, available, remotes, installedRevisions)
     }
 
     internal fun compareRevisions(installed: String, remote: String): Int? {
