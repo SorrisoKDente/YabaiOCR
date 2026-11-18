@@ -113,7 +113,7 @@ antes de citá-los.
 | `PPOcrSpec.kt` | constantes e geometria: lado maior 960 (ou orçamento 3:4 em tiras), limiar 0,15, caixa 0,25, unclip 1,4, altura 48 |
 | `PPOcrPreprocess.kt` | tensor do detector (ImageNet) e da linha (girada à esquerda, 48 px, −1..1) |
 | `PPOcrPostprocess.kt` | mapa DB → caixas (componentes conexos, confiança, unclip) e ordem de leitura direita→esquerda |
-| `PPOcrEngine.kt` | sessões ONNX (det + rec), CTC guloso; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; leitura **focada** com `focus`/`focusRadiusPx` (só reconhece as linhas perto do ponto — D94) |
+| `PPOcrEngine.kt` | sessões ONNX (det + rec), CTC guloso; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; leitura **focada** com `focus` (só reconhece as linhas perto do ponto — D94) |
 | `PPOcrFocus.kt` | `linesToRecognize`: quais linhas detectadas o reconhecedor precisa ler quando a pergunta é sobre um ponto (hover); sem foco, lê todas |
 | `PPOcrModelStore.kt` | caminhos e URLs dos três arquivos (`manga_det.onnx`, `manga_rec.onnx`, `ppocrv6_dict.txt`) |
 | `PPOcrModelDownloader.kt` | download com `.tmp`, retomada por arquivo e progresso |

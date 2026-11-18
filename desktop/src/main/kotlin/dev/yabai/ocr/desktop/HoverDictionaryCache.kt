@@ -18,7 +18,7 @@ import dev.yabai.ocr.core.dict.LookupEngine
  */
 internal class HoverDictionaryCache(
     private val opener: (DesktopSettings) -> LookupEngine? = { DesktopDictLoader.loadEngine(it) },
-    private val closer: (LookupEngine?) -> Unit = { engine -> runCatching { engine?.close() } },
+    private val closer: (LookupEngine) -> Unit = { runCatching { it.close() } },
 ) {
     private var engine: LookupEngine? = null
     private var dir: String? = null
@@ -32,7 +32,7 @@ internal class HoverDictionaryCache(
 
         if (dir == path && stamp == modified) return engine
 
-        if (engine != null) closer(engine)
+        engine?.let(closer)
         engine = null
         dir = path
         stamp = modified
@@ -44,7 +44,7 @@ internal class HoverDictionaryCache(
     /** Closes the dictionaries and forgets them; the next [get] opens them again. */
     @Synchronized
     fun release() {
-        closer(engine)
+        engine?.let(closer)
         engine = null
         dir = null
         stamp = 0L

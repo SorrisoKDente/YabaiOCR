@@ -44,6 +44,15 @@ internal class HoverOcrManager(
     private val releaseOcrSessions: () -> Unit = { DesktopPPOcr.close() },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * How often the gate is fed. Every backend is polled, including the compositor bridges: their
+     * events only arrive when the pointer *moves*, so a gate waiting to retry a failed read, a
+     * dismissal grace period or a lookup dropped because both slots were busy could never advance
+     * while the hand rested — the card stayed away until the pointer was moved off the word and
+     * back. On a bridge the poll only feeds the gate the last known position (no capture, no OCR),
+     * so it can run slower than the AWT poll that is the pointer source itself.
+     */
+    private val pollMillis = if (backendKind.usesCompositorBridge) BRIDGE_PUMP_MILLIS else POLL_MILLIS
     private val gate = HoverGate(stableMillis = DesktopSettings().hoverRestMillis)
     private val dismissGate = HoverDismissGate(graceMillis = DISMISS_GRACE_MS, margin = TARGET_MARGIN)
     /** Keeps the newest read and drops the older answers instead of locking the hover (see D83). */
@@ -109,13 +118,7 @@ internal class HoverOcrManager(
             gate.reset()
             // Read again on every start: the Ajustes window may have changed it while the hover was off.
             gate.stableMillis = DesktopSettings().hoverRestMillis
-            // Every backend is polled, including the compositor bridges. Their events only arrive
-            // when the pointer *moves*, so a gate waiting to retry a failed read, a dismissal
-            // grace period or a lookup dropped because both slots were busy could never advance
-            // while the hand rested — the card stayed away until the pointer was moved off the
-            // word and back. The poll only feeds the gate with the last known position; it never
-            // captures twice at the same spot.
-            startPolling(if (backendKind.usesCompositorBridge) BRIDGE_PUMP_MILLIS else POLL_MILLIS)
+            startPolling()
             publishStatus(
                 when (backendKind) {
                     HoverBackendKind.KWIN ->
@@ -273,12 +276,12 @@ internal class HoverOcrManager(
         scope.cancel()
     }
 
-    private fun startPolling(intervalMillis: Long) {
+    private fun startPolling() {
         pollJob?.cancel()
         pollJob = scope.launch {
             while (isActive && isEnabled) {
                 pointerLocation()?.let { tick(it) }
-                delay(intervalMillis)
+                delay(pollMillis)
             }
         }
     }

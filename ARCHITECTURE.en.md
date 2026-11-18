@@ -114,7 +114,7 @@ before quoting them.
 | `PPOcrSpec.kt` | constants and geometry: longest side 960 (or 3:4 budget on strips), 0.15 threshold, 0.25 box, 1.4 unclip, height 48 |
 | `PPOcrPreprocess.kt` | detector tensor (ImageNet) and line tensor (rotated left, 48 px, −1..1) |
 | `PPOcrPostprocess.kt` | DB map → boxes (connected components, confidence, unclip) and right-to-left reading order |
-| `PPOcrEngine.kt` | ONNX sessions (det + rec), greedy CTC; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; **focused** read with `focus`/`focusRadiusPx` (only the lines near the point are recognised — D94) |
+| `PPOcrEngine.kt` | ONNX sessions (det + rec), greedy CTC; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; **focused** read with `focus` (only the lines near the point are recognised — D94) |
 | `PPOcrFocus.kt` | `linesToRecognize`: which detected lines the recogniser has to read when the question is about a point (hover); without a focus every line is read |
 | `PPOcrModelStore.kt` | paths and URLs of the three files (`manga_det.onnx`, `manga_rec.onnx`, `ppocrv6_dict.txt`) |
 | `PPOcrModelDownloader.kt` | download with `.tmp`, per-file resume and progress |

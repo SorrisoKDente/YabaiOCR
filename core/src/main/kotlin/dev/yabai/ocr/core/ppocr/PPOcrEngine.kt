@@ -48,16 +48,15 @@ class PPOcrEngine private constructor(
      * Reads [pixels].
      *
      * With [focus] the detector still sees the whole image — that is what keeps a vertical word
-     * split between two columns readable — but only the lines within [focusRadiusPx] of that point
-     * are recognised (see [linesToRecognize]). The hover is a question about one word, and recognising the
-     * other fifty lines of the page was most of its latency.
+     * split between two columns readable — but only the lines near that point are recognised (see
+     * [linesToRecognize]). The hover is a question about one word, and recognising the other fifty
+     * lines of the page was most of its latency.
      */
     fun recognizePixels(
         pixels: IntArray,
         width: Int,
         height: Int,
         focus: PixelBox? = null,
-        focusRadiusPx: Int = HOVER_FOCUS_RADIUS_PX,
     ): PPOcrOutcome {
         if (width <= 0 || height <= 0 || pixels.isEmpty()) {
             return PPOcrOutcome(text = "", lines = emptyList(), elapsedMs = 0)
@@ -67,7 +66,7 @@ class PPOcrEngine private constructor(
         var detected: List<PPOcrLine> = emptyList()
 
         val elapsed = measureTimeMillis {
-            val boxes = linesToRecognize(detect(pixels, width, height), focus, focusRadiusPx)
+            val boxes = linesToRecognize(detect(pixels, width, height), focus)
             detected = boxes.mapNotNull { box ->
                 val text = recognizeLine(pixels, width, height, box)
                 if (text.isBlank()) null else box.copy(text = text)

@@ -1,6 +1,7 @@
 package dev.yabai.ocr.core.ppocr
 
 import dev.yabai.ocr.core.lens.PixelBox
+import kotlin.math.hypot
 import kotlin.math.max
 
 /**
@@ -17,9 +18,6 @@ import kotlin.math.max
  * of two printed lines/columns when the pointer is near their edge (`HoverTextSelector.BRIDGE_*`),
  * and those neighbours are one glyph — about 25 px — away. The desktop passes a comfortable
  * multiple of that, since recognising extra lines costs time and changes nothing else.
- *
- * Lines with no box are never dropped here; an image with no detected box keeps the caller's
- * behaviour.
  */
 fun linesToRecognize(
     lines: List<PPOcrLine>,
@@ -32,7 +30,7 @@ fun linesToRecognize(
 }
 
 /** Distance between the edges of [focus] and [line]; 0 when they touch or overlap. */
-internal fun boxDistance(focus: PixelBox, line: PPOcrLine): Double {
+private fun boxDistance(focus: PixelBox, line: PPOcrLine): Double {
     val dx = when {
         focus.right < line.left -> (line.left - focus.right).toDouble()
         focus.x > line.right -> (focus.x - line.right).toDouble()
@@ -43,7 +41,7 @@ internal fun boxDistance(focus: PixelBox, line: PPOcrLine): Double {
         focus.y > line.bottom -> (focus.y - line.bottom).toDouble()
         else -> 0.0
     }
-    return kotlin.math.hypot(dx, dy)
+    return hypot(dx, dy)
 }
 
 /** How far from the pointer a line may be and still be worth recognising. */

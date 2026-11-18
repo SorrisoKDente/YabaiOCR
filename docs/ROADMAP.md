@@ -7665,7 +7665,7 @@ Medido antes de mexer (VM de 4 núcleos, 12 GB, 9 dicionários, `engine=PP_OCR`)
   - `HoverDictionaryCache` (novo): mantém o motor enquanto a pasta não muda e `release()` o fecha;
     `HoverOcrManager.setEnabled(false)` chama `release()` e `releaseOcrSessions()` (padrão:
     `DesktopPPOcr.close()`), então desligar o hover devolve dicionários **e** sessões ONNX.
-  - `PPOcrEngine.recognizePixels(..., focus, focusRadiusPx)` e `linesToRecognize` (novo, em
+  - `PPOcrEngine.recognizePixels(..., focus)` e `linesToRecognize` (novo, em
     `PPOcrFocus.kt`): o detector continua vendo a imagem inteira — é o que mantém legível uma palavra
     partida entre duas colunas — e só as linhas a até 160 px do ponteiro são reconhecidas. Cada
     linha é lida nos próprios pixels, então o texto das linhas lidas não muda. O hover passa o ponto
