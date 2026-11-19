@@ -79,6 +79,15 @@ fun HoverTooltipWindow(
     onSelectDictionary: (String) -> Unit = {},
     onDismiss: () -> Unit,
     onBoundsChanged: (Rectangle?) -> Unit = {},
+    /**
+     * Whether the card is on screen.
+     *
+     * The window is created once and hidden between words instead of being created and destroyed
+     * for each one (D98): the Compose windows and Skiko surfaces of a card left allocations in the
+     * native allocator that no heap trim returns, and the process kept that RSS for the rest of the
+     * session.
+     */
+    visible: Boolean = true,
 ) {
     // The card's window is created while Compose is drawing the frame that first shows it, and
     // Compose then renders it from inside that same pass: it throws «Reentry into
@@ -95,6 +104,7 @@ fun HoverTooltipWindow(
             onSelectDictionary = onSelectDictionary,
             onDismiss = onDismiss,
             onBoundsChanged = onBoundsChanged,
+            visible = visible,
         )
     }
 }
@@ -109,6 +119,7 @@ private fun HoverTooltipCardWindow(
     onSelectDictionary: (String) -> Unit = {},
     onDismiss: () -> Unit,
     onBoundsChanged: (Rectangle?) -> Unit = {},
+    visible: Boolean = true,
 ) {
     // Hoisted, because the list of dictionaries is drawn inside the card: it used to be a popup — a
     // window of its own — which on this desktop opened off the bottom of the screen and took the
@@ -116,6 +127,10 @@ private fun HoverTooltipCardWindow(
     // ignoringRedrawRequests is not allowed». Inside the card it cannot leave the screen and there
     // is no second window to race.
     var dictMenuOpen by remember { mutableStateOf(false) }
+
+    // A card that comes back is a new card: the dictionary list it was left with is not part of the
+    // next word, and it would open the card taller than the content it is about to show.
+    LaunchedEffect(visible) { if (!visible) dictMenuOpen = false }
 
     val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles, notice) {
         estimateHeight(matches, dictMenuOpen, installedDictTitles.size, notice != null)
@@ -148,6 +163,9 @@ private fun HoverTooltipCardWindow(
 
     Window(
         onCloseRequest = onDismiss,
+        // Hiding instead of destroying is what keeps the native allocations from piling up word
+        // after word (D98). The window itself is created once, by the overlay that owns it.
+        visible = visible,
         title = "Yabai OCR - Hover",
         undecorated = true,
         // Not user-resizable on purpose. Compose answers an undecorated *and* resizable window
@@ -164,8 +182,19 @@ private fun HoverTooltipCardWindow(
         transparent = true,
         state = state,
     ) {
-        LaunchedEffect(estimatedHeight, mousePoint, window) {
+        LaunchedEffect(estimatedHeight, mousePoint, window, visible) {
             window.isAutoRequestFocus = false
+            if (!visible) {
+                // A card that is not on screen has no bounds: the hover's «is the pointer on the
+                // card?» test must not run against the rectangle of the word before it.
+                onBoundsChanged(null)
+                return@LaunchedEffect
+            }
+            // A reused card is already mapped, so it can be sized and placed before the debounce:
+            // without this the next word's card spent 80 ms at the previous word's corner.
+            if (window.isShowing) {
+                applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+            }
             // The window background is left exactly as Compose set it. `transparent = true` makes
             // ComposeWindowPanel ask Skiko for the right background for the renderer in use, and on
             // Windows that answer is `null` for OpenGL and Software: those two make the window

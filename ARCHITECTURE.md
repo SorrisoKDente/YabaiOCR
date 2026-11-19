@@ -225,7 +225,7 @@ rodam com as flags acima.
 | `HoverLookup.kt` | consulta do hover limitada ao dicionário escolhido (`dictionaryScope`, `scopedHoverHit`), a decisão da troca de dicionário feita no cartão a partir da leitura guardada (`cachedHoverAnswer`) e o que fazer quando não vem verbete (`japaneseWordAt`, `classifyHoverMiss`: só há cartão se houver palavra japonesa sob o ponteiro, e a caixa dela é o âncora) — sem o «fallback» que respondia de outro dicionário (D77, D78) |
 | `PickerScanMemory.kt` | scan do picker que sobrevive ao «Trechos»: entregue uma vez e nunca a partir de uma falha (D76) |
 | `TrayGlyphs.kt` | ícones do menu da bandeja desenhados com Java2D, em cor (o Swing não pinta emoji colorido) (D76) |
-| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada. Não escreve no `background` do AWT: a transparência no Windows depende de o Skiko escolher o fundo por renderizador (D80) |
+| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); uma única janela para a sessão inteira, apenas escondida entre palavras (`visible`), porque criar e destruir uma `ComposeWindow` por palavra deixava superfícies nativas no alocador (D98); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada. Não escreve no `background` do AWT: a transparência no Windows depende de o Skiko escolher o fundo por renderizador (D80) |
 | `WindowActivation.kt` | traz para a tela a janela que o usuário pediu (limpa `ICONIFIED`, pede ativação); no hover nunca é usado |
 | `HoverCapability.kt` | o hover é suportado nesta sessão? (X11/Wayland/Win; no Wayland decide entre ponteiro do KWin e do GNOME) |
 | `PointerSource.kt` | fonte da posição do ponteiro (AWT, script do KWin ou extensão do GNOME) |
@@ -238,7 +238,8 @@ rodam com as flags acima.
 | arquivo | papel |
 | --- | --- |
 | `DesktopOcr.kt` | **porta única**: ordem dos motores (`AUTO`/`LENS`/`PP_OCR`), fallback e `DesktopOcrAnswer` |
-| `DesktopPPOcr.kt` | motor offline: sessões em cache, conversão `PPOcrOutcome` → `LensResult` |
+| `DesktopPPOcr.kt` | motor offline: sessões em cache, conversão `PPOcrOutcome` → `LensResult`; a imagem é copiada para um buffer reaproveitado entre leituras (D99) |
+| `PixelBuffer.kt` | o `IntArray` de pixels que o `DesktopPPOcr` reusa enquanto o tamanho da imagem não muda — o recorte do hover é a altura inteira do monitor (~8 MB a 1080p) a cada leitura (D99) |
 | `DesktopDictLoader.kt` | abre/caches o `LookupEngine` a partir da pasta de dicionários; `installedTitles`/`dictionaryTitle` leem **só o `meta.json`** (o índice de um dicionário tem dezenas de MB, e a lista de nomes do cartão é pedida a cada composição); `sizeBytes` soma o conteúdo de um `.yabai` (que é pasta) |
 
 ### Atalhos, bandeja e sistema

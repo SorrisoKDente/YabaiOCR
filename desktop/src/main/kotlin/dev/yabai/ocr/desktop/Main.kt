@@ -894,10 +894,17 @@ private fun HoverTooltipOverlay(
     val hMissing = hoverState.missingEntryIn
     // «Empty» is not the same as «nothing to show»: the card is also the place where the chosen
     // dictionary says it has no entry for the word.
-    if (hPoint != null && (hMatches.isNotEmpty() || hMissing != null)) {
+    val cardShown = hPoint != null && (hMatches.isNotEmpty() || hMissing != null)
+    // One card window for the whole session, hidden between words (D98). It is only created once
+    // the hover has something to show, so a tray-only start still pays nothing for it.
+    var cardCreated by remember { mutableStateOf(false) }
+    LaunchedEffect(cardShown) { if (cardShown) cardCreated = true }
+    if (cardCreated) {
         HoverTooltipWindow(
             matches = hMatches,
-            mousePoint = hPoint,
+            // A hidden card needs no anchor; the last one is as good as any while there is nothing
+            // on screen, and the next show recomputes it from the pointer.
+            mousePoint = hPoint ?: LAST_HOVER_POINT,
             activeFilter = hoverState.activeFilter,
             notice = hMissing?.let { DesktopStrings.hoverDictionaryMissingEntry(it) },
             // Read once per card, not once per recomposition: every status line the hover publishes
@@ -916,6 +923,10 @@ private fun HoverTooltipOverlay(
                 hoverState.missingEntryIn = null
             },
             onBoundsChanged = { hoverOcrManager.setTooltipBounds(it) },
+            visible = cardShown,
         )
     }
 }
+
+/** Anchor used by a card that is hidden: any point on any monitor will do. */
+private val LAST_HOVER_POINT = Point(0, 0)

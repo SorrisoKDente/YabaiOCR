@@ -25,6 +25,13 @@ object DesktopPPOcr {
 
     private var cached: PPOcrEngine? = null
 
+    /**
+     * The `IntArray` the image is copied into. A hover read of a full monitor is ~8 MB at 1080p and
+     * the continuous hover runs one every few hundred milliseconds: reusing the buffer takes that
+     * garbage out of the young generation (D99). Safe because [recognize] is `@Synchronized`.
+     */
+    private val pixelBuffer = PixelBuffer()
+
     fun store(settings: DesktopSettings = DesktopSettings()): PPOcrModelStore =
         PPOcrModelStore(settings.ppOcrDir)
 
@@ -63,7 +70,7 @@ object DesktopPPOcr {
             return LensResult(language = "ja", segments = emptyList(), blocks = emptyList(), elapsedMs = 0)
         }
 
-        val pixels = IntArray(width * height)
+        val pixels = pixelBuffer.of(width * height)
         image.getRGB(0, 0, width, height, pixels, 0, width)
         val focusBox = focus?.let { PixelBox(it.x, it.y, 1, 1) }
         return toLensResult(engine.recognizePixels(pixels, width, height, focus = focusBox))

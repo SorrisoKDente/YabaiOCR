@@ -3786,12 +3786,12 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D26 | `[x]` | **Fix de Perda de Tela Cheia ao Alternar Telas**: Corrigir bug onde abrir o gerenciador de dicionários ou voltar ao menu anterior redefiniam o estado de maximizado/tamanho da janela principal | fácil |
 | D27 | `[x]` | **Menu da bandeja no cursor, como o da Steam**: abrir no canto inferior esquerdo do ponteiro sobre a barra de tarefas, crescendo para cima, e inverter para a esquerda quando não couber | fácil |
 | D28 | `[x]` | **Contraste dos botões nos dois temas**: acabar com `Color.White` fixo no desktop e no Android, que deixava botões como «Padrão» e «Verificar atualizações» ilegíveis no tema claro | médio |
-| D95 | `[~]` | **Devolver o heap ao desligar o hover**: o G1 ocioso não recolhe o lixo nem devolve o commit; desligar o hover só torna os dicionários e as sessões ONNX inalcançáveis | médio |
-| D96 | `[~]` | **Flags de higiene de heap no app empacotado**: `-Xms`, trim concorrente e GC periódico para o app que fica na bandeja | fácil |
-| D97 | `[~]` | **O picker fechava e deixava o motor de dicionários aberto**: 123 MB de índice (+ tradução) vivos até o app sair | fácil |
-| D98 | `[ ]` | **Reutilizar a janela do cartão** em vez de criar uma `ComposeWindow` por palavra, que deixa superfícies nativas no glibc | difícil |
-| D99 | `[ ]` | **Reduzir a alocação por leitura do hover**: recorte de altura inteira + `BufferedImage` por leitura | médio |
-| D100 | `[ ]` | **Limitar o pior caso e medir o glibc no Linux**: teto de heap e `MALLOC_ARENA_MAX` com PSS antes/depois | fácil |
+| D95 | `[x]` | **Devolver o heap ao desligar o hover**: o G1 ocioso não recolhe o lixo nem devolve o commit; desligar o hover só torna os dicionários e as sessões ONNX inalcançáveis | médio |
+| D96 | `[x]` | **Flags de higiene de heap no app empacotado**: `-Xms`, trim concorrente e GC periódico para o app que fica na bandeja | fácil |
+| D97 | `[x]` | **O picker fechava e deixava o motor de dicionários aberto**: 123 MB de índice (+ tradução) vivos até o app sair | fácil |
+| D98 | `[x]` | **Reutilizar a janela do cartão** em vez de criar uma `ComposeWindow` por palavra, que deixa superfícies nativas no glibc | difícil |
+| D99 | `[x]` | **Reduzir a alocação por leitura do hover**: recorte de altura inteira + `BufferedImage` por leitura | médio |
+| D100 | `[x]` | **Limitar o pior caso e medir o glibc no Linux**: teto de heap e `MALLOC_ARENA_MAX` com PSS antes/depois | fácil |
 
 ### D21 — Limpeza da Tela de Ajustes `[x]` (03/11/2026)
 
@@ -7722,7 +7722,7 @@ portal do GNOME (~300 ms) e o detector sobre a imagem inteira continuam no camin
 é da pilha OCR + dicionários num harness, não do app inteiro: esta VM não tem saída 4K, e a janela
 Compose/skiko não entra nesse número de heap.
 
-## D95 — Devolver o heap ao desligar o hover  `[~]`
+## D95 — Devolver o heap ao desligar o hover  `[x]`
 
 **Pedido.** O app na bandeja, com o hover desativado, ficava em 600 MB no Ubuntu X11 e não voltava
 depois de usar o hover (que chegava a passar de 1 GB). O D94 já libera os dicionários e as sessões
@@ -7746,10 +7746,24 @@ Testes: **566 no desktop** (1 novo: `turningTheHoverOffTrimsTheHeap`). Mutação
 | --- | --- |
 | `setEnabled(false)` deixa de chamar `trimHeap()` | `turningTheHoverOffTrimsTheHeap` |
 
-Pendente: E2E no Ubuntu (RSS + `jcmd GC.heap_info` antes/depois de desligar o hover); não foi feito
-nesta rodada porque a máquina disponível é Windows e a instância em uso é de outro build.
+Ponta a ponta (19/11/2026, Ubuntu 24.04/GNOME 46/Wayland, app empacotado com `--minimized`, 9
+dicionários instalados, `engine=PP_OCR`, clip de japonês em tela cheia; hover ligado e desligado pelo
+`ShortcutPressed("hover-toggle")` do D-Bus, sem tocar no mouse real):
 
-## D96 — Flags de higiene de heap no app empacotado  `[~]`
+| momento | heap commit/usado (`jcmd GC.heap_info`) | RSS |
+| --- | --- | --- |
+| repouso, recém-aberto | 65 536K / 24 760K | 191 MB |
+| 7 leituras (散歩しよう, 誰にも, できなかった…) | 638 976K / 268 423K | 893 MB |
+| `hover-toggle` off, +1 s | 638 976K / 311 431K | 710 MB |
+| +3 s (trim) | **65 536K / 17 124K** | **370 MB** |
+| +25 s | 65 536K | 377 MB |
+
+Um ciclo a menos de 3 s devolve o commit inteiro do pico (638 MB → 65 MB) e o RSS cai de 893 MB
+para 370 MB. O que **não** volta é o repouso de 191 MB: o resíduo de ~180 MB é nativo (arenas do
+glibc, superfícies do Skiko, sessões ONNX fechadas mas não mapeadas de volta), e é o insumo de
+D98/D100.
+
+## D96 — Flags de higiene de heap no app empacotado  `[x]`
 
 **Pedido.** Mesmo com o trim do D95, o app ocioso pode acumular lixo jovem e o commit inicial é
 grande em máquinas com muita RAM.
@@ -7764,10 +7778,12 @@ grande em máquinas com muita RAM.
 Evidência de empacotamento: `:desktop:createDistributable` gerou `app/Yabai OCR.cfg` com as cinco
 opções (`-Xmx1g`, `-Xms64m`, `-XX:+ExplicitGCInvokesConcurrent`,
 `-XX:G1PeriodicGCInterval=60000`, `-XX:G1PeriodicGCSystemLoadThreshold=0`).
-Pendente: medir o RSS do app real ocioso por 2+ min e confirmar que o GC periódico não causa
-stutter perceptível no hover.
+Ponta a ponta (19/11/2026, mesmo ambiente): o app real ocioso por **120 s** ficou em 65 536K de
+commit com 15 741K usados e o RSS andou de 377 200 kB para **377 248 kB** (+48 kB, ruído), com
+YGC 27→29 e CGC 20 sem nenhuma coleta concorrente nova e FGC 0 — o GC periódico não manteve o
+heap ocupado nem causou pausa perceptível no hover que sucedeu a medição.
 
-## D97 — O picker fechava e deixava o motor de dicionários aberto  `[~]`
+## D97 — O picker fechava e deixava o motor de dicionários aberto  `[x]`
 
 **Pedido.** Fechar o seletor de tela inteira devolvia a memória da captura, mas o índice dos
 dicionários continuava aberto pelo resto da sessão.
@@ -7789,32 +7805,121 @@ Testes: **566 no desktop** (3 novos em `PickerDictionaryLeaseTest`). Mutações 
 | `close()` deixa de chamar o `closer` | `theEngineIsClosedWhenThePickerGoesAway` (e `theEngineIsClosedOnlyOnce`) |
 | `close()` ignora o `borrowed` e fecha sempre | `aPickerThatNeverLookedAnythingUpClosesNothing` |
 
-## D98 — Reutilizar a janela do cartão  `[ ]`
+Ponta a ponta (19/11/2026, mesmo ambiente do D95): `capture-fullscreen` pelo D-Bus abriu o picker e
+carregou o índice — heap **484 352K / 172 836K usados**, RSS **975 012 kB** (repouso anterior:
+65 536K / 377 436 kB). Um Escape fechou a janela e devolveu o motor: heap **75 776K / 21 994K** e
+RSS **615 144 kB** (estável em +10 s, 47 threads, YGC 90, CGC 62). O índice de ~150 MB sai do heap
+na hora; o que sobra em RSS é o resíduo nativo já descrito no D95.
+
+## D98 — Reutilizar a janela do cartão  `[x]`
 
 **Pedido.** O RSS nativo do Linux não voltava ao valor de repouso depois de muitos hovers.
 
-- **Causa raiz.** Cada palavra cria e destrói uma `ComposeWindow`/`SkiaLayer`; as superfícies
+- **Causa raiz.** Cada palavra criava e destruía uma `ComposeWindow`/`SkiaLayer`; as superfícies
   nativas liberadas ficam nas arenas do glibc (a parte que nem `System.gc()` devolve).
-- **Plano.** Manter uma única janela de cartão viva (`visible = false`) e trocar conteúdo/posição.
-  É o mesmo terreno de transparência/renderizador do D79/D80: exige E2E em Windows e Ubuntu.
-- **Arquivos.** `desktop/.../Main.kt` · `desktop/.../HoverTooltipWindow.kt`
+- **Correção.**
+  - `HoverTooltipWindow` ganhou `visible`; a janela é criada **uma vez** pelo overlay e depois só
+    escondida/mostrada. Enquanto escondida ela devolve `onBoundsChanged(null)` (o hover não pode
+    achar que o ponteiro está num cartão que não está na tela) e, quando volta, é medida e
+    posicionada antes do debounce de 80 ms — sem isso a palavra seguinte aparecia no canto da
+    anterior.
+  - `Main.kt` só cria a composição depois do primeiro cartão (`cardCreated`), então um app que só
+    vive na bandeja continua sem pagar janela nenhuma; e o menu de dicionários fecha a cada cartão
+    novo.
+- **Arquivos.** `desktop/.../Main.kt` · `desktop/.../HoverTooltipWindow.kt` ·
+  `desktop/src/test/.../HoverCardWindowReuseTest.kt`
 
-## D99 — Reduzir a alocação por leitura do hover  `[ ]`
+Testes: **573 no desktop** (3 novos em `HoverCardWindowReuseTest`). Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `Window(...)` deixa de receber `visible = visible` | `the card window follows the visible flag` |
+| o overlay volta a chamar o cartão dentro de `if (hPoint != null …)` | `the card is shown and hidden instead of created per word` |
+| o cartão escondido deixa de limpar `onBoundsChanged(null)` | `a hidden card holds no bounds` |
+
+Ponta a ponta (19/11/2026, mesmo protocolo: app recém-aberto, clip japonês em tela cheia, 12
+posições × 2 colunas pelo `CursorMoved` do D-Bus, hover desligado e medido 35 s depois):
+
+| build | repouso (RSS/PSS) | com hover (19–20 leituras) | desligado +35 s (RSS/PSS) | resíduo |
+| --- | --- | --- | --- | --- |
+| anterior | 192 724 / 183 441 kB | 1 015 384 kB | **485 576 / 411 098 kB** | +293 MB |
+| D98+D99 | 209 056 / 199 780 kB | 853 556 kB | **395 256 / 382 547 kB** | +186 MB |
+
+Um segundo ciclo seguido no build novo (24 leituras mais, e mais um desligamento) levou o repouso de
+395 MB para **434 MB**: +39 MB, contra os +186 MB do primeiro ciclo, que ainda pagava o aquecimento
+(JIT, primeira janela, bibliotecas nativas). Não há acúmulo por palavra.
+
+Inspeção visual na mesma sessão (19/11/2026, clip japonês em tela cheia, ponteiro só pelo
+`CursorMoved` do D-Bus): o cartão é **um só** — janela `Yabai OCR - Hover` de 460×158 em `+218+138`
+com o ponteiro em (200, 120), sobre 散歩しよう; ao ir para (260, 240), 誰にも言えなかった, a mesma
+janela passou para `+278+258` e 460×314 com a entrada de 言える no Jitendex PT-BR — visível na
+tela ao lado da palavra; em (220, 600), 楽しかった, foi para `+238+618`; ao sair do texto, o
+`Map State` da mesma janela virou `IsUnMapped` (nada de janela nova, nada de cartão órfão). O log
+da sessão não tem nenhum `Reentry into ignoringRedrawRequests` nem exceção, e o cartão apareceu no
+primeiro frame de cada palavra.
+Limitação: é uma execução por build, numa VM (VirtualBox, 1920×955) — ruído de ±30 MB é esperado;
+Windows não foi medido nesta rodada (o cartão é o mesmo código, mas o renderizador não).
+
+## D99 — Reduzir a alocação por leitura do hover  `[x]`
 
 **Pedido.** O hover contínuo enche o heap de lixo mais rápido do que o G1 o recolhe.
 
-- **Causa raiz.** Cada leitura aloca o `IntArray` do recorte (altura inteira do monitor: ~8 MB a
-  1080p) e um `BufferedImage`; com duas leituras em voo são dezenas de MB por segundo.
-- **Plano.** Reutilizar buffers de scratch do mesmo tamanho entre leituras. **Não** encolher o
-  recorte: a altura inteira é intencional (palavra partida entre colunas, D94).
-- **Arquivos.** `desktop/.../HoverOcrManager.kt` · `core/.../ppocr/PPOcrEngine.kt`
+- **Causa raiz.** Cada leitura alocava o `IntArray` do recorte (altura inteira do monitor: ~8 MB a
+  1080p) e um `BufferedImage`; com duas leituras em voo eram dezenas de MB por segundo.
+- **Correção.** `PixelBuffer` (novo) guarda o `IntArray` e o devolve enquanto o tamanho da imagem
+  não muda; `DesktopPPOcr.recognize` copia a imagem para ele (`@Synchronized`, então nenhuma
+  leitura divide o buffer com outra) e o recorte continua com a altura inteira, que é intencional
+  (palavra partida entre colunas, D94). O `BufferedImage` não é reaproveitável: `Robot` e o portal
+  do GNOME alocam um por captura, e copiar para um buffer fixo só somaria trabalho.
+- **Arquivos.** `desktop/.../PixelBuffer.kt` · `desktop/.../DesktopPPOcr.kt` ·
+  `desktop/src/test/.../PixelBufferTest.kt`
 
-## D100 — Limitar o pior caso e medir o glibc no Linux  `[ ]`
+Testes: **573 no desktop** (4 novos em `PixelBufferTest`). Mutação provada: `of()` alocando sempre
+(`pixels = IntArray(size)` sem a comparação) derruba `the same size gives the same buffer back` e
+`the buffer can come back after a size change`.
+
+Sem número isolado: a troca de buffer só muda o lixo entregue ao G1, não o pico do processo, e foi
+medida junto do D98 (o ciclo de 19–20 leituras do build novo usou no máximo 183 MB de heap vivo,
+contra 224 MB no anterior).
+
+## D100 — Limitar o pior caso e medir o glibc no Linux  `[x]`
 
 **Pedido.** Fechar o teto do pior caso e provar o que o alocador nativo segura.
 
 - **Causa raiz.** `-Xmx1g` é folgado para o pior caso medido (295 MB de pico de heap) e o glibc
   pode segurar páginas do Skiko depois de liberá-las.
-- **Plano.** Avaliar `-Xmx640m` e `MALLOC_ARENA_MAX=2` no launcher Linux, com PSS (`smem`) antes e
-  depois; só adotar com número.
-- **Arquivos.** `desktop/build.gradle.kts` · empacotamento Linux
+- **Medição do glibc** (19/11/2026, PSS do `/proc/<pid>/smaps_rollup`; não há `smem` nesta
+  máquina). Os ciclos só entram na mesma comparação quando são do mesmo tipo: um ciclo com cartão
+  cria e move a janela do cartão, um ciclo sem correspondência no dicionário não a mostra, e o
+  resíduo nativo não é o mesmo nos dois casos.
+
+Ciclo **sem cartão** (texto do chat sob o ponteiro, leituras sem correspondência, 24 posições):
+
+| configuração | repouso (RSS/PSS) | pico no ciclo | desligado +35 s (RSS/PSS) | resíduo |
+| --- | --- | --- | --- | --- |
+| padrão | 206 124 / 196 894 kB | 976 128 kB | 353 456 / 344 095 kB | +147 MB |
+| `MALLOC_ARENA_MAX=2` | 198 336 / 189 127 kB | 855 656 kB | **295 712 / 286 372 kB** | **+97 MB** |
+
+Ciclo **com cartão** (clip japonês em tela cheia, leituras com correspondência — o mesmo protocolo
+com que o D98 foi medido; não houve execução com `MALLOC_ARENA_MAX=2` nesse cenário, então ele fica
+fora da comparação):
+
+| configuração | repouso (RSS/PSS) | pico no ciclo | desligado +35 s (RSS/PSS) | resíduo |
+| --- | --- | --- | --- | --- |
+| padrão (D98+D99) | 209 056 / 199 780 kB | 853 556 kB | 395 256 / 382 547 kB | +186 MB |
+
+- **Decisão: não adotado (ainda).** No único par medido no mesmo tipo de ciclo (sem cartão), a
+  variável corta **50 MB** do resíduo (147 → 97 MB) e ~120 000 kB do pico
+  (976 128 → 855 656 kB). O número maior que aparecia antes neste item vinha de comparar o resíduo
+  de um ciclo com cartão (186 MB) com o de um ciclo sem cartão (97 MB). Só o AppImage consegue levá-la (o `AppRun` é um script do
+  repositório); o `.deb` usa o launcher nativo do jpackage, que não passa por shell nenhum, e adotar
+  num pacote e não no outro divide o comportamento. O custo de contenção de duas arenas num processo
+  que aloca em ONNX + Skiko não foi medido, e a política do projeto é adotar com número dos dois
+  lados.
+- **Decisão: `-Xmx` fica em 1g.** Com `-Xms64m` e o G1 devolvendo commit, `-Xmx` é teto e não
+  reserva: baixar para 640m não muda o RSS de um app ocioso e tira margem do cenário que esta VM não
+  reproduz (tela 4K com os nove dicionários), onde o harness mediu 295 MB de pico vivo.
+- **Arquivos.** `desktop/build.gradle.kts` (sem mudança) · empacotamento Linux
+- **Próximo passo, se o Linux voltar à mesa:** medir latência de OCR e de desenho com 2 e 4 arenas e,
+  com número dos dois lados, exportar `MALLOC_ARENA_MAX` no `AppRun` do AppImage e explicar no
+  `docs/LINUX.md` por que o `.deb` fica de fora.
