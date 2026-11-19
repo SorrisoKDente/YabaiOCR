@@ -3786,6 +3786,12 @@ Legenda: `[ ]` pendente · `[x]` pronto · `[~]` parcial · `[-]` descartado
 | D26 | `[x]` | **Fix de Perda de Tela Cheia ao Alternar Telas**: Corrigir bug onde abrir o gerenciador de dicionários ou voltar ao menu anterior redefiniam o estado de maximizado/tamanho da janela principal | fácil |
 | D27 | `[x]` | **Menu da bandeja no cursor, como o da Steam**: abrir no canto inferior esquerdo do ponteiro sobre a barra de tarefas, crescendo para cima, e inverter para a esquerda quando não couber | fácil |
 | D28 | `[x]` | **Contraste dos botões nos dois temas**: acabar com `Color.White` fixo no desktop e no Android, que deixava botões como «Padrão» e «Verificar atualizações» ilegíveis no tema claro | médio |
+| D95 | `[~]` | **Devolver o heap ao desligar o hover**: o G1 ocioso não recolhe o lixo nem devolve o commit; desligar o hover só torna os dicionários e as sessões ONNX inalcançáveis | médio |
+| D96 | `[~]` | **Flags de higiene de heap no app empacotado**: `-Xms`, trim concorrente e GC periódico para o app que fica na bandeja | fácil |
+| D97 | `[~]` | **O picker fechava e deixava o motor de dicionários aberto**: 123 MB de índice (+ tradução) vivos até o app sair | fácil |
+| D98 | `[ ]` | **Reutilizar a janela do cartão** em vez de criar uma `ComposeWindow` por palavra, que deixa superfícies nativas no glibc | difícil |
+| D99 | `[ ]` | **Reduzir a alocação por leitura do hover**: recorte de altura inteira + `BufferedImage` por leitura | médio |
+| D100 | `[ ]` | **Limitar o pior caso e medir o glibc no Linux**: teto de heap e `MALLOC_ARENA_MAX` com PSS antes/depois | fácil |
 
 ### D21 — Limpeza da Tela de Ajustes `[x]` (03/11/2026)
 
@@ -7715,3 +7721,100 @@ a abertura das sessões (~3 s nesta VM) — é o preço de não manter 245 MB pa
 portal do GNOME (~300 ms) e o detector sobre a imagem inteira continuam no caminho. A medição de 4K
 é da pilha OCR + dicionários num harness, não do app inteiro: esta VM não tem saída 4K, e a janela
 Compose/skiko não entra nesse número de heap.
+
+## D95 — Devolver o heap ao desligar o hover  `[~]`
+
+**Pedido.** O app na bandeja, com o hover desativado, ficava em 600 MB no Ubuntu X11 e não voltava
+depois de usar o hover (que chegava a passar de 1 GB). O D94 já libera os dicionários e as sessões
+ONNX ao desligar; faltava o passo seguinte, que é fazer o processo devolver o heap.
+
+- **Causa raiz.** Desligar o hover torna o índice dos dicionários e as sessões ONNX inalcançáveis,
+  mas um G1 ocioso não tem alocação que dispare ciclo nenhum: o heap fica no pico (medido: 409 MB de
+  commit com 9,5 MB vivos depois de um `GC.run`) e o RSS acompanha o commit.
+- **Correção.**
+  - `HoverOcrManager` ganhou `trimHeap` injetável (padrão `System.gc()`), chamado 1,5 s depois de
+    `dictionaryCache.release()` e `releaseOcrSessions()`, no mesmo `scope.launch` — o cartão some
+    antes da pausa e o trim não roda na thread da UI.
+  - `clearLastRead()` limpa `lastLensResult`, o ponto, o recorte, o tamanho da imagem, o `lastAnswer`
+    e o mapa de `Robot` ao desligar e ao fechar o app.
+- **Arquivos.** `desktop/.../HoverOcrManager.kt` ·
+  `desktop/src/test/.../HoverOcrManagerLifecycleTest.kt`
+
+Testes: **566 no desktop** (1 novo: `turningTheHoverOffTrimsTheHeap`). Mutação provada:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `setEnabled(false)` deixa de chamar `trimHeap()` | `turningTheHoverOffTrimsTheHeap` |
+
+Pendente: E2E no Ubuntu (RSS + `jcmd GC.heap_info` antes/depois de desligar o hover); não foi feito
+nesta rodada porque a máquina disponível é Windows e a instância em uso é de outro build.
+
+## D96 — Flags de higiene de heap no app empacotado  `[~]`
+
+**Pedido.** Mesmo com o trim do D95, o app ocioso pode acumular lixo jovem e o commit inicial é
+grande em máquinas com muita RAM.
+
+- **Causa raiz.** Sem `-Xms`, o JVM commita `1/64` da RAM no start (768 MB numa máquina de 48 GB);
+  sem `G1PeriodicGCInterval`, o app parado não roda ciclo algum.
+- **Correção.** `desktop/build.gradle.kts` passou a levar `-Xms64m`,
+  `-XX:+ExplicitGCInvokesConcurrent`, `-XX:G1PeriodicGCInterval=60000` e
+  `-XX:G1PeriodicGCSystemLoadThreshold=0` junto de `-Dfile.encoding=UTF-8 -Xmx1g`.
+- **Arquivos.** `desktop/build.gradle.kts`
+
+Evidência de empacotamento: `:desktop:createDistributable` gerou `app/Yabai OCR.cfg` com as cinco
+opções (`-Xmx1g`, `-Xms64m`, `-XX:+ExplicitGCInvokesConcurrent`,
+`-XX:G1PeriodicGCInterval=60000`, `-XX:G1PeriodicGCSystemLoadThreshold=0`).
+Pendente: medir o RSS do app real ocioso por 2+ min e confirmar que o GC periódico não causa
+stutter perceptível no hover.
+
+## D97 — O picker fechava e deixava o motor de dicionários aberto  `[~]`
+
+**Pedido.** Fechar o seletor de tela inteira devolvia a memória da captura, mas o índice dos
+dicionários continuava aberto pelo resto da sessão.
+
+- **Causa raiz.** `Main.kt` entrega `DesktopDictLoader.cachedEngine` ao `SegmentPickerWindow` e o
+  `onDismiss` só limpa `pickerCapture`; o motor só é fechado pelo gerenciador de dicionários.
+- **Correção.**
+  - `PickerDictionaryLease` (novo) empresta o motor no `engine(settings)` e o devolve no `close()`,
+    uma vez só; um picker cancelado sem consultar nada não fecha um motor que não abriu.
+  - `Main.kt` cria o lease com `remember`, passa `pickerDictionary.engine(settings)` ao picker e o
+    fecha num `DisposableEffect(picker)`, cobrindo parágrafo, recorte à mão e Escape.
+- **Arquivos.** `desktop/.../PickerDictionaryLease.kt` · `desktop/.../Main.kt` ·
+  `desktop/src/test/.../PickerDictionaryLeaseTest.kt`
+
+Testes: **566 no desktop** (3 novos em `PickerDictionaryLeaseTest`). Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `close()` deixa de chamar o `closer` | `theEngineIsClosedWhenThePickerGoesAway` (e `theEngineIsClosedOnlyOnce`) |
+| `close()` ignora o `borrowed` e fecha sempre | `aPickerThatNeverLookedAnythingUpClosesNothing` |
+
+## D98 — Reutilizar a janela do cartão  `[ ]`
+
+**Pedido.** O RSS nativo do Linux não voltava ao valor de repouso depois de muitos hovers.
+
+- **Causa raiz.** Cada palavra cria e destrói uma `ComposeWindow`/`SkiaLayer`; as superfícies
+  nativas liberadas ficam nas arenas do glibc (a parte que nem `System.gc()` devolve).
+- **Plano.** Manter uma única janela de cartão viva (`visible = false`) e trocar conteúdo/posição.
+  É o mesmo terreno de transparência/renderizador do D79/D80: exige E2E em Windows e Ubuntu.
+- **Arquivos.** `desktop/.../Main.kt` · `desktop/.../HoverTooltipWindow.kt`
+
+## D99 — Reduzir a alocação por leitura do hover  `[ ]`
+
+**Pedido.** O hover contínuo enche o heap de lixo mais rápido do que o G1 o recolhe.
+
+- **Causa raiz.** Cada leitura aloca o `IntArray` do recorte (altura inteira do monitor: ~8 MB a
+  1080p) e um `BufferedImage`; com duas leituras em voo são dezenas de MB por segundo.
+- **Plano.** Reutilizar buffers de scratch do mesmo tamanho entre leituras. **Não** encolher o
+  recorte: a altura inteira é intencional (palavra partida entre colunas, D94).
+- **Arquivos.** `desktop/.../HoverOcrManager.kt` · `core/.../ppocr/PPOcrEngine.kt`
+
+## D100 — Limitar o pior caso e medir o glibc no Linux  `[ ]`
+
+**Pedido.** Fechar o teto do pior caso e provar o que o alocador nativo segura.
+
+- **Causa raiz.** `-Xmx1g` é folgado para o pior caso medido (295 MB de pico de heap) e o glibc
+  pode segurar páginas do Skiko depois de liberá-las.
+- **Plano.** Avaliar `-Xmx640m` e `MALLOC_ARENA_MAX=2` no launcher Linux, com PSS (`smem`) antes e
+  depois; só adotar com número.
+- **Arquivos.** `desktop/build.gradle.kts` · empacotamento Linux

@@ -239,6 +239,10 @@ fun main(args: Array<String>) {
     // open so the user can go back and click another paragraph without capturing the screen again.
     var snippetsCapture by remember { mutableStateOf<CapturedScreen?>(null) }
     var pickerScanCache by remember { mutableStateOf<PickerScan.Ready?>(null) }
+    // The dictionary engine the full-screen picker borrows; it is given back when the window leaves
+    // the composition (a paragraph, a hand-drawn crop, Escape), instead of living until the app
+    // exits (D97).
+    val pickerDictionary = remember { PickerDictionaryLease() }
 
     /**
      * Monitor the capture settings ask for.
@@ -614,12 +618,17 @@ fun main(args: Array<String>) {
     // Full-screen picker: the screen as it was, with a clickable box over each paragraph
     val picker = pickerCapture
     if (picker != null) {
+        // While the window is in composition it owns the borrowed engine; leaving by any path
+        // (selecting a box, the manual crop, Escape) disposes it and closes the dictionaries.
+        DisposableEffect(picker) {
+            onDispose { pickerDictionary.close() }
+        }
         SegmentPickerWindow(
             screenImage = picker.image,
             screenBounds = picker.screenBounds,
             readingMode = settings.pickerReading,
             dictionaryFilter = settings.dictionaryFilter,
-            engineProvider = { DesktopDictLoader.cachedEngine(settings) },
+            engineProvider = { pickerDictionary.engine(settings) },
             onBlockSelected = { cropped, text ->
                 // The capture is kept for the «Trechos» button of the result window.
                 snippetsCapture = picker

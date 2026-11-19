@@ -28,6 +28,7 @@ class HoverOcrManagerLifecycleTest {
         cache: HoverDictionaryCache = HoverDictionaryCache({ null }, {}),
         capture: ((java.awt.Rectangle) -> java.awt.image.BufferedImage)? = null,
         releaseOcrSessions: () -> Unit = {},
+        trimHeap: () -> Unit = {},
     ) = HoverOcrManager(
         onResultsReady = { _, _, _, _ -> },
         onDismiss = {},
@@ -36,6 +37,7 @@ class HoverOcrManagerLifecycleTest {
         captureProvider = capture,
         dictionaryCache = cache,
         releaseOcrSessions = releaseOcrSessions,
+        trimHeap = trimHeap,
     )
 
     @Test
@@ -69,6 +71,22 @@ class HoverOcrManagerLifecycleTest {
         val deadline = System.currentTimeMillis() + 3_000
         while (released.get() < 1 && System.currentTimeMillis() < deadline) Thread.sleep(20)
         assertEquals("the ONNX sessions must not outlive the hover", 1, released.get())
+        hover.close()
+    }
+
+    @Test
+    fun turningTheHoverOffTrimsTheHeap() {
+        val trims = AtomicInteger()
+        val hover = manager(trimHeap = { trims.incrementAndGet() })
+
+        hover.setEnabled(true)
+        hover.setEnabled(false)
+
+        // The trim runs after the card is gone, off the UI thread; it is what makes the RSS follow
+        // the release instead of staying at the high-water mark of the last hover (D95).
+        val deadline = System.currentTimeMillis() + 5_000
+        while (trims.get() < 1 && System.currentTimeMillis() < deadline) Thread.sleep(20)
+        assertEquals("turning the hover off must hand the heap back", 1, trims.get())
         hover.close()
     }
 

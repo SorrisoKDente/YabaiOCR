@@ -212,8 +212,9 @@ rodam com as flags acima.
 
 | arquivo | papel |
 | --- | --- |
-| `HoverOcrManager.kt` | ciclo do hover: captura → OCR (motor escolhido, focado no ponteiro) → dicionário → cartão; o gate avança por poll também nos bridges do compositor (`BRIDGE_PUMP_MILLIS`) e desligar o hover devolve o que ele alocou (D94) |
+| `HoverOcrManager.kt` | ciclo do hover: captura → OCR (motor escolhido, focado no ponteiro) → dicionário → cartão; o gate avança por poll também nos bridges do compositor (`BRIDGE_PUMP_MILLIS`) e desligar o hover devolve o que ele alocou (D94) e faz um trim de heap 1,5 s depois, para o processo não ficar no pico (D95) |
 | `HoverDictionaryCache.kt` | os dicionários abertos do hover (~123 MB de índice), reaproveitados enquanto a pasta não muda e liberados no `release()` quando o hover desliga (D94) |
+| `PickerDictionaryLease.kt` | o motor de dicionários que o picker empresta de `DesktopDictLoader.cachedEngine` e devolve quando a janela sai de composição (parágrafo, recorte à mão ou Escape), em vez de ficar aberto até o app sair (D97) |
 | `HoverGate.kt` / `HoverDismissGate.kt` | quando disparar (parada do ponteiro) e quando fechar; o repouso é preferência (`hover_rest_millis`, padrão 250 ms, presets 150/250/420 nos Ajustes) e vale para a execução em curso (D82); também a retentativa do mesmo ponto quando a leitura falha por captura/OCR, com pausa e teto (D88) |
 | `HoverLookupTracker.kt` | qual leitura ainda vale quando o ponteiro segue andando: o mais novo vence, no máximo duas em voo (D83) |
 | `LensPayload.kt` | o que sobe para o Lens: PNG até 400 KB, JPEG q85 acima disso — o upload é o gargalo no Deck (D83) |

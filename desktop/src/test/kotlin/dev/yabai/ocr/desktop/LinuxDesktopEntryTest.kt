@@ -25,19 +25,25 @@ class LinuxDesktopEntryTest {
             setExecutable(true)
         }
 
+        // The paths are compared as the AppImage runtime writes them (forward slashes); Windows
+        // builds run this test too and `File.absolutePath` would otherwise hand it backslashes,
+        // which `isInsideAppImageMount` never sees on the Linux target.
+        val appDirPath = appDir.absolutePath.replace('\\', '/')
+        val launchingPath = launching.absolutePath.replace('\\', '/')
+
         val resolved = resolveLinuxExecutable(
-            env = mapOf("APPDIR" to appDir.absolutePath),
+            env = mapOf("APPDIR" to appDirPath),
             userHome = userHome.absolutePath,
-            command = launching.absolutePath,
-            jpackageAppPath = launching.absolutePath,
+            command = launchingPath,
+            jpackageAppPath = launchingPath,
         )
 
         assertNull("the mount path never outlives the app: $resolved", resolved)
-        assertTrue(isInsideAppImageMount(launching.absolutePath, mapOf("APPDIR" to appDir.absolutePath)))
+        assertTrue(isInsideAppImageMount(launchingPath, mapOf("APPDIR" to appDirPath)))
         assertFalse(
-            isInsideAppImageMount("/home/deck/Applications/Yabai_OCR.AppImage", mapOf("APPDIR" to appDir.absolutePath)),
+            isInsideAppImageMount("/home/deck/Applications/Yabai_OCR.AppImage", mapOf("APPDIR" to appDirPath)),
         )
-        assertFalse("no APPDIR means nothing to compare", isInsideAppImageMount(launching.absolutePath, emptyMap()))
+        assertFalse("no APPDIR means nothing to compare", isInsideAppImageMount(launchingPath, emptyMap()))
     }
 
     @Test

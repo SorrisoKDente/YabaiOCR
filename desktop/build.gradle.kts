@@ -116,7 +116,22 @@ compose.desktop {
         // gigabyte of RSS that way. Measured worst case (a 3840x2160 frame of manga, all nine
         // dictionaries open, PP-OCR reading its 85 lines, at exactly this ceiling): 295 MB of peak
         // heap and 587 MB of process RSS, so 1 GB is generous.
-        jvmArgs += listOf("-Dfile.encoding=UTF-8", "-Xmx1g")
+        jvmArgs += listOf(
+            "-Dfile.encoding=UTF-8",
+            "-Xmx1g",
+            // Without an explicit initial size the JVM commits 1/64 of the machine's RAM at start
+            // (768 MB on a 48 GB machine): the tray-only app never needs it and the commit is
+            // only paid to reserve heap it will not touch for hours.
+            "-Xms64m",
+            // The trim after the hover is turned off (D95) can be a concurrent cycle instead of a
+            // stop-the-world pause; it still collects the old generation and uncommits.
+            "-XX:+ExplicitGCInvokesConcurrent",
+            // Belt and braces for a process that sits in the tray for days: when nothing allocates
+            // and no collection ran for a minute, G1 runs one anyway and can uncommit. It only
+            // covers young garbage, so the explicit trim above is the one that returns the peak.
+            "-XX:G1PeriodicGCInterval=60000",
+            "-XX:G1PeriodicGCSystemLoadThreshold=0",
+        )
         // CMP-9994 / JDK-8379560: on Ubuntu 24.04+ a native library that formats through
         // std::ostream (PP-OCR's ONNX Runtime, for instance) crashes the JVM inside libstdc++
         // when Compose has configured the Swing/AWT globals. Compose 1.10 fixed the root cause

@@ -42,6 +42,16 @@ internal class HoverOcrManager(
      * (measured; see [DesktopPPOcr]). Injected so the lifecycle can be tested without models.
      */
     private val releaseOcrSessions: () -> Unit = { DesktopPPOcr.close() },
+    /**
+     * Gives the heap back after the hover is turned off.
+     *
+     * Releasing the dictionaries and the ONNX sessions makes them *unreachable*, but a garbage-first
+     * heap with nothing allocating has no reason to run a cycle: the committed heap stays at the
+     * high-water mark of the last hover and the process keeps that RSS while it sits in the tray
+     * (measured: 409 MB committed with 9,5 MB live; one explicit trim took it to 38 MB). Injected
+     * so the lifecycle can be tested without pausing a real collector.
+     */
+    private val trimHeap: () -> Unit = { System.gc() },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /**
@@ -136,9 +146,20 @@ internal class HoverOcrManager(
             // offline reader's sessions are ~245 MB of native memory, and the hover is using
             // neither. The next hover opens them again.
             dictionaryCache.release()
+            // The card is gone: the last read, its crop and the monitors' robots are only useful
+            // while the hover is on.
+            clearLastRead()
             // Closing the ONNX sessions waits for a recognition in flight, and this runs on the UI
             // thread (tray, shortcut, Settings); the memory is given back either way.
-            scope.launch { releaseOcrSessions() }
+            scope.launch {
+                releaseOcrSessions()
+                // Releasing only makes the objects unreachable. An idle G1 never collects, so the
+                // committed heap (and the RSS) would stay at the peak of the last hover until the
+                // app exits; one trim after the card is gone gives it back (D95). The delay keeps
+                // the pause off the click that turned the hover off.
+                delay(TRIM_DELAY_MS)
+                trimHeap()
+            }
             publishStatus("Modo Hover desativado.")
         }
         return isEnabled
@@ -273,7 +294,23 @@ internal class HoverOcrManager(
         pollJob?.cancel()
         pollJob = null
         dictionaryCache.release()
+        clearLastRead()
         scope.cancel()
+    }
+
+    /**
+     * Forgets the last read. The card and its dictionary switcher are the only readers of this
+     * state, and both are gone when the hover is off or the app is closing; keeping the result and
+     * its crop alive would pin text and geometry for a feature nobody is using.
+     */
+    private fun clearLastRead() {
+        lastLensResult = null
+        lastLocalPoint = null
+        lastScreenPoint = null
+        lastCropRect = null
+        lastImageSize = null
+        lastAnswer = null
+        synchronized(robots) { robots.clear() }
     }
 
     private fun startPolling() {
@@ -513,5 +550,7 @@ internal class HoverOcrManager(
         const val DISMISS_GRACE_MS = 220L
         const val TARGET_MARGIN = 6
         const val STALE_RADIUS_PX = 56.0
+        /** Lets the card disappear before the trim pauses to collect the read it left behind. */
+        const val TRIM_DELAY_MS = 1_500L
     }
 }
