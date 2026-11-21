@@ -99,7 +99,11 @@ class AppPickerOverlay(context: Context) : FrameLayout(context) {
             LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f),
         )
         title.addView(
-            context.actionButton("✕", background = 0x00000000) { callbacks?.onDismiss() }.apply {
+            context.actionButton(
+                "✕",
+                textColor = context.getColor(R.color.text_primary),
+                background = 0x00000000,
+            ) { callbacks?.onDismiss() }.apply {
                 contentDescription = context.getString(R.string.result_close)
             },
         )

@@ -158,41 +158,9 @@ class DictionaryActivity : AppCompatActivity() {
             },
         )
 
-        // R35d: the lookup may ignore the kana readings a copied word brings along. It is here,
-        // beside the dictionaries, because it changes what they are asked — not how the panel looks.
-        column.addView(
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                background = roundedBackground(getColor(R.color.card_bg), dp(12).toFloat(), getColor(R.color.card_stroke))
-                setPadding(dp(14), dp(12), dp(14), dp(12))
-                addView(
-                    CheckBox(this@DictionaryActivity).apply {
-                        text = getString(R.string.dictionary_strip_readings)
-                        setTextColor(getColor(R.color.text_primary))
-                        isChecked = settings.stripSearchReadings
-                        tag = STRIP_READINGS_TAG
-                        setOnCheckedChangeListener { _, checked ->
-                            settings.stripSearchReadings = checked
-                        }
-                    },
-                )
-                addView(
-                    textLabel(
-                        getString(R.string.dictionary_strip_readings_hint),
-                        11f,
-                        getColor(R.color.text_secondary),
-                    ).apply {
-                        setPadding(dp(2), dp(2), dp(2), 0)
-                        setLineSpacing(dp(2).toFloat(), 1f)
-                    },
-                )
-            },
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = dp(10) },
-        )
-
+        // R35d, moved by R46b: the «Ignore readings in parentheses» switch lives in the main menu's
+        // dictionary card now, beside the dictionaries it changes the query for. Nothing of the
+        // lookup itself moved with it.
         column.addView(sectionHeader(getString(R.string.dictionary_updates_section)))
         updatesContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         column.addView(updatesContainer)
@@ -580,7 +548,11 @@ class DictionaryActivity : AppCompatActivity() {
             },
         )
         actions.addView(
-            actionButton(getString(R.string.dictionary_delete), onClick = { confirmDelete(item) }).apply {
+            actionButton(
+                getString(R.string.dictionary_delete),
+                background = getColor(R.color.warn),
+                onClick = { confirmDelete(item) },
+            ).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1101,9 +1073,6 @@ class DictionaryActivity : AppCompatActivity() {
     }
 
     companion object {
-        /** The checkbox that turns the query cleanup on and off (R35d), for the screen's tests. */
-        const val STRIP_READINGS_TAG = "yabai.dictionaryStripReadings"
-
         fun intent(context: Context): Intent = Intent(context, DictionaryActivity::class.java)
     }
 }

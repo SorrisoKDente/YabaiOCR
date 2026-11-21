@@ -28,10 +28,12 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import dev.yabai.ocr.AppSettings
+import dev.yabai.ocr.CameraActivity
 import dev.yabai.ocr.MainActivity
 import dev.yabai.ocr.R
 import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.capture.CameraPhoto
 import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.jp.JapaneseText
@@ -62,6 +64,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import kotlin.math.roundToInt
 
 /**
@@ -137,6 +140,14 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private var lastCrop: Bitmap? = null
 
     /**
+     * The photo the last result came from, when it came from the camera (R46d).
+     *
+     * Kept because «tentar offline» has to run on this picture again: the screen the photo was taken
+     * of is gone, and a capture would photograph whatever the camera app left behind.
+     */
+    private var lastPhoto: Bitmap? = null
+
+    /**
      * One selectable piece of a whole-screen capture.
      *
      * [rect] is where the box goes on screen, which is what the picker draws and hit-tests; [cropRect]
@@ -185,6 +196,13 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 return START_NOT_STICKY
             }
 
+            ACTION_PHOTO -> {
+                val path = intent.getStringExtra(EXTRA_PHOTO_PATH)
+                // The doorway finishes before this arrives; without a path there is nothing to read.
+                if (path != null) recognisePhoto(File(path))
+                return START_NOT_STICKY
+            }
+
             ACTION_START -> {
                 val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
                 val data = intent.projectionData()
@@ -215,6 +233,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         translator?.close()
         translator = null
         lastCrop = null
+        lastPhoto = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
@@ -325,6 +344,21 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         overlays.showRegionSelector()
     }
 
+    /**
+     * The camera (R46d): the capture session is not involved at all.
+     *
+     * A photo needs the camera's permission and the camera app, not the screen's, so the doorway asks
+     * for it and comes back with one file; the service only reads that file.
+     */
+    override fun onCameraRequested() {
+        if (busy) return
+        val intent = Intent(this, CameraActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { startActivity(intent) }.isFailure) {
+            toast(getString(R.string.capture_failed))
+        }
+    }
+
     override fun onRegionConfirmed(rect: Rect?) = requestCapture(rect)
 
     override fun onRegionCancelled() = Unit
@@ -381,7 +415,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         }
     }
 
-    override fun onRetryOfflineRequested() = requestCapture(lastRegion, forceOffline = true)
+    override fun onRetryOfflineRequested() {
+        // A photo is retried on itself: the screen it was taken of is gone, and a capture would
+        // photograph whatever the camera app left behind.
+        val photo = lastPhoto
+        if (photo != null) retryPhoto(photo) else requestCapture(lastRegion, forceOffline = true)
+    }
 
     /** «Ler kanji»: the capture is a page to point at, not a text to copy (R17). */
     override fun onKanjiRequested() = requestCapture(null, kanji = true)
@@ -413,8 +452,10 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         searchJob = null
         searchingDictionary = false
         searchQuery = ""
-        // The panel is gone, and with it the only reason to hold a full screen of pixels.
+        // The panel is gone, and with it the only reason to hold a full screen of pixels — or a photo,
+        // which is the same size and would otherwise outlive the panel it was read for.
         lastCrop = null
+        lastPhoto = null
     }
 
     /**
@@ -542,8 +583,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
         busy = true
         lastRegion = region
-        // A new capture supersedes the boxes of the previous one.
+        // A new capture supersedes the boxes of the previous one, and the photo with them.
         clearPending()
+        lastPhoto = null
 
         scope.launch {
             var armed = false
@@ -621,6 +663,75 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 busy = false
             }
         }
+    }
+
+    /**
+     * Reads a photo taken with the camera (R46d) through the same panel as a screen capture.
+     *
+     * A photo has no screen behind it: there is nothing to crop and no box to tap over a live screen,
+     * so the picker is skipped and the panel opens on the whole picture. The file the camera wrote is
+     * gone by the time this returns — [CameraPhoto] deletes it while decoding.
+     */
+    private fun recognisePhoto(file: File) {
+        if (!beginPhoto()) {
+            file.delete()
+            return
+        }
+        scope.launch {
+            try {
+                val photo = withContext(Dispatchers.Default) { CameraPhoto.loadUpright(file) }
+                if (photo == null) {
+                    showError(getString(R.string.capture_failed))
+                    return@launch
+                }
+                recogniseImage(photo)
+            } catch (t: Throwable) {
+                Log.e(TAG, "photo pipeline failed", t)
+                showError(t.message ?: getString(R.string.result_failed))
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /** The same photo again, offline: the retry of a result that came from the camera. */
+    private fun retryPhoto(photo: Bitmap) {
+        if (!beginPhoto()) return
+        scope.launch {
+            try {
+                recogniseImage(photo, forceOffline = true)
+            } catch (t: Throwable) {
+                Log.e(TAG, "photo retry failed", t)
+                showError(t.message ?: getString(R.string.result_failed))
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /**
+     * The state a photo starts from: no search box, no boxes of a previous capture — and no region,
+     * because a photo has no selection to keep for a later retry.
+     */
+    private fun beginPhoto(): Boolean {
+        if (busy || isPaused) return false
+        searchingDictionary = false
+        searchQuery = ""
+        searchJob?.cancel()
+        searchJob = null
+        lastRegion = null
+        clearPending()
+        busy = true
+        return true
+    }
+
+    private suspend fun recogniseImage(photo: Bitmap, forceOffline: Boolean = false) {
+        lastCrop = photo
+        lastPhoto = photo
+        overlays.showResultLoading()
+        val outcome = dispatcher.recognize(photo, forceOffline)
+        lastOutcome = outcome
+        showResultFor(outcome, outcome.text, outcome.lines, canRepick = false, image = photo)
     }
 
     /**
@@ -942,23 +1053,20 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         }
         lastAnalysedText = text
 
-        val wantDictionary = settings.dictionaryLookup
+        // The lookup is not optional (R46a): what the text says about the words is always part of
+        // the result, and a value stored by the old switch no longer hides it.
         val wantTranslation = settings.translateSentence
         val target = settings.translateTarget
 
-        overlays.showResultWords(
-            if (wantDictionary) ResultOverlay.WordsState.Working() else ResultOverlay.WordsState.Hidden,
-        )
+        overlays.showResultWords(ResultOverlay.WordsState.Working())
         overlays.showResultTranslation(
             if (wantTranslation) ResultOverlay.TranslationState.Working else ResultOverlay.TranslationState.Hidden,
         )
 
         analysisJob = scope.launch {
-            if (wantDictionary) {
-                launch {
-                    val state = runDictionary(text)
-                    if (isActive && lastAnalysedText == text) overlays.showResultWords(state)
-                }
+            launch {
+                val state = runDictionary(text)
+                if (isActive && lastAnalysedText == text) overlays.showResultWords(state)
             }
             if (wantTranslation) {
                 launch {
@@ -1289,8 +1397,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         const val ACTION_STOP = "dev.yabai.ocr.action.STOP"
         const val ACTION_PAUSE = "dev.yabai.ocr.action.PAUSE"
         const val ACTION_RESUME = "dev.yabai.ocr.action.RESUME"
+
+        /** A photo from [CameraActivity], in [EXTRA_PHOTO_PATH] (R46d). */
+        const val ACTION_PHOTO = "dev.yabai.ocr.action.PHOTO"
         const val EXTRA_RESULT_CODE = "dev.yabai.ocr.extra.RESULT_CODE"
         const val EXTRA_RESULT_DATA = "dev.yabai.ocr.extra.RESULT_DATA"
+        const val EXTRA_PHOTO_PATH = "dev.yabai.ocr.extra.PHOTO_PATH"
 
         /** Lets the settings screen tell whether the bubble is already up. */
         @Volatile

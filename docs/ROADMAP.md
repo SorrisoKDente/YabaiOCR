@@ -3750,6 +3750,265 @@ rede de segurança é o `app:testDebugUnitTest`, que mede as telas de verdade se
 
 ---
 
+## 25. Ronda 46 — pedidos de 21/11/2026
+
+Pedidos do usuário, na ordem de execução: **bugs primeiro, depois o que é mais fácil**.
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R46a | `[x]` | **«Consultar os dicionários instalados» sempre habilitado**: a caixa de seleção sai do menu principal e a consulta deixa de ter um estado «desligado» | fácil |
+| R46b | `[x]` | **«Ignorar as leituras entre parênteses na busca»** sai da tela de dicionários e vai para o cartão **Dicionários** do menu principal, como no desktop | fácil |
+| R46c | `[x]` | **Botões cinza viram o azul do app**; «Remover» fica vermelho, como no desktop, e a lista de prioridade perde o texto das setas | fácil |
+| R46d | `[x]` | **Câmera no ícone flutuante**: tira a foto e roda a leitura de tela inteira, sem salvar a imagem | média |
+| R46e | `[x]` | **Entrada de redirecionamento do Jitendex** (forma antiga do kanji): mostrar que a forma é antiga e os dados do kanji atual, em vez de só «redirected from» | média |
+
+### R46a — «Consultar os dicionários instalados» sem estado desligado  `[x]` (21/11/2026)
+
+**Pedido.** Retirar a opção e deixar a consulta sempre habilitada.
+
+- **Causa raiz.** A consulta tinha um «desligado» que não servia a nada: `MainActivity.bindTranslationAndDictionaries()`
+  gravava `AppSettings.dictionaryLookup` e `FloatingOcrService.analyse()` lia o valor para decidir entre
+  `WordsState.Working()` e `WordsState.Hidden`. Com a caixa desmarcada o painel simplesmente deixava de ter
+  seção «Dicionário» — o texto reconhecido continuava o mesmo. Nada externo (dicionário ausente, permissão,
+  versão) desabilitava a caixa: o «desligado» era só uma preferência.
+- **Correção.** A caixa sai de `activity_main.xml` e o vínculo sai de `MainActivity`. A preferência e a chave
+  `dictionary_lookup` saem de `AppSettings`, e `analyse()` sempre mostra «Consultando…» e sempre roda
+  `runDictionary`. O cartão **Dicionários** fica com o que ele de fato informa — o resumo («N instalados ·
+  N ativos») e o botão «Gerenciar dicionários» —, sem o recuo que existia para alinhar o resumo sob a caixa.
+  A string `setting_dictionary` sai das duas línguas.
+- **Quem tinha a caixa desmarcada.** `dictionary_lookup=false` gravado no aparelho passa a ser ignorado (a
+  chave não é mais lida) e esse aparelho volta a consultar depois da atualização. É a decisão registrada
+  antes da implementação.
+- **Arquivos.** `app/src/main/res/layout/activity_main.xml` · `app/src/main/java/dev/yabai/ocr/MainActivity.kt`
+  · `app/src/main/java/dev/yabai/ocr/AppSettings.kt` · `app/src/main/java/dev/yabai/ocr/service/FloatingOcrService.kt`
+  · `app/src/main/res/values/strings.xml` · `app/src/main/res/values-en/strings.xml`
+  · `app/src/test/java/dev/yabai/ocr/DictionaryLookupAlwaysTest.kt`
+
+Suíte do app (`:app:test`): **856 testes (428 em debug e 428 em release), 0 falhas**. Regressão em
+`DictionaryLookupAlwaysTest`: a tela principal não tem mais nenhuma caixa com os dois rótulos antigos (o
+teste abre a tela com `dictionary_lookup=false` gravado, que é o estado de quem usava a opção), o cartão
+continua mostrando o resumo e o botão, e `AppSettings` não expõe nenhum interruptor de consulta a
+dicionários. Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| A caixa «Consultar os dicionários instalados» volta ao cartão do menu principal | `the main screen has no switch for the dictionary lookup` |
+| `AppSettings.dictionaryLookup` volta, e `analyse()` volta a consultar só com ele ligado | `no setting exposes a dictionary lookup toggle` |
+
+- **Limite.** Não há E2E de aparelho: o painel real com o `FloatingOcrService` não é exercitado pela suíte
+  (Robolectric mede a tela de ajustes, não uma captura). O que foi provado é a tela e a ausência de
+  preferência; o caminho da captura é o mesmo código de antes, agora sem o `if`.
+
+### R46b — «Ignorar as leituras entre parênteses na busca» no menu principal  `[x]` (21/11/2026)
+
+**Pedido.** Mover a opção da tela de dicionários para o cartão **Dicionários** do menu principal, como no
+desktop.
+
+- **Causa.** O ajuste nasceu junto do recurso (R35d), na tela de dicionários, e lá ele ficava longe do
+  lugar onde a busca acontece: quem abria o painel e digitava não tinha como saber que a limpeza existia,
+  e a tela de dicionários é a que o usuário menos abre. No desktop a mesma opção fica nos Ajustes, ao lado
+  dos dicionários. `DictionaryActivity.buildContent()` montava a caixa com `STRIP_READINGS_TAG` e a linha
+  `dictionary_strip_readings_hint`; a preferência é `AppSettings.stripSearchReadings` e a política segue em
+  `AppSettings.dictionaryQuery` / `DictionaryQuery.stripReadings`.
+- **Correção.** A caixa e a explicação saem de `DictionaryActivity` e entram em `activity_main.xml`, no
+  cartão **Dicionários**, logo abaixo de «Manter a última busca aberta»: `checkStripReadings` e a dica
+  `stripReadingsHint`. `MainActivity.bindTranslationAndDictionaries()` lê e grava `stripSearchReadings`, no
+  mesmo lugar em que o cartão já cuida do resumo e do botão «Gerenciar dicionários». O `STRIP_READINGS_TAG`
+  e o cartão próprio da tela de dicionários saem. O texto das strings e o comportamento da busca não mudam:
+  `dictionaryQuery` continua sendo o único ponto que decide o que vai para o dicionário.
+- **Arquivos.** `app/src/main/res/layout/activity_main.xml` · `app/src/main/java/dev/yabai/ocr/MainActivity.kt`
+  · `app/src/main/java/dev/yabai/ocr/DictionaryActivity.kt`
+  · `app/src/test/java/dev/yabai/ocr/DictionaryStripReadingsTest.kt`
+
+Suíte do app (`:app:test`): **858 testes (429 em debug e 429 em release), 0 falhas**. Regressão em
+`DictionaryStripReadingsTest`: a caixa do menu principal mostra a preferência e a grava ao ser marcada, e a
+tela de dicionários não tem mais nem o rótulo nem a explicação — uma cópia antiga lá pareceria a dona de
+uma busca que ela não faz. Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| A caixa volta a ser montada em `DictionaryActivity.buildContent()` | `the dictionaries screen no longer offers the option` |
+| A caixa fica no menu principal, mas `MainActivity` deixa de gravar a escolha | `the choice in the main menu is saved` |
+
+- **Limite.** Sem E2E de aparelho: a suíte Robolectric cobre as duas telas, mas não uma busca real digitada
+  no painel. A política de limpeza não foi tocada — os testes de `dictionaryQuery` seguem os mesmos.
+
+### R46c — Botões do app na cor padrão  `[x]` (21/11/2026)
+
+**Pedido.** Trocar os botões cinza pela cor azul do app e uniformizar os detalhes: «Descer» e «Subir»
+viram só as setas (como na lista de dicionários), «Remover» fica vermelho como no desktop,
+«Verificar atualizações», «Desligado», «Baixar», as setas de prioridade e os botões do cartão de
+atualização acompanham.
+
+- **Causa.** `Context.actionButton(...)` pintava todo botão de painel com `R.color.card_bg` (cinza
+  translúcido) e `card_stroke`, com rótulo `text_primary` — o par que a correção de legibilidade do
+  tema claro tinha escolhido. Legível, mas sem hierarquia: «Verificar atualizações», «Baixar», «Desligado»
+  e «Remover» pareciam todos desabilitados, e «Remover» — o único botão de um cartão que apaga trabalho —
+  tinha o mesmo peso das setas de prioridade ao lado dele. A lista de prioridade do motor usava
+  `Button(..., buttonStyleSmall)` com `btn_priority_up`/`btn_priority_down` («▲ Subir» / «▼ Descer»),
+  enquanto a lista de dicionários já usava só `↑`/`↓`.
+- **Correção.** O fundo padrão de `actionButton` passa a ser `R.color.accent` com rótulo branco; o
+  `card_stroke` sai do caminho (o azul é opaco). «Remover» passa a usar `R.color.warn` direto:
+  é o único botão destrutivo do app, e um alias de uma linha não valia um nome novo. Quem pinta o
+  próprio fundo passa a declarar a própria cor
+  de rótulo: os «✕» transparentes de `ResultOverlay`, `AppPickerOverlay` e `KanjiOverlay` mantêm
+  `text_primary`, os chips de dicionário (accent/accent_dark) e o «✕» sobre o preto do `KanjiOverlay`
+  ficam brancos. A lista de prioridade do motor vira `actionButton("↑")` / `actionButton("↓")`, com
+  `dictionary_up`/`dictionary_down` como descrição para leitor de tela; `btn_priority_up` e
+  `btn_priority_down` saem das duas línguas.
+- **Arquivos.** `app/src/main/java/dev/yabai/ocr/overlay/Widgets.kt` · `overlay/ResultOverlay.kt` ·
+  `overlay/AppPickerOverlay.kt` · `overlay/KanjiOverlay.kt` · `app/src/main/java/dev/yabai/ocr/MainActivity.kt`
+  · `app/src/main/java/dev/yabai/ocr/DictionaryActivity.kt` · `app/src/main/res/values/strings.xml` ·
+  `values-en/strings.xml` · `overlay/OverlayController.kt` · `app/src/test/java/dev/yabai/ocr/overlay/ActionButtonThemeTest.kt`
+  · `app/src/test/java/dev/yabai/ocr/ActionButtonWiringTest.kt` · `LANGUAGES.md`
+
+- **Auditoria dos fundos próprios.** Todo call site que passa `background` sem `textColor` foi
+  conferido depois da troca, porque o rótulo padrão virou branco. Ficaram brancos (fundo escuro de
+  verdade): `KanjiOverlay` «✕» sobre `0xCC000000`, o botão «Imagem» e os chips (`accent`/`accent_dark`)
+  do `ResultOverlay`, e a confirmação regional (`accent` com branco explícito). Precisaram de rótulo
+  próprio: o «✕» do cabeçalho do `ResultOverlay` (transparente — era branco sobre o cartão claro) e as
+  duas respostas de «Encerrar o OCR flutuante?», que passaram a ser só texto sobre o cartão: «Cancelar»
+  com `text_primary` e «Encerrar» com o vermelho de sempre — sobre o azul o vermelho ficava ilegível e
+  fazia do fechar a resposta fácil, o oposto do que a pergunta existe para evitar.
+
+Suíte do app (`:app:test`): **868 testes (434 em debug e 434 em release), 0 falhas**. Regressão:
+`ActionButtonThemeTest` (4) monta o botão real nos dois temas e exige `accent` com rótulo branco e
+contraste ≥ 4,5:1, `warn` no destrutivo e `text_primary` em quem pinta o próprio fundo;
+`ActionButtonWiringTest` (4) abre a tela principal e exige quatro setas com a tag do botão de painel, sem
+«Subir»/«Descer» escrito, abre a tela de dicionários com um dicionário instalado e exige o fundo
+`warn` no «Remover», e — no tema claro, forçado com `+notnight` — exige o «✕» do painel de resultado
+legível sobre o cartão e as duas respostas do encerramento sem preenchimento, com o vermelho no texto.
+Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `actionButtonBackground` volta a `card_bg` com rótulo `text_primary` | 3 testes de `ActionButtonThemeTest` |
+| «Remover» volta ao fundo padrão | `the dictionary card's remove button is the danger fill` |
+| As setas de prioridade voltam a ser `Button` cinza com «▲ Subir» | `the engine priority list uses the accent arrows and no words` |
+| O «✕» do cabeçalho do resultado perde o `text_primary` | `the result panel's close cross is readable on the light panel` |
+| As respostas do encerramento voltam ao fundo padrão (accent) | `the close confirmation keeps its red on the panel, not on the accent` |
+
+- **Limite.** Sem E2E de aparelho: o Robolectric mede o fundo real dos botões e a tela, não o painel
+  flutuante sobre um app de verdade. Os chips, o botão «Imagem» e o `KanjiOverlay` não têm teste de cor
+  própria; a conferência deles é a dos valores literais (`accent`, `accent_dark`, `0xCC000000`), todos
+  escuros.
+
+### R46d — Câmera no ícone flutuante  `[x]` (21/11/2026)
+
+**Pedido.** Uma opção de câmera no ícone flutuante que tira a foto e faz o mesmo que a leitura de tela
+inteira já faz — sem salvar a imagem no aparelho.
+
+- **O que muda.** O menu da bolha ganha um sétimo ícone (`ic_menu_camera`, «Câmera») entre «Selecionar
+  área» e «Ler kanji». Ele abre `CameraActivity`, um portal como o `StartOcrActivity`: pede a permissão
+  da câmera, tira uma foto em `cacheDir/photos/` com `ActivityResultContracts.TakePicture` e a entrega
+  ao serviço que já está rodando (`ACTION_PHOTO` + `EXTRA_PHOTO_PATH`). O serviço lê o arquivo com
+  `CameraPhoto.loadUpright` — que o apaga em `finally` —, passa o bitmap pelo mesmo `OcrDispatcher` e
+  abre o mesmo painel. O picker é pulado: a foto não tem tela atrás dela, então não há caixa para tocar.
+- **Por que arquivo, e não `TakePicturePreview`.** O preview devolve uma miniatura, e uma página
+  fotografada não é legível nela. O arquivo é o único caminho para a foto inteira, e ele vive só até ser
+  decodificado: nada vai para a galeria.
+- **Por que a foto é lida de pé.** A câmera grava a imagem como o sensor a viu e registra o giro no
+  EXIF; uma página fotografada em pé chega 90° deitada, onde nenhum motor lê. `CameraPhoto` aplica
+  `ROTATE_90/180/270`; as etiquetas de espelho ficam como estão, porque a página continua sendo lida da
+  esquerda para a direita.
+- **O que a retentativa faz.** A foto vira `lastPhoto`, e «tentar offline» roda no mesmo bitmap. Sem
+  isso, a retentativa pediria uma captura de tela do que a câmera deixou no lugar da foto.
+- **Sete ícones em 320 dp.** 7 × 46 + 6 × 2 = 334 dp não cabia na tela mais estreita que o
+  `ActionMenuTest` mede; o quadrado do ícone desceu para 42 dp (306 dp). O alvo de toque continua sendo
+  o quadrado inteiro.
+- **Permissão e entrega.** `CAMERA` no manifesto, com `<uses-feature android.hardware.camera
+  android:required="false">` para o app ainda instalar em aparelho sem câmera. A foto chega ao app da
+  câmera por `FileProvider` (`${applicationId}.photos` → `cache-path photos/`), porque `file://` numa
+  intent é recusado desde o Android 7. O `MediaProjection` não é tocado em nenhum ponto do caminho.
+- **Arquivos.** `app/src/main/java/dev/yabai/ocr/CameraActivity.kt` (novo) ·
+  `app/src/main/java/dev/yabai/ocr/capture/CameraPhoto.kt` (novo) ·
+  `app/src/main/java/dev/yabai/ocr/service/FloatingOcrService.kt` ·
+  `app/src/main/java/dev/yabai/ocr/overlay/OverlayController.kt` · `app/src/main/AndroidManifest.xml` ·
+  `app/src/main/res/xml/camera_paths.xml` (novo) · `app/src/main/res/drawable/ic_menu_camera.xml` (novo) ·
+  `values/strings.xml` · `values-en/strings.xml` ·
+  `app/src/test/java/dev/yabai/ocr/CameraCaptureTest.kt` (novo) ·
+  `app/src/test/java/dev/yabai/ocr/overlay/ActionMenuTest.kt` ·
+  `app/src/test/java/dev/yabai/ocr/overlay/RecordingCallbacks.kt` · `LANGUAGES.md`
+
+Suíte do app (`:app:test`): **874 testes (437 em debug e 437 em release), 0 falhas**. Regressão:
+`CameraCaptureTest` (3) exige o giro do EXIF (e que as etiquetas de espelho não girem), que o arquivo
+da foto não sobreviva à leitura, e que o manifesto declare a câmera, o portal e o `FileProvider`, que o
+portal entregue `ACTION_PHOTO`/`EXTRA_PHOTO_PATH`, e que o serviço leia a foto pelo mesmo
+`dispatcher.recognize` **sem** passar por `requestCapture`. `ActionMenuTest` (6) passa a exigir sete
+ações na ordem, com a câmera em terceiro — o teste de «cada ícone roda a sua ação» cobre o par novo.
+Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `turnDegrees` devolve sempre 0 | `the EXIF turn is honoured and the mirroring ones are not` |
+| `loadUpright` deixa de apagar o arquivo | `the photo file is deleted once it has been read` |
+| O ícone da câmera chama `onRegionRequested` | `each icon runs its own action` |
+| `onCameraRequested` chama `requestCapture` | `the camera asks for its permission and hands the file to the running service` |
+
+- **Limite.** Sem aparelho: o Robolectric não abre o app da câmera. A conferência é do que este app
+  decide (permissão, giro, apagar o arquivo, entrega ao serviço) e do menu medido; um JPEG real com
+  etiqueta de giro não é decodificado no teste, então quem cobre a decisão é `turnDegrees`.
+
+### R46e — Forma antiga do kanji no Jitendex  `[x]` (21/11/2026)
+
+**Pedido.** No Jitendex (e em dicionários do mesmo formato), algumas entradas são só um redirecionamento: o
+kanji reconhecido existe, mas é a grafia antiga, e o cartão mostra `old kanji form` e «redirected from»
+sem nenhum significado. Exemplo: 兩膝 responde apenas com o redirecionamento; o interessante é mostrar que
+é uma forma antiga **e** os dados do kanji atual (両膝), com o significado. Vale para a busca e para o
+hover.
+
+- **Causa.** O `DictionaryCompiler` achatava o `structured-content` em texto já na importação e o `href`
+  do link era jogado fora: 兩膝 virava só «old kanji form» e «redirected from 兩膝» nas linhas, e o
+  `LookupEngine` devolvia essa entrada como se fosse o verbete. Sem o alvo guardado não havia o que seguir.
+- **De onde vem o alvo.** O `GlossaryRenderer` decide de forma **estrutural** se a entrada só aponta: quem
+  tem um nó `data-content="glossary"` com texto próprio tem definição; quem só tem links não tem, e o alvo
+  é o `?query=` do primeiro `<a>` (decodificado, sem os outros parâmetros). A frase «redirected from» nunca
+  é lida — ela é do dicionário e muda de idioma.
+- **Como o alvo viaja.** Um campo novo no blob de termo, depois das tags e antes da definição, com o termo
+  de destino. `FORMAT_VERSION` sobe para 4 e `REDIRECT_FORMAT` diz ao leitor quando o campo existe:
+  `CompactDictionary.decodeEntry` só o lê em cópias ≥ 4, então uma cópia de formato 3 continua abrindo com
+  a definição logo depois das tags — e o banner de formato antigo já diz que reimportar vale a pena.
+- **Como a busca resolve.** `LookupEngine.follow` troca a entrada pelo alvo **no mesmo dicionário** (cruzar
+  dicionários responderia com outra revisão e outra renderização), ignora alvo igual ao próprio termo e,
+  quando o alvo não existe ou também redireciona, mantém a entrada original. Vale para `search` (busca),
+  `lookup` (hover e frase) e para a entrada alcançada por flexão. `TokenMatch.oldForm` leva o fato até a
+  tela.
+- **O que o cartão mostra.** A entrada exibida é a do alvo: leitura, tags e definição são de 両膝. O painel
+  do Android já escrevia «兩膝 → 両膝» no cabeçalho e passa a listar «forma antiga» (`dictionary_old_form`,
+  pt/en). No desktop a linha vem de `DictionaryMatchText.kt`, a mesma para o hover e a janela de resultado,
+  e entra na altura estimada do cartão de hover.
+- **Arquivos.** `core/src/main/kotlin/dev/yabai/ocr/core/dict/GlossaryRenderer.kt` ·
+  `dict/DictionaryCompiler.kt` · `dict/CompactDictionary.kt` · `dict/DictionaryData.kt` · `dict/LookupEngine.kt` ·
+  `app/src/main/java/dev/yabai/ocr/overlay/ResultOverlay.kt` · `app/src/main/res/values/strings.xml` ·
+  `values-en/strings.xml` · `desktop/src/main/kotlin/dev/yabai/ocr/desktop/DictionaryMatchText.kt` (novo) ·
+  `HoverTooltipWindow.kt` · `ResultWindow.kt` · `i18n/DesktopStrings.kt` ·
+  `core/src/test/.../RedirectEntryTest.kt` (novo) · `app/src/test/.../DefinitionPanelTest.kt` ·
+  `desktop/src/test/.../DictionaryMatchTextTest.kt` (novo) · `LANGUAGES.md`
+
+Suíte: **core 208, app 878 (439 em debug e 439 em release), desktop 594, 0 falhas**. Regressão:
+`RedirectEntryTest` (6) compila uma fixture Yomitan com a entrada de redirecionamento e o alvo, e exige o
+alvo gravado, nenhum alvo numa entrada com definição própria, a busca e a frase do hover respondendo com o
+verbete moderno mais `oldForm`, e a entrada comum sem a marca. `DefinitionPanelTest` (+1) exige «兩膝 → 両膝»
+e «forma antiga» no painel. `DictionaryMatchTextTest` (3) exige a linha nos dois idiomas, sem a marca numa
+flexão, e nada quando a palavra responde por si. Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `redirectOf` devolve sempre vazio | `an entry that is only a link stores the link target`, `the search answers…`, `a sentence follows…` |
+| `LookupEngine.follow` ignora o alvo | `the search answers with the modern entry and says it is an old form`, `a sentence follows the old form too` |
+| O painel deixa de listar a forma antiga | `an old form is answered with the modern entry and says so` |
+| `dictionaryFormLine` não marca a forma antiga | `an old form names both words, in the interface language` |
+| `CompactDictionary.decodeEntry` lê o redirect em toda cópia, inclusive formato 3 | `a format 3 copy still reads its definitions` |
+
+- **Limite.** As fixtures são Yomitan sintéticas no formato do Jitendex, não o Jitendex real: não há neste
+  repositório uma cópia do dicionário para conferir o markup exato; a sexta regressão rebaixa a fixture
+  para o formato 3 e exige que a definição continue legível. Dicionários já importados precisam ser
+  reimportados para ganhar o campo (formato 4). Conferência nas cópias reais deste computador em
+  21/11/2026: todas estão em `compiledWith` 3, então 兩膝 ainda responde com a própria entrada («1. ⟶ 両膝 /
+  2. 両膝 / 3. redirected from 兩膝») no Jitendex e no GGJZ; 両膝 já existe nos dois com leitura りょうひざ.
+  O painel do Android não foi olhado numa tela — o Robolectric
+  mede o texto, não a pintura — e o hover do desktop não foi aberto.
+
 ## 5. Versão Desktop (`:desktop`)
 
 Ordem de execução para a versão Desktop: **um item por vez**.
@@ -7923,3 +8182,122 @@ fora da comparação):
 - **Próximo passo, se o Linux voltar à mesa:** medir latência de OCR e de desenho com 2 e 4 arenas e,
   com número dos dois lados, exportar `MALLOC_ARENA_MAX` no `AppRun` do AppImage e explicar no
   `docs/LINUX.md` por que o `.deb` fica de fora.
+
+## D101 — O aviso de atualização na bandeja sobrevivia à atualização  `[x]` (21/11/2026)
+
+**Pedido.** Depois de atualizar os dicionários, o aviso continuava aparecendo ao passar o mouse no ícone
+da bandeja.
+
+- **Causa raiz.** Duas coisas no mesmo lugar:
+  1. `SystemTrayManager.setStatus(...)` só era chamado quando a checagem achava atualização; nada
+     escrevia o tooltip de volta. Instalar pelo aviso zerava `pendingDictionaryUpdates` e
+     `last_dict_update_notice`, mas não o texto da bandeja, que ficava até fechar o app.
+  2. `dictionaryOffersToAnnounce` devolvia lista vazia para «nada instalável» **e** para «o mesmo
+     conjunto já anunciado», e o `Main.kt` zerava `last_dict_update_notice` nos dois casos. O mesmo
+     conjunto voltava a ser anunciado na checagem seguinte, e a distinção que faltava era justamente a
+     que decide limpar o tooltip.
+- **Correção.**
+  - `dictionaryAnnouncement(result, alreadyShownKey)` substitui `dictionaryOffersToAnnounce` e devolve
+    `Clear` (nada instalável), `Keep` (o mesmo conjunto) ou `Show(offers)`. A regra de deduplicação
+    continua uma só.
+  - No `Clear` saem a chave, `pendingDictionaryUpdates` e o tooltip.
+  - `onDictionaryUpdatesInstalled` limpa o tooltip junto do resto, sem esperar a próxima checagem.
+- **Correção da revisão (mesmo dia).** O tooltip é uma linha só para os dois avisos, e o do app
+  («✨ Nova versão vX disponível!») é escrito na inicialização: `setStatus("")` no fim do aviso de
+  dicionário apagava também ele. Os dois pontos passam por `trayTooltipAfterDictionaryNotice(appUpdate)`,
+  que devolve o aviso de versão quando ele ainda vale e vazio quando não há nenhum.
+- **Arquivos.** `desktop/.../DictionaryUpdateMonitor.kt` · `desktop/.../Main.kt` ·
+  `desktop/src/test/.../DictionaryUpdateOffersTest.kt` ·
+  `desktop/src/test/.../TrayDictionaryNoticeTest.kt`
+
+Testes novos: 3 em `TrayDictionaryNoticeTest` (o último, da revisão acima, incluído) e 1 em
+`DictionaryUpdateOffersTest`; a suíte desktop fechou em **595 testes** com a revisão.
+Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `onDictionaryUpdatesInstalled` deixa de limpar o tooltip | `installing the announced dictionaries clears the tray tooltip` |
+| `trayTooltipAfterDictionaryNotice` devolve sempre vazio | `the version notice survives the end of the dictionary one` |
+| `Keep` volta a zerar `last_dict_update_notice` | `only a check with nothing installable forgets the announcement` |
+
+## D102 — O cartão do hover salta para cima ao abrir o dicionário  `[x]` (21/11/2026)
+
+**Pedido.** Com o cartão perto da barra de tarefas, clicar no dicionário do cartão faz o cartão mudar
+para uma posição acima; o ponteiro sai de cima dele e o cartão some.
+
+- **Causa raiz.** `planCardPlacement` recalculava o canto do cartão a partir do ponteiro **com a altura
+  nova** a cada mudança de altura. Com a lista aberta o cartão ganha algumas centenas de pixels; perto da
+  barra de tarefas o cálculo «não cabe embaixo» passava a valer e o cartão inteiro era jogado para cima do
+  ponteiro. O ponteiro e o clique do cabeçalho ficavam fora do cartão novo, o `HoverDismissGate` contava
+  como saída e o cartão fechava. No cenário do E2E (área útil 1280×672, ponteiro em `y=420`), o cartão
+  fechado fica em `y=438`; com a lista aberta o cálculo antigo o jogava para `y=42` (360 px de altura),
+  deixando o clique do cabeçalho em `y=453` fora do cartão.
+- **Correção.** O cartão guarda o ponteiro para o qual foi posicionado (`placedFor`). Uma mudança de altura
+  para o **mesmo** ponteiro é o usuário crescendo este cartão, não uma palavra nova: `planCardPlacement`
+  mantém o canto superior (`holdCardLocation`) e só desloca o cartão o mínimo necessário para o fundo não
+  sair da área útil. Só uma palavra nova volta a ancorar no ponteiro.
+- **Área útil.** `HoverGeometry.workAreaAt` desconta a barra de tarefas (e qualquer borda reservada) na
+  colocação do cartão: antes o cartão podia terminar atrás dela, com as últimas linhas da lista
+  inalcançáveis. O recorte do OCR continua sendo o monitor inteiro.
+- **Resultado no cenário medido.** O cartão cresce a partir do próprio canto; sem espaço abaixo, desliza só
+  o excedente (de `y=438` para `y=312`, fundo em 672) e o clique do cabeçalho continua dentro dele — o
+  hover não fecha mais. Quando há espaço acima, o canto não se move.
+- **Arquivos.** `desktop/.../HoverTooltipWindow.kt` · `desktop/.../HoverGeometry.kt` ·
+  `desktop/src/test/.../HoverTooltipHeightTest.kt` · `desktop/src/test/.../HoverCardGrowthTest.kt`
+
+Suíte desktop: **583 testes, 0 falhas, 6 pulados**. Teste E2E com janela AWT real (`HoverCardGrowthTest`, área
+útil 1280×672): `location` antes `(382, 438)` com 460×200, depois `(382, 312)` com 460×360 — fundo na borda
+da área útil — e o clique do cabeçalho em `(442, 453)` dentro do cartão nos dois momentos. Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `planCardPlacement` ignora `sameAnchor` e sempre ancora no ponteiro | 4 testes de posição (unitário + E2E) |
+| O cartão passa a dizer sempre `sameAnchor = false` | `the card remembers the word it was placed for` |
+| `holdCardLocation` deixa de limitar o fundo à tela | 3 testes de posição |
+
+- **Cuidado.** Qualquer correção precisa manter o cartão inteiro na tela; cortar a lista não é aceitável.
+
+## D103 — A janela de resultado e a do dicionário rápido lembram a posição  `[x]` (21/11/2026)
+
+**Pedido.** A janela de texto reconhecido deve se comportar como a do dicionário rápido: guardar a
+última posição usada. Se estiver minimizada, abrir desminimizada — o mesmo vale para o dicionário
+rápido.
+
+- **Causa.** A `ResultWindow` abria sempre centrada (`rememberWindowState(width, height)` sem posição) e
+  nada gravava o canto: quem arrastava a janela para o canto da tela a via voltar ao centro na captura
+  seguinte. O dicionário rápido já gravava `quick_dict_x/y`, mas só era *ativado* uma vez, na criação
+  (`LaunchedEffect(Unit)`): com a janela minimizada, apertar o atalho ou clicar na bandeja de novo não
+  mudava `showQuickDict` (já `true`), então nada a trazia de volta. Faltava ainda validar a posição
+  gravada: um monitor desconectado deixava o canto salvo fora de qualquer tela, e a janela abria onde não
+  dá para clicar nem alcançar a barra de título.
+- **Correção.** `DesktopSettings` ganhou `resultWindowX/Y` (chaves `result_window_x` / `result_window_y`),
+  gravadas a cada movimento da janela. `WindowPlacement.kt` (novo) tem `rememberedWindowCorner(x, y,
+  screens)`: devolve o canto só enquanto um monitor atual o contém, e `null` — «centre-se» — quando o
+  monitor sumiu ou nunca houve canto. `screenBoundsNow()` lista os monitores em coordenadas AWT (vazio
+  em máquina headless). As duas janelas passam por esse helper e ambas chamam `activateOnOpen` a cada
+  pedido, não só na criação: a de resultado com `LaunchedEffect(croppedImage, initialText)`, a do
+  dicionário com um contador `quickDictRequest` que a bandeja e o atalho incrementam
+  (`QuickDictWindow(activation = ...)`).
+- **Arquivos.** `desktop/.../WindowPlacement.kt` · `desktop/.../DesktopSettings.kt` · `desktop/.../ResultWindow.kt`
+  · `desktop/.../QuickDictWindow.kt` · `desktop/.../Main.kt` · `desktop/src/test/.../WindowRestoreTest.kt`
+  · `desktop/src/test/.../DesktopSettingsTest.kt`
+
+Suíte desktop: **591 testes, 0 falhas, 6 pulados**. Regressão em `WindowRestoreTest` (7): o canto é
+honrado enquanto um monitor o contém e descartado quando o monitor sumiu (inclusive em lista vazia); um
+`JFrame` real abre no canto gravado; um `JFrame` realmente minimizado volta com `activateOnOpen`; e a
+leitura do código confirma que as duas janelas usam o helper, que a de resultado grava o canto e que as
+duas ativações são por pedido (a do dicionário, com o contador alimentado por bandeja e atalho).
+`DesktopSettingsTest` ganhou o round-trip de `result_window_x/y`. Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `rememberedWindowCorner` devolve o canto sem validar contra os monitores | `a corner left on a monitor that is gone is dropped` e `with no screens there is nowhere to place it` |
+| `activateOnOpen` deixa de limpar `ICONIFIED` | `a minimised window is restored by asking for it` |
+| A do dicionário volta a ativar só com `LaunchedEffect(Unit)` | `both windows save and restore their corner` |
+
+- **E2E medido.** Nesta máquina (primário 1280×720), o `JFrame` de teste nasce em `(60, 40)` — o canto
+  pedido — e um `JFrame` minimizado (`ICONIFIED`) volta com `extendedState and ICONIFIED == 0` depois de
+  `activateOnOpen`. O `settings.properties` do usuário não foi tocado: os testes usam arquivo temporário.
+- **Limite.** A janela Compose em si (abrir, arrastar, minimizar e reabrir pelo atalho) exige o app
+  rodando com display; o que foi provado é o helper, as duas janelas AWT de verdade e a ligação no
+  código. Não houve sessão manual com o app real.

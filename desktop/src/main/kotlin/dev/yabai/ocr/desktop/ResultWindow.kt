@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.core.dict.*
@@ -59,7 +60,24 @@ fun ResultWindow(
     var aiNotice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val windowState = rememberWindowState(width = 860.dp, height = 700.dp)
+    // D103: the result opens where the last one was left, and only while a monitor still contains
+    // that corner. Otherwise it centres itself, as a window that never moved.
+    val screens = remember { screenBoundsNow() }
+    val windowState = rememberWindowState(
+        width = 860.dp,
+        height = 700.dp,
+        position = rememberedWindowCorner(settings.resultWindowX, settings.resultWindowY, screens)
+            ?.let { WindowPosition(it.x.dp, it.y.dp) }
+            ?: WindowPosition(Alignment.Center),
+    )
+
+    // Written whenever the window moves — including the move the compositor makes when centring an
+    // aligned position, which is the corner the next result reopens at.
+    LaunchedEffect(windowState.position) {
+        val absolute = windowState.position as? WindowPosition.Absolute ?: return@LaunchedEffect
+        settings.resultWindowX = absolute.x.value.toInt()
+        settings.resultWindowY = absolute.y.value.toInt()
+    }
     val imageBitmap = remember { croppedImage.toComposeImageBitmap() }
     val isVerticalText = croppedImage.height > croppedImage.width
 
@@ -147,8 +165,12 @@ fun ResultWindow(
     ) {
         LaunchedEffect(Unit) {
             window.iconImage = AppIconGenerator.createWindowImage(64)
-            // Opened from a hotkey while another app had focus: without this KWin leaves the window
-            // in the taskbar and the result looks minimised.
+        }
+
+        // Opened from a hotkey while another app had focus: without this KWin leaves the window in
+        // the taskbar and the result looks minimised. Keyed on the capture, not on the window's
+        // creation: a window the user minimised comes back when the next result is shown in it.
+        LaunchedEffect(croppedImage, initialText) {
             activateOnOpen(window)
         }
 
@@ -582,6 +604,15 @@ private fun DictionaryMatchCard(match: TokenMatch) {
                         color = Color(0xFFA0A6B8)
                     )
                 }
+            }
+
+            dictionaryFormLine(match)?.let { line ->
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.caption,
+                    color = Color(0xFF81D4FA),
+                )
             }
 
             if (entry.tags.isNotBlank()) {

@@ -27,8 +27,14 @@ object GlossaryRenderer {
     /** One rendered piece of a glossary: a numbered sense, or a note/example that carries its mark. */
     data class Block(val numbered: Boolean, val text: String)
 
-    /** Everything a glossary array rendered to. */
-    class Rendered(val blocks: List<Block>, val tags: String)
+    /**
+     * Everything a glossary array rendered to.
+     *
+     * [redirect] is the headword an entry only points at, when it says nothing about the word itself
+     * (R46e): Jitendex's «old kanji form» entries are a link and a label, no gloss. Empty when the
+     * entry has a definition of its own, and when no link could be read.
+     */
+    class Rendered(val blocks: List<Block>, val tags: String, val redirect: String = "")
 
     /** What a note line starts with. The panel draws these smaller and greyer. */
     const val NOTE_MARK = "ℹ "
@@ -98,7 +104,61 @@ object GlossaryRenderer {
             if (sink.full) break
             sink.addTop(element)
         }
-        return Rendered(sink.blocks, sink.tags.joinToString("・"))
+        return Rendered(sink.blocks, sink.tags.joinToString("・"), redirectOf(glossary))
+    }
+
+    /**
+     * The target of an entry that is nothing but a cross-reference, in the order the glossary lists it.
+     *
+     * The signal is structural, not textual: an entry that states a meaning has a `glossary` node with
+     * text of its own; a redirect has only links. Reading the label («redirected from», «old kanji
+     * form») would tie the feature to one dictionary's language and wording — the tag is shown, but it
+     * is not what decides.
+     */
+    private fun redirectOf(glossary: JsonArray): String {
+        val links = ArrayList<String>(2)
+        var hasGloss = false
+
+        fun plainText(node: JsonElement): String = when {
+            node.isJsonArray -> node.asJsonArray.joinToString("") { plainText(it) }
+            node.isJsonObject -> {
+                val obj = node.asJsonObject
+                // A link is not a gloss: the gloss under it belongs to the other entry.
+                if (obj.stringOrNull("tag") == "a") "" else children(obj).joinToString("") { plainText(it) }
+            }
+
+            node.isJsonPrimitive -> node.asString
+            else -> ""
+        }
+
+        fun walk(node: JsonElement) {
+            when {
+                node.isJsonArray -> node.asJsonArray.forEach { walk(it) }
+                node.isJsonObject -> {
+                    val obj = node.asJsonObject
+                    if (dataContent(obj) == "glossary" && plainText(obj).isNotBlank()) hasGloss = true
+                    if (obj.stringOrNull("tag") == "a") linkTarget(obj)?.let { links += it }
+                    children(obj).forEach { walk(it) }
+                }
+
+                else -> Unit
+            }
+        }
+
+        glossary.forEach { walk(it) }
+        return if (hasGloss) "" else links.firstOrNull { it.isNotBlank() }.orEmpty()
+    }
+
+    /** The headword a link points at: `?query=両膝` (and any other query parameter) or a bare href. */
+    private fun linkTarget(link: JsonObject): String? {
+        val href = link.stringOrNull("href") ?: return null
+        val query = href.substringAfter("?query=", missingDelimiterValue = href).substringBefore('&')
+        val decoded = try {
+            java.net.URLDecoder.decode(query, "UTF-8")
+        } catch (_: Throwable) {
+            query
+        }
+        return decoded.trim().takeIf { it.isNotEmpty() }
     }
 
     /** Renders one glossary element on its own, for callers that have just one. */

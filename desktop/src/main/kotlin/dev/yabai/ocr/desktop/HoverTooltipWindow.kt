@@ -128,6 +128,13 @@ private fun HoverTooltipCardWindow(
     // is no second window to race.
     var dictMenuOpen by remember { mutableStateOf(false) }
 
+    // The pointer the card was last placed for. A height change for the *same* pointer is the
+    // user growing this card (opening the dictionary list), not a new word: the card keeps its
+    // corner instead of being recomputed from the pointer with the new height. That recomputation
+    // is what moved a card near the taskbar upwards — the header left the pointer, and the hover
+    // dismissal closed the card the user was clicking.
+    var placedFor by remember { mutableStateOf<Point?>(null) }
+
     // A card that comes back is a new card: the dictionary list it was left with is not part of the
     // next word, and it would open the card taller than the content it is about to show.
     LaunchedEffect(visible) { if (!visible) dictMenuOpen = false }
@@ -144,7 +151,8 @@ private fun HoverTooltipCardWindow(
         HoverGeometry.placeTooltip(
             pointer = mousePoint,
             size = java.awt.Dimension(TOOLTIP_WIDTH, estimatedHeight),
-            screen = HoverGeometry.screenAt(mousePoint),
+            // The card has to stay off the taskbar: a row hidden behind it cannot be clicked.
+            screen = HoverGeometry.workAreaAt(mousePoint),
         )
     }
 
@@ -184,6 +192,8 @@ private fun HoverTooltipCardWindow(
     ) {
         LaunchedEffect(estimatedHeight, mousePoint, window, visible) {
             window.isAutoRequestFocus = false
+            // Decided once per height change: was the card already placed for this word?
+            val sameAnchor = placedFor == mousePoint
             if (!visible) {
                 // A card that is not on screen has no bounds: the hover's «is the pointer on the
                 // card?» test must not run against the rectangle of the word before it.
@@ -193,7 +203,8 @@ private fun HoverTooltipCardWindow(
             // A reused card is already mapped, so it can be sized and placed before the debounce:
             // without this the next word's card spent 80 ms at the previous word's corner.
             if (window.isShowing) {
-                applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+                applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor)
+                placedFor = mousePoint
             }
             // The window background is left exactly as Compose set it. `transparent = true` makes
             // ComposeWindowPanel ask Skiko for the right background for the renderer in use, and on
@@ -210,20 +221,32 @@ private fun HoverTooltipCardWindow(
             // compose-multiplatform #4425 / skiko #883).
             delay(TOOLTIP_PLACEMENT_DEBOUNCE_MS)
             var attempts = 0
-            var applied = applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+            var applied = applySizeAndPlacement(
+                window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor,
+            )
+            if (applied) placedFor = mousePoint
             // «Not on screen yet» is the normal first moment of a new card. Giving up there used to
             // leave it at the initial height for its whole life, so the placement is retried for a
             // while — and only for a while, or a card that never shows would keep resizing forever.
             while (shouldRetryCardPlacement(applied, attempts)) {
                 delay(CARD_PLACEMENT_RETRY_MS)
                 attempts++
-                applied = applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+                applied = applySizeAndPlacement(
+                    window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor,
+                )
+                if (applied) placedFor = mousePoint
             }
             // The window exists now, so the placement is no longer decided by whoever mapped it.
             // A WM that keeps its own position for the first frames is corrected here; the size is
             // already right, so this second pass only moves the card.
             delay(TOOLTIP_REPOSITION_DELAY_MS)
-            applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged)
+            // A correction pass, still for the same word: it must not undo the hold above.
+            if (applySizeAndPlacement(
+                    window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor,
+                )
+            ) {
+                placedFor = mousePoint
+            }
         }
 
         DisposableEffect(window) {
@@ -333,9 +356,9 @@ private fun HoverTooltipCardWindow(
                                         }
                                     }
 
-                                    if (match.surface != entry.term) {
+                                    dictionaryFormLine(match)?.let { line ->
                                         Text(
-                                            text = "${match.surface} → ${entry.term}",
+                                            text = line,
                                             style = MaterialTheme.typography.caption,
                                             color = Color(0xFF81D4FA),
                                         )
@@ -436,7 +459,7 @@ internal fun estimateHeight(
     }
     for (match in matches.take(3)) {
         pixels += 26 // Term & Reading line
-        if (match.surface != match.entry.term) pixels += 18
+        if (dictionaryFormLine(match) != null) pixels += 18
         if (match.reasons.isNotEmpty()) pixels += 18
         if (match.entry.tags.isNotBlank()) pixels += 18
 
@@ -503,6 +526,11 @@ private suspend fun applySizeAndPlacement(
     anchor: Point,
     height: Int,
     onBoundsChanged: (java.awt.Rectangle?) -> Unit,
+    /**
+     * True when the pointer did not change since the last placement: the card is only growing (or
+     * shrinking) and must keep its corner, clamped into the work area.
+     */
+    sameAnchor: Boolean = false,
 ): Boolean = suspendCancellableCoroutine { continuation ->
     javax.swing.SwingUtilities.invokeLater {
         // `isShowing`, not `isDisplayable`: a window that is being mapped or disposed is displayable
@@ -515,7 +543,8 @@ private suspend fun applySizeAndPlacement(
             bounds = window.bounds,
             pointer = anchor,
             height = height,
-            screen = HoverGeometry.screenAt(anchor),
+            screen = HoverGeometry.workAreaAt(anchor),
+            sameAnchor = sameAnchor,
         )
         runCatching {
             if (placement.resize) window.setSize(TOOLTIP_WIDTH, height)
@@ -556,9 +585,36 @@ internal fun planCardPlacement(
     pointer: Point,
     height: Int,
     screen: Rectangle,
+    /**
+     * Whether this is the same word the card already shows. Then the card keeps its top-left corner
+     * and grows from it, clamped into [screen]; only a new word is anchored to the pointer.
+     */
+    sameAnchor: Boolean = false,
 ): CardPlacement {
     val resize = bounds.height != height || bounds.width != TOOLTIP_WIDTH
-    return CardPlacement(resize, HoverGeometry.placeTooltip(pointer, java.awt.Dimension(TOOLTIP_WIDTH, height), screen))
+    val location = if (sameAnchor) {
+        holdCardLocation(bounds, height, screen)
+    } else {
+        HoverGeometry.placeTooltip(pointer, java.awt.Dimension(TOOLTIP_WIDTH, height), screen)
+    }
+    return CardPlacement(resize, location)
+}
+
+/**
+ * Where a card that is only growing goes: it stays where it is and the new content extends it
+ * downwards, moved up only when the bottom would leave [screen].
+ *
+ * Recomputing the corner from the pointer with the new height moved the whole card by exactly the
+ * height it had gained — with the dictionary list open that is a few hundred pixels, so a card near
+ * the taskbar jumped above the pointer and the hover dismissal closed it.
+ */
+internal fun holdCardLocation(bounds: Rectangle, height: Int, screen: Rectangle): Point {
+    val maxX = (screen.x + screen.width - TOOLTIP_WIDTH).coerceAtLeast(screen.x)
+    val maxY = (screen.y + screen.height - height).coerceAtLeast(screen.y)
+    return Point(
+        bounds.x.coerceIn(screen.x, maxX),
+        bounds.y.coerceIn(screen.y, maxY),
+    )
 }
 
 /**

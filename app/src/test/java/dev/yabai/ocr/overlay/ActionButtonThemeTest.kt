@@ -16,10 +16,12 @@ import org.robolectric.annotation.Config
 /**
  * The action buttons used to be white text on a translucent white fill, which was chosen when the
  * panels were always dark. Once the app gained a light theme, «Verificar atualizações» and
- * «Desligado» in the dictionary screen became white on white — unreadable.
+ * «Desligado» in the dictionary screen became white on white — unreadable; the fix gave them the
+ * theme's text colour over a translucent grey, which was readable but read as «disabled».
  *
- * These tests build the real button after switching the theme the same way the app does, and check
- * that its label takes the theme's text colour and stays readable over the fill it is painted on.
+ * R46c makes the plain button the app's accent with a white label, and a destructive action the
+ * desktop's red. These tests build the real button after switching the theme the same way the app
+ * does, and check both the fill and that the label stays readable on it.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -33,35 +35,59 @@ class ActionButtonThemeTest {
     }
 
     @Test
-    fun `in the light theme the label is the dark text colour, not white`() {
+    fun `the plain button is the accent with a white label in the light theme`() {
         applyTheme(AppThemeChoice.LIGHT)
 
         val button = context.actionButton("Verificar atualizações")
 
-        assertEquals(context.getColor(R.color.text_primary), button.currentTextColor)
-        assertTrue("the label is still white", button.currentTextColor != Color.WHITE)
+        assertEquals(context.getColor(R.color.accent), context.actionButtonBackground)
+        assertEquals(Color.WHITE, button.currentTextColor)
         assertReadable(button.currentTextColor, context.actionButtonBackground)
     }
 
     @Test
-    fun `in the dark theme the label is the light text colour and stays readable`() {
+    fun `the plain button is the accent with a white label in the dark theme`() {
         applyTheme(AppThemeChoice.DARK)
 
         val button = context.actionButton("Verificar atualizações")
 
-        assertEquals(context.getColor(R.color.text_primary), button.currentTextColor)
+        assertEquals(context.getColor(R.color.accent), context.actionButtonBackground)
+        assertEquals(Color.WHITE, button.currentTextColor)
         assertReadable(button.currentTextColor, context.actionButtonBackground)
     }
 
+    /**
+     * «Remover» is the one button in a dictionary card that throws the work away, so it cannot look
+     * like «↑» and «↓» beside it.
+     */
     @Test
-    fun `the plain fill follows the theme instead of a fixed white`() {
+    fun `the destructive button is red with a white label`() {
         applyTheme(AppThemeChoice.LIGHT)
-        val light = context.actionButtonBackground
-        applyTheme(AppThemeChoice.DARK)
-        val dark = context.actionButtonBackground
 
-        assertEquals(context.getColor(R.color.card_bg), dark)
-        assertTrue("the fill is the same in both themes", light != dark)
+        val button = context.actionButton(
+            "Remover",
+            background = context.getColor(R.color.warn),
+        )
+
+        assertEquals(Color.WHITE, button.currentTextColor)
+        assertReadable(button.currentTextColor, context.getColor(R.color.warn))
+    }
+
+    /**
+     * A caller that paints its own fill states its own label colour: the transparent «✕» keeps the
+     * theme's text colour instead of inheriting the accent's white and vanishing over a page.
+     */
+    @Test
+    fun `a button with its own fill keeps the theme's text colour`() {
+        applyTheme(AppThemeChoice.LIGHT)
+
+        val clear = context.actionButton(
+            "✕",
+            textColor = context.getColor(R.color.text_primary),
+            background = 0x00000000,
+        )
+
+        assertEquals(context.getColor(R.color.text_primary), clear.currentTextColor)
     }
 
     private fun assertReadable(text: Int, fill: Int) {
@@ -70,7 +96,7 @@ class ActionButtonThemeTest {
         assertTrue("button contrast is ${"%.2f".format(ratio)}", ratio >= 4.5)
     }
 
-    /** [card_bg] is translucent, so what the user sees is it composited over [panel_bg]. */
+    /** [card_bg] was translucent; the accent is opaque, so this is the identity for it. */
     private fun blend(over: Int, under: Int): Int {
         val alpha = Color.alpha(over) / 255f
         fun channel(a: Int, b: Int) = (a * alpha + b * (1 - alpha)).toInt().coerceIn(0, 255)

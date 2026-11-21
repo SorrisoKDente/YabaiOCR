@@ -143,9 +143,9 @@ ONNX é `compileOnly` no core: quem consome (`:desktop`, `:app`) traz o runtime.
 | `DictionaryData.kt` | estruturas serializadas do dicionário compilado |
 | `DictionaryQuery.kt` | normalização da consulta (`stripReadings` etc.) |
 | `Deinflector.kt` | deinflexão japonesa (verbos/adjetivos) para alcançar a forma de dicionário |
-| `LookupEngine.kt` | busca por termo/leitura, ranking, `TokenMatch` com motivos de flexão |
+| `LookupEngine.kt` | busca por termo/leitura, ranking, `TokenMatch` com motivos de flexão; segue o redirecionamento de forma antiga no mesmo dicionário (R46e) |
 | `Furigana.kt` | leitura gerada pelo dicionário, alinhada ao texto reconhecido |
-| `GlossaryRenderer.kt` | formatação do glossário (tags, listas, exemplos) |
+| `GlossaryRenderer.kt` | formatação do glossário (tags, listas, exemplos) e o alvo do link quando a entrada só aponta para outra (R46e) |
 | `Romaji.kt` | kana → romaji (busca e exibição) |
 | `TranslationIndex.kt` | índice lateral para buscar nas **definições** (`search_by_translation`) |
 
@@ -179,6 +179,7 @@ rodam com as flags acima.
 | `DesktopSettings.kt` | `settings.properties` em `~/.yabai_ocr`: atalhos, motor, tema, dicionários, IA, tradução |
 | `SettingsWindow.kt` | a tela de Ajustes inteira (aparência, atalhos, motor + download, dicionários, IA) |
 | `ResultWindow.kt` | painel de resultado: texto editável, imagem, botões (copiar, IA, recortar) |
+| `DictionaryMatchText.kt` | a linha «forma lida → verbete · forma antiga» que o hover e o resultado desenham (R46e) |
 | `ReleaseNotesWindow.kt` | preview em Markdown das notas do release do GitHub, aberto em Ajustes → Sobre |
 | `LicenseWindow.kt` | texto da licença empacotado no jar, lido em Ajustes → Sobre |
 | `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
@@ -225,8 +226,9 @@ rodam com as flags acima.
 | `HoverLookup.kt` | consulta do hover limitada ao dicionário escolhido (`dictionaryScope`, `scopedHoverHit`), a decisão da troca de dicionário feita no cartão a partir da leitura guardada (`cachedHoverAnswer`) e o que fazer quando não vem verbete (`japaneseWordAt`, `classifyHoverMiss`: só há cartão se houver palavra japonesa sob o ponteiro, e a caixa dela é o âncora) — sem o «fallback» que respondia de outro dicionário (D77, D78) |
 | `PickerScanMemory.kt` | scan do picker que sobrevive ao «Trechos»: entregue uma vez e nunca a partir de uma falha (D76) |
 | `TrayGlyphs.kt` | ícones do menu da bandeja desenhados com Java2D, em cor (o Swing não pinta emoji colorido) (D76) |
-| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); uma única janela para a sessão inteira, apenas escondida entre palavras (`visible`), porque criar e destruir uma `ComposeWindow` por palavra deixava superfícies nativas no alocador (D98); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada. Não escreve no `background` do AWT: a transparência no Windows depende de o Skiko escolher o fundo por renderizador (D80) |
+| `HoverTooltipWindow.kt` | cartão flutuante (tamanho, posição, conteúdo); uma única janela para a sessão inteira, apenas escondida entre palavras (`visible`), porque criar e destruir uma `ComposeWindow` por palavra deixava superfícies nativas no alocador (D98); a posição vem no `WindowState` e é reaplicada quando a janela existe, porque o compositor ignora o `setLocation` de uma janela ainda sendo mapeada; uma mudança de altura para o mesmo ponteiro mantém o canto do cartão e só desliza o mínimo para caber na área útil (`HoverGeometry.workAreaAt`), porque reancorar no ponteiro jogava o cartão para cima quando a lista abria perto da barra de tarefas (D102). Não escreve no `background` do AWT: a transparência no Windows depende de o Skiko escolher o fundo por renderizador (D80) |
 | `WindowActivation.kt` | traz para a tela a janela que o usuário pediu (limpa `ICONIFIED`, pede ativação); no hover nunca é usado |
+| `WindowPlacement.kt` | canto gravado de uma janela, aceito só enquanto um monitor atual o contém (D103); monitores atuais em coordenadas AWT |
 | `HoverCapability.kt` | o hover é suportado nesta sessão? (X11/Wayland/Win; no Wayland decide entre ponteiro do KWin e do GNOME) |
 | `PointerSource.kt` | fonte da posição do ponteiro (AWT, script do KWin ou extensão do GNOME) |
 | `KWinHoverBridge.kt` / `KWinIntegration.kt` / `KWinScript.kt` | script KWin + D-Bus que entrega o ponteiro no Wayland; descarrega script obsoleto e reaplica atalhos |
@@ -286,6 +288,7 @@ valem destaque:
 | `MainActivity.kt` | ajustes e permissões; escolhe motor, baixa modelos, inicia o serviço |
 | `StartOcrActivity.kt` | atalho/atalho de tela para iniciar a captura |
 | `LookupActivity.kt` | abre a busca do dicionário a partir de um texto |
+| `CameraActivity.kt` | portal da câmera da bolha: pede a permissão, tira a foto e a entrega ao serviço (R46d) |
 | `DictionaryActivity.kt` | tela de dicionários (instalar, atualizar, filtrar) |
 | `HelpActivity.kt` | ajuda e explicações |
 | `YabaiOcrApplication.kt` | `Application`: tema, idioma, agendador de atualizações |
@@ -307,6 +310,7 @@ valem destaque:
 | arquivo | papel |
 | --- | --- |
 | `capture/ScreenCaptureSession.kt` | `MediaProjection`: uma captura de tela por sessão |
+| `capture/CameraPhoto.kt` | foto da câmera de pé pelo EXIF, lida uma vez e apagada |
 | `service/FloatingOcrService.kt` | serviço em primeiro plano: captura, OCR, mostra o resultado |
 | `service/LookupOverlayService.kt` | busca do dicionário sobre outras apps |
 | `service/YabaiTileService.kt` | bloco de configurações rápidas |
@@ -431,7 +435,7 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 | textos de interface | `desktop/i18n/DesktopStrings.kt`; `app/src/main/res/values*/strings.xml` |
 | tema | `desktop/DesktopTheme.kt`; `app/src/main/res/values*/themes.xml` |
 | atualização do app | `desktop/DesktopAppUpdateChecker.kt`, `UpdateInstaller.kt`, `UpdatesNoticeWindow.kt`; `app/update/AppUpdateChecker.kt`, `ApkInstall.kt` |
-| atualização dos dicionários | `desktop/DictionaryUpdateMonitor.kt`, `DesktopDictionaryUpdateChecker.kt` (a mesma checagem do aviso e do botão «Verificar Atualizações»), `DesktopDictionaryCatalog.kt` (`catalogEntryForDictionaryFile`), `UpdatesNoticeWindow.kt`, `DictionaryManagerWindow.kt` (`downloadAndInstallDictionary`); `app/dict/DictionaryUpdates.kt` |
+| atualização dos dicionários | `desktop/DictionaryUpdateMonitor.kt` (`dictionaryAnnouncement`: quando avisar, quando calar e quando limpar o tooltip da bandeja), `DesktopDictionaryUpdateChecker.kt` (a mesma checagem do aviso e do botão «Verificar Atualizações»), `DesktopDictionaryCatalog.kt` (`catalogEntryForDictionaryFile`), `UpdatesNoticeWindow.kt`, `DictionaryManagerWindow.kt` (`downloadAndInstallDictionary`); `app/dict/DictionaryUpdates.kt` |
 
 ---
 

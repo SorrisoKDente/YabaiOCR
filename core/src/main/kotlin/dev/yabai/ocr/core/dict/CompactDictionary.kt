@@ -211,9 +211,15 @@ class CompactDictionary private constructor(
             val term = reader.string()
             val reading = reader.string()
             val tags = reader.string()
+            // A copy compiled before format 4 goes straight from the tags to the definition.
+            val redirect = if (info.compiledWith >= DictionaryCompiler.REDIRECT_FORMAT) {
+                reader.string()
+            } else {
+                ""
+            }
             val definition = reader.rest()
             if (term.isEmpty() || definition.isEmpty()) null
-            else DictionaryEntry(term, reading, tags, 0, score, definition)
+            else DictionaryEntry(term, reading, tags, 0, score, definition, redirect)
         } catch (t: Throwable) {
             null
         }

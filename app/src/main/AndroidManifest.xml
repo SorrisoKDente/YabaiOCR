@@ -16,6 +16,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+      The bubble's camera (R46d): one photo, read once and deleted. Not required, so the app still
+      installs on a device without a camera.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <!--
       The update is downloaded, never installed: the app does not hand the APK to the package
       installer, so it does not need REQUEST_INSTALL_PACKAGES (nor the «install unknown apps»
       allowance) either.
@@ -101,6 +110,19 @@
             </intent-filter>
         </activity>
 
+        <!--
+          The bubble's camera (R46d). A doorway like StartOcrActivity: it asks for the camera,
+          returns with one photo in its own cache and finishes, leaving the panel to the running
+          service. It is not restorable — the picture belongs to the camera app it opened.
+        -->
+        <activity
+            android:name=".CameraActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=".camera"
+            android:theme="@style/Theme.YabaiOcr.Doorway" />
+
         <activity
             android:name=".StartOcrActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
@@ -119,7 +141,19 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
 
-        <!-- Quick Settings Tile for starting OCR. Same monochrome icon as the notification: a tile
+        <!-- The camera app is handed a file:// Uri, which the platform forbids since Android 7: it
+             gets a content:// one from here, limited to the photos subdirectory of the cache. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.photos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/camera_paths" />
+        </provider>
+
+        <!-- Quick Settings tile for starting OCR. Same monochrome icon as the notification: a tile
              is tinted by the system the same way, so the opaque `ic_scan` would be a white square here
              too. -->
         <service

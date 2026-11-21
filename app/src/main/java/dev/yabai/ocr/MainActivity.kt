@@ -43,6 +43,7 @@ import dev.yabai.ocr.core.ppocr.PPOcrModelStore
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.DictionaryUpdateScheduler
 import dev.yabai.ocr.overlay.PickerReadingMode
+import dev.yabai.ocr.overlay.actionButton
 import dev.yabai.ocr.service.FloatingOcrService
 import dev.yabai.ocr.update.ApkInstall
 import dev.yabai.ocr.update.AppUpdate
@@ -628,10 +629,11 @@ class MainActivity : AppCompatActivity() {
             }
             row.addView(textView)
 
+            // R46c: the same arrows as the dictionary list, in the app's accent, with the words
+            // only for a screen reader — «▲ Subir» on a 30 dp button was two glyphs and a guess.
             if (index > 0) {
-                val upBtn = Button(this, null, android.R.attr.buttonStyleSmall).apply {
-                    text = getString(R.string.btn_priority_up)
-                    textSize = 11f
+                val upBtn = actionButton("↑").apply {
+                    contentDescription = getString(R.string.dictionary_up)
                     setOnClickListener {
                         val current = settings.enginePriorityList.toMutableList()
                         val tmp = current[index]
@@ -645,9 +647,8 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (index < list.size - 1) {
-                val downBtn = Button(this, null, android.R.attr.buttonStyleSmall).apply {
-                    text = getString(R.string.btn_priority_down)
-                    textSize = 11f
+                val downBtn = actionButton("↓").apply {
+                    contentDescription = getString(R.string.dictionary_down)
                     setOnClickListener {
                         val current = settings.enginePriorityList.toMutableList()
                         val tmp = current[index]
@@ -726,11 +727,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindTranslationAndDictionaries() {
-        val dictionary = findViewById<CheckBox>(R.id.checkDictionary).apply {
-            isChecked = settings.dictionaryLookup
-        }
-        dictionary.setOnCheckedChangeListener { _, checked -> settings.dictionaryLookup = checked }
-
+        // No «Consultar os dicionários» switch: the panel always looks the text up (R46a).
         val translate = findViewById<CheckBox>(R.id.checkTranslate).apply {
             isChecked = settings.translateSentence
         }
@@ -752,6 +749,15 @@ class MainActivity : AppCompatActivity() {
         keepLast.setOnCheckedChangeListener { _, checked ->
             settings.dictionaryKeepLastSearch = checked
             if (!checked) settings.dictionaryLastQuery = ""
+        }
+
+        // R35d moved here by R46b: the cleanup changes what the dictionaries are asked, so it sits
+        // beside them instead of on their own screen. What the panel shows is untouched.
+        val stripReadings = findViewById<CheckBox>(R.id.checkStripReadings).apply {
+            isChecked = settings.stripSearchReadings
+        }
+        stripReadings.setOnCheckedChangeListener { _, checked ->
+            settings.stripSearchReadings = checked
         }
     }
 
@@ -842,7 +848,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /** Keeps the dictionary line under the checkbox honest after installs or removals. */
+    /** Keeps the dictionary line above the button honest after installs or removals. */
     private fun refreshDictionarySummary() {
         val installed = DictionaryRepository.get(this).installed()
         dictionarySummary.text = if (installed.isEmpty()) {

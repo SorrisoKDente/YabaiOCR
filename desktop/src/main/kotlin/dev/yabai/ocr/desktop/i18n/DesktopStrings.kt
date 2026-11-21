@@ -310,6 +310,9 @@ object DesktopStrings {
     val dictionaryLookupDesc: String get() = if (isEnglish) "Automatically searches recognized text in enabled dictionaries." else "Busca automaticamente o texto reconhecido nos dicionários ativados."
     val defaultDictFilterDesc: String get() = if (isEnglish) "Select a specific dictionary to limit searches or choose 'All'." else "Selecione um dicionário específico para limitar as buscas ou escolha 'Todos'."
     val dictSummaryNone: String get() = if (isEnglish) "No dictionaries found in current folder" else "Nenhum dicionário encontrado na pasta atual"
+    /** Said beside the modern headword when the word on screen is its old form (R46e). */
+    val oldForm: String get() = if (isEnglish) "old form" else "forma antiga"
+
     fun dictSummaryCount(count: Int): String = if (isEnglish) "$count dictionary(ies) found in current folder" else "$count dicionário(s) encontrado(s) na pasta atual"
     val dictSummaryNote: String get() = if (isEnglish) ".yabai files or dictionary subfolders." else "Arquivos .yabai ou subpastas de dicionário."
     val keepLastSearchDesc: String get() = if (isEnglish) "When opening the quick search window, fills the field with the last searched term." else "Ao abrir a janela de busca rápida, preenche o campo com o último termo pesquisado."

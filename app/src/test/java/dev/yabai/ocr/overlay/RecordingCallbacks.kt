@@ -25,6 +25,10 @@ class RecordingCallbacks(private val asked: MutableList<String> = ArrayList()) :
         asked.add("region")
     }
 
+    override fun onCameraRequested() {
+        asked.add("camera")
+    }
+
     override fun onRegionConfirmed(rect: Rect?) {
         asked.add("region confirmed")
     }

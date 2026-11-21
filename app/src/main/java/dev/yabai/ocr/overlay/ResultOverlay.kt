@@ -619,7 +619,11 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                     LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
                 )
                 addView(
-                    context.actionButton("✕", background = 0x00000000) { onSearchAction() }.apply {
+                    context.actionButton(
+                        "✕",
+                        textColor = context.getColor(R.color.text_primary),
+                        background = 0x00000000,
+                    ) { onSearchAction() }.apply {
                         contentDescription = context.getString(R.string.dictionary_search_clear)
                         setPadding(dp(10), dp(8), dp(10), dp(8))
                         minWidth = dp(40)
@@ -1432,6 +1436,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             // Jitendex keeps the part of speech only in the markup; the compiler lifts it out of the
             // definition and it belongs here, under the headword, where the eye looks for it (R19).
             if (match.entry.tags.isNotBlank()) add(match.entry.tags)
+            // The head above already reads 兩膝 → 両膝; what it cannot say is that the word in the
+            // text is the old form of the one whose meanings follow (R46e).
+            if (match.oldForm) add(context.getString(R.string.dictionary_old_form))
             add(match.dictionaryTitle)
         }.joinToString(" · ")
         column.addView(
@@ -1531,7 +1538,11 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 ).apply { setOnClickListener { toggleMinimised() } },
             )
             addView(
-                context.actionButton("✕", background = 0x00000000) { callbacks?.onDismiss() }
+                context.actionButton(
+                    "✕",
+                    textColor = context.getColor(R.color.text_primary),
+                    background = 0x00000000,
+                ) { callbacks?.onDismiss() }
                     .apply { setPadding(dp(10), dp(4), dp(4), dp(4)) },
             )
         }

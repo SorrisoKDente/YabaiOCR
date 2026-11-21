@@ -5,6 +5,7 @@ import java.util.Properties
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -164,6 +165,25 @@ class DesktopSettingsTest {
 
         write(file, "hover_rest_millis" to "nao e numero")
         assertEquals(HOVER_REST_DEFAULT_MS, DesktopSettings(file).hoverRestMillis)
+    }
+
+    /** D103: the result window reopens where it was left, so the corner is part of the settings. */
+    @Test
+    fun `the result window corner round-trips and an absent one is null`() {
+        val file = tempSettings()
+        val settings = DesktopSettings(file)
+
+        assertNull("a fresh install must not place the window anywhere", settings.resultWindowX)
+        assertNull(settings.resultWindowY)
+
+        settings.resultWindowX = 1536
+        settings.resultWindowY = 240
+
+        val reloaded = DesktopSettings(file)
+        assertEquals(1536, reloaded.resultWindowX)
+        assertEquals(240, reloaded.resultWindowY)
+        assertEquals("1536", read(file).getProperty("result_window_x"))
+        assertEquals("240", read(file).getProperty("result_window_y"))
     }
 
     @Test

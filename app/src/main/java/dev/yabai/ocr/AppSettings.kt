@@ -127,11 +127,6 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_LANGUAGE, "ja") ?: "ja"
         set(value) = prefs.edit { putString(KEY_LANGUAGE, value) }
 
-    /** Look the recognised text up in the installed dictionaries. */
-    var dictionaryLookup: Boolean
-        get() = prefs.getBoolean(KEY_DICTIONARY, true)
-        set(value) = prefs.edit { putBoolean(KEY_DICTIONARY, value) }
-
     /**
      * The one dictionary the panel was narrowed to, by **title**, or "" for all of them.
      *
@@ -402,7 +397,6 @@ class AppSettings(context: Context) {
         private const val KEY_STRIP_SEARCH_READINGS = "strip_search_readings"
         private const val KEY_MAX_DIMENSION = "max_dimension"
         private const val KEY_LANGUAGE = "language"
-        private const val KEY_DICTIONARY = "dictionary_lookup"
         private const val KEY_DICTIONARY_FILTER = "dictionary_filter"
         private const val KEY_KANJI_DICTIONARY = "kanji_dictionary"
         private const val KEY_DICTIONARY_KEEP_LAST = "dictionary_keep_last_search"

@@ -38,29 +38,38 @@ class DictionaryUpdateOffersTest {
     @Test
     fun `the same remote revision is announced only once`() {
         val check = result("jmdict-en.yabai", "2026-10-30", "2026-11-15")
-        val first = dictionaryOffersToAnnounce(check, alreadyShownKey = "")
-        assertEquals(1, first.size)
+        val first = dictionaryAnnouncement(check, alreadyShownKey = "")
+        assertTrue("the first check must show the update", first is DictionaryAnnouncement.Show)
 
-        val second = dictionaryOffersToAnnounce(check, dictionaryNoticeKey(first))
-        assertTrue("the same news popped a second time", second.isEmpty())
+        val second = dictionaryAnnouncement(
+            check,
+            dictionaryNoticeKey((first as DictionaryAnnouncement.Show).offers),
+        )
+        assertEquals(
+            "the same news popped a second time, and clearing the key re-announced it on every check",
+            DictionaryAnnouncement.Keep,
+            second,
+        )
     }
 
     @Test
     fun `a newer remote revision is announced again`() {
         val shown = dictionaryNoticeKey(
-            dictionaryOffersToAnnounce(
-                result("jmdict-en.yabai", "2026-10-30", "2026-11-15"),
-                alreadyShownKey = "",
-            ),
+            (
+                dictionaryAnnouncement(
+                    result("jmdict-en.yabai", "2026-10-30", "2026-11-15"),
+                    alreadyShownKey = "",
+                ) as DictionaryAnnouncement.Show
+                ).offers,
         )
 
-        val newer = dictionaryOffersToAnnounce(
+        val newer = dictionaryAnnouncement(
             result("jmdict-en.yabai", "2026-11-15", "2026-11-20"),
             alreadyShownKey = shown,
         )
 
-        assertEquals(1, newer.size)
-        assertEquals("2026-11-20", newer.single().remoteRevision)
+        assertTrue(newer is DictionaryAnnouncement.Show)
+        assertEquals("2026-11-20", (newer as DictionaryAnnouncement.Show).offers.single().remoteRevision)
     }
 
     @Test
@@ -71,9 +80,30 @@ class DictionaryUpdateOffersTest {
     }
 
     @Test
-    fun `a check with nothing available announces nothing`() {
+    fun `a check with nothing available ends the announcement`() {
         val quiet = DesktopDictCheckResult(1_700_000_000_000L, 0, emptyMap(), emptyMap())
 
-        assertTrue(dictionaryOffersToAnnounce(quiet, alreadyShownKey = "").isEmpty())
+        assertEquals(
+            "without an installable update the notice and the tooltip must be cleared",
+            DictionaryAnnouncement.Clear,
+            dictionaryAnnouncement(quiet, alreadyShownKey = "jmdict-en.yabai:2026-11-15"),
+        )
+    }
+
+    @Test
+    fun `a dictionary whose installed revision caught up ends the announcement`() {
+        val caughtUp = DesktopDictCheckResult(
+            checkedAt = 1_700_000_000_000L,
+            updatesAvailableCount = 0,
+            updateAvailableMap = mapOf("jmdict-en.yabai" to false),
+            remoteRevisionMap = mapOf("jmdict-en.yabai" to "2026-11-15"),
+            installedRevisionMap = mapOf("jmdict-en.yabai" to "2026-11-15"),
+        )
+
+        assertEquals(
+            "an installed update must stop being announced",
+            DictionaryAnnouncement.Clear,
+            dictionaryAnnouncement(caughtUp, alreadyShownKey = "jmdict-en.yabai:2026-11-15"),
+        )
     }
 }

@@ -201,7 +201,11 @@ class KanjiOverlay(context: Context) : FrameLayout(context) {
         }
         header.addView(View(context), LinearLayout.LayoutParams(0, 0, 1f))
         header.addView(
-            context.actionButton(context.getString(R.string.result_close), background = 0x00000000) {
+            context.actionButton(
+                context.getString(R.string.result_close),
+                textColor = context.getColor(R.color.text_primary),
+                background = 0x00000000,
+            ) {
                 onDismiss?.invoke()
             },
         )

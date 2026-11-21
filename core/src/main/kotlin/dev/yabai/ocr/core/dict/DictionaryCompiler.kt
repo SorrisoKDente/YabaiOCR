@@ -237,15 +237,30 @@ class DictionaryCompiler(
 
         val keyCount: Int get() = keyOffsets.size - 1
 
-        fun writeBlob(score: Int, a: String, b: String, c: String, body: String, rulesFlags: Int) {
+        /**
+         * Writes one entry: score, three strings, the redirect (term entries only, R46e), the body.
+         *
+         * [redirect] is null for kanji entries, whose blobs never had the field and whose reader has
+         * no format version to consult.
+         */
+        fun writeBlob(
+            score: Int,
+            a: String,
+            b: String,
+            c: String,
+            redirect: String?,
+            body: String,
+            rulesFlags: Int,
+        ) {
             val id = entryCount++
             val bytes = body.toByteArray(StandardCharsets.UTF_8)
             val bytesA = a.toByteArray(StandardCharsets.UTF_8)
             val bytesB = b.toByteArray(StandardCharsets.UTF_8)
             val bytesC = c.toByteArray(StandardCharsets.UTF_8)
+            val bytesRedirect = if (redirect == null) 0 else 2 + redirect.toByteArray(StandardCharsets.UTF_8).size.coerceAtMost(0xFFFF)
             val added = 4 + 2 + bytesA.size.coerceAtMost(0xFFFF) +
                 2 + bytesB.size.coerceAtMost(0xFFFF) +
-                2 + bytesC.size.coerceAtMost(0xFFFF) + bytes.size
+                2 + bytesC.size.coerceAtMost(0xFFFF) + bytesRedirect + bytes.size
 
             if (written + added > Int.MAX_VALUE) {
                 throw NotADictionaryException("O dicionário excede o limite suportado de 2 GB.")
@@ -255,6 +270,7 @@ class DictionaryCompiler(
             written += writeString(raw, a)
             written += writeString(raw, b)
             written += writeString(raw, c)
+            if (redirect != null) written += writeString(raw, redirect)
             raw.write(bytes)
             written += bytes.size
             offsets.add(written.toInt())
@@ -348,6 +364,7 @@ class DictionaryCompiler(
             term,
             reading,
             mergeTags(tags, rendered.tags),
+            rendered.redirect.takeIf { it.isNotEmpty() && it != term }.orEmpty(),
             definition.takeClean(MAX_DEFINITION_CHARS),
             flags,
         )
@@ -381,7 +398,7 @@ class DictionaryCompiler(
         if (body.isBlank()) return
 
         val id = accumulator.entryCount
-        accumulator.writeBlob(0, character, onyomi, kunyomi, body.takeClean(MAX_DEFINITION_CHARS), 0)
+        accumulator.writeBlob(0, character, onyomi, kunyomi, null, body.takeClean(MAX_DEFINITION_CHARS), 0)
         accumulator.addKey(character, id)
     }
 
@@ -520,7 +537,13 @@ class DictionaryCompiler(
          * and R42: the definitions are rendered once, at import time, so an old copy cannot show the
          * new rendering until it is imported again. [DictionaryInfo.outdated] is what tells the user.
          */
-        const val FORMAT_VERSION = 3
+        const val FORMAT_VERSION = 4
+
+        /**
+         * The format whose term blobs carry the redirect target (R46e). A copy written before it has
+         * the definition right after the tags, so the reader must not look for a fourth string.
+         */
+        const val REDIRECT_FORMAT = 4
 
         private const val MAX_DEFINITION_CHARS = 6000
 

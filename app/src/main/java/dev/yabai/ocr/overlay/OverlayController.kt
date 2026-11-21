@@ -55,6 +55,9 @@ class OverlayController(
     interface Callbacks {
         fun onFullScreenRequested()
         fun onRegionRequested()
+
+        /** The user wants to photograph the page instead of capturing the screen (R46d). */
+        fun onCameraRequested() {}
         fun onRegionConfirmed(rect: Rect?)
         fun onRegionCancelled()
         fun onStopRequested()
@@ -129,8 +132,12 @@ class OverlayController(
      */
     private val pullShrink = 0.3f
 
-    /** Side of one icon button in the action strip, and the gap between two of them. */
-    private val menuItemSize = dp(46)
+    /**
+     * Side of one icon button in the action strip, and the gap between two of them.
+     *
+     * Seven actions have to fit side by side on a 320 dp screen, which is 46 dp short of 7 × 46 + 6 × 2.
+     */
+    private val menuItemSize = dp(42)
     private val menuItemGap = dp(2)
 
     /** «Encerrar» keeps the red the text row it replaced used to have. */
@@ -444,6 +451,9 @@ class OverlayController(
 
         add(R.drawable.ic_menu_whole_screen, R.string.overlay_full_screen) { callbacks?.onFullScreenRequested() }
         add(R.drawable.ic_menu_region, R.string.overlay_select_area) { callbacks?.onRegionRequested() }
+        // The photo is not a capture of the screen: it comes from the camera app and needs no
+        // MediaProjection permission, only the camera's (R46d).
+        add(R.drawable.ic_menu_camera, R.string.overlay_camera) { callbacks?.onCameraRequested() }
         // A kanji is recognised by its own shape, so the icon is the character itself: no drawing
         // survives being read as «a kanji» the way 漢 does (R17).
         addGlyph("漢", R.string.overlay_kanji) { callbacks?.onKanjiRequested() }
@@ -759,8 +769,15 @@ class OverlayController(
 
         val answers = FlowLayout(context)
         answers.setPadding(0, dp(10), 0, 0)
+        // Both answers are text on the card, not filled buttons (R46c): the plain fill is the accent
+        // now, and the warning red of «Encerrar» would be red on blue — unreadable — as well as the
+        // loud answer this question exists to avoid.
         answers.addView(
-            context.actionButton(context.getString(R.string.region_cancel)) {
+            context.actionButton(
+                context.getString(R.string.region_cancel),
+                textColor = context.getColor(R.color.text_primary),
+                background = 0x00000000,
+            ) {
                 hideCloseConfirm()
                 restBubble()
             },
@@ -772,6 +789,7 @@ class OverlayController(
             context.actionButton(
                 context.getString(R.string.overlay_close_service),
                 textColor = context.getColor(R.color.warn),
+                background = 0x00000000,
             ) {
                 hideCloseConfirm()
                 callbacks?.onStopRequested()

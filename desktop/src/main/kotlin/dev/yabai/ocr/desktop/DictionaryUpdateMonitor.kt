@@ -127,12 +127,34 @@ internal fun dictionaryUpdateOffers(result: DesktopDictCheckResult): List<Dictio
 internal fun dictionaryNoticeKey(offers: List<DictionaryUpdateOffer>): String =
     offers.sortedBy { it.fileName }.joinToString("|") { "${it.fileName}:${it.remoteRevision}" }
 
-/** The offers worth a window right now: what is installable and was not announced yet. */
-internal fun dictionaryOffersToAnnounce(
+/** What a finished check means for the notice and the tray tooltip that announce updates. */
+internal sealed interface DictionaryAnnouncement {
+    /** Nothing is installable any more: the notice and the tray tooltip must be forgotten. */
+    data object Clear : DictionaryAnnouncement
+
+    /** The same set the reader already saw: leave the notice and the tooltip as they are. */
+    data object Keep : DictionaryAnnouncement
+
+    /** Installable updates nobody has seen yet, worth a window and a tooltip. */
+    data class Show(val offers: List<DictionaryUpdateOffer>) : DictionaryAnnouncement
+}
+
+/**
+ * The announcement rule, in one place.
+ *
+ * «Nothing installable» and «the same news again» both produce no new window, but they are not the
+ * same thing: the first must also take down the tray tooltip that points at the update, the second
+ * must leave it standing. Conflating them was the bug: the check kept re-announcing the same set and
+ * the tooltip outlived the update it announced.
+ */
+internal fun dictionaryAnnouncement(
     result: DesktopDictCheckResult,
     alreadyShownKey: String,
-): List<DictionaryUpdateOffer> {
+): DictionaryAnnouncement {
     val offers = dictionaryUpdateOffers(result)
-    if (offers.isEmpty()) return emptyList()
-    return if (dictionaryNoticeKey(offers) == alreadyShownKey) emptyList() else offers
+    return when {
+        offers.isEmpty() -> DictionaryAnnouncement.Clear
+        dictionaryNoticeKey(offers) == alreadyShownKey -> DictionaryAnnouncement.Keep
+        else -> DictionaryAnnouncement.Show(offers)
+    }
 }

@@ -46,6 +46,33 @@ object HoverGeometry {
         return monitorAt(monitors, point) ?: screenBounds()
     }
 
+    /**
+     * Bounds of the monitor under [point] minus the taskbar and any other reserved edge.
+     *
+     * The hover card is a place to read and click: a card allowed to reach the bottom of the
+     * monitor put its last dictionary rows under the taskbar, where they cannot be clicked. The
+     * crop still uses the whole monitor ([hoverCrop]): that is what Robot can capture, and the
+     * taskbar is not part of the text being read.
+     */
+    fun workAreaAt(point: Point): Rectangle {
+        val devices = GraphicsEnvironment.getLocalGraphicsEnvironment().screenDevices
+        val device = devices.firstOrNull {
+            runCatching { it.defaultConfiguration.bounds.contains(point) }.getOrDefault(false)
+        } ?: devices.firstOrNull {
+            runCatching { it.defaultConfiguration.bounds == screenAt(point) }.getOrDefault(false)
+        } ?: return screenAt(point)
+        val bounds = runCatching { device.defaultConfiguration.bounds }.getOrNull() ?: return screenAt(point)
+        val insets = runCatching {
+            Toolkit.getDefaultToolkit().getScreenInsets(device.defaultConfiguration)
+        }.getOrNull() ?: return bounds
+        return Rectangle(
+            bounds.x + insets.left,
+            bounds.y + insets.top,
+            (bounds.width - insets.left - insets.right).coerceAtLeast(1),
+            (bounds.height - insets.top - insets.bottom).coerceAtLeast(1),
+        )
+    }
+
     /** Distance from [point] to the rectangle, 0 when inside; squared, so no square root is needed. */
     private fun squaredDistance(rect: Rectangle, point: Point): Long {
         val dx = when {

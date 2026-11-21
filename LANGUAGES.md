@@ -54,7 +54,7 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 2. **Atalhos Rápidos e Tema (`2. Atalhos` / `3. Tema`):**
    - `section_shortcuts` ("2. Quick Shortcuts"), `section_theme` ("3. App Theme"), `theme_dark` ("Dark"), `theme_light` ("Light"), `theme_system` ("System").
 3. **Motores de Reconhecimento (`4. Motor` / `4. OCR Engine`):**
-       - `section_engine` ("4. Recognition Engine"), `engine_auto`, `engine_pp_ocr`, `engine_lens`, `engine_mlkit`, `engine_pp_ocr_desc`, `pp_ocr_download`/`pp_ocr_downloading`/`pp_ocr_downloaded`/`pp_ocr_not_installed`/`pp_ocr_download_failed` (modelos do motor offline), descrições e botões de prioridade (`btn_priority_up`, `btn_priority_down`).
+       - `section_engine` ("4. Recognition Engine"), `engine_auto`, `engine_pp_ocr`, `engine_lens`, `engine_mlkit`, `engine_pp_ocr_desc`, `pp_ocr_download`/`pp_ocr_downloading`/`pp_ocr_downloaded`/`pp_ocr_not_installed`/`pp_ocr_download_failed` (modelos do motor offline), descrições e as setas de prioridade (só os glifos `↑`/`↓`, com `dictionary_up`/`dictionary_down` como descrição para leitores de tela).
 4. **Comportamento (`5. Comportamento` / `5. Behaviour`):**
    - `section_behaviour` ("5. Behaviour"), `setting_auto_copy`, `setting_show_segments`, `setting_pick_text`, `setting_bubble_on_edge`, `setting_upscale`, `setting_show_image`, `setting_furigana`, `setting_furigana_readings`, `setting_picker_reading`, `picker_reading_ruby`, `picker_reading_label`.
 5. **Dicionários e Tradução (`6. Dicionários` / `7. Tradução`):**
@@ -62,7 +62,8 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 6. **Perguntar à IA (`8. IA` / `8. Ask AI`):**
    - `section_ai` ("8. Ask an AI"), `setting_ai_button`, `setting_ai_prompt`, `setting_ai_app`, `ai_note`.
 7. **Overlay e Painéis Flutuantes:**
-   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`).
+   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_camera`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`) e a recusa da permissão da câmera (`camera_permission_denied`).
+   - Forma antiga do kanji, mostrada no painel quando a busca segue um redirecionamento: `dictionary_old_form`.
    - Painel de resultado (`result_title`, `result_retry_offline`, `result_copy_original`, `result_copy_translation`, `result_repick`, `result_image`, `result_ask_ai`, `result_translation_label`, `result_dictionary_label`, `result_kanji_label`).
    - Tela de leitura de kanji (`kanji_hint`, `kanji_on`, `kanji_kun`, `kanji_parts`, `kanji_dictionary_missing`).
 8. **Notificação de Serviço Foreground:**
@@ -143,7 +144,7 @@ Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de
   - `"Baixar modelos do PP-OCRv6 (~23 MB)"` → `"Download PP-OCRv6 models (~23 MB)"`
   - `"Somente Google Lens (online)"` → `"Google Lens Only (online)"`
   - Prioridades: `"Prioridade dos Motores no modo Automático / Fallback:"` → `"Engine Fallback Priority Order:"`
-  - Botões de reordenação: `"▲ Subir"` → `"▲ Up"`, `"▼ Descer"` → `"▼ Down"`
+  - Botões de reordenação: só os glifos `↑`/`↓` (R46c); o texto de `dictionary_up`/`dictionary_down` («Subir»/«Descer») vira a descrição para leitores de tela.
 - **Comportamento do OCR e Resultado:**
   - `"Comportamento do OCR e resultado"` → `"OCR & Result Behaviour"`
   - `"Copiar automaticamente ao reconhecer"` → `"Copy automatically after recognition"`

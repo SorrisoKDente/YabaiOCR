@@ -53,8 +53,6 @@
     <string name="pp_ocr_downloaded">PP-OCRv6 models installed</string>
     <string name="pp_ocr_not_installed">PP-OCRv6 models not installed.</string>
     <string name="pp_ocr_download_failed">Failed to download models: %1$s</string>
-    <string name="btn_priority_up">▲ Up</string>
-    <string name="btn_priority_down">▼ Down</string>
 
     <string name="setting_auto_copy">Copy automatically after recognition</string>
     <string name="setting_show_segments">List text line by line</string>
@@ -79,6 +77,8 @@
     <string name="overlay_full_screen">Full Screen</string>
     <string name="overlay_select_area">Select Area</string>
     <string name="overlay_kanji">Read Kanji</string>
+    <string name="overlay_camera">Camera</string>
+    <string name="camera_permission_denied">Allow camera access to take the picture.</string>
     <string name="overlay_dictionary">Dictionary</string>
     <string name="overlay_close_service">Stop</string>
     <string name="overlay_settings">Settings</string>
@@ -181,7 +181,6 @@
     <string name="dictionary_suggestion_description">Lookup "%1$s"</string>
 
     <string name="section_dictionary">Dictionaries</string>
-    <string name="setting_dictionary">Query installed dictionaries</string>
     <string name="setting_dictionary_keep_last">Keep last search query on reopen</string>
     <string name="dictionary_manage_button">Manage dictionaries</string>
     <string name="dictionary_summary_none">No dictionaries installed</string>
@@ -226,6 +225,7 @@
     <string name="dictionary_kanji_title">Kanji dictionary</string>
     <string name="dictionary_kanji_hint">Which dictionary answers kanji card lookups and compound kanji readings. Sentence word lookups continue to use the panel filter.</string>
     <string name="dictionary_kanji_all">All kanji dictionaries</string>
+    <string name="dictionary_old_form">old form</string>
     <string name="dictionary_import_failed">Import failed: %1$s</string>
     <string name="dictionary_download_failed">Download failed: %1$s</string>
     <string name="dictionary_release">Revision %1$s</string>

@@ -95,6 +95,93 @@ class HoverTooltipHeightTest {
         assertEquals(Point(218, 218), planCardPlacement(bounds, Point(200, 200), 300, screen).location)
     }
 
+    /**
+     * Regression (D102): with the card flipped above the pointer near the taskbar, opening the
+     * dictionary list made it grow by the list's height, and the corner was recomputed from the
+     * pointer with the new height — so the header moved up by exactly that growth, left the pointer,
+     * and the hover dismissal closed the card the user had just clicked.
+     */
+    @Test
+    fun `a card that still fits above its pointer does not move when the list opens`() {
+        val workArea = Rectangle(0, 0, 1920, 1040)
+        val pointer = Point(1500, 900)
+        val beforeLocation = HoverGeometry.placeTooltip(
+            pointer = pointer,
+            size = java.awt.Dimension(460, 200),
+            screen = workArea,
+        )
+        val before = Rectangle(beforeLocation, java.awt.Dimension(460, 200))
+        // The card is already flipped above the pointer, and there is room above it.
+        assertTrue("the card did not flip above the pointer: $before", before.y + before.height < pointer.y)
+
+        val opened = planCardPlacement(before, pointer, 300, workArea, sameAnchor = true)
+
+        assertTrue(opened.resize)
+        assertEquals("the card moved although it only grew", beforeLocation, opened.location)
+    }
+
+    /**
+     * Regression (D102): the card was below the pointer near the taskbar; opening the dictionary
+     * list made it taller than the work area below, and the corner was recomputed from the pointer
+     * with the new height — the whole card flipped above the pointer, where the click that opened
+     * the list no longer was, so the hover dismissal closed it.
+     */
+    @Test
+    fun `opening the dictionary list near the taskbar keeps the clicked header inside the card`() {
+        val workArea = Rectangle(0, 0, 1920, 1040)
+        val pointer = Point(1500, 600)
+        val beforeLocation = HoverGeometry.placeTooltip(
+            pointer = pointer,
+            size = java.awt.Dimension(460, 200),
+            screen = workArea,
+        )
+        val before = Rectangle(beforeLocation, java.awt.Dimension(460, 200))
+        // The premise of the bug: the card sits below/right of the pointer.
+        assertEquals(pointer.y + HoverGeometry.TOOLTIP_GAP, before.y)
+
+        // The click on «dictionaries» lands on the card's header; the list then makes it much taller.
+        val headerClick = Point(before.x + 60, before.y + 15)
+        assertTrue(before.contains(headerClick))
+
+        val opened = planCardPlacement(before, pointer, 500, workArea, sameAnchor = true)
+        val after = Rectangle(opened.location, java.awt.Dimension(460, 500))
+
+        // The flip the old placement did: y = 600 - 500 - 18 = 82, which leaves the click at 633
+        // outside the card and closed it.
+        assertTrue("the card did not grow from its corner: $after", after.y > before.y - 100)
+        assertTrue("the clicked header left the card, so the hover would close it: $after", after.contains(headerClick))
+        assertTrue("the card left the work area: $after", workArea.contains(after))
+        assertEquals("the card should only move as far as the work area requires", 1040, after.y + after.height)
+    }
+
+    @Test
+    fun `a grown card only moves as far as the screen requires`() {
+        // No room below at all: instead of flipping to the pointer-anchored position, the card moves
+        // up exactly enough for its last row to stay clickable.
+        val opened = planCardPlacement(
+            bounds = Rectangle(0, 900, 460, 200),
+            pointer = Point(500, 1000),
+            height = 600,
+            screen = Rectangle(0, 0, 1920, 1040),
+            sameAnchor = true,
+        )
+
+        assertEquals(440, opened.location.y)
+        assertEquals(1040, opened.location.y + 600)
+    }
+
+    @Test
+    fun `a new word is still anchored to its own pointer`() {
+        val byPointer = planCardPlacement(
+            bounds = Rectangle(100, 100, 460, 300),
+            pointer = Point(200, 200),
+            height = 300,
+            screen = Rectangle(0, 0, 1920, 1080),
+        )
+
+        assertEquals(Point(218, 218), byPointer.location)
+    }
+
     @Test
     fun `placing the card is retried while the window is not on screen yet`() {
         // A new card is not showing when the effect first runs; the placement used to be dropped, and

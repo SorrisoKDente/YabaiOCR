@@ -34,6 +34,7 @@ class ActionMenuTest {
             listOf(
                 context.getString(R.string.overlay_full_screen),
                 context.getString(R.string.overlay_select_area),
+                context.getString(R.string.overlay_camera),
                 context.getString(R.string.overlay_kanji),
                 context.getString(R.string.overlay_dictionary),
                 context.getString(R.string.overlay_settings),
@@ -43,11 +44,11 @@ class ActionMenuTest {
         )
     }
 
-    /** Six actions next to each other, none of them hidden. */
+    /** Seven actions next to each other, none of them hidden — on the narrowest screen too. */
     @Test
-    fun `the strip shows six actions in a row`() {
+    fun `the strip shows seven actions in a row`() {
         val strip = menuWith().buildMenuStrip()
-        assertEquals(6, strip.childCount)
+        assertEquals(7, strip.childCount)
         strip.measure(0, 0)
         for (item in items(strip)) {
             assertTrue("an action has no size", item.layoutParams.width > 0)
@@ -64,7 +65,7 @@ class ActionMenuTest {
     fun `the kanji action is drawn as the character`() {
         val strip = menuWith().buildMenuStrip()
 
-        val glyph = items(strip)[2] as TextView
+        val glyph = items(strip)[3] as TextView
 
         assertEquals("漢", glyph.text.toString())
         assertEquals(context.getString(R.string.overlay_kanji), glyph.contentDescription.toString())
@@ -73,7 +74,7 @@ class ActionMenuTest {
     /** Each icon has to run its own action — swapping two of them would be invisible otherwise. */
     @Test
     fun `each icon runs its own action`() {
-        val expected = listOf("full screen", "region", "kanji", "dictionary", "settings", "stop")
+        val expected = listOf("full screen", "region", "camera", "kanji", "dictionary", "settings", "stop")
         for ((index, name) in expected.withIndex()) {
             val asked = ArrayList<String>()
             val strip = menuWith(asked).buildMenuStrip()

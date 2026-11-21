@@ -7,6 +7,7 @@ import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.view.ViewGroup
 import android.widget.TextView
+import dev.yabai.ocr.R
 import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
 import org.junit.Assert.assertEquals
@@ -148,6 +149,59 @@ class DefinitionPanelTest {
         assertTrue(
             "the panel warned about a dictionary that is current",
             labels(panel).none { it.text.contains("formato antigo") },
+        )
+    }
+
+    /**
+     * R46e: 兩膝 is the old form of 両膝. The panel shows the modern word and its meanings, so it has
+     * to keep saying which word was actually read — otherwise the meanings look like an answer about
+     * the characters on the page.
+     */
+    @Test
+    fun `an old form is answered with the modern entry and says so`() {
+        val panel = ResultOverlay(context).apply {
+            showResult(
+                text = "兩膝",
+                meta = "",
+                notes = emptyList(),
+                showLines = false,
+                segmentLines = emptyList(),
+                canRepick = false,
+                canAskAi = false,
+            )
+            setWords(
+                ResultOverlay.WordsState.Done(
+                    matches = listOf(
+                        TokenMatch(
+                            surface = "兩膝",
+                            start = 0,
+                            end = 2,
+                            entry = DictionaryEntry(
+                                term = "両膝",
+                                reading = "りょうひざ",
+                                tags = "substantivo",
+                                rulesFlags = 0,
+                                score = 200,
+                                definition = "1. ambos os joelhos",
+                            ),
+                            dictionaryTitle = "Jitendex PT-BR",
+                            reasons = emptyList(),
+                            oldForm = true,
+                        ),
+                    ),
+                    kanji = emptyList(),
+                    dictionaryCount = 1,
+                ),
+            )
+        }
+
+        assertNotNull(
+            "the panel does not say which word was read: ${labels(panel).map { it.text }}",
+            labels(panel).firstOrNull { it.text.contains("兩膝 → 両膝") },
+        )
+        assertNotNull(
+            "the panel does not say the form is old: ${labels(panel).map { it.text }}",
+            labels(panel).firstOrNull { it.text.contains(context.getString(R.string.dictionary_old_form)) },
         )
     }
 

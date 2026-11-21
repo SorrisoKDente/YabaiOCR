@@ -23,18 +23,26 @@ import java.awt.datatransfer.DataFlavor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * The search window.
+ *
+ * [activation] changes every time the user asks for the window again — the tray entry and the
+ * global shortcut both count — so a window that was minimised comes back instead of the request
+ * doing nothing (D103).
+ */
 @Composable
-fun QuickDictWindow(onClose: () -> Unit) {
+fun QuickDictWindow(activation: Int = 0, onClose: () -> Unit) {
     val settings = remember { DesktopSettings() }
 
+    // D103: a corner left on a monitor that is no longer attached would open the window outside
+    // every screen; then the window centres itself instead.
+    val screens = remember { screenBoundsNow() }
     val windowState = rememberWindowState(
         width = settings.quickDictWidth.dp,
         height = settings.quickDictHeight.dp,
-        position = if (settings.quickDictX != null && settings.quickDictY != null) {
-            WindowPosition(settings.quickDictX!!.dp, settings.quickDictY!!.dp)
-        } else {
-            WindowPosition(Alignment.Center)
-        }
+        position = rememberedWindowCorner(settings.quickDictX, settings.quickDictY, screens)
+            ?.let { WindowPosition(it.x.dp, it.y.dp) }
+            ?: WindowPosition(Alignment.Center),
     )
 
     // Save size and position whenever they change
@@ -118,8 +126,12 @@ fun QuickDictWindow(onClose: () -> Unit) {
     ) {
         LaunchedEffect(Unit) {
             window.iconImage = AppIconGenerator.createWindowImage(64)
-            // The tray or a hotkey can open this while another app is active; KWin otherwise keeps
-            // it in the taskbar, which reads as «abriu minimizado».
+        }
+
+        // The tray or a hotkey can open this while another app is active; KWin otherwise keeps it in
+        // the taskbar, which reads as «abriu minimizado». Keyed on the request so asking again while
+        // the window is minimised brings it back.
+        LaunchedEffect(activation) {
             activateOnOpen(window)
         }
 

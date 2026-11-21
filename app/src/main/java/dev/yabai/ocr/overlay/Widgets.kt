@@ -27,9 +27,14 @@ fun roundedBackground(color: Int, radiusDp: Float, strokeColor: Int? = null): Gr
  */
 const val ACTION_BUTTON_TAG = "yabai.actionButton"
 
-/** The fill of a plain button, as opposed to one that is currently «on» and reads as pressed. */
+/**
+ * The fill of a plain button: the app's accent blue (R46c), not the old translucent grey.
+ *
+ * A button that is currently «on» and reads as pressed still overrides this, with a darker fill of
+ * its own.
+ */
 val Context.actionButtonBackground: Int
-    get() = getColor(R.color.card_bg)
+    get() = getColor(R.color.accent)
 
 /**
  * Plain TextView styled as a button.
@@ -37,12 +42,12 @@ val Context.actionButtonBackground: Int
  * Deliberately not a MaterialButton: these views live in service-owned windows, and avoiding
  * Material widgets here means the overlay can never blow up on theme mismatch.
  *
- * The colours come from the theme resources, not from `Color.WHITE`: the panels follow the light
- * and dark themes, so a fixed white label disappeared on the light background.
+ * The label is white because the plain fill is the accent (R46c). A caller that paints its own fill
+ * — a transparent «✕», the darker chip of an active option — passes the label colour that fill needs.
  */
 fun Context.actionButton(
     label: String,
-    textColor: Int = getColor(R.color.text_primary),
+    textColor: Int = Color.WHITE,
     background: Int = actionButtonBackground,
     onClick: (() -> Unit)? = null,
 ): TextView = TextView(this).apply {
@@ -102,7 +107,7 @@ fun Context.textLabel(
 
 fun View.actionButton(
     label: String,
-    textColor: Int = context.getColor(R.color.text_primary),
+    textColor: Int = Color.WHITE,
     background: Int = context.actionButtonBackground,
     onClick: (() -> Unit)? = null,
 ): TextView = context.actionButton(label, textColor, background, onClick)

@@ -41,6 +41,15 @@ class HoverStateHolder(defaultFilter: String = "") {
 /** A full-screen capture plus the screen rectangle it came from. */
 private data class CapturedScreen(val image: BufferedImage, val screenBounds: Rectangle)
 
+/**
+ * What the tray tooltip says once no dictionary update is being announced (D101).
+ *
+ * The tooltip holds one line for both notices, so clearing the dictionary one blindly would also
+ * erase the «new version available» line the startup check had just written.
+ */
+internal fun trayTooltipAfterDictionaryNotice(appUpdate: AppUpdateInfo?): String =
+    appUpdate?.let { DesktopStrings.appVersionNotice(it.latestVersion) }.orEmpty()
+
 fun main(args: Array<String>) {
     // One instance per user. The D-Bus name `dev.yabai.Ocr`, the tray item and the global shortcuts
     // have a single owner, and closing the window only hides the app, so launching the AppImage
@@ -156,6 +165,9 @@ fun main(args: Array<String>) {
     var showMainWindow by remember { mutableStateOf(!startMinimized) } // Open main window by default on run
 
     var showQuickDict by remember { mutableStateOf(false) }
+    // Every request, not the «is it open» flag: asking again for a minimised window has to restore
+    // it, and the flag does not change (D103).
+    var quickDictRequest by remember { mutableStateOf(0) }
 
     val hoverState = remember { HoverStateHolder(settings.hoverDictionaryFilter) }
 
@@ -298,7 +310,10 @@ fun main(args: Array<String>) {
         HotkeyCallbacks(
             onFullScreen = { startFullScreenCapture() },
             onRegion = { startRegionCapture() },
-            onQuickDict = { showQuickDict = true },
+            onQuickDict = {
+                quickDictRequest++
+                showQuickDict = true
+            },
             onHoverToggle = { applyHover(!hoverState.active) },
             onHoverCycle = {
                 val newFilter = hoverOcrManager.cycleDictionaryAndRefresh()
@@ -476,6 +491,7 @@ fun main(args: Array<String>) {
                 startRegionCapture()
             },
             onQuickDictRequested = {
+                quickDictRequest++
                 showQuickDict = true
             },
             onHoverRequested = {
@@ -566,18 +582,31 @@ fun main(args: Array<String>) {
                     "[Dicionários] verificação automática: " +
                         "${result.updatesAvailableCount} atualização(ões) disponível(is)",
                 )
-                val offers = dictionaryOffersToAnnounce(result, settings.lastDictUpdateNotice)
-                if (offers.isEmpty()) {
-                    // Nothing is on offer any more (or it is exactly what the reader already saw):
-                    // forget the announcement so a genuinely newer revision pops again later.
-                    if (settings.lastDictUpdateNotice.isNotEmpty()) settings.lastDictUpdateNotice = ""
-                } else {
-                    settings.lastDictUpdateNotice = dictionaryNoticeKey(offers)
-                    withContext(Dispatchers.Main) {
-                        pendingDictionaryUpdates = offers
-                        trayManager.setStatus(DesktopStrings.dictUpdatesCountNotice(offers.size))
-                        updatesNotice = (updatesNotice ?: UpdatesNotice()).copy(dictionaries = offers)
+                when (val announcement = dictionaryAnnouncement(result, settings.lastDictUpdateNotice)) {
+                    // The update was installed (or upstream withdrew it): the tooltip is the only
+                    // thing the reader still sees, so it has to go with the notice.
+                    DictionaryAnnouncement.Clear -> {
+                        if (settings.lastDictUpdateNotice.isNotEmpty()) settings.lastDictUpdateNotice = ""
+                        withContext(Dispatchers.Main) {
+                            pendingDictionaryUpdates = emptyList()
+                            trayManager.setStatus(trayTooltipAfterDictionaryNotice(appUpdateOffered))
+                        }
                     }
+
+                    is DictionaryAnnouncement.Show -> {
+                        settings.lastDictUpdateNotice = dictionaryNoticeKey(announcement.offers)
+                        withContext(Dispatchers.Main) {
+                            pendingDictionaryUpdates = announcement.offers
+                            trayManager.setStatus(
+                                DesktopStrings.dictUpdatesCountNotice(announcement.offers.size),
+                            )
+                            updatesNotice = (updatesNotice ?: UpdatesNotice())
+                                .copy(dictionaries = announcement.offers)
+                        }
+                    }
+
+                    // The same news, already announced: a genuinely newer revision changes the key.
+                    DictionaryAnnouncement.Keep -> Unit
                 }
             }
         }
@@ -687,6 +716,10 @@ fun main(args: Array<String>) {
             onDictionaryUpdatesInstalled = {
                 pendingDictionaryUpdates = emptyList()
                 settings.lastDictUpdateNotice = ""
+                // The tooltip is written once per announcement and nothing else overwrites it: the
+                // tray kept promising an update that had just been installed. A version notice is
+                // still true and stays.
+                trayManager.setStatus(trayTooltipAfterDictionaryNotice(appUpdateOffered))
                 updatesNotice = updateNotice.copy(dictionaries = emptyList()).takeIf { it.app != null }
             },
         )
@@ -745,7 +778,7 @@ fun main(args: Array<String>) {
 
     // Quick Search Window
     if (showQuickDict) {
-        QuickDictWindow(onClose = { showQuickDict = false })
+        QuickDictWindow(activation = quickDictRequest, onClose = { showQuickDict = false })
     }
 
     // Hover Tooltip Window (isolated composable)

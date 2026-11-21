@@ -338,6 +338,16 @@ class DesktopSettings(
         get() = props.getProperty("ai_custom_url", "")
         set(value) { props.setProperty("ai_custom_url", value); save() }
 
+    // Result window position (D103). The size stays the one the window opens with: a result is read
+    // where it was left, it is not a workspace to arrange.
+    var resultWindowX: Int?
+        get() = props.getProperty("result_window_x")?.toIntOrNull()
+        set(value) { if (value != null) props.setProperty("result_window_x", value.toString()) else props.remove("result_window_x"); save() }
+
+    var resultWindowY: Int?
+        get() = props.getProperty("result_window_y")?.toIntOrNull()
+        set(value) { if (value != null) props.setProperty("result_window_y", value.toString()) else props.remove("result_window_y"); save() }
+
     // Quick Dict window size & position persistence
     var quickDictWidth: Int
         get() = props.getProperty("quick_dict_w", "480").toIntOrNull() ?: 480

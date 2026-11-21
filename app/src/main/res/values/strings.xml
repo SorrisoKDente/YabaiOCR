@@ -53,8 +53,6 @@
     <string name="pp_ocr_downloaded">Modelos do PP-OCRv6 instalados</string>
     <string name="pp_ocr_not_installed">Modelos do PP-OCRv6 não instalados.</string>
     <string name="pp_ocr_download_failed">Falha ao baixar modelos: %1$s</string>
-    <string name="btn_priority_up">▲ Subir</string>
-    <string name="btn_priority_down">▼ Descer</string>
 
     <string name="setting_auto_copy">Copiar automaticamente ao reconhecer</string>
     <string name="setting_show_segments">Listar o texto linha por linha</string>
@@ -78,6 +76,8 @@
     <string name="overlay_full_screen">Tela inteira</string>
     <string name="overlay_select_area">Selecionar área</string>
     <string name="overlay_kanji">Ler kanji</string>
+    <string name="overlay_camera">Câmera</string>
+    <string name="camera_permission_denied">Permita o acesso à câmera para tirar a foto.</string>
     <string name="overlay_dictionary">Dicionário</string>
     <string name="overlay_close_service">Encerrar</string>
     <string name="overlay_settings">Ajustes</string>
@@ -180,7 +180,6 @@
     <string name="dictionary_suggestion_description">Consultar «%1$s»</string>
 
     <string name="section_dictionary">Dicionários</string>
-    <string name="setting_dictionary">Consultar os dicionários instalados</string>
     <string name="setting_dictionary_keep_last">Manter a última busca aberta no dicionário</string>
     <string name="dictionary_manage_button">Gerenciar dicionários</string>
     <string name="dictionary_summary_none">Nenhum dicionário instalado</string>
@@ -225,6 +224,7 @@
     <string name="dictionary_kanji_title">Dicionário de kanji</string>
     <string name="dictionary_kanji_hint">Qual dicionário responde à ficha do kanji e à leitura de cada kanji de um composto. As palavras da frase continuam vindo do filtro escolhido no painel.</string>
     <string name="dictionary_kanji_all">Todos os dicionários de kanji</string>
+    <string name="dictionary_old_form">forma antiga</string>
     <string name="dictionary_import_failed">Falha ao importar: %1$s</string>
     <string name="dictionary_download_failed">Falha ao baixar: %1$s</string>
     <string name="dictionary_release">Revisão %1$s</string>

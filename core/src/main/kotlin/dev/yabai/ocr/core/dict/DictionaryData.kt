@@ -12,6 +12,15 @@ data class DictionaryEntry(
     val score: Int,
     /** Rendered definition lines; senses are already numbered. */
     val definition: String,
+    /**
+     * The headword this entry only points at, when it has no meaning of its own (R46e).
+     *
+     * Jitendex answers 兩膝 with «old kanji form» and a link to 両膝; the link target is carried as
+     * data — never parsed out of the rendered text, which is written in the dictionary's language —
+     * so the lookup can follow it. Empty for an ordinary entry, and for a dictionary compiled before
+     * format 4.
+     */
+    val redirect: String = "",
 )
 
 /** A kanji entry: readings, meanings and the useful statistics. */
@@ -61,4 +70,11 @@ data class TokenMatch(
     val dictionaryTitle: String,
     /** Human readable deinflection path, e.g. ["past", "polite"]; empty for exact hits. */
     val reasons: List<String>,
+
+    /**
+     * True when [entry] is not the word that was found but the modern form it points at (R46e):
+     * 兩膝 was in the sentence, the meanings on screen are 両膝's. The panel says so, because the
+     * meanings alone would look like an answer about the characters that were read.
+     */
+    val oldForm: Boolean = false,
 )

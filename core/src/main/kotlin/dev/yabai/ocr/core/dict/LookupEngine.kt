@@ -430,7 +430,8 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         val out = ArrayList<TokenMatch>()
         for (dictionary in usable) {
             val entries = dictionary.termEntries(surface, allowedFlags = 0)
-            for (entry in entries) {
+            for (found in entries) {
+                val (entry, oldForm) = follow(dictionary, found)
                 out.add(
                     TokenMatch(
                         surface = surface,
@@ -439,6 +440,7 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
                         entry = entry,
                         dictionaryTitle = dictionary.info.title,
                         reasons = emptyList(),
+                        oldForm = oldForm,
                     ),
                 )
             }
@@ -455,16 +457,38 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         for (dictionary in usable) {
             val entries = dictionary.termEntries(surface, allowedFlags = 0)
             if (entries.isEmpty()) continue
+            val (entry, oldForm) = follow(dictionary, entries.first())
             return TokenMatch(
                 surface = surface,
                 start = start,
                 end = start + length,
-                entry = entries.first(),
+                entry = entry,
                 dictionaryTitle = dictionary.info.title,
                 reasons = emptyList(),
+                oldForm = oldForm,
             )
         }
         return null
+    }
+
+    /**
+     * The entry a redirect only points at, resolved inside the same dictionary (R46e).
+     *
+     * 兩膝 is the old form; the meanings the reader wants are 両膝's, and they are in the dictionary
+     * that answered — crossing to another one would answer with a different revision and a different
+     * rendering. When the target is missing, or is itself a redirect, the entry is left as it came: a
+     * card that says «old kanji form» is worse than one with the meanings, but better than nothing.
+     */
+    private fun follow(
+        dictionary: CompactDictionary,
+        entry: DictionaryEntry,
+    ): Pair<DictionaryEntry, Boolean> {
+        val target = entry.redirect
+        if (target.isEmpty() || target == entry.term) return entry to false
+        val modern = dictionary.termEntries(target).firstOrNull { it.redirect.isEmpty() }
+            ?: return entry to false
+        if (modern.term == entry.term) return entry to false
+        return modern to true
     }
 
     private fun inflectedMatch(
@@ -477,13 +501,15 @@ class LookupEngine(private val dictionaries: List<CompactDictionary>) {
         for (dictionary in usable) {
             val entries = dictionary.termEntries(candidate.term, allowedFlags = candidate.rules)
             if (entries.isEmpty()) continue
+            val (entry, oldForm) = follow(dictionary, entries.first())
             return TokenMatch(
                 surface = surface,
                 start = start,
                 end = start + length,
-                entry = entries.first(),
+                entry = entry,
                 dictionaryTitle = dictionary.info.title,
                 reasons = candidate.reasons,
+                oldForm = oldForm,
             )
         }
         return null
