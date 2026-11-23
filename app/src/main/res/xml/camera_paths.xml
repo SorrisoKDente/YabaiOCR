@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
-  The one directory the camera app may write to (R46d): its own subdirectory of the cache, so the
-  photo can never overwrite anything else. The service deletes the file as soon as it reads it.
--->
-<paths>
-    <cache-path name="photos" path="photos/" />
-</paths>

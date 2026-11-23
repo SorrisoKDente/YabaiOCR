@@ -19,6 +19,7 @@ import android.widget.LinearLayout
 import dev.yabai.ocr.R
 import dev.yabai.ocr.util.dp
 import dev.yabai.ocr.util.dpFloat
+import dev.yabai.ocr.util.systemBarHeight
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -59,6 +60,46 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
 
     private val blocks = BlockCanvasView(context)
 
+    /**
+     * How much of the bottom of the window belongs to the phone's own buttons (R48b).
+     *
+     * The picker draws over the whole screen, bars included: the page must keep the size it was
+     * captured at, and the boxes must keep their place on it. The navigation bar is painted over the
+     * last strip of that window, so a bar of actions 40 dp above its bottom lands *on* the system
+     * buttons — «Cancelar», «Texto todo» and «Tirar outra foto» were half-hidden behind them. The
+     * page stays where it is; the actions are lifted by the height of the bar they share the bottom
+     * with.
+     */
+    private val navigationBarHeight: Int get() = context.systemBarHeight("navigation_bar_height", 48)
+
+    /** The row of actions at the bottom, so a test can measure where it was put. */
+    internal val actionBar: View get() = bar
+
+    /** The area the page and the boxes share, so a test can prove it did not lose a pixel (R48b). */
+    internal val pageView: View get() = blocks
+
+    private val bar = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER
+        setPadding(dp(8), dp(8), dp(8), dp(8))
+        background = roundedBackground(context.getColor(R.color.panel_bg), dp(16).toFloat(), 0x22FFFFFF)
+        addView(actionButton(context.getString(R.string.picker_cancel)) { onCancel?.invoke() })
+        addView(
+            retakeButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { marginStart = dp(6) },
+        )
+        addView(
+            actionButton(context.getString(R.string.picker_all)) { onPickAll?.invoke() },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { marginStart = dp(6) },
+        )
+    }
+
     init {
         setBackgroundColor(0x33000000)
         isClickable = true
@@ -91,31 +132,10 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
                 .apply { topMargin = dp(48) },
         )
 
-        val bar = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            background = roundedBackground(context.getColor(R.color.panel_bg), dp(16).toFloat(), 0x22FFFFFF)
-            addView(actionButton(context.getString(R.string.picker_cancel)) { onCancel?.invoke() })
-            addView(
-                retakeButton,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { marginStart = dp(6) },
-            )
-            addView(
-                actionButton(context.getString(R.string.picker_all)) { onPickAll?.invoke() },
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { marginStart = dp(6) },
-            )
-        }
         addView(
             bar,
             LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                .apply { bottomMargin = dp(40) },
+                .apply { bottomMargin = dp(16) + navigationBarHeight },
         )
     }
 

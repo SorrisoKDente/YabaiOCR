@@ -288,7 +288,7 @@ valem destaque:
 | `MainActivity.kt` | ajustes e permissões; escolhe motor, baixa modelos, inicia o serviço |
 | `StartOcrActivity.kt` | atalho/atalho de tela para iniciar a captura |
 | `LookupActivity.kt` | abre a busca do dicionário a partir de um texto |
-| `CameraActivity.kt` | portal da câmera da bolha: pede a permissão, tira a foto e a entrega ao serviço (R46d); a foto abre os mesmos trechos da captura de tela, com «Tirar outra foto» (R47a) |
+| `CameraActivity.kt` | a câmera da bolha, tela própria com CameraX: pré-visualização, disparo sem confirmação, a foto parada atrás do indicador enquanto o serviço lê e a entrega do arquivo; sai quando os balões estão na tela (R46d, R47a, R48a) |
 | `DictionaryActivity.kt` | tela de dicionários (instalar, atualizar, filtrar) |
 | `HelpActivity.kt` | ajuda e explicações |
 | `YabaiOcrApplication.kt` | `Application`: tema, idioma, agendador de atualizações |
@@ -310,7 +310,8 @@ valem destaque:
 | arquivo | papel |
 | --- | --- |
 | `capture/ScreenCaptureSession.kt` | `MediaProjection`: uma captura de tela por sessão |
-| `capture/CameraPhoto.kt` | foto da câmera de pé pelo EXIF, lida uma vez e apagada |
+| `capture/CameraPhoto.kt` | foto da câmera de pé pelo EXIF, lida uma vez e apagada; e a versão reduzida que a tela da câmera mostra sem apagar o arquivo (R48a) |
+| `capture/PhotoWait.kt` | o limite da espera pela leitura de uma foto na tela da câmera, e o fallback que devolve o controle (R48c) |
 | `capture/PhotoPage.kt` | geometria da foto na página do seletor (encaixe uniforme, retângulos e alocação da página) (R47a) |
 | `service/FloatingOcrService.kt` | serviço em primeiro plano: captura, OCR, mostra o resultado |
 | `service/LookupOverlayService.kt` | busca do dicionário sobre outras apps |

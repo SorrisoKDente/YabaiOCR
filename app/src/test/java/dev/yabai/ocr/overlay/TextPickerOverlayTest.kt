@@ -55,6 +55,43 @@ class TextPickerOverlayTest {
         touch(view, MotionEvent.ACTION_UP, x, y)
     }
 
+    /**
+     * R48b: the actions are above the phone's own buttons.
+     *
+     * The picker's window is the whole screen — the page must keep the size it was captured at — and
+     * the navigation bar is drawn over its last strip. A bar 40 dp above the bottom of the window sat
+     * *on* the system buttons, half of «Cancelar», «Texto todo» and «Tirar outra foto» behind them.
+     */
+    @Test
+    fun `the actions are drawn above the system navigation buttons`() {
+        val overlay = picker({}, {})
+        val bar = overlay.actionBar
+        val page = overlay.pageView
+        val navigationBar = navigationBarHeight()
+        val barBottom = bar.top + bar.height
+
+        assertTrue(
+            "the action bar (bottom at $barBottom px) is drawn over the system buttons " +
+                "($navigationBar px of a 640 px screen)",
+            barBottom <= 640 - navigationBar,
+        )
+        // The page itself, not the overlay: the overlay is 640 px tall whatever its children do, so
+        // measuring it would pass even if the bar were lifted by shrinking the drawing area.
+        assertEquals("the page lost width to the action bar", 320, page.width)
+        assertEquals("the page lost height to the action bar", 640, page.height)
+        assertEquals("the page was pushed down to make room for the bar", 0, page.top)
+    }
+
+    /** The height of the bar the picker has to clear, with the same fallback the picker uses. */
+    private fun navigationBarHeight(): Int {
+        val id = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        return if (id > 0) {
+            context.resources.getDimensionPixelSize(id)
+        } else {
+            (48 * context.resources.displayMetrics.density).toInt()
+        }
+    }
+
     @Test
     fun `showing a new page forgets the zoom of the old one`() {
         val overlay = picker({}, {})

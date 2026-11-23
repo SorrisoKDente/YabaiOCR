@@ -111,9 +111,10 @@
         </activity>
 
         <!--
-          The bubble's camera (R46d). A doorway like StartOcrActivity: it asks for the camera,
-          returns with one photo in its own cache and finishes, leaving the panel to the running
-          service. It is not restorable — the picture belongs to the camera app it opened.
+          The bubble's camera (R46d, R48a). A screen of its own: the preview, the shot and the photo
+          waiting for the reading all happen here, so the picture is taken and read without the
+          system camera app's «keep this photo?» step. It is not restorable — the picture belongs to
+          the camera session of the screen that took it.
         -->
         <activity
             android:name=".CameraActivity"
@@ -121,7 +122,7 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:taskAffinity=".camera"
-            android:theme="@style/Theme.YabaiOcr.Doorway" />
+            android:theme="@style/Theme.YabaiOcr.Camera" />
 
         <activity
             android:name=".StartOcrActivity"
@@ -140,18 +141,6 @@
             android:name=".service.FloatingOcrService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
-
-        <!-- The camera app is handed a file:// Uri, which the platform forbids since Android 7: it
-             gets a content:// one from here, limited to the photos subdirectory of the cache. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.photos"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/camera_paths" />
-        </provider>
 
         <!-- Quick Settings tile for starting OCR. Same monochrome icon as the notification: a tile
              is tinted by the system the same way, so the opaque `ic_scan` would be a white square here

@@ -29,6 +29,19 @@ fun View.dpFloat(value: Number): Float = context.dpFloat(value)
 
 fun View.sp(value: Number): Float = context.sp(value)
 
+/*
+ * The height of one of the system bars, as the framework reports it.
+ *
+ * A floating overlay window is drawn over the whole screen — its page has to keep the size it was
+ * captured at — which means the system bars are painted on top of it and no window inset ever says
+ * how tall they are. The framework's dimen is the answer that works from a service, and the
+ * fallback is the AOSP default for the bar.
+ */
+fun Context.systemBarHeight(name: String, fallbackDp: Number): Int {
+    val id = resources.getIdentifier(name, "dimen", "android")
+    return if (id > 0) resources.getDimensionPixelSize(id) else dp(fallbackDp)
+}
+
 fun Context.screenWidth(): Int = resources.displayMetrics.widthPixels
 
 fun Context.screenHeight(): Int = resources.displayMetrics.heightPixels

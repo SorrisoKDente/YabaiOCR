@@ -163,6 +163,12 @@ dependencies {
     // Periodic dictionary-update checks that survive reboots and follow the network constraint.
     implementation(libs.androidx.work.runtime.ktx)
 
+    // The bubble's camera screen (R48a): a live preview and one JPEG, taken without leaving the
+    // app — the system camera app puts a «keep this photo?» step between the shot and the reading.
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+
     // Runs the overlay views on the JVM: the panels are built in code, so the only way to check a
     // layout without a device is to measure it here.
     testImplementation(libs.junit)

@@ -80,6 +80,10 @@
     <string name="overlay_camera">Camera</string>
     <string name="camera_permission_denied">Allow camera access to take the picture.</string>
     <string name="camera_retake">Take another photo</string>
+    <string name="camera_shutter">Take photo</string>
+    <string name="camera_reading">Recognising the text…</string>
+    <string name="camera_close">Close the camera</string>
+    <string name="camera_no_answer">The reading did not answer. Take another photo or close the camera.</string>
     <string name="overlay_dictionary">Dictionary</string>
     <string name="overlay_close_service">Stop</string>
     <string name="overlay_settings">Settings</string>

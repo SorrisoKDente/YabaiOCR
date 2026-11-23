@@ -8494,3 +8494,142 @@ linha própria. Mutações provadas:
 
 - **Limite.** Sem aparelho: o Robolectric mede a grade e a cor do fundo, não o painel sobre um app de
   verdade.
+
+## 27. Ronda 48 — pedidos de 23/11/2026
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R48a | `[x]` | **Câmera sem confirmação**: a foto aparece na própria tela da câmera, com os balões por cima, sem «✕/✓» e sem trocar de tela | média |
+| R48b | `[x]` | **Botões do seletor acima dos botões do celular**, mantendo a imagem no tamanho dela | fácil |
+| R48c | `[x]` | **Câmera sem foto guardada e sem tela travada**: o arquivo vive só no cache, é varrido a cada disparo, e a espera pelo serviço tem limite | fácil |
+
+### R48a — A foto é lida na própria tela da câmera  `[x]` (23/11/2026)
+
+**Pedido.** Tirar a foto e já ver a imagem com os balões identificados, sem confirmar nada; não sair
+da câmera ao reconhecer, deixando a foto parada de fundo enquanto carrega.
+
+- **Causa.** A `CameraActivity` era um portal para o app da câmera (`ActivityResultContracts.TakePicture`,
+  arquivo entregue por `FileProvider`). Quem tirava a foto, portanto, era o app da câmera: o «✕» e o
+  «✓» da confirmação eram dele, e só depois do «✓» o portal fechava e o serviço abria outra tela —
+  os balões do picker — já sem nada por baixo. Nenhuma parte do passo entre o disparo e a leitura
+  estava nas mãos deste app.
+- **Correção.** A `CameraActivity` virou uma tela de câmera com CameraX (`camera-camera2`,
+  `camera-lifecycle`, `camera-view`): `PreviewView` em tela cheia, botão de disparo e «✕» próprios, e
+  o disparo entrega o JPEG direto no `ImageCapture`. Salva a foto, libera a câmera, desenha a própria
+  foto (`CameraPhoto.preview`, decodificada com amostragem **sem apagar o arquivo**, que o serviço
+  ainda vai ler) e mostra o indicador «Reconhecendo o texto…». Não há passo de confirmação e a tela não
+  muda; o serviço lê o arquivo como antes (`ACTION_PHOTO` + `EXTRA_PHOTO_PATH`) e, quando os balões
+  estão na tela, avisa por `ACTION_PHOTO_READY` — a câmera só então sai, e como a página do picker é a
+  mesma foto o handover não aparece.
+- **Uma espera a menos.** O painel flutuante deixou de abrir o cartão de carregamento para uma foto
+  (`recogniseImage(..., loadingPanel = false)`): a tela da câmera já é o indicador, e dois spinners
+  sobre a mesma foto só cobriam a imagem.
+- **Arquivos.** `app/.../CameraActivity.kt` · `capture/CameraPhoto.kt` · `service/FloatingOcrService.kt`
+  · `AndroidManifest.xml` · `values/themes.xml` (`Theme.YabaiOcr.Camera`) · `values/strings.xml` ·
+  `values-en/strings.xml` · `app/src/test/.../CameraCaptureTest.kt` · `gradle/libs.versions.toml` ·
+  `app/build.gradle.kts`
+
+O `FileProvider` da câmera saiu do manifesto junto com o `res/xml/camera_paths.xml`: o `content://`
+Uri existia para entregar o arquivo ao app da câmera, e agora o arquivo não sai do app.
+
+Regressão (+2 em `CameraCaptureTest`, e o teste do manifesto deixou de exigir o `FileProvider`):
+`the picture is taken in place, without a confirmation step` exige `ImageCapture.Builder()` e
+`capture.takePicture(` na tela, `CameraPhoto.preview(` + a foto desenhada + `camera_reading`, a espera
+por `ACTION_PHOTO_READY` do lado da tela e o `sendBroadcast(Intent(ACTION_PHOTO_READY)` mais
+`recogniseImage(photo, loadingPanel = false)` do lado do serviço, e recusa
+`ActivityResultContracts.TakePicture`; `the photo shown behind the spinner is read without taking the file from the reader` decodifica um JPEG e exige que o arquivo continue lá.
+
+Mutações a provar:
+
+| mutação | teste que acusa |
+| --- | --- |
+| A tela volta a abrir o app da câmera (`TakePicture`) | `the picture is taken in place, without a confirmation step` |
+| `preview` apaga o arquivo como `loadUpright` | `the photo shown behind the spinner is read without taking the file from the reader` |
+| O serviço deixa de mandar `ACTION_PHOTO_READY` | `the picture is taken in place, without a confirmation step` |
+
+- **Limite.** A câmera de verdade não foi aberta: esta máquina não tem Android SDK, então a suíte do
+  app não rodou nesta rodada (os números de AGENTS/ROADMAP continuam os da última execução, 902). O que
+  está provado é o que o Robolectric alcança (decodificação da foto sem apagar o arquivo) e o que os
+  testes de fonte exigem do caminho. Falta instalar o APK e conferir, num aparelho, o enquadramento do
+  `PreviewView`, o giro do JPEG e o tempo entre o disparo e os balões.
+
+### R48b — Os botões do seletor acima dos botões do celular  `[x]` (23/11/2026)
+
+**Pedido.** Com o celular em pé, a parte de baixo fica cortada onde estão os botões do sistema
+(voltar, home, aplicativos), na leitura da tela inteira e na da câmera; manter a imagem no mesmo
+tamanho e pôr «Cancelar», «Texto todo» e «Tirar outra foto» logo acima deles, sem sobreposição.
+
+- **Causa.** A janela do picker é a tela inteira — a página precisa manter o tamanho em que foi
+  capturada, senão as caixas saem do texto — e a barra de navegação é pintada por cima do último
+  pedaço dela. A barra de ações ficava a 40 dp do fundo da janela: menos que a altura da barra do
+  sistema, então metade dela caía atrás dos botões do celular.
+- **Correção.** A barra de ações passou a ficar a `16 dp + altura da barra de navegação`
+  (`Context.systemBarHeight("navigation_bar_height", 48)`, novo em `util/Dimensions.kt`). A página e o
+  `BlockCanvasView` não mudaram de tamanho: só a barra sobe, e a imagem continua exatamente onde
+  estava, com a mesma escala.
+- **Arquivos.** `app/.../overlay/TextPickerOverlay.kt` · `util/Dimensions.kt` ·
+  `app/src/test/.../overlay/TextPickerOverlayTest.kt`
+
+Regressão (+1): `the actions are drawn above the system navigation buttons` mede o picker em
+320×640 dp e exige que o fundo da barra fique acima da faixa da barra de navegação (640 px de tela −
+48 px da barra) **e** que a área em que a página é desenhada (`TextPickerOverlay.pageView`, o
+`BlockCanvasView`) continue inteira: 320×640 no canto (0,0). A primeira versão media
+`overlay.measuredHeight`, que é 640 px mesmo que o `BlockCanvasView` encolha — uma asserção sempre
+verdadeira, que não pegava a mutação.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `bottomMargin` volta a `dp(40)` | `the actions are drawn above the system navigation buttons` |
+| A barra sobe encolhendo o `BlockCanvasView` | o mesmo teste (`pageView` mediria menos que 640 px, ou desceria) |
+
+- **Limite.** A altura vem do dimen do framework, não de um inset real (uma janela flutuante que
+  cobre a tela inteira não recebe insets). Em navegação por gestos o dimen pode ser maior que a barra
+  desenhada, o que deixa uma folga a mais, nunca uma sobreposição. Sem aparelho nesta rodada, a
+  posição na tela não foi vista.
+
+### R48c — A foto não fica guardada e a câmera não fica travada  `[x]` (23/11/2026)
+
+**Pedido.** A imagem da câmera fica salva no celular? O padrão correto é não ficar. E, se o serviço
+morrer ou o aviso da leitura se perder, a tela da câmera não pode ficar presa na foto com o spinner
+para sempre.
+
+- **Causa (foto).** O arquivo já nascia em `cacheDir/photos` — armazenamento privado do app, fora do
+  `MediaStore` e sem nenhuma escrita na galeria — e o serviço o apagava em `finally`, ao decodificar.
+  O que faltava era o caso em que a foto **nunca chega a ser lida**: um disparo cujo serviço não
+  veio, ou uma tela fechada antes da entrega, deixava um JPEG no cache até o próprio Android
+  limpá-lo.
+- **Causa (tela).** O único jeito de a `CameraActivity` sair era `ACTION_PHOTO_READY`. Serviço morto,
+  broadcast perdido ou motor que não volta deixavam a foto congelada e o spinner sem fim — sair só
+  pelo ✕, sem nenhuma pista do que houve.
+- **Correção.** (1) `CameraPhoto.clearLeftovers(directory)` limpa a pasta e é chamado no começo de
+  **cada** disparo: nenhuma foto sobrevive entre usos, e a que o serviço lê continua sendo apagada
+  por ele. (2) `capture/PhotoWait.kt` é o relógio da espera: armado na entrega do arquivo, desarmado
+  pela resposta (e na saída da tela), e aos 30 s devolve o controle — o spinner some, o `ImageView`
+  da foto dá lugar à pré-visualização de novo, o disparo volta a ficar habilitado e um aviso explica
+  o que aconteceu; o ✕ continua ali. Uma leitura que chegue atrasada não quebra nada: o picker abre
+  por cima do que estiver na tela.
+- **Arquivos.** `app/.../CameraActivity.kt` · `capture/PhotoWait.kt` (novo) · `capture/CameraPhoto.kt` ·
+  `values/strings.xml` · `values-en/strings.xml` (`camera_no_answer`) ·
+  `app/src/test/.../capture/PhotoWaitTest.kt` (novo) · `app/src/test/.../CameraCaptureTest.kt`
+
+Regressão (+5): `PhotoWaitTest` (3) prova com o relógio de verdade que a espera não dispara antes do
+limite e dispara depois dele, que a resposta a desarma (a tela não é fechada duas vezes) e que o
+limite padrão não é curto demais para um motor responder; em `CameraCaptureTest`,
+`the photo stays in the app's cache and never reaches the gallery` exige `File(cacheDir, "photos")` e
+recusa `MediaStore`, `getExternalFilesDir`, `Environment.getExternalStorage` e `DCIM`, e
+`a picture left behind by an earlier shot is swept before the next one` enche a pasta e exige que
+`clearLeftovers` a esvazie.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `PhotoWait.arm` deixa de agendar o `Runnable` | `a reading that never answers hands the screen back after the limit` |
+| `PhotoWait.settle` deixa de remover o `Runnable` | `the answer stops the wait, so the screen is not closed twice` |
+| `clearLeftovers` vira `Unit` | `a picture left behind by an earlier shot is swept before the next one` |
+| O disparo grava em `getExternalFilesDir`/`MediaStore` | `the photo stays in the app's cache and never reaches the gallery` |
+
+- **Limite.** Sem aparelho e sem Android SDK nesta rodada: a suíte do app **não foi executada** e as
+  mutações acima continuam por provar. O que a leitura do código garante é que o arquivo é privado
+  (`cacheDir` é limpo pelo sistema, não aparece na galeria nem no gerenciador de arquivos do
+  usuário) e que nada no caminho da câmera escreve no armazenamento compartilhado. Falta conferir no
+  celular: tirar uma foto, ver que ela não aparece na galeria; matar o serviço depois do disparo e ver
+  a câmera voltar em 30 s.

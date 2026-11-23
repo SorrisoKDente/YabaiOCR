@@ -68,14 +68,10 @@ class CameraCaptureTest {
     fun `the camera asks for its permission and hands the file to the running service`() {
         val manifest = source("app/src/main/AndroidManifest.xml")
         assertTrue("the app never declares the camera", manifest.contains("android.permission.CAMERA"))
-        assertTrue("the doorway is not in the manifest", manifest.contains("android:name=\".CameraActivity\""))
-        assertTrue(
-            "the camera app is handed a file:// Uri, which the platform refuses",
-            manifest.contains("androidx.core.content.FileProvider"),
-        )
+        assertTrue("the screen is not in the manifest", manifest.contains("android:name=\".CameraActivity\""))
 
         val activity = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
-        assertTrue("the doorway never asks for the camera", activity.contains("Manifest.permission.CAMERA"))
+        assertTrue("the screen never asks for the camera", activity.contains("Manifest.permission.CAMERA"))
         assertTrue(
             "the photo is not handed to the service",
             activity.contains("FloatingOcrService.ACTION_PHOTO") &&
@@ -95,6 +91,103 @@ class CameraCaptureTest {
                 .substringBefore("override fun onRegionConfirmed")
                 .contains("requestCapture"),
         )
+    }
+
+    /**
+     * R48a: the shot is the decision.
+     *
+     * The system camera app asks «✕ / ✓» after the picture is taken, and answering ✓ closed this
+     * screen and opened another one with the photo. Here the preview takes the shot itself and is
+     * then covered by the picture while the engines read it — no confirmation, no second screen.
+     */
+    @Test
+    fun `the picture is taken in place, without a confirmation step`() {
+        val activity = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+        assertTrue(
+            "the camera app is still the one taking the picture, with its «keep this photo?» step",
+            !activity.contains("ActivityResultContracts.TakePicture"),
+        )
+        assertTrue(
+            "the shot is not taken by the preview in this screen",
+            activity.contains("ImageCapture.Builder()") &&
+                activity.contains("capture.takePicture("),
+        )
+        assertTrue(
+            "the photo is not drawn behind the spinner while it is read",
+            activity.contains("CameraPhoto.preview(") &&
+                activity.contains("frozenPhoto.setImageBitmap(") &&
+                activity.contains("R.string.camera_reading"),
+        )
+        assertTrue(
+            "the screen never waits for the reading, so it would close before the boxes are up",
+            activity.contains("FloatingOcrService.ACTION_PHOTO_READY"),
+        )
+
+        val service = source("app/src/main/java/dev/yabai/ocr/service/FloatingOcrService.kt")
+        assertTrue(
+            "the service never announces the reading, so the camera screen would stay behind it",
+            service.contains("const val ACTION_PHOTO_READY") &&
+                service.contains("sendBroadcast(Intent(ACTION_PHOTO_READY)"),
+        )
+        assertTrue(
+            "the camera screen's loading would be covered by the panel's spinner",
+            service.contains("recogniseImage(photo, loadingPanel = false)"),
+        )
+    }
+
+    /**
+     * R48a: the frozen photo is decoded for the screen **before** the handoff.
+     *
+     * The service deletes the file as it reads it. A screen that displayed the file afterwards would
+     * show an empty black page for exactly as long as the engines take.
+     */
+    @Test
+    fun `the photo shown behind the spinner is read without taking the file from the reader`() {
+        val directory = File(context.cacheDir, "photos").apply { mkdirs() }
+        val file = File(directory, "photo-preview.jpg")
+        val photo = Bitmap.createBitmap(40, 20, Bitmap.Config.ARGB_8888)
+        file.outputStream().use { photo.compress(Bitmap.CompressFormat.JPEG, 100, it) }
+
+        val shown = CameraPhoto.preview(file, maxSide = 400)
+
+        assertNotNull("the photo could not be decoded for the screen", shown)
+        assertTrue("the picture to be recognised was deleted by the screen", file.isFile)
+    }
+
+    /**
+     * R48c: the default is «not saved».
+     *
+     * A picture of a page is read once and thrown away: it lives in the app's private cache, never
+     * where the gallery would index it, and the service deletes it as it decodes it.
+     */
+    @Test
+    fun `the photo stays in the app's cache and never reaches the gallery`() {
+        val activity = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+        assertTrue(
+            "the picture is not written to the app's own cache",
+            activity.contains("File(cacheDir, \"photos\")"),
+        )
+        for (shared in listOf("MediaStore", "getExternalFilesDir", "Environment.getExternalStorage", "DCIM")) {
+            assertFalse("the picture is written where the gallery can see it: $shared", activity.contains(shared))
+        }
+
+        val photo = source("app/src/main/java/dev/yabai/ocr/capture/CameraPhoto.kt")
+        assertFalse("the picture is written where the gallery can see it", photo.contains("MediaStore"))
+        assertTrue("the file is not deleted once it has been read", photo.contains("file.delete()"))
+    }
+
+    /** R48c: a shot that never got read must not stay in the folder for the next one. */
+    @Test
+    fun `a picture left behind by an earlier shot is swept before the next one`() {
+        val directory = File(context.cacheDir, "photos-sweep").apply { mkdirs() }
+        val first = File(directory, "photo-1.jpg").apply { writeText("uma foto") }
+        val second = File(directory, "photo-2.jpg").apply { writeText("outra foto") }
+
+        CameraPhoto.clearLeftovers(directory)
+
+        assertFalse("a picture from an earlier shot was left in the cache", first.exists())
+        assertFalse("a picture from an earlier shot was left in the cache", second.exists())
+        assertEquals(0, directory.listFiles()?.size ?: 0)
     }
 
     /**

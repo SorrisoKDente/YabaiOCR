@@ -355,8 +355,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     /**
      * The camera (R46d): the capture session is not involved at all.
      *
-     * A photo needs the camera's permission and the camera app, not the screen's, so the doorway asks
-     * for it and comes back with one file; the service only reads that file.
+     * A photo needs the camera's permission, not the screen's. [CameraActivity] asks for it, shoots
+     * in place and hands over one file; the service only reads that file and says when the reading is
+     * on screen, which is when that screen closes itself (R48a).
      */
     override fun onCameraRequested() {
         if (busy) return
@@ -700,13 +701,16 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     /**
      * Reads a photo taken with the camera (R46d) through the same panel as a screen capture.
      *
-     * A photo has no screen behind it: there is nothing to crop and no box to tap over a live screen,
-     * so the picker is skipped and the panel opens on the whole picture. The file the camera wrote is
-     * gone by the time this returns — [CameraPhoto] deletes it while decoding.
+     * A photo has no screen behind it, so its page is the picture fitted to the screen (R47a). The
+     * camera screen is still showing that same picture while this runs, which is why the panel's own
+     * spinner stays out of the way (R48a). The file the camera wrote is gone by the time this
+     * returns — [CameraPhoto] deletes it while decoding — and the camera screen is told to go once
+     * the reading is on screen.
      */
     private fun recognisePhoto(file: File) {
         if (!beginPhoto()) {
             file.delete()
+            photoShown()
             return
         }
         scope.launch {
@@ -716,14 +720,29 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                     showError(getString(R.string.capture_failed))
                     return@launch
                 }
-                recogniseImage(photo)
+                // The camera screen is the loading state of a photo (R48a): it already shows the very
+                // picture the boxes land on, and a second spinner at the top of the screen would
+                // cover it.
+                recogniseImage(photo, loadingPanel = false)
             } catch (t: Throwable) {
                 Log.e(TAG, "photo pipeline failed", t)
                 showError(t.message ?: getString(R.string.result_failed))
             } finally {
                 busy = false
+                photoShown()
             }
         }
+    }
+
+    /**
+     * Tells the camera screen that the photo's reading is on screen, so it can step out of the way.
+     *
+     * The picker draws that same photo as its page, so the screen behind it is already invisible when
+     * this arrives; closing the camera before the boxes are up would leave a hole where it was, and
+     * closing it never would leave a dead screen behind a panel (R48a).
+     */
+    private fun photoShown() {
+        sendBroadcast(Intent(ACTION_PHOTO_READY).setPackage(packageName))
     }
 
     /** The same photo again, offline: the retry of a result that came from the camera. */
@@ -757,10 +776,15 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         return true
     }
 
-    private suspend fun recogniseImage(photo: Bitmap, forceOffline: Boolean = false) {
+    private suspend fun recogniseImage(
+        photo: Bitmap,
+        forceOffline: Boolean = false,
+        /** Whether the panel shows the spinner; the camera screen is the spinner for its own photo. */
+        loadingPanel: Boolean = true,
+    ) {
         lastCrop = photo
         lastPhoto = photo
-        overlays.showResultLoading()
+        if (loadingPanel) overlays.showResultLoading()
         val outcome = dispatcher.recognize(photo, forceOffline)
         lastOutcome = outcome
 
@@ -1513,6 +1537,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         const val ACTION_STOP = "dev.yabai.ocr.action.STOP"
         const val ACTION_PAUSE = "dev.yabai.ocr.action.PAUSE"
         const val ACTION_RESUME = "dev.yabai.ocr.action.RESUME"
+
+        /** The reading of a photo is on screen; [CameraActivity] closes itself (R48a). */
+        const val ACTION_PHOTO_READY = "dev.yabai.ocr.action.PHOTO_READY"
 
         /** A photo from [CameraActivity], in [EXTRA_PHOTO_PATH] (R46d). */
         const val ACTION_PHOTO = "dev.yabai.ocr.action.PHOTO"

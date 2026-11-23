@@ -62,7 +62,7 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 6. **Perguntar à IA (`8. IA` / `8. Ask AI`):**
    - `section_ai` ("8. Ask an AI"), `setting_ai_button`, `setting_ai_prompt`, `setting_ai_app`, `ai_note`.
 7. **Overlay e Painéis Flutuantes:**
-   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_camera`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`), a recusa da permissão da câmera (`camera_permission_denied`) e a nova foto a partir dos trechos ou do resultado (`camera_retake`).
+   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_camera`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`), a recusa da permissão da câmera (`camera_permission_denied`), a nova foto a partir dos trechos ou do resultado (`camera_retake`) e a tela da câmera (`camera_shutter`, `camera_reading`, `camera_close`).
    - Forma antiga do kanji, mostrada no painel quando a busca segue um redirecionamento: `dictionary_old_form`.
    - Painel de resultado (`result_title`, `result_retry_offline`, `result_copy_original`, `result_copy_translation`, `result_repick`, `result_image`, `result_ask_ai`, `result_translation_label`, `result_dictionary_label`, `result_kanji_label`).
    - Tela de leitura de kanji (`kanji_hint`, `kanji_on`, `kanji_kun`, `kanji_parts`, `kanji_dictionary_missing`).

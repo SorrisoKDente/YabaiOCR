@@ -25,6 +25,43 @@ internal object CameraPhoto {
     }
 
     /**
+     * Deletes every picture an earlier shot left in [directory].
+     *
+     * The file of a photo is the service's to delete as it reads it, and it does — but a shot whose
+     * service never came, or a screen closed before the handoff, leaves a JPEG behind in the app's
+     * cache. A new shot sweeps the folder first, so the camera keeps no picture of its own between
+     * uses (R48c).
+     */
+    fun clearLeftovers(directory: File) {
+        directory.listFiles()?.forEach { it.delete() }
+    }
+
+    /**
+     * [file] upright and no side larger than about twice [maxSide], for showing on screen while the
+     * engines read the picture (R48a).
+     *
+     * Unlike [loadUpright] the file is **kept**: the service still has to read it, and deleting it
+     * here would leave the photo on screen with nothing to recognise. The sampling is what keeps a
+     * twelve-megapixel JPEG from becoming a fifty-megabyte bitmap just to be drawn behind a spinner.
+     */
+    fun preview(file: File, maxSide: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val limit = maxSide.coerceAtLeast(1)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= limit || bounds.outHeight / (sample * 2) >= limit) {
+            sample *= 2
+        }
+        val decoded = BitmapFactory.decodeFile(
+            file.path,
+            BitmapFactory.Options().apply { inSampleSize = sample },
+        ) ?: return null
+        val degrees = turnDegrees(exifOrientation(file))
+        return if (degrees == 0) decoded else turn(decoded, degrees)
+    }
+
+    /**
      * The clockwise turn the EXIF [orientation] asks for.
      *
      * The mirroring tags are not turned: a camera writes them only for the front lens, and a mirrored
