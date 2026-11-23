@@ -48,6 +48,7 @@ import dev.yabai.ocr.service.FloatingOcrService
 import dev.yabai.ocr.update.ApkInstall
 import dev.yabai.ocr.update.AppUpdate
 import dev.yabai.ocr.update.AppUpdateChecker
+import dev.yabai.ocr.util.dp
 import dev.yabai.ocr.update.markdownToSpanned
 import android.text.method.LinkMovementMethod
 import java.util.Date
@@ -658,7 +659,15 @@ class MainActivity : AppCompatActivity() {
                         renderEnginePriorityList()
                     }
                 }
-                row.addView(downBtn)
+                // R47c: the two moves are two buttons, not one «↑↓» block. The gap is the same one
+                // the dictionary list puts between its arrows.
+                row.addView(
+                    downBtn,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { marginStart = dp(6) },
+                )
             }
 
             priorityListLayout.addView(row)

@@ -288,7 +288,7 @@ valem destaque:
 | `MainActivity.kt` | ajustes e permissões; escolhe motor, baixa modelos, inicia o serviço |
 | `StartOcrActivity.kt` | atalho/atalho de tela para iniciar a captura |
 | `LookupActivity.kt` | abre a busca do dicionário a partir de um texto |
-| `CameraActivity.kt` | portal da câmera da bolha: pede a permissão, tira a foto e a entrega ao serviço (R46d) |
+| `CameraActivity.kt` | portal da câmera da bolha: pede a permissão, tira a foto e a entrega ao serviço (R46d); a foto abre os mesmos trechos da captura de tela, com «Tirar outra foto» (R47a) |
 | `DictionaryActivity.kt` | tela de dicionários (instalar, atualizar, filtrar) |
 | `HelpActivity.kt` | ajuda e explicações |
 | `YabaiOcrApplication.kt` | `Application`: tema, idioma, agendador de atualizações |
@@ -311,6 +311,7 @@ valem destaque:
 | --- | --- |
 | `capture/ScreenCaptureSession.kt` | `MediaProjection`: uma captura de tela por sessão |
 | `capture/CameraPhoto.kt` | foto da câmera de pé pelo EXIF, lida uma vez e apagada |
+| `capture/PhotoPage.kt` | geometria da foto na página do seletor (encaixe uniforme, retângulos e alocação da página) (R47a) |
 | `service/FloatingOcrService.kt` | serviço em primeiro plano: captura, OCR, mostra o resultado |
 | `service/LookupOverlayService.kt` | busca do dicionário sobre outras apps |
 | `service/YabaiTileService.kt` | bloco de configurações rápidas |

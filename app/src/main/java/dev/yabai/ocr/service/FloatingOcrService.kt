@@ -34,6 +34,8 @@ import dev.yabai.ocr.R
 import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.capture.CameraPhoto
+import dev.yabai.ocr.capture.PhotoPageGeometry
+import dev.yabai.ocr.capture.PhotoPageLayout
 import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.jp.JapaneseText
@@ -123,6 +125,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      */
     private var pendingPicker: List<PickerBlock> = emptyList()
     private var pendingReadingMode: PickerReadingMode = PickerReadingMode.OFF
+
+    /**
+     * The picture the boxes were placed on: the capture, or a camera photo laid out on a screen-sized
+     * page (R47a). Kept apart from [lastCrop] because the panel shows the photo, not the page.
+     */
+    private var pendingPage: Bitmap? = null
 
     /** The strips of the last capture, while the kanji reader is on screen (R17). */
     private var pendingKanji: List<KanjiPiece> = emptyList()
@@ -398,20 +406,41 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             block.lines,
             canRepick = true,
             image = if (crop == null) null else BlockImage.from(crop, block.cropRect),
+            canRetakePhoto = lastPhoto != null,
         )
     }
 
     override fun onPickAllRequested() {
         val outcome = lastOutcome ?: return
-        showResultFor(outcome, outcome.text, outcome.lines, canRepick = pendingBlocks.isNotEmpty(), image = lastCrop)
+        showResultFor(
+            outcome,
+            outcome.text,
+            outcome.lines,
+            canRepick = pendingBlocks.isNotEmpty(),
+            image = lastCrop,
+            canRetakePhoto = lastPhoto != null,
+        )
     }
 
     override fun onRepickRequested() {
         val outcome = lastOutcome ?: return
-        if (!overlays.showTextPicker(pendingPicker, pendingReadingMode, lastCrop)) {
+        if (!overlays.showTextPicker(
+                pendingPicker,
+                pendingReadingMode,
+                pendingPage ?: lastCrop,
+                retake = lastPhoto != null,
+            )
+        ) {
             // The boxes are gone (the screen changed, or the service was restarted): fall back to the
             // whole capture, which is still in memory.
-            showResultFor(outcome, outcome.text, outcome.lines, canRepick = false, image = lastCrop)
+            showResultFor(
+                outcome,
+                outcome.text,
+                outcome.lines,
+                canRepick = false,
+                image = lastCrop,
+                canRetakePhoto = lastPhoto != null,
+            )
         }
     }
 
@@ -456,6 +485,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         // which is the same size and would otherwise outlive the panel it was read for.
         lastCrop = null
         lastPhoto = null
+        pendingPage = null
     }
 
     /**
@@ -555,6 +585,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         pendingBlocks = emptyList()
         pendingPicker = emptyList()
         pendingReadingMode = PickerReadingMode.OFF
+        pendingPage = null
         pendingKanji = emptyList()
     }
 
@@ -644,6 +675,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                         if (overlays.showTextPicker(picker, mode, shot)) {
                             pendingPicker = picker
                             pendingReadingMode = mode
+                            pendingPage = shot
                             overlays.hideResult()
                             return@launch
                         }
@@ -731,7 +763,89 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         overlays.showResultLoading()
         val outcome = dispatcher.recognize(photo, forceOffline)
         lastOutcome = outcome
-        showResultFor(outcome, outcome.text, outcome.lines, canRepick = false, image = photo)
+
+        // R47a: a photo is read like a whole-screen capture — the paragraphs become boxes the user
+        // taps — except that the page under them is the photo, fitted to the screen. The capture
+        // path cannot be reused as is: its boxes are placed with the screen's metrics, and the
+        // photo has its own size and aspect ratio.
+        if (PickerDecision.offersPicker(true, settings.pickText, outcome.blocks.size)) {
+            val page = withContext(Dispatchers.Default) { photoPage(photo) }
+            if (page != null) {
+                pendingBlocks = placePhotoBlocks(outcome, page)
+                if (pendingBlocks.isNotEmpty()) {
+                    val mode = settings.pickerReading
+                    val picker = pickerBlocks(pendingBlocks, mode)
+                    if (overlays.showTextPicker(picker, mode, page.bitmap, retake = true)) {
+                        pendingPicker = picker
+                        pendingReadingMode = mode
+                        pendingPage = page.bitmap
+                        overlays.hideResult()
+                        return
+                    }
+                }
+            }
+            clearPending()
+        }
+
+        showResultFor(
+            outcome,
+            outcome.text,
+            outcome.lines,
+            canRepick = false,
+            image = photo,
+            canRetakePhoto = true,
+        )
+    }
+
+    /** A camera photo laid out on a screen-sized page, with the geometry the boxes use. */
+    private data class PhotoPage(val bitmap: Bitmap, val layout: PhotoPageLayout)
+
+    /**
+     * The photo on a black page the size of the screen.
+     *
+     * The fit and the drawing live in [PhotoPageGeometry], where they can be measured without a
+     * screen. Null when the page cannot be allocated; the panel is still shown without it.
+     */
+    private fun photoPage(photo: Bitmap): PhotoPage? {
+        val metrics = realDisplayMetrics()
+        val layout = PhotoPageGeometry.fit(
+            photoWidth = photo.width,
+            photoHeight = photo.height,
+            pageWidth = metrics.widthPixels.coerceAtLeast(1),
+            pageHeight = metrics.heightPixels.coerceAtLeast(1),
+        ) ?: return null
+        val page = PhotoPageGeometry.page(photo, layout) ?: return null
+        return PhotoPage(page, layout)
+    }
+
+    /**
+     * The photo's boxes on the page, keeping the picture coordinates for the panel's crop.
+     *
+     * Unlike [placeBlocks], there is no display scale to undo here: the engine read the photo
+     * itself, so its boxes are already in the photo's pixels. Only the page's fit moves them.
+     */
+    private fun placePhotoBlocks(outcome: OcrOutcome, page: PhotoPage): List<PendingBlock> {
+        val pageBounds = page.layout.photoBounds
+        val minTapSize = (12 * resources.displayMetrics.density).roundToInt()
+
+        return outcome.blocks.mapNotNull { block ->
+            val rect = block.rect ?: return@mapNotNull null
+            val onPage = PhotoPageGeometry.place(page.layout, rect)
+            if (!onPage.intersect(pageBounds)) return@mapNotNull null
+            if (!PickerTargets.offered(onPage.width(), onPage.height(), minTapSize)) return@mapNotNull null
+            PendingBlock(
+                text = block.text,
+                rect = onPage,
+                cropRect = rect,
+                lines = block.lines,
+                pieces = block.pieces.mapNotNull { piece ->
+                    val box = piece.rect ?: return@mapNotNull null
+                    val placed = PhotoPageGeometry.place(page.layout, box)
+                    if (placed.width() <= 0 || placed.height() <= 0) return@mapNotNull null
+                    PendingPiece(piece.text, placed, placed.height() >= placed.width())
+                },
+            )
+        }
     }
 
     /**
@@ -752,6 +866,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         lines: List<String>,
         canRepick: Boolean,
         image: Bitmap?,
+        canRetakePhoto: Boolean = false,
     ) {
         // The pause can arrive while Lens is working. When it does, the capture is dropped whole:
         // no panel, no clipboard write and no analysis behind a bubble that is no longer there.
@@ -770,6 +885,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             image = image,
             showImage = settings.showImage,
             canAskAi = settings.showAiButton,
+            canRetakePhoto = canRetakePhoto,
         )
         analyse(text)
     }

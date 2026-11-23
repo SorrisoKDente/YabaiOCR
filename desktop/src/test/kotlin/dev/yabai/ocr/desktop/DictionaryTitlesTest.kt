@@ -21,6 +21,14 @@ class DictionaryTitlesTest {
 
     private fun root(): File = Files.createTempDirectory("yabai-titles").toFile()
 
+    /** The repository file, read from the project root or from the module directory. */
+    private fun source(path: String): String {
+        val found = sequenceOf(File(path), File("../$path"), File("desktop/$path"))
+            .firstOrNull { it.isFile }?.readText().orEmpty()
+        assertTrue("$path not found", found.isNotEmpty())
+        return found
+    }
+
     private fun dictionary(dir: File, name: String, meta: String): File {
         val entry = File(dir, name)
         entry.mkdirs()
@@ -82,6 +90,68 @@ class DictionaryTitlesTest {
         } finally {
             root.deleteRecursively()
         }
+    }
+
+    /**
+     * R47f: the hover card and every other chooser list the dictionaries in the priority configured
+     * on the dictionaries screen. The folder's alphabetical order was what the hover switched
+     * between, so the card disagreed with the screen that sets the order.
+     */
+    @Test
+    fun `the choosers follow the configured priority`() {
+        val root = root()
+        try {
+            val home = File(root, "home").apply { mkdirs() }
+            val dir = File(home, "dicts").apply { mkdirs() }
+            dictionary(dir, "a.yabai", """{"title":"Primeiro no alfabeto"}""")
+            dictionary(dir, "b.yabai", """{"title":"Segundo no alfabeto"}""")
+            dictionary(dir, "c.yabai", """{"title":"Desligado"}""")
+
+            val settings = DesktopSettings(File(root, "settings.properties"), home)
+            settings.customDictDirectoryPath = dir.absolutePath
+            settings.setDictionaryOrder(listOf("b.yabai", "a.yabai", "c.yabai"))
+
+            assertEquals(
+                listOf("Segundo no alfabeto", "Primeiro no alfabeto", "Desligado"),
+                DesktopDictLoader.installedTitles(settings),
+            )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    /** A chooser that reads the folder again would silently go back to alphabetical order. */
+    @Test
+    fun `every dictionary chooser asks for the priority order`() {
+        val sources = mapOf(
+            "HoverOcrManager.kt" to source("src/main/kotlin/dev/yabai/ocr/desktop/HoverOcrManager.kt"),
+            "DictionaryManagerWindow.kt" to
+                source("src/main/kotlin/dev/yabai/ocr/desktop/DictionaryManagerWindow.kt"),
+            "ResultWindow.kt" to source("src/main/kotlin/dev/yabai/ocr/desktop/ResultWindow.kt"),
+            "QuickDictWindow.kt" to source("src/main/kotlin/dev/yabai/ocr/desktop/QuickDictWindow.kt"),
+            "SettingsWindow.kt" to source("src/main/kotlin/dev/yabai/ocr/desktop/SettingsWindow.kt"),
+        )
+
+        assertTrue(
+            "the hover card still lists the folder, not the configured order",
+            sources.getValue("HoverOcrManager.kt").contains("installedTitles(DesktopSettings())"),
+        )
+        for (name in listOf("DictionaryManagerWindow.kt", "ResultWindow.kt", "QuickDictWindow.kt")) {
+            assertTrue(
+                "$name does not ask for the priority order",
+                sources.getValue(name).contains("installedTitles(settings)"),
+            )
+        }
+        val settingsWindow = sources.getValue("SettingsWindow.kt")
+        assertTrue(
+            "the settings filters do not ask for the priority order",
+            settingsWindow.contains("val dictionaryChoices = remember(customDictDir) { DesktopDictLoader.installedTitles(settings) }"),
+        )
+        assertEquals(
+            "one of the two settings filters still lists the folder",
+            2,
+            Regex("dictionaryChoices\\.forEach").findAll(settingsWindow).count(),
+        )
     }
 
     @Test

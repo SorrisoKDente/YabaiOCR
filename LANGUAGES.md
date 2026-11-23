@@ -62,14 +62,14 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 6. **Perguntar à IA (`8. IA` / `8. Ask AI`):**
    - `section_ai` ("8. Ask an AI"), `setting_ai_button`, `setting_ai_prompt`, `setting_ai_app`, `ai_note`.
 7. **Overlay e Painéis Flutuantes:**
-   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_camera`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`) e a recusa da permissão da câmera (`camera_permission_denied`).
+   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_camera`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`), a recusa da permissão da câmera (`camera_permission_denied`) e a nova foto a partir dos trechos ou do resultado (`camera_retake`).
    - Forma antiga do kanji, mostrada no painel quando a busca segue um redirecionamento: `dictionary_old_form`.
    - Painel de resultado (`result_title`, `result_retry_offline`, `result_copy_original`, `result_copy_translation`, `result_repick`, `result_image`, `result_ask_ai`, `result_translation_label`, `result_dictionary_label`, `result_kanji_label`).
    - Tela de leitura de kanji (`kanji_hint`, `kanji_on`, `kanji_kun`, `kanji_parts`, `kanji_dictionary_missing`).
 8. **Notificação de Serviço Foreground:**
    - `notification_channel_name`, `notification_title`, `notification_text`, `notification_pause`, `notification_resume`, `notification_stop`.
 9. **Gerenciador de Dicionários e Atualizações:**
-   - `dictionary_title`, `dictionary_installed_section`, `dictionary_available_section`, `dictionary_import_section`, mensagens de progresso de download e conversão, verificador de atualizações, créditos e licenças.
+   - `dictionary_title`, `dictionary_installed_section`, `dictionary_available_section`, `dictionary_import_section`, mensagens de progresso de download e conversão, verificador de atualizações, «Reinstalar» (`dictionary_reinstall`), créditos e licenças.
 10. **Tela de Ajuda (`HelpActivity`):**
     - `help_title` ("Help & Tips"), `menu_help` ("Help"), `help_tip_area_*`, `help_tip_kanji_*`, `help_tip_engines_*`, `help_tip_behaviours_*`, `help_tip_dicts_*`, `help_tip_ai_*`, `help_tip_translation_*`.
 

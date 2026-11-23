@@ -145,6 +145,10 @@ fun SettingsContent(
         DesktopDictLoader.installedTitles(settings.dictDirectory())
     }
 
+    // R47f: the two filters offer the dictionaries in the configured priority order (and leave the
+    // disabled ones out, since they cannot answer). The count above stays on the whole folder.
+    val dictionaryChoices = remember(customDictDir) { DesktopDictLoader.installedTitles(settings) }
+
     val installedDictCount = installedDictTitles.size
 
     ScrollableLazyColumn(
@@ -918,7 +922,7 @@ fun SettingsContent(
                         }) {
                             Text(DesktopStrings.hoverAllDicts)
                         }
-                        installedDictTitles.forEach { title ->
+                        dictionaryChoices.forEach { title ->
                             DropdownMenuItem(onClick = {
                                 hoverDictionaryFilter = title
                                 settings.hoverDictionaryFilter = title
@@ -1476,7 +1480,7 @@ fun SettingsContent(
                         }) {
                             Text(DesktopStrings.allDictionaries)
                         }
-                        installedDictTitles.forEach { title ->
+                        dictionaryChoices.forEach { title ->
                             DropdownMenuItem(onClick = {
                                 dictionaryFilter = title
                                 settings.dictionaryFilter = title

@@ -3904,6 +3904,7 @@ inteira já faz — sem salvar a imagem no aparelho.
   ao serviço que já está rodando (`ACTION_PHOTO` + `EXTRA_PHOTO_PATH`). O serviço lê o arquivo com
   `CameraPhoto.loadUpright` — que o apaga em `finally` —, passa o bitmap pelo mesmo `OcrDispatcher` e
   abre o mesmo painel. O picker é pulado: a foto não tem tela atrás dela, então não há caixa para tocar.
+  (O R47a volta atrás: a foto ganhou os mesmos balões de trechos, agora que eles desenham a própria página.)
 - **Por que arquivo, e não `TakePicturePreview`.** O preview devolve uma miniatura, e uma página
   fotografada não é legível nela. O arquivo é o único caminho para a foto inteira, e ele vive só até ser
   decodificado: nada vai para a galeria.
@@ -8301,3 +8302,195 @@ duas ativações são por pedido (a do dicionário, com o contador alimentado po
 - **Limite.** A janela Compose em si (abrir, arrastar, minimizar e reabrir pelo atalho) exige o app
   rodando com display; o que foi provado é o helper, as duas janelas AWT de verdade e a ligação no
   código. Não houve sessão manual com o app real.
+
+## 26. Ronda 47 — pedidos de 23/11/2026
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| R47a | `[x]` | **Câmera como a captura de tela inteira**: a foto vira os balões azuis de trechos, com página própria, zoom e «Tirar outra foto» | média |
+| R47b | `[x]` | **«Remover» dos disponíveis em vermelho**, como o dos instalados | fácil |
+| R47c | `[x]` | **Setas da prioridade dos motores separadas**, com o mesmo vão da lista de dicionários | trivial |
+| R47d | `[x]` | **«Reinstalar» um dicionário de formato antigo** quando a verificação não oferece atualização | média |
+| R47e | `[x]` | **Cartão do hover alinhado ao canto da janela que encosta no mouse**, para a folga da estimativa não ficar entre os dois | média |
+| R47f | `[x]` | **Ordem dos dicionários no hover** (e em todos os seletores) igual à prioridade configurada | fácil |
+| R47g | `[x]` | **«Fechar» do resultado em vermelho e sempre no canto inferior esquerdo** das ações | fácil |
+
+### R47a — Câmera como a captura de tela inteira  `[x]` (23/11/2026)
+
+**Pedido.** Depois da foto, a leitura deve abrir os mesmos balões azuis da captura de tela inteira, e
+o usuário precisa de um caminho para tirar outra foto.
+
+- **Causa.** O R46d lia a foto e ia direto ao painel: `recogniseImage` chamava `showResultFor` com
+  `canRepick = false`. A foto não passava por `placeBlocks` nem pelo `TextPickerOverlay`, então não
+  havia balão nenhum — e o único jeito de tirar outra era voltar à bolha e abrir a câmera de novo.
+  O caminho da tela não podia ser copiado como estava: seus retângulos são convertidos para os pixels
+  da tela, e a foto tem tamanho e proporção próprios.
+- **Correção.** A foto ganhou uma página do tamanho da tela: o bitmap é desenhado no centro, sem
+  distorção, sobre preto, e os retângulos do motor são levados para essa página — preservando
+  `cropRect` nos pixels da foto para o recorte do painel. A geometria saiu do serviço para
+  `PhotoPageGeometry` (R47a, revisão): `fit` calcula a escala uniforme e a centralização, `place`
+  move qualquer retângulo e `page` aloca e pinta o bitmap da página. Com a página pronta, o
+  `TextPickerOverlay` existente desenha os balões, aceita pinça e devolve o índice; `pendingPage`
+  guarda a página para «◀ Trechos» sem pagar outro OCR. «Tirar outra foto» aparece no picker
+  (`retake = true`) e no painel do resultado (`canRetakePhoto`), e os dois voltam à `CameraActivity`
+  pelo mesmo `onCameraRequested`. O caminho de tela continua com `retake = false`.
+- **Arquivos.** `app/.../service/FloatingOcrService.kt` · `capture/PhotoPage.kt` (novo) ·
+  `overlay/TextPickerOverlay.kt` · `overlay/OverlayController.kt` · `overlay/ResultOverlay.kt` ·
+  `values/strings.xml` · `values-en/strings.xml` · `app/src/test/.../CameraCaptureTest.kt` ·
+  `app/src/test/.../PhotoPageGeometryTest.kt` (novo)
+
+Suíte do app: **902 testes (451 em debug e 451 em release), 0 falhas**. Regressão em
+`CameraCaptureTest` (+3): o passo da foto usa `PickerDecision.offersPicker`, `placePhotoBlocks` e
+`showTextPicker(..., retake = true)`; o retake só fica visível quando a página veio da câmera; e o
+painel do resultado só oferece «Tirar outra foto» para uma foto. `PhotoPageGeometryTest` (5) mede o
+encaixe de uma foto deitada e de uma em pé, o deslocamento de uma caixa para a página, a alocação
+(bitmap no tamanho da tela, foto na posição do encaixe e barras pretas em volta) e a recusa de
+imagem/página sem área. Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `recogniseImage` volta a abrir o picker com `retake = false` | `the photo opens the picker over the picture` |
+| `fit` usa `max` em vez de `min` | `a landscape photo is letterboxed above and below` |
+| `place` ignora `left`/`top` | `a box of the photo lands on the same characters of the page` |
+| `page` desenha a foto na página inteira | `the page is allocated at screen size with the photo fitted on it` |
+
+- **Limite.** Sem aparelho: o Robolectric mede o picker e o painel, não uma foto real decodificada e
+desenhada na tela. A geometria e a alocação da página são medidas com o desenho nativo do Robolectric
+(`GraphicsMode.NATIVE`); a pintura final do `TextPickerOverlay` numa tela não foi vista.
+
+### R47b — «Remover» dos disponíveis em vermelho  `[x]` (23/11/2026)
+
+- **Causa.** `availableRow` trocava o rótulo para «Remover» quando o dicionário já estava instalado,
+  mas continuava com o fundo padrão de `actionButton` — o azul do app. O cartão da lista de
+  instalados já usava `warn`; a mesma ação aparecia com duas cores.
+- **Correção.** O botão da linha de «Disponíveis» passa a receber `R.color.warn` quando está no
+  estado «Remover»; «Baixar» e «Cancelar» seguem no azul.
+- **Arquivos.** `app/.../DictionaryActivity.kt` · `app/src/test/.../ActionButtonWiringTest.kt`
+
+Regressão: `every remove button is the danger fill` instala `jmdict-en` (que também aparece em
+«Disponíveis») e exige **todos** os «Remover» da tela com o fundo `warn`; antes eram dois e só um era
+vermelho. Mutação provada: voltar `availableRow` ao fundo padrão derruba esse teste.
+
+### R47c — Setas da prioridade dos motores separadas  `[x]` (23/11/2026)
+
+- **Causa.** Em `renderEnginePriorityList` a seta para baixo era adicionada com `row.addView(downBtn)`,
+  sem `marginStart`, enquanto a lista de dicionários usava 6 dp. Os dois botões ficavam colados e
+  liam como um controle único «↑↓».
+- **Correção.** A seta para baixo recebe `LinearLayout.LayoutParams` com `marginStart = dp(6)`.
+- **Arquivos.** `app/.../MainActivity.kt` · `app/src/test/.../ActionButtonWiringTest.kt`
+
+Regressão: `the engine priority arrows are two separated buttons` exige margem à esquerda em cada
+«↓». Mutação provada: remover o `marginStart` derruba o teste.
+
+### R47d — Reinstalar um dicionário de formato antigo  `[x]` (23/11/2026)
+
+**Pedido.** O aviso «Compilados por uma versão antiga do app» manda atualizar, mas alguns dicionários
+não aparecem para atualizar nem depois de «Verificar atualizações». Nesse caso deve haver uma opção de
+reinstalar com a versão/índice atual.
+
+- **Causa.** «Atualizar» só existia quando a última verificação dizia `AVAILABLE` (`result.canRefresh`).
+  Um dicionário cujo publisher não anuncia revisão nova — ou que não tem publisher — ficava com o
+  formato velho e sem nenhum botão, apesar de o catálogo ainda ter o arquivo atual.
+- **Correção.** O cartão instalado calcula `reinstallOffered` quando `info.outdated` e existe entrada no
+  catálogo, e mostra «Reinstalar» quando «Atualizar» não é oferecido. A ação é a mesma `startDownload`
+  do R43: baixa o arquivo do catálogo e compila com o app atual, preservando id, ativação e prioridade.
+  O banner e a linha «formato antigo» passam a citar «Reinstalar» (pt/en).
+- **Arquivos.** `app/.../DictionaryActivity.kt` · `values/strings.xml` · `values-en/strings.xml` ·
+  `app/src/test/.../DictionaryUpdatesScreenTest.kt`
+
+Regressão: `an old-format dictionary can be reinstalled even with nothing to update` instala um
+`jmdict-en` com `compiledWith = FORMAT_VERSION - 1`, exige o botão «Reinstalar» sem nenhuma
+atualização armazenada, clica e espera o dicionário recompilado — revisão nova e definição nova no
+índice. Mutação provada: desligar `reinstallOffered` derruba o teste.
+
+- **Limite.** A troca de arquivo é a mesma já coberta pelos testes de download; não houve download real
+de 15–39 MB nesta sessão.
+
+### R47e — O cartão do hover encosta no mouse pelo canto certo  `[x]` (23/11/2026)
+
+**Pedido.** O cartão às vezes aparece muito longe do mouse; ele deve nascer da posição atual do
+ponteiro e respeitar os cantos, com o canto mais próximo encostando no mouse.
+
+- **Causa.** A janela é dimensionada por `estimateHeight`, que quebra as linhas a 32 caracteres —
+  bem menos do que o Compose desenha. A sobra virava altura transparente embaixo do `Surface`, que
+  ficava alinhado ao topo: o canto inferior da **janela** ficava a 18 px do ponteiro, mas o canto
+  visível do cartão ficava a centenas de pixels, porque o conteúdo não ocupava a janela.
+  `placeTooltip` estava correto; o que faltava era dizer **onde dentro da janela** o cartão é
+  desenhado.
+- **Correção.** O conteúdo passa a ser alinhado ao canto da janela mais próximo do ponteiro:
+  `cardContentCorner` diz se o cartão abriu acima (`verticalBottom`) e/ou à esquerda
+  (`horizontalEnd`) do ponteiro, e o `Box` que envolve o `Surface` usa esse canto
+  (`BiasAlignment`). A sobra da estimativa fica no lado oposto ao mouse, fora do caminho. A altura,
+  o posicionamento e `sameAnchor` (D102) não mudam — o cartão que cresce para o mesmo ponteiro
+  continua mantendo o canto.
+- **Arquivos.** `desktop/.../HoverTooltipWindow.kt` · `desktop/src/test/.../HoverTooltipHeightTest.kt`
+
+Suíte desktop: **599 testes, 0 falhas, 6 pulados**. Regressão (+2): `cardContentCorner` devolve
+bottom-end para um cartão acima/à esquerda, top-start para um abaixo/à direita e só o lado que
+virou quando só um virou; a leitura do código confirma que o `Box` usa o canto e o `BiasAlignment`.
+Mutação provada: `cardContentCorner` devolver sempre top-start derruba
+`the card is drawn against the window corner nearest the pointer`.
+
+- **Correção da revisão (mesmo dia).** O canto era escolhido pela colocação *hipotética* para o
+  novo tamanho. Ao abrir a lista para o mesmo ponteiro, o D102 mantém o canto antigo; a hipótese
+  podia dizer «acima» enquanto a janela continuava «abaixo», e o cartão visível ia para o lado
+  errado. O alinhamento passa a usar os bounds que a janela realmente reporta (`placedBounds`, o
+  mesmo retângulo que o hover usa), caindo no `anchor` só antes do primeiro posicionamento.
+- **Limite.** A posição final numa tela real não foi medida nesta sessão; a prova é a geometria
+  (`placeTooltip`) mais o alinhamento do conteúdo. O ajuste fino de 1–2 px do canto fica para uma
+  conferência visual.
+
+### R47f — Ordem dos dicionários igual à prioridade configurada  `[x]` (23/11/2026)
+
+**Pedido.** No cartão do hover, a lista de dicionários aparece em ordem diferente da aba de
+instalados; conferir todas as abas que oferecem escolher um dicionário.
+
+- **Causa.** `HoverOcrManager.getInstalledDictionaryTitles()` lia `installedTitles(directory)`, que
+  devolve a ordem do sistema de arquivos (alfabética). A janela de resultado e o dicionário rápido já
+  usavam `installedTitles(settings)`, a ordem de prioridade; o cartão do hover e os dois filtros dos
+  Ajustes ficavam na ordem da pasta. O seletor da aba de busca do gerenciador também lia a pasta.
+- **Correção.** O hover, os dois filtros dos Ajustes e a busca do gerenciador passam por
+  `DesktopDictLoader.installedTitles(settings)`. A contagem dos Ajustes continua sobre a pasta inteira
+  (o texto é «encontrados na pasta atual»); só as listas de escolha mudam.
+- **Arquivos.** `desktop/.../HoverOcrManager.kt` · `SettingsWindow.kt` · `DictionaryManagerWindow.kt` ·
+  `desktop/src/test/.../DictionaryTitlesTest.kt`
+
+Regressão (+2): uma pasta temporária com `a/b/c.yabai` e ordem `b,a,c` exige `[b,a,c]` pela
+configuração, não pela pasta; e a leitura confirma que hover, gerenciador, resultado, dicionário rápido
+e os dois filtros dos Ajustes pedem a ordem de prioridade. Mutação provada: o hover voltar a
+`installedTitles(directory)` derruba `every dictionary chooser asks for the priority order`.
+
+- **Limite.** Os dicionários desativados continuam aparecendo nas listas (comportamento anterior de
+  `installedTitles(settings)`); filtrar por um deles simplesmente não acha nada. Não foi aberto um app
+  com nove dicionários reais para conferir a ordem na pintura.
+
+### R47g — «Fechar» do resultado em vermelho e no canto inferior esquerdo  `[x]` (23/11/2026)
+
+**Pedido.** No painel que mostra o texto reconhecido, «Fechar» deve ser vermelho e ficar sempre na
+posição mais à esquerda/inferior em relação aos outros botões.
+
+- **Causa.** O «Fechar» entrava na grade antes de «Imagem», «Trechos» e «Tirar outra foto», com o
+  fundo azul padrão. A posição dependia de quantas ações vinham depois dele e a cor não o distinguia
+  do resto — a saída do painel mudava de lugar e de peso conforme o tipo de leitura.
+- **Correção.** O `ActionGrid` ganhou `addOnOwnRow`, que começa uma linha nova; «Fechar» é sempre o
+  último item, sozinho na última linha, ou seja, no canto inferior esquerdo. O fundo passa a ser
+  `R.color.warn`, o mesmo vermelho de «Remover». As demais ações mantêm a ordem em que estavam
+  (copiar, IA, imagem, trechos, nova foto).
+- **Arquivos.** `app/.../overlay/ActionGrid.kt` · `overlay/ResultOverlay.kt` ·
+  `app/src/test/.../overlay/ActionGridTest.kt` · `app/src/test/.../ActionButtonWiringTest.kt` ·
+  `ImagePanelTest.kt` · `ResultOverlayLayoutTest.kt`
+
+Regressão (+2 e expectativas atualizadas): `a button added on its own row is always the bottom-left
+one` usa três ações antes dele (o caso em que «adicionar por último» cairia na direita) e exige
+`[2,1,1]` com «Fechar» sozinho no fim; `the result close is red and is the bottom-left action` monta o
+painel com imagem, trechos e nova foto, exige a última linha com um único «Fechar» e o fundo `warn`.
+As contagens de linhas de `ResultOverlayLayoutTest` e a ordem de `ImagePanelTest` passam a refletir a
+linha própria. Mutações provadas:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `addOnOwnRow` volta a ser `add` | `a button added on its own row is always the bottom-left one` e `the result close is red and is the bottom-left action` |
+| «Fechar» volta ao fundo azul padrão | `the result close is red and is the bottom-left action` |
+
+- **Limite.** Sem aparelho: o Robolectric mede a grade e a cor do fundo, não o painel sobre um app de
+  verdade.

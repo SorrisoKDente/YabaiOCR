@@ -64,6 +64,7 @@ class DictionaryUpdatesScreenTest {
         source: String,
         revision: String = "2026-01-01",
         sourceId: String = "",
+        compiledWith: Int = DictionaryCompiler.FORMAT_VERSION,
     ) {
         val directory = File(context.filesDir, "dictionaries/$id")
         directory.mkdirs()
@@ -75,7 +76,7 @@ class DictionaryUpdatesScreenTest {
               "format": 3,
               "termCount": 10,
               "kanjiCount": 0,
-              "compiledWith": ${DictionaryCompiler.FORMAT_VERSION},
+              "compiledWith": $compiledWith,
               "sourceName": "$source",
               "sourceId": "$sourceId"
             }
@@ -252,6 +253,50 @@ class DictionaryUpdatesScreenTest {
         assertTrue(
             "the new definition must be live: ${repository.lookupEngine()!!.lookup("食べる").first().entry.definition}",
             repository.lookupEngine()!!.lookup("食べる").first().entry.definition.contains("comer (novo)"),
+        )
+    }
+
+    /**
+     * R47d: a dictionary compiled by an older app version offered no way out when the publisher had
+     * nothing newer to announce. «Reinstalar» downloads the catalog's current archive and compiles
+     * it with this app, which is exactly what the «old format» banner asks for.
+     */
+    @Test
+    fun `an old-format dictionary can be reinstalled even with nothing to update`() {
+        install(
+            "jmdict-en",
+            "JMdict",
+            "JMdict (inglês)",
+            revision = "2026-01-01",
+            sourceId = "jmdict-en",
+            compiledWith = DictionaryCompiler.FORMAT_VERSION - 1,
+        )
+        val activity = activity()
+        activity.remote = FakeRemote(
+            archive("2026-10-30", "comer (reinstalado)"),
+            RemoteSignature(etag = "\"new\"", length = 123),
+        )
+
+        val reinstall = button(activity, "Reinstalar")
+        assertNotNull(
+            "an old-format dictionary has no way to be reinstalled: ${labels(activity).map { it.text }}",
+            reinstall,
+        )
+        reinstall!!.performClick()
+        awaitMain {
+            dev.yabai.ocr.dict.DictionaryRepository.get(context).installed()
+                .singleOrNull()?.info?.outdated == false
+        }
+
+        val repository = dev.yabai.ocr.dict.DictionaryRepository.get(context)
+        assertEquals("the reinstall has to be what the dictionary now answers with", "2026-10-30", repository.installed().single().info.revision)
+        assertFalse(
+            "the fresh copy is still treated as old: ${labels(activity).map { it.text }}",
+            labels(activity).any { it.text.toString() == "Reinstalar" },
+        )
+        assertTrue(
+            "the new definition must be live: ${repository.lookupEngine()!!.lookup("食べる").first().entry.definition}",
+            repository.lookupEngine()!!.lookup("食べる").first().entry.definition.contains("comer (reinstalado)"),
         )
     }
 

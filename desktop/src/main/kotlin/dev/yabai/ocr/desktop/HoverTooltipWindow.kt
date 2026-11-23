@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -190,6 +191,15 @@ private fun HoverTooltipCardWindow(
         transparent = true,
         state = state,
     ) {
+        // The bounds the window really has. A card that grows for the same pointer keeps its corner
+        // (D102), so the hypothetical placement for the new height is not where it is: aligning the
+        // content by that would leave the visible card on the wrong side of the window.
+        var placedBounds by remember { mutableStateOf<java.awt.Rectangle?>(null) }
+        val reportBounds: (java.awt.Rectangle?) -> Unit = { bounds ->
+            placedBounds = bounds
+            onBoundsChanged(bounds)
+        }
+
         LaunchedEffect(estimatedHeight, mousePoint, window, visible) {
             window.isAutoRequestFocus = false
             // Decided once per height change: was the card already placed for this word?
@@ -203,7 +213,7 @@ private fun HoverTooltipCardWindow(
             // A reused card is already mapped, so it can be sized and placed before the debounce:
             // without this the next word's card spent 80 ms at the previous word's corner.
             if (window.isShowing) {
-                applySizeAndPlacement(window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor)
+                applySizeAndPlacement(window, mousePoint, estimatedHeight, reportBounds, sameAnchor)
                 placedFor = mousePoint
             }
             // The window background is left exactly as Compose set it. `transparent = true` makes
@@ -222,7 +232,7 @@ private fun HoverTooltipCardWindow(
             delay(TOOLTIP_PLACEMENT_DEBOUNCE_MS)
             var attempts = 0
             var applied = applySizeAndPlacement(
-                window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor,
+                window, mousePoint, estimatedHeight, reportBounds, sameAnchor,
             )
             if (applied) placedFor = mousePoint
             // «Not on screen yet» is the normal first moment of a new card. Giving up there used to
@@ -232,7 +242,7 @@ private fun HoverTooltipCardWindow(
                 delay(CARD_PLACEMENT_RETRY_MS)
                 attempts++
                 applied = applySizeAndPlacement(
-                    window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor,
+                    window, mousePoint, estimatedHeight, reportBounds, sameAnchor,
                 )
                 if (applied) placedFor = mousePoint
             }
@@ -242,7 +252,7 @@ private fun HoverTooltipCardWindow(
             delay(TOOLTIP_REPOSITION_DELAY_MS)
             // A correction pass, still for the same word: it must not undo the hold above.
             if (applySizeAndPlacement(
-                    window, mousePoint, estimatedHeight, onBoundsChanged, sameAnchor,
+                    window, mousePoint, estimatedHeight, reportBounds, sameAnchor,
                 )
             ) {
                 placedFor = mousePoint
@@ -251,19 +261,35 @@ private fun HoverTooltipCardWindow(
 
         DisposableEffect(window) {
             val listener = object : ComponentAdapter() {
-                override fun componentMoved(e: ComponentEvent) = onBoundsChanged(window.bounds)
+                override fun componentMoved(e: ComponentEvent) = reportBounds(window.bounds)
                 override fun componentResized(e: ComponentEvent) {
-                    onBoundsChanged(window.bounds)
+                    reportBounds(window.bounds)
                 }
             }
             window.addComponentListener(listener)
             onDispose {
                 window.removeComponentListener(listener)
-                onBoundsChanged(null)
+                reportBounds(null)
             }
         }
 
         YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
+            // R47e: the estimate can be taller than the card (it wraps at 32 characters, where
+            // Compose fits more), and the window is as tall as the estimate. The visible card is
+            // aligned to the window's corner nearest the pointer, so the empty part of the window
+            // stays on the far side instead of between the card and the mouse. Without this the
+            // card looked far away whenever the estimate overshot.
+            val corner = remember(placedBounds, anchor, mousePoint) {
+                val origin = placedBounds?.let { Point(it.x, it.y) } ?: anchor
+                cardContentCorner(origin, mousePoint)
+            }
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = BiasAlignment(
+                    horizontalBias = if (corner.horizontalEnd) 1f else -1f,
+                    verticalBias = if (corner.verticalBottom) 1f else -1f,
+                ),
+            ) {
             Surface(
                 modifier = Modifier.fillMaxWidth().wrapContentHeight(),
                 color = Color(0xFF1B1E28),
@@ -392,6 +418,7 @@ private fun HoverTooltipCardWindow(
                     }
                 }
             }
+            }
         }
     }
 }
@@ -469,8 +496,29 @@ internal fun estimateHeight(
         }
         pixels += lines * 20 + 16
     }
-    return pixels.coerceIn(130, 640)
+    return pixels.coerceIn(TOOLTIP_MIN_HEIGHT, TOOLTIP_MAX_HEIGHT)
 }
+
+/**
+ * Which edge of the window the card is drawn against.
+ *
+ * The window is sized by the estimate, which can be taller than the card. The card is aligned to
+ * the corner nearest the pointer — bottom when the card opened above it, end when it opened to its
+ * left — so the extra space stays on the far side and the visible corner touches the mouse (R47e).
+ */
+internal data class CardContentCorner(val horizontalEnd: Boolean, val verticalBottom: Boolean)
+
+internal fun cardContentCorner(anchor: Point, pointer: Point): CardContentCorner =
+    CardContentCorner(
+        horizontalEnd = anchor.x < pointer.x,
+        verticalBottom = anchor.y < pointer.y,
+    )
+
+/** Smallest card, so an empty or one-line answer still has a readable header. */
+internal const val TOOLTIP_MIN_HEIGHT = 130
+
+/** Tallest card; past this the definitions scroll instead of leaving the screen. */
+internal const val TOOLTIP_MAX_HEIGHT = 640
 
 /** Width of the card, in pixels; also the width [estimateHeight]'s line wrapping assumes. */
 private const val TOOLTIP_WIDTH = 460

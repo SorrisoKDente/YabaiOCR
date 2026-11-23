@@ -79,6 +79,7 @@
     <string name="overlay_kanji">Read Kanji</string>
     <string name="overlay_camera">Camera</string>
     <string name="camera_permission_denied">Allow camera access to take the picture.</string>
+    <string name="camera_retake">Take another photo</string>
     <string name="overlay_dictionary">Dictionary</string>
     <string name="overlay_close_service">Stop</string>
     <string name="overlay_settings">Settings</string>
@@ -230,9 +231,9 @@
     <string name="dictionary_download_failed">Download failed: %1$s</string>
     <string name="dictionary_release">Revision %1$s</string>
     <string name="dictionary_source">Source: %1$s</string>
-    <string name="dictionary_stale_banner">Compiled by an older app version, these dictionaries use an outdated format: %1$s. Tap "Update" or re-import to update definitions.</string>
+    <string name="dictionary_stale_banner">Compiled by an older app version, these dictionaries use an outdated format: %1$s. Tap "Reinstall" in the list below (or "Update", when it is offered); one imported from a file has to be imported again.</string>
     <string name="result_stale_dictionary">Outdated dictionary format: %1$s. In "Dictionaries", tap "Update" or re-import to update definitions.</string>
-    <string name="dictionary_outdated">Compiled with an older app version: tap "Update" or re-import to organize definitions.</string>
+    <string name="dictionary_outdated">Compiled with an older app version: tap "Reinstall" (or import it again) to organize the definitions.</string>
 
     <string name="dictionary_updates_section">Updates</string>
     <string name="dictionary_updates_hint">Check only queries publishers for published revision headers. Download and conversion occur when you tap "Update", replacing files in-place without changing priority order or active state.</string>
@@ -253,6 +254,7 @@
     <string name="dictionary_update_available">Update available</string>
     <string name="dictionary_update_available_version">Update available: %1$s</string>
     <string name="dictionary_update">Update</string>
+    <string name="dictionary_reinstall">Reinstall</string>
     <string name="dictionary_update_all">Update All</string>
     <string name="dictionary_update_all_partial">%1$d updated; %2$d failed.</string>
     <string name="dictionary_update_unknown">Installed version could not be compared. Tap "Update" once to enable future checks.</string>

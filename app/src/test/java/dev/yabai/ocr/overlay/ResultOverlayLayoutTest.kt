@@ -226,7 +226,8 @@ class ResultOverlayLayoutTest {
      */
     @Test
     fun `a phone held up keeps two actions on a row`() {
-        assertEquals(listOf(2, 2, 2), gridRows(layout(capturedFullPageWithPicture(), 320)).map { it.size })
+        // Five actions pair up and «Fechar» owns the last row (R47g).
+        assertEquals(listOf(2, 2, 1, 1), gridRows(layout(capturedFullPageWithPicture(), 320)).map { it.size })
     }
 
     @Test
@@ -240,7 +241,8 @@ class ResultOverlayLayoutTest {
         )
         panel.layout(0, 0, metrics.widthPixels, metrics.heightPixels)
 
-        assertEquals(listOf(3, 3), gridRows(panel).map { it.size })
+        // Two full rows of three, then «Fechar» alone at the bottom-left (R47g).
+        assertEquals(listOf(3, 2, 1), gridRows(panel).map { it.size })
     }
 
     /** The actions on offer, in the order the user sees them. */
@@ -253,8 +255,8 @@ class ResultOverlayLayoutTest {
                 context.getString(R.string.result_copy_original),
                 context.getString(R.string.result_copy_translation),
                 context.getString(R.string.result_ask_ai),
-                context.getString(R.string.result_close),
                 context.getString(R.string.result_repick),
+                context.getString(R.string.result_close),
             ),
             buttonRows(panel).flatten().map { it.text.toString() },
         )

@@ -47,6 +47,16 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
     var onPickAll: (() -> Unit)? = null
     var onCancel: (() -> Unit)? = null
 
+    /** The page is a photo, not a screen capture: the user can take another one (R47a). */
+    var onRetake: (() -> Unit)? = null
+
+    /** Shown only while the page under the boxes came from the camera. */
+    private val retakeButton by lazy {
+        actionButton(context.getString(R.string.camera_retake)) { onRetake?.invoke() }.apply {
+            visibility = View.GONE
+        }
+    }
+
     private val blocks = BlockCanvasView(context)
 
     init {
@@ -88,6 +98,13 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
             background = roundedBackground(context.getColor(R.color.panel_bg), dp(16).toFloat(), 0x22FFFFFF)
             addView(actionButton(context.getString(R.string.picker_cancel)) { onCancel?.invoke() })
             addView(
+                retakeButton,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { marginStart = dp(6) },
+            )
+            addView(
                 actionButton(context.getString(R.string.picker_all)) { onPickAll?.invoke() },
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -102,7 +119,14 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
         )
     }
 
-    fun show(pickerBlocks: List<PickerBlock>, mode: PickerReadingMode, page: Bitmap? = null) {
+    fun show(
+        pickerBlocks: List<PickerBlock>,
+        mode: PickerReadingMode,
+        page: Bitmap? = null,
+        /** Whether the page came from the camera, which is the only source with a retake. */
+        retake: Boolean = false,
+    ) {
+        retakeButton.visibility = if (retake) View.VISIBLE else View.GONE
         blocks.setBlocks(pickerBlocks, mode)
         blocks.setPage(page)
     }

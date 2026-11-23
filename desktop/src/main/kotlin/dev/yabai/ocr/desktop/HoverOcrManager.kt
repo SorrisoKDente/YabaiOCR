@@ -202,7 +202,10 @@ internal class HoverOcrManager(
      * composition, and opening the compiled dictionaries reads their whole key index (D81).
      */
     fun getInstalledDictionaryTitles(): List<String> =
-        DesktopDictLoader.installedTitles(DesktopSettings().dictDirectory())
+        // R47f: the card offers the same order the dictionaries screen configures. Reading the
+        // folder listed the files alphabetically, so the hover switcher disagreed with every other
+        // chooser in the app.
+        DesktopDictLoader.installedTitles(DesktopSettings())
 
     /** Define um filtro de dicionário específico para o Hover e atualiza instantaneamente. */
     fun setFilterAndRefresh(newFilter: String) {

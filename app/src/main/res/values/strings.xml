@@ -78,6 +78,7 @@
     <string name="overlay_kanji">Ler kanji</string>
     <string name="overlay_camera">Câmera</string>
     <string name="camera_permission_denied">Permita o acesso à câmera para tirar a foto.</string>
+    <string name="camera_retake">Tirar outra foto</string>
     <string name="overlay_dictionary">Dicionário</string>
     <string name="overlay_close_service">Encerrar</string>
     <string name="overlay_settings">Ajustes</string>
@@ -229,9 +230,9 @@
     <string name="dictionary_download_failed">Falha ao baixar: %1$s</string>
     <string name="dictionary_release">Revisão %1$s</string>
     <string name="dictionary_source">Origem: %1$s</string>
-    <string name="dictionary_stale_banner">Compilados por uma versão antiga do app, estes dicionários ainda mostram as definições no formato antigo: %1$s. Use «Atualizar» no dicionário baixado pela lista, ou importe de novo o que veio de um arquivo.</string>
+    <string name="dictionary_stale_banner">Compilados por uma versão antiga do app, estes dicionários ainda mostram as definições no formato antigo: %1$s. Use «Reinstalar» na lista abaixo (ou «Atualizar», quando ela existir); o que veio de um arquivo precisa ser importado de novo.</string>
     <string name="result_stale_dictionary">Dicionário em formato antigo: %1$s. Em «Dicionários», use «Atualizar» (ou importe de novo) para atualizar as definições.</string>
-    <string name="dictionary_outdated">Compilado com uma versão antiga do app: use «Atualizar» (ou importe de novo) para ver as definições organizadas.</string>
+    <string name="dictionary_outdated">Compilado com uma versão antiga do app: use «Reinstalar» (ou importe de novo) para ver as definições organizadas.</string>
 
     <string name="dictionary_updates_section">Atualizações</string>
     <string name="dictionary_updates_hint">A verificação só pergunta aos servidores qual é a versão publicada. O download e a conversão acontecem quando você toca em «Atualizar», e o dicionário é substituído no mesmo lugar — a posição na lista e o estado ativo continuam. Dicionários importados de um arquivo não têm de onde ser atualizados.</string>
@@ -252,6 +253,7 @@
     <string name="dictionary_update_available">Atualização disponível</string>
     <string name="dictionary_update_available_version">Atualização disponível: %1$s</string>
     <string name="dictionary_update">Atualizar</string>
+    <string name="dictionary_reinstall">Reinstalar</string>
     <string name="dictionary_update_all">Atualizar tudo</string>
     <string name="dictionary_update_all_partial">%1$d atualizado(s); %2$d falhou(aram).</string>
     <string name="dictionary_update_unknown">A versão instalada não pôde ser comparada. Toque em «Atualizar» uma vez para ativar as próximas verificações.</string>

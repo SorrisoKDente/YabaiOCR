@@ -291,7 +291,7 @@ worth knowing:
 | `MainActivity.kt` | settings and permissions; picks the engine, downloads models, starts the service |
 | `StartOcrActivity.kt` | launcher/shortcut to start the capture |
 | `LookupActivity.kt` | opens the dictionary lookup from a text |
-| `CameraActivity.kt` | the bubble's camera doorway: asks for the permission, takes the photo and hands it to the service (R46d) |
+| `CameraActivity.kt` | the bubble's camera doorway: asks for the permission, takes the photo and hands it to the service (R46d); the photo opens the same segments as a screen capture, with «Take another photo» (R47a) |
 | `DictionaryActivity.kt` | dictionary screen (install, update, filter) |
 | `HelpActivity.kt` | help and explanations |
 | `YabaiOcrApplication.kt` | `Application`: theme, language, update scheduler |
@@ -314,6 +314,7 @@ worth knowing:
 | --- | --- |
 | `capture/ScreenCaptureSession.kt` | `MediaProjection`: one screen capture per session |
 | `capture/CameraPhoto.kt` | camera photo turned upright from EXIF, read once and deleted |
+| `capture/PhotoPage.kt` | photo geometry on the picker's page (uniform fit, boxes and page allocation) (R47a) |
 | `service/FloatingOcrService.kt` | foreground service: capture, OCR, shows the result |
 | `service/LookupOverlayService.kt` | dictionary lookup over other apps |
 | `service/YabaiTileService.kt` | quick settings tile |

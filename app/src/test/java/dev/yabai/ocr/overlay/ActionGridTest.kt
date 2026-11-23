@@ -101,6 +101,26 @@ class ActionGridTest {
         assertEquals(3, labels(grid).size)
     }
 
+    /**
+     * R47g: «Fechar» keeps the bottom-left corner whatever the other actions are. Adding it last
+     * would put it on the right whenever the previous row ended on an odd count.
+     */
+    @Test
+    fun `a button added on its own row is always the bottom-left one`() {
+        val grid = layout(
+            ActionGrid(context).apply {
+                add(context.actionButton("1"))
+                add(context.actionButton("2"))
+                add(context.actionButton("3"))
+                addOnOwnRow(context.actionButton("Fechar"))
+            },
+            300,
+        )
+
+        assertEquals(listOf(2, 1, 1), rows(grid).map { it.size })
+        assertEquals("Fechar", rows(grid).last().single().text.toString())
+    }
+
     /** Two buttons in a row are separated: touching backgrounds read as one wide button. */
     @Test
     fun `the columns have a gap between them`() {

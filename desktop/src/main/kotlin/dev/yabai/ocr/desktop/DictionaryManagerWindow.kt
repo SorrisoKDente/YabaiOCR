@@ -125,7 +125,8 @@ private fun SearchTab(initialQuery: String, refreshKey: Int) {
 
     // Names only: opening each compiled dictionary here read every key index just to print its
     // title, which delayed the window the user is waiting for (D81).
-    val installedDictTitles = remember(refreshKey) { DesktopDictLoader.installedTitles(dictDir) }
+    // R47f: the chooser follows the priority configured in the dictionaries screen, not the folder.
+    val installedDictTitles = remember(refreshKey) { DesktopDictLoader.installedTitles(settings) }
 
     val suggestions = remember(query, engine, selectedFilter, translationMode) {
         if (!translationMode && engine != null && query.isNotBlank()) {

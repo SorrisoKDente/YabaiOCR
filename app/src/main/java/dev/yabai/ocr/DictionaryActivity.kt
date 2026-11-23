@@ -36,6 +36,7 @@ import dev.yabai.ocr.dict.UpdateResult
 import dev.yabai.ocr.dict.UpdateState
 import dev.yabai.ocr.dict.UpdateStateStore
 import dev.yabai.ocr.overlay.actionButton
+import dev.yabai.ocr.overlay.actionButtonBackground
 import dev.yabai.ocr.overlay.roundedBackground
 import dev.yabai.ocr.overlay.textLabel
 import dev.yabai.ocr.util.dp
@@ -514,12 +515,24 @@ class DictionaryActivity : AppCompatActivity() {
             setPadding(0, dp(6), 0, 0)
         }
         val entry = DictionaryCatalog.find(item.sourceId.ifBlank { item.id })
-        if (entry != null && result?.canRefresh == true) {
+        val updateOffered = entry != null && result?.canRefresh == true
+        // R47d: a dictionary the check has nothing to offer is not stuck with the old format. The
+        // catalog still has the archive; downloading it again and compiling with this app is the
+        // reinstall the «compiled by an older version» banner talks about.
+        val reinstallOffered = entry != null && !updateOffered && item.info.outdated
+        val downloadOffered = updateOffered || reinstallOffered
+        if (updateOffered) {
             val update = actionButton(getString(R.string.dictionary_update)) { }
             update.setOnClickListener {
-                startDownload(entry, status, update)
+                startDownload(entry!!, status, update)
             }
             actions.addView(update)
+        } else if (reinstallOffered) {
+            val reinstall = actionButton(getString(R.string.dictionary_reinstall)) { }
+            reinstall.setOnClickListener {
+                startDownload(entry!!, status, reinstall)
+            }
+            actions.addView(reinstall)
         }
         actions.addView(
             actionButton("↑", onClick = {
@@ -531,7 +544,7 @@ class DictionaryActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { if (entry != null && result?.canRefresh == true) marginStart = dp(8) }
+                ).apply { if (downloadOffered) marginStart = dp(8) }
             },
         )
         actions.addView(
@@ -763,8 +776,11 @@ class DictionaryActivity : AppCompatActivity() {
             setPadding(0, dp(8), 0, 0)
         }
 
+        // R47b: the row in «Disponíveis» turns into the same «Remover» as the installed card, so it
+        // has to be the same red — the accent blue read as another «Baixar».
         val action = actionButton(
             if (installed) getString(R.string.dictionary_delete) else getString(R.string.dictionary_download),
+            background = if (installed) getColor(R.color.warn) else actionButtonBackground,
         ) { }
         // Set after the button exists: the running download needs the button itself, to turn it into
         // «Cancelar» and then back into «Baixar» (R21).

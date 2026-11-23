@@ -4,6 +4,7 @@ import dev.yabai.ocr.core.dict.DictionaryEntry
 import dev.yabai.ocr.core.dict.TokenMatch
 import java.awt.Point
 import java.awt.Rectangle
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -64,6 +65,47 @@ class HoverTooltipHeightTest {
         // and the rows below it were unreachable, which is what the user saw on a full install.
         assertEquals("the card still grows with the dictionary count", six, many)
         assertTrue("even a huge install must stay a readable card: $many", many <= 640)
+    }
+
+    /**
+     * R47e: the window is as tall as the estimate, which wraps at 32 characters and is often taller
+     * than the card. The card has to be drawn against the window's corner nearest the pointer, or
+     * the transparent overhang sits between the visible card and the mouse.
+     */
+    @Test
+    fun `the card is drawn against the window corner nearest the pointer`() {
+        // A card below and to the right of the pointer: its top-left corner touches it.
+        val belowRight = cardContentCorner(anchor = Point(218, 218), pointer = Point(200, 200))
+        assertFalse("the card is not at the window's start", belowRight.horizontalEnd)
+        assertFalse("the card is not at the window's top", belowRight.verticalBottom)
+
+        // A card above and to the left: its bottom-right corner touches it.
+        val aboveLeft = cardContentCorner(anchor = Point(100, 100), pointer = Point(600, 700))
+        assertTrue("the card is not at the window's end", aboveLeft.horizontalEnd)
+        assertTrue("the card is not at the window's bottom", aboveLeft.verticalBottom)
+
+        // Only one side flipped (near the taskbar, with room to the right).
+        val aboveRight = cardContentCorner(anchor = Point(218, 100), pointer = Point(200, 700))
+        assertFalse(aboveRight.horizontalEnd)
+        assertTrue(aboveRight.verticalBottom)
+    }
+
+    /** The corner is useless if the composable keeps the default top-left alignment. */
+    @Test
+    fun `the card content is aligned to that corner`() {
+        val source = sequenceOf(
+            File("src/main/kotlin/dev/yabai/ocr/desktop/HoverTooltipWindow.kt"),
+            File("desktop/src/main/kotlin/dev/yabai/ocr/desktop/HoverTooltipWindow.kt"),
+        ).firstOrNull { it.isFile }?.readText().orEmpty()
+        assertTrue("HoverTooltipWindow.kt not found", source.isNotEmpty())
+
+        assertTrue(source.contains("cardContentCorner(origin, mousePoint)"))
+        assertTrue(
+            "the alignment must follow the bounds the window really has, not the hypothetical anchor",
+            source.contains("val origin = placedBounds?.let { Point(it.x, it.y) } ?: anchor"),
+        )
+        assertTrue(source.contains("horizontalBias = if (corner.horizontalEnd) 1f else -1f"))
+        assertTrue(source.contains("verticalBias = if (corner.verticalBottom) 1f else -1f"))
     }
 
     @Test

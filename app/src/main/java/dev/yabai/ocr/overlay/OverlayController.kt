@@ -878,7 +878,13 @@ class OverlayController(
      * [page] is the screen as it was captured; without it (a caller that only has boxes) the picker
      * still works, just with nothing to zoom.
      */
-    fun showTextPicker(blocks: List<PickerBlock>, mode: PickerReadingMode, page: Bitmap?): Boolean {
+    fun showTextPicker(
+        blocks: List<PickerBlock>,
+        mode: PickerReadingMode,
+        page: Bitmap?,
+        /** The page is a camera photo, so the picker can offer another shot (R47a). */
+        retake: Boolean = false,
+    ): Boolean {
         if (blocks.isEmpty() || !canDrawOverlays() || paused) return false
         hideTextPicker()
 
@@ -889,12 +895,16 @@ class OverlayController(
                 callbacks?.onPickAllRequested()
             }
             onCancel = { hideTextPicker() }
+            onRetake = {
+                hideTextPicker()
+                callbacks?.onCameraRequested()
+            }
         }
         // A full-screen window that swallows every touch, which is the point during selection.
         // Focusable so BACK cancels the selection instead of reaching the app underneath; while the
         // picker is up the app was not receiving touches anyway.
         if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
-        overlay.show(blocks, mode, page)
+        overlay.show(blocks, mode, page, retake)
         pickerView = overlay
         return true
     }
@@ -985,6 +995,11 @@ class OverlayController(
                     this@OverlayController.callbacks?.onImageToggleRequested()
                 }
 
+                override fun onRetakePhoto() {
+                    hideResult()
+                    this@OverlayController.callbacks?.onCameraRequested()
+                }
+
                 override fun onDictionaryPicked(title: String?) {
                     this@OverlayController.callbacks?.onDictionaryPicked(title)
                 }
@@ -1052,6 +1067,8 @@ class OverlayController(
         image: Bitmap? = null,
         showImage: Boolean = false,
         canAskAi: Boolean = false,
+        /** The text came from a camera photo, so the panel can offer another shot (R47a). */
+        canRetakePhoto: Boolean = false,
     ) {
         ensureResultPanel()?.showResult(
             text,
@@ -1063,6 +1080,7 @@ class OverlayController(
             image,
             showImage,
             canAskAi,
+            canRetakePhoto,
         )
     }
 

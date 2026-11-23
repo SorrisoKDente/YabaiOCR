@@ -106,9 +106,10 @@ class ImagePanelTest {
                 context.getString(R.string.result_copy_original),
                 context.getString(R.string.result_copy_translation),
                 context.getString(R.string.result_ask_ai),
-                context.getString(R.string.result_close),
                 imageLabel,
                 context.getString(R.string.result_repick),
+                // R47g: the way out is the last action, on a row of its own.
+                context.getString(R.string.result_close),
             ),
             withImage,
         )

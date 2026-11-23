@@ -72,6 +72,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         fun onRepick()
         fun onRetryOffline()
 
+        /** The result came from a camera photo and the user wants another one (R47a). */
+        fun onRetakePhoto() {}
+
         /** Shows or hides the captured image beside the text; the choice is remembered. */
         fun onImageToggle()
 
@@ -910,6 +913,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         image: Bitmap? = null,
         showImage: Boolean = false,
         canAskAi: Boolean = false,
+        /** A photo has no boxes to re-pick, but it does have a camera to go back to (R47a). */
+        canRetakePhoto: Boolean = false,
     ) {
         card.removeAllViews()
         selectionToolbar.hide()
@@ -1010,9 +1015,6 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             btAskAi.visibility = View.VISIBLE
             actions.add(btAskAi)
         }
-        actions.add(
-            context.actionButton(context.getString(R.string.result_close)) { callbacks?.onDismiss() },
-        )
         if (image != null) {
             // A toggle: what it does is visible in the layout the moment it is pressed, and the choice
             // is written to the settings so the next panel opens the way the user left this one.
@@ -1023,14 +1025,30 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             actions.add(imageButton!!)
         }
         if (canRepick) {
-            // Only offered for a whole-screen capture: it reopens the boxes without paying for
-            // another Lens call, which matters because those are rate limited.
+            // Offered whenever there are boxes behind the panel (a capture or a photo): it reopens
+            // them without paying for another OCR call, which matters because those are rate limited.
             actions.add(
                 context.actionButton(
                     context.getString(R.string.result_repick),
                 ) { callbacks?.onRepick() },
             )
         }
+        if (canRetakePhoto) {
+            // The camera has no boxes to go back to: its own «back» is another shot.
+            actions.add(
+                context.actionButton(
+                    context.getString(R.string.camera_retake),
+                ) { callbacks?.onRetakePhoto() },
+            )
+        }
+        // R47g: «Fechar» is red and always the bottom-left action, whatever the card offers around
+        // it — the way out must be found in the same place every time.
+        actions.addOnOwnRow(
+            context.actionButton(
+                context.getString(R.string.result_close),
+                background = context.getColor(R.color.warn),
+            ) { callbacks?.onDismiss() },
+        )
         card.addView(actions)
 
         applyFold()

@@ -62,6 +62,19 @@ class ActionGrid(context: Context) : LinearLayout(context) {
         filled++
     }
 
+    /**
+     * Puts [button] at the start of a row of its own.
+     *
+     * Used for the one action that has to keep its place in the panel: «Fechar» is the way out, and
+     * it stays at the bottom-left whatever the other actions are. Simply adding it last would put it
+     * on the right whenever the row before it ended on an odd count.
+     */
+    fun addOnOwnRow(button: View) {
+        row = null
+        filled = 0
+        add(button)
+    }
+
     private fun newRow(): LinearLayout {
         val created = LinearLayout(context).apply {
             orientation = HORIZONTAL
