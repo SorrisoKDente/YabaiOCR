@@ -283,6 +283,37 @@ class CameraCaptureTest {
         )
     }
 
+    /**
+     * R48d: the picture is turned the way the phone is held, at the shutter and after a turn.
+     *
+     * `ImageCapture` is built with one rotation and keeps it: read from an unattached view it falls
+     * back to `ROTATION_0`, which is right upright and wrong sideways, and turning the phone after
+     * the screen opened left the old one behind. A photo turned 90° is read sideways by the engines,
+     * which is what put the boxes over the wrong pieces and the text in the wrong order.
+     */
+    @Test
+    fun `the photo turns with the phone, not with the view it was opened in`() {
+        val camera = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+
+        assertFalse(
+            "the picture's rotation is read from a view that may not be attached to a window",
+            camera.contains("previewView.display?.rotation"),
+        )
+        assertTrue(
+            "the shutter does not take the picture's rotation from the display",
+            camera.contains(".setTargetRotation(displayRotation())"),
+        )
+        assertTrue(
+            "turning the phone after the screen opened leaves the picture turned the old way",
+            camera.contains("onDisplayChanged") &&
+                camera.contains("imageCapture?.targetRotation = displayRotation()"),
+        )
+        assertTrue(
+            "the rotation listener is never removed",
+            camera.contains("unregisterDisplayListener"),
+        )
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private fun View.texts(): List<TextView> {

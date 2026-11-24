@@ -8502,6 +8502,7 @@ linha própria. Mutações provadas:
 | R48a | `[x]` | **Câmera sem confirmação**: a foto aparece na própria tela da câmera, com os balões por cima, sem «✕/✓» e sem trocar de tela | média |
 | R48b | `[x]` | **Botões do seletor acima dos botões do celular**, mantendo a imagem no tamanho dela | fácil |
 | R48c | `[x]` | **Câmera sem foto guardada e sem tela travada**: o arquivo vive só no cache, é varrido a cada disparo, e a espera pelo serviço tem limite | fácil |
+| R48d | `[x]` | **A foto é girada como o celular está**: giro lido da tela (não da view) e refeito quando o aparelho vira, para o retrato não sair deitado | média |
 
 ### R48a — A foto é lida na própria tela da câmera  `[x]` (23/11/2026)
 
@@ -8633,3 +8634,48 @@ recusa `MediaStore`, `getExternalFilesDir`, `Environment.getExternalStorage` e `
   usuário) e que nada no caminho da câmera escreve no armazenamento compartilhado. Falta conferir no
   celular: tirar uma foto, ver que ela não aparece na galeria; matar o serviço depois do disparo e ver
   a câmera voltar em 30 s.
+
+### R48d — A foto é girada como o celular está  `[x]` (24/11/2026)
+
+**Pedido.** Três sintomas com a câmera: a foto sai com um «zoom out gigante» em vez do tamanho
+normal, com o celular de lado os balões azuis ficam com tamanho errado, e um trecho escolhido de
+lado traz o texto fora de ordem.
+
+- **Causa.** O giro do JPEG vinha de `previewView.display?.rotation`. `View.display` só existe depois
+  que a view é **anexada** a uma janela, e o `ProcessCameraProvider` pode ficar pronto antes disso
+  (o listener roda na hora quando o provider já está inicializado) — o fallback era `ROTATION_0`, que
+  por acaso está certo em pé e errado deitado. E `ImageCapture` **guarda** o giro com que foi criado:
+  virar o celular com a tela da câmera aberta deixava o giro antigo. A pré-visualização se ajeita
+  sozinha (o CameraX escuta a tela para ela), a foto não — o usuário enquadrava uma coisa e o arquivo
+  saía girado 90°.
+- **Por que isso explica os três.** Um JPEG deitado de uma página em pé é um retângulo deitado
+  encaixado na tela em pé: a página aparece com um terço da altura — o «zoom out». O ML Kit, lendo
+  texto japonês deitado, agrupa as colunas na horizontal: os blocos cobrem pedaços que não são o
+  parágrafo (balões de tamanho errado) e a ordem interna do parágrafo sai trocada (a seleção devolve
+  o texto fora de ordem). Nada de geometria precisou mudar: `PhotoPageGeometry` só recebia uma foto
+  já deitada.
+- **Correção.** (1) O giro inicial vem de `DisplayManager.getDisplay(DEFAULT_DISPLAY).rotation`, que
+  não depende de nenhuma view estar anexada. (2) Um `DisplayManager.DisplayListener` registrado em
+  `onCreate` reaplica `imageCapture?.targetRotation = displayRotation()` quando a tela muda de giro, e
+  é removido em `onDestroy`.
+- **Arquivos.** `app/.../CameraActivity.kt` · `app/src/test/.../CameraCaptureTest.kt`
+
+Regressão (+1): `the photo turns with the phone, not with the view it was opened in` exige
+`.setTargetRotation(displayRotation())`, exige o `onDisplayChanged` que reaplica o giro no
+`imageCapture`, exige o `unregisterDisplayListener` e recusa `previewView.display?.rotation`.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `.setTargetRotation(displayRotation())` volta a `previewView.display?.rotation ?: ROTATION_0` | `the photo turns with the phone, not with the view it was opened in` |
+| `onDisplayChanged` deixa de atualizar `imageCapture.targetRotation` | o mesmo teste |
+| O listener não é removido em `onDestroy` | o mesmo teste |
+
+- **Limite.** A prova é estática (leitura do código) porque o teste da câmera não roda sem aparelho,
+  e a suíte do app não foi executada nesta rodada (sem Android SDK/JDK 17 na máquina). O que falta
+  conferir no celular: disparar em pé, virar para deitado e disparar de novo, e virar com a tela da
+  câmera já aberta — a foto tem que sair na mesma orientação que a pré-visualização mostrava, com os
+  balões colados no texto e a seleção na ordem de leitura.
+- **Pendência conhecida.** Se, com o celular **em pé**, a foto ainda aparecer pequena com faixas
+  pretas em cima e embaixo, isso é o encaixe da foto inteira na tela (uma foto 3:4 numa tela 9:20 fica
+  com ~60% da altura), não o giro: aí a decisão é de produto — encaixar a página inteira ou começar
+  ampliada no mesmo enquadramento da pré-visualização.

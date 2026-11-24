@@ -10,8 +10,10 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.Display
 import android.view.Gravity
 import android.view.Surface
 import android.view.View
@@ -75,6 +77,9 @@ class CameraActivity : AppCompatActivity() {
 
     private var reading: BroadcastReceiver? = null
 
+    /** Keeps the photo's rotation following the phone while this screen is up (R48d). */
+    private var rotationListener: DisplayManager.DisplayListener? = null
+
     /**
      * The wait for the service to say the reading is on screen (R48c).
      *
@@ -98,6 +103,7 @@ class CameraActivity : AppCompatActivity() {
         }
         buildScreen()
         listenForReading()
+        listenForRotation()
         val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) startCamera() else permission.launch(Manifest.permission.CAMERA)
@@ -236,7 +242,7 @@ class CameraActivity : AppCompatActivity() {
             }
             val capture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .setTargetRotation(previewView.display?.rotation ?: Surface.ROTATION_0)
+                .setTargetRotation(displayRotation())
                 .build()
             // A camera that cannot be opened (in use, removed, disabled) closes the screen, not the
             // app: the bubble is still there behind it.
@@ -349,6 +355,47 @@ class CameraActivity : AppCompatActivity() {
     }
 
     /**
+     * The turn the picture has to be written in, from the display and not from the view (R48d).
+     *
+     * `previewView.display` is null until the view is attached to a window, and the camera provider
+     * can be ready before that — the fallback then was `ROTATION_0`, which happens to be right on a
+     * phone held upright and wrong on one held sideways: the JPEG came out turned 90°, the page was
+     * fitted on its side and every box the engines reported covered something else. The display knows
+     * its rotation whether or not a view is attached to it.
+     */
+    private fun displayRotation(): Int =
+        runCatching {
+            getSystemService(DisplayManager::class.java)
+                ?.getDisplay(Display.DEFAULT_DISPLAY)
+                ?.rotation
+        }.getOrNull() ?: Surface.ROTATION_0
+
+    /**
+     * Follows the phone when it is turned while this screen is open (R48d).
+     *
+     * The preview turns itself — CameraX listens to the display for it — but `ImageCapture` keeps the
+     * rotation it was built with, so turning the phone after opening the camera left the photo turned
+     * by the old one: read sideways, the page's boxes came out grouped and ordered for a sideways
+     * page. Updating the use case is what makes the picture match what the preview showed.
+     */
+    private fun listenForRotation() {
+        if (rotationListener != null) return
+        val manager = getSystemService(DisplayManager::class.java) ?: return
+        val listener = object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) = Unit
+
+            override fun onDisplayRemoved(displayId: Int) = Unit
+
+            override fun onDisplayChanged(displayId: Int) {
+                if (displayId != Display.DEFAULT_DISPLAY) return
+                imageCapture?.targetRotation = displayRotation()
+            }
+        }
+        runCatching { manager.registerDisplayListener(listener, null) }
+        rotationListener = listener
+    }
+
+    /**
      * Waits for the service to put the reading on screen.
      *
      * It is what lets this screen go without a hole appearing: the picker draws the same photo as
@@ -386,6 +433,10 @@ class CameraActivity : AppCompatActivity() {
         wait.settle()
         reading?.let { runCatching { unregisterReceiver(it) } }
         reading = null
+        rotationListener?.let { listener ->
+            runCatching { getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(listener) }
+        }
+        rotationListener = null
         runCatching { cameraProvider?.unbindAll() }
         // Until the service has the file it is this screen's to delete; after that the service
         // deletes it, and doing it here could pull it from under the read.

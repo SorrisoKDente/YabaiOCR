@@ -291,7 +291,7 @@ worth knowing:
 | `MainActivity.kt` | settings and permissions; picks the engine, downloads models, starts the service |
 | `StartOcrActivity.kt` | launcher/shortcut to start the capture |
 | `LookupActivity.kt` | opens the dictionary lookup from a text |
-| `CameraActivity.kt` | the bubble's camera, a screen of its own on CameraX: live preview, a shutter with no confirmation, the picture held behind the spinner while the service reads it, and the file handoff; it leaves once the boxes are on screen (R46d, R47a, R48a) |
+| `CameraActivity.kt` | the bubble's camera, a screen of its own on CameraX: live preview, a shutter with no confirmation, the picture held behind the spinner while the service reads it, and the file handoff; it leaves once the boxes are on screen; the photo's rotation follows the display, at the shutter and after the phone is turned (R46d, R47a, R48a, R48d) |
 | `DictionaryActivity.kt` | dictionary screen (install, update, filter) |
 | `HelpActivity.kt` | help and explanations |
 | `YabaiOcrApplication.kt` | `Application`: theme, language, update scheduler |

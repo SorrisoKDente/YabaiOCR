@@ -288,7 +288,7 @@ valem destaque:
 | `MainActivity.kt` | ajustes e permissões; escolhe motor, baixa modelos, inicia o serviço |
 | `StartOcrActivity.kt` | atalho/atalho de tela para iniciar a captura |
 | `LookupActivity.kt` | abre a busca do dicionário a partir de um texto |
-| `CameraActivity.kt` | a câmera da bolha, tela própria com CameraX: pré-visualização, disparo sem confirmação, a foto parada atrás do indicador enquanto o serviço lê e a entrega do arquivo; sai quando os balões estão na tela (R46d, R47a, R48a) |
+| `CameraActivity.kt` | a câmera da bolha, tela própria com CameraX: pré-visualização, disparo sem confirmação, a foto parada atrás do indicador enquanto o serviço lê e a entrega do arquivo; sai quando os balões estão na tela; o giro da foto segue a tela, do disparo e depois de virar o celular (R46d, R47a, R48a, R48d) |
 | `DictionaryActivity.kt` | tela de dicionários (instalar, atualizar, filtrar) |
 | `HelpActivity.kt` | ajuda e explicações |
 | `YabaiOcrApplication.kt` | `Application`: tema, idioma, agendador de atualizações |
