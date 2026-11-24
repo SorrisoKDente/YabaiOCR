@@ -314,6 +314,35 @@ class CameraCaptureTest {
         )
     }
 
+    /**
+     * R48e: the preview already has the size of the photo.
+     *
+     * `FILL_CENTER` filled the screen by **cropping** the 4:3 frame, and the picker draws the whole
+     * photo fitted to the screen's width: on a portrait phone the picture went from the full height
+     * to about 60% of it at the shutter. The whole photo cannot be larger than that on a 9:20 screen
+     * without cropping text out of it, so both views letterbox.
+     *
+     * Read from the source because the preview needs a camera, which this suite has none of; the
+     * rectangles are only measurable on a phone.
+     */
+    @Test
+    fun `the preview letterboxes the frame the photo will have`() {
+        val camera = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+
+        assertTrue(
+            "the preview crops the frame the photo keeps, so the photo appears smaller than it",
+            camera.contains("scaleType = PreviewView.ScaleType.FIT_CENTER"),
+        )
+        assertFalse(
+            "the preview fills the screen by cropping the frame",
+            camera.contains("PreviewView.ScaleType.FILL_CENTER"),
+        )
+        assertTrue(
+            "the picture frozen over the preview is fitted another way",
+            camera.contains("scaleType = ImageView.ScaleType.FIT_CENTER"),
+        )
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private fun View.texts(): List<TextView> {

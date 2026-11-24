@@ -8503,6 +8503,7 @@ linha própria. Mutações provadas:
 | R48b | `[x]` | **Botões do seletor acima dos botões do celular**, mantendo a imagem no tamanho dela | fácil |
 | R48c | `[x]` | **Câmera sem foto guardada e sem tela travada**: o arquivo vive só no cache, é varrido a cada disparo, e a espera pelo serviço tem limite | fácil |
 | R48d | `[x]` | **A foto é girada como o celular está**: giro lido da tela (não da view) e refeito quando o aparelho vira, para o retrato não sair deitado | média |
+| R48e | `[x]` | **A pré-visualização já no tamanho da foto**: `FIT_CENTER` na pré-visualização, para a foto não aparecer menor que a câmera | fácil |
 
 ### R48a — A foto é lida na própria tela da câmera  `[x]` (23/11/2026)
 
@@ -8678,4 +8679,49 @@ Regressão (+1): `the photo turns with the phone, not with the view it was opene
 - **Pendência conhecida.** Se, com o celular **em pé**, a foto ainda aparecer pequena com faixas
   pretas em cima e embaixo, isso é o encaixe da foto inteira na tela (uma foto 3:4 numa tela 9:20 fica
   com ~60% da altura), não o giro: aí a decisão é de produto — encaixar a página inteira ou começar
-  ampliada no mesmo enquadramento da pré-visualização.
+  ampliada no mesmo enquadramento da pré-visualização. Resolvido em **R48e**, pelo lado do encaixe: a
+  pré-visualização passou a mostrar o quadro inteiro, no tamanho que a foto tem.
+
+### R48e — A pré-visualização já tem o tamanho da foto  `[x]` (24/11/2026)
+
+**Pedido.** Ao tirar a foto a imagem continua muito menor que a câmera mostrava: a imagem deveria
+manter o tamanho da foto, sem «zoom out» no disparo. Se for limitação, que a pré-visualização já
+apareça no tamanho final, para não haver o susto de uma imagem de tela cheia virar uma imagem pequena.
+
+- **Causa.** Dois enquadramentos diferentes no mesmo lugar. A `PreviewView` estava em `FILL_CENTER`,
+  que enche a tela **cortando** o quadro 4:3 do sensor (numa tela 9:20 em pé isso descarta ~40% da
+  largura). A foto é o quadro inteiro, e `PhotoPageGeometry` a encaixa pela largura: 1080×1440 numa
+  tela 1080×2400, ~60% da altura, com preto em cima e embaixo. O disparo, portanto, não diminuía a
+  foto — ele trocava um enquadramento cortado e ampliado pelo enquadramento inteiro. Nada disso é
+  regressão do giro (R48d): era a pendência de produto já anotada ali.
+- **É limitação?** Sim, e é geométrica: uma foto 3:4 não pode ocupar uma tela 9:20 **inteira** sem
+  cortar a foto ou esticá-la. Encher a tela exigiria `scale = 2400/4000`, que desenharia 3200 px de
+  largura para 1080 visíveis — cortar 2/3 da página, justo o texto que a leitura precisa. Esticar é
+  pior: o picker desenha a página esticada na janela (`canvas.scale(pageScaleX, pageScaleY)`, R23),
+  então uma página do tamanho da foto sairia achatada. E um sensor de celular não entrega 0,45:1 em
+  pé: o máximo é 3:4. Sobram duas saídas honestas — cortar a foto ou aceitar as faixas — e cortar
+  contraria a regra de ouro do OCR; o pedido então é o outro lado: a pré-visualização passa a ser o
+  que a foto será.
+- **Correção.** `PreviewView.ScaleType.FIT_CENTER`: a pré-visualização mostra o quadro inteiro,
+  centrado, com o preto do fundo nas faixas — o mesmo retângulo que o `frozenPhoto` (`FIT_CENTER`) e a
+  página do picker (encaixe pela largura) já desenham. A forma é a mesma dos dois lados sem mais nada:
+  o `ResolutionSelector` padrão dos dois casos de uso já é o `RATIO_4_3_FALLBACK_AUTO_STRATEGY`. Um
+  `ResolutionSelector` explícito chegou a ser escrito aqui e foi retirado na revisão: era exatamente o
+  padrão documentado, e só fazia a correção de uma linha parecer maior do que é.
+- **Arquivos.** `app/.../CameraActivity.kt` · `app/src/test/.../CameraCaptureTest.kt`
+
+Regressão (+1): `the preview letterboxes the frame the photo will have` exige
+`PreviewView.ScaleType.FIT_CENTER`, recusa `FILL_CENTER` e exige o `frozenPhoto` com o mesmo
+`FIT_CENTER` — é o retângulo em que a foto tem de ficar parada.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `FIT_CENTER` volta a `FILL_CENTER` | `the preview letterboxes the frame the photo will have` |
+| O `frozenPhoto` passa a `CENTER_CROP` (o «fill» de um `ImageView`) | o mesmo teste |
+
+Suíte do app: **461 testes por variante (922 no total, debug e release), 0 falhas**.
+
+- **Limite.** A prova é estática, pelo mesmo motivo das rodadas anteriores: o CameraX não abre uma
+  câmera no Robolectric, então o tamanho na tela não foi medido em aparelho. O que falta conferir no
+  celular: abrir a câmera, ver a foto inteira enquadrada com as faixas pretas, disparar e confirmar
+  que a imagem não muda de tamanho nem de posição até os balões aparecerem — em pé e deitado.

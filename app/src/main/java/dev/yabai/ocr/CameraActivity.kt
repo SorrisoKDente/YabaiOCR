@@ -118,7 +118,8 @@ class CameraActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         previewView = PreviewView(this).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+            // The whole frame, letterboxed, so the preview already has the size of the photo (R48e).
+            scaleType = PreviewView.ScaleType.FIT_CENTER
         }
         frozenPhoto = ImageView(this).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
