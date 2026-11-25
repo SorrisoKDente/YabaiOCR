@@ -12,18 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.Button
+import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 
 /**
@@ -38,7 +38,7 @@ internal data class HelpButton(val icon: String, val name: String, val what: Str
 /**
  * The shortcuts the manual prints (R52).
  *
- * Taken from the settings at the moment the window opens: the manual used to hardcode the defaults,
+ * Taken from the settings at the moment the screen opens: the manual used to hardcode the defaults,
  * so a reader who had changed one was told to press a key that does nothing.
  */
 internal data class HelpShortcuts(
@@ -80,7 +80,7 @@ internal fun helpButtons(): List<HelpButton> = listOf(
  * captures, the hover, the search, the dictionaries, the result window, the renderers, the engines
  * and the tray.
  *
- * The texts come from [DesktopStrings], so the window follows the interface language like the rest of
+ * The texts come from [DesktopStrings], so the screen follows the interface language like the rest of
  * the app, and the ids are what `HelpManualTest` holds against the list of things the app can do.
  * [shortcuts] is what makes the two capture entries name the keys the user actually has.
  */
@@ -112,84 +112,100 @@ internal fun helpTopics(shortcuts: HelpShortcuts): List<HelpTopic> = listOf(
     HelpTopic("tray", DesktopStrings.helpTrayTitle, DesktopStrings.helpTrayBody),
 )
 
-/** Read-only manual, opened from the Help button at the top of Settings. */
+/**
+ * The manual, as a screen of the main window (R53).
+ *
+ * It used to be a window of its own, opened by the Settings' Help button: the reader lost the
+ * settings behind it, and the manual was the only screen that did not come back with a button. Now
+ * it is one more destination of the same window — like the dictionary manager — and the bar on top
+ * says its name and the way back.
+ */
 @Composable
-fun HelpWindow(onClose: () -> Unit) {
-    val settings = remember { DesktopSettings() }
-    val topics = remember { helpTopics(helpShortcuts(settings)) }
+fun HelpContent(settings: DesktopSettings, onBackRequested: () -> Unit) {
+    val shortcuts = remember { helpShortcuts(settings) }
+    val topics = remember(shortcuts) { helpTopics(shortcuts) }
 
-    Window(
-        onCloseRequest = onClose,
-        title = DesktopStrings.helpWindowTitle,
-        state = WindowState(width = 760.dp, height = 720.dp),
-    ) {
-        LaunchedEffect(Unit) {
-            // The artwork the tray uses, without its status dot: the window used to fall back to
-            // the old PNG artwork when the packed icon could not be read (R52).
-            runCatching { window.iconImage = AppIconGenerator.getTrayImage() }
+    Column(modifier = Modifier.fillMaxSize()) {
+        Surface(color = MaterialTheme.colors.surface, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = onBackRequested,
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = yabaiPalette().field,
+                        contentColor = MaterialTheme.colors.onSurface,
+                    ),
+                ) {
+                    Text(DesktopStrings.btnBackToPrevious, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = DesktopStrings.helpWindowTitle,
+                    style = MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colors.onSurface,
+                )
+            }
         }
 
-        YabaiDesktopTheme(darkTheme = settings.darkTheme) {
-            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
-                SelectionContainer {
-                    ScrollableLazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp),
-                    ) {
-                        item {
-                            Text(
-                                text = DesktopStrings.helpIntro,
-                                style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
-                                color = MaterialTheme.colors.secondary,
-                            )
-                        }
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
+        SelectionContainer {
+            ScrollableLazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                item {
+                    Text(
+                        text = DesktopStrings.helpIntro,
+                        style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
+                        color = MaterialTheme.colors.secondary,
+                    )
+                }
+                item {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = DesktopStrings.helpButtonsTitle,
+                            style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colors.onBackground,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        helpButtons().forEach { button ->
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                                 Text(
-                                    text = DesktopStrings.helpButtonsTitle,
-                                    style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colors.onBackground,
+                                    text = button.icon,
+                                    style = MaterialTheme.typography.body1,
+                                    modifier = Modifier.width(34.dp),
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                helpButtons().forEach { button ->
-                                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                        Text(
-                                            text = button.icon,
-                                            style = MaterialTheme.typography.body1,
-                                            modifier = Modifier.width(34.dp),
-                                        )
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = button.name,
-                                                style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colors.onBackground,
-                                            )
-                                            Text(
-                                                text = button.what,
-                                                style = MaterialTheme.typography.body2.copy(lineHeight = 19.sp),
-                                                color = MaterialTheme.colors.onBackground,
-                                            )
-                                        }
-                                    }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = button.name,
+                                        style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colors.onBackground,
+                                    )
+                                    Text(
+                                        text = button.what,
+                                        style = MaterialTheme.typography.body2.copy(lineHeight = 19.sp),
+                                        color = MaterialTheme.colors.onBackground,
+                                    )
                                 }
                             }
                         }
-                        items(topics) { topic ->
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = topic.title,
-                                    style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colors.onBackground,
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = topic.body,
-                                    style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
-                                    color = MaterialTheme.colors.onBackground,
-                                )
-                            }
-                        }
+                    }
+                }
+                items(topics) { topic ->
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = topic.title,
+                            style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colors.onBackground,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = topic.body,
+                            style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
+                            color = MaterialTheme.colors.onBackground,
+                        )
                     }
                 }
             }

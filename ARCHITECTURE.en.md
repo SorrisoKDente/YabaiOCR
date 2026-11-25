@@ -176,14 +176,14 @@ flags above.
 
 | file | role |
 | --- | --- |
-| `Main.kt` | entry point: main window, tray, shortcuts, opens picker/crop/result/dictionary |
+| `Main.kt` | entry point: main window with three screens (`MainScreen`: Settings, Help & Tips, Dictionary Manager), tray, shortcuts, opens picker/crop/result; keeps the Settings tab so coming back from the manual lands on it |
 | `DesktopSettings.kt` | `settings.properties` in `~/.yabai_ocr`: shortcuts, engine, theme, dictionaries, AI, translation |
-| `SettingsWindow.kt` | the whole Settings screen (appearance, shortcuts, engine + download, dictionaries, AI) |
+| `SettingsWindow.kt` | the Settings screen: `SettingsTopBar` (title, `LanguageMenu`, «❓ Help»), `SettingsTabRow` and five tabs (`SettingsTab`) with each area's cards — General (appearance, renderer, monitor, startup, Linux, KDE), Shortcuts, Reading (engine + PP-OCR download, hover, result, translation, AI), Dictionaries and About; `TabColumn` is the shared scrollable body |
 | `ResultWindow.kt` | result panel: editable text, image, buttons (copy, AI, crop) |
 | `DictionaryMatchText.kt` | the «read form → entry · old form» line the hover and the result draw (R46e) |
 | `ReleaseNotesWindow.kt` | Markdown preview of the GitHub release notes, opened from Settings → About |
 | `LicenseWindow.kt` | license text bundled in the jar, opened from Settings → About |
-| `HelpWindow.kt` | user manual opened by the Settings' «❓ Help» button: first the button reference (`helpButtons()`, icon on the left, name and what it does) and then one entry per action (captures, hover, quick search, dictionaries, result and tray), in pt/en |
+| `HelpWindow.kt` | the «Help & Tips» manual as a screen of the main window (`HelpContent(settings, onBackRequested)`), opened by the header's «❓ Help»: a bar with «◀ Back to Previous Menu», the button reference (`helpButtons()`, icon on the left, name and what it does) and one entry per action (captures, hover, quick search, dictionaries, result, renderers, engines and tray), in pt/en |
 | `UpdateInstaller.kt` | downloads the asset with progress, swaps the running AppImage (`.old` backup), opens the installer on Windows/macOS and restarts |
 | `InstanceLock.kt` | file lock at `~/.yabai_ocr/instance.lock`: one instance per user, before D-Bus and the tray |
 | `KdeCapturePermission.kt` | the «silent capture on KDE» switch: writes `~/.config/environment.d/yabai-ocr.conf` with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, because KWin only authorizes `ScreenShot2` to a fixed `Exec` under a root-writable directory |
@@ -438,7 +438,9 @@ Settings (desktop/app) → PPOcrModelDownloader → ~23 MB in ppocr_v6/
 | new OCR engine | contract in `app/ocr/OcrEngine.kt`; on desktop, return `LensResult` |
 | desktop capture/picker | `ScreenCapture.kt`, `KWinScreenshotCapture.kt`, `SegmentPickerWindow.kt`, `PickerBoxes.kt` |
 | hover | `HoverOcrManager.kt`, `HoverGeometry.kt`, `HoverTextSelector.kt`, `HoverLookup.kt` |
-| shortcuts | `HotkeyBindings.kt`, `HotkeyMatcher.kt`, `GlobalHotkeyManager.kt` |
+| shortcuts | `HotkeyBindings.kt`, `HotkeyMatcher.kt`, `GlobalHotkeyManager.kt`; the key capture lives in `SettingsWindow.kt` (`ShortcutsTab`) |
+| Settings tabs / where a card lives | `SettingsWindow.kt` (`SettingsTab`, `SettingsTabRow`, `TabColumn`) |
+| language / manual | `SettingsWindow.kt` (`LanguageMenu`) and `HelpWindow.kt` (`HelpContent`), opened by the window in `Main.kt` |
 | tray | `SystemTrayManager.kt`, `StatusNotifierTray.kt`, `DbusMenu.kt`, `TrayMenu*.kt` |
 | dictionaries (search/import) | `core/dict/*`, then `app/dict/*` or `desktop/DictionaryManagerWindow.kt` |
 | furigana | `core/dict/Furigana.kt`, `core/lens/FuriganaMode.kt`, `overlay/PickerReadingLayout.kt` |

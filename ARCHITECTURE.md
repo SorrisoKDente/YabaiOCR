@@ -175,14 +175,14 @@ rodam com as flags acima.
 
 | arquivo | papel |
 | --- | --- |
-| `Main.kt` | ponto de entrada: janela principal, bandeja, atalhos, abre picker/recorte/resultado/dicionário |
+| `Main.kt` | ponto de entrada: janela principal com três telas (`MainScreen`: Ajustes, Explicações e Dicas, Gerenciador de Dicionários), bandeja, atalhos, abre picker/recorte/resultado; guarda a aba de Ajustes para voltar do manual nela |
 | `DesktopSettings.kt` | `settings.properties` em `~/.yabai_ocr`: atalhos, motor, tema, dicionários, IA, tradução |
-| `SettingsWindow.kt` | a tela de Ajustes inteira (aparência, atalhos, motor + download, dicionários, IA) |
+| `SettingsWindow.kt` | a tela de Ajustes: `SettingsTopBar` (título, `LanguageMenu`, «❓ Ajuda»), `SettingsTabRow` e cinco abas (`SettingsTab`) com os cartões de cada área — Geral (aparência, renderizador, monitor, inicialização, Linux, KDE), Atalhos, Leitura (motor + download do PP-OCR, hover, resultado, tradução, IA), Dicionários e Sobre; `TabColumn` é o corpo rolável comum |
 | `ResultWindow.kt` | painel de resultado: texto editável, imagem, botões (copiar, IA, recortar) |
 | `DictionaryMatchText.kt` | a linha «forma lida → verbete · forma antiga» que o hover e o resultado desenham (R46e) |
 | `ReleaseNotesWindow.kt` | preview em Markdown das notas do release do GitHub, aberto em Ajustes → Sobre |
 | `LicenseWindow.kt` | texto da licença empacotado no jar, lido em Ajustes → Sobre |
-| `HelpWindow.kt` | manual de uso aberto pelo botão «❓ Ajuda» dos Ajustes: primeiro a referência de botões (`helpButtons()`, ícone à esquerda, nome e o que faz) e depois uma entrada por função (capturas, hover, busca rápida, dicionários, resultado e bandeja), em pt/en |
+| `HelpWindow.kt` | o manual «Explicações e Dicas» como tela da janela principal (`HelpContent(settings, onBackRequested)`), aberto pelo «❓ Ajuda» do cabeçalho: barra com «◀ Voltar ao Menu Anterior», a referência de botões (`helpButtons()`, ícone à esquerda, nome e o que faz) e uma entrada por função (capturas, hover, busca rápida, dicionários, resultado, renderizadores, motores e bandeja), em pt/en |
 | `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
 | `InstanceLock.kt` | trava de arquivo em `~/.yabai_ocr/instance.lock`: uma instância por usuário, antes de D-Bus e bandeja |
 | `KdeCapturePermission.kt` | opção «captura silenciosa no KDE»: grava `~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, porque o KWin só autoriza `ScreenShot2` a um `Exec` fixo em diretório de root |
@@ -434,7 +434,9 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 | novo motor de OCR | contrato em `app/ocr/OcrEngine.kt`; no desktop, devolver `LensResult` |
 | captura/picker desktop | `ScreenCapture.kt`, `KWinScreenshotCapture.kt`, `SegmentPickerWindow.kt`, `PickerBoxes.kt` |
 | hover | `HoverOcrManager.kt`, `HoverGeometry.kt`, `HoverTextSelector.kt`, `HoverLookup.kt` |
-| atalhos | `HotkeyBindings.kt`, `HotkeyMatcher.kt`, `GlobalHotkeyManager.kt` |
+| atalhos | `HotkeyBindings.kt`, `HotkeyMatcher.kt`, `GlobalHotkeyManager.kt`; a captura das teclas fica em `SettingsWindow.kt` (`ShortcutsTab`) |
+| abas de Ajustes / onde um cartão mora | `SettingsWindow.kt` (`SettingsTab`, `SettingsTabRow`, `TabColumn`) |
+| idioma / manual | `SettingsWindow.kt` (`LanguageMenu`) e `HelpWindow.kt` (`HelpContent`), abertos pela janela de `Main.kt` |
 | bandeja | `SystemTrayManager.kt`, `StatusNotifierTray.kt`, `DbusMenu.kt`, `TrayMenu*.kt` |
 | dicionários (busca/importação) | `core/dict/*`, depois `app/dict/*` ou `desktop/DictionaryManagerWindow.kt` |
 | furigana | `core/dict/Furigana.kt`, `core/lens/FuriganaMode.kt`, `overlay/PickerReadingLayout.kt` |

@@ -9456,3 +9456,94 @@ provadas: cada uma derrubou o teste correspondente e a restauração voltou ao v
   no Windows a bandeja (a linha «Atualizações…» com a seta, distinta do dicionário) e a Ajuda nas duas
   línguas, conferindo os textos novos e um atalho trocado nos Ajustes aparecendo no manual. O `:app`
   continua sem rodar nesta máquina (sem Android SDK e sem toolchain 17).
+
+### R53 — Ajustes em abas, idioma no topo e a Ajuda como tela  `[x]` (25/11/2026)
+
+**Pedido.** No desktop: a Ajuda deve ter o título da versão mobile («Explicações e Dicas»), não abrir
+janela separada e voltar pelo botão como a aba do dicionário; as configurações devem sair de uma
+página única e virar abas, agrupadas por assunto; o idioma da interface deve ficar a um clique, ao
+lado do botão de Ajuda; e nenhum botão pode quebrar no caminho.
+
+- **Causa (Ajuda).** `HelpWindow` era uma `Window` própria: abria por cima dos Ajustes, fechava pelo
+  X do sistema e o leitor perdia o que estava configurando. Só o gerenciador de dicionários era uma
+  tela dentro da janela principal, com «◀ Voltar ao Menu Anterior».
+- **Causa (página única).** `SettingsContent` era um `ScrollableLazyColumn` com quinze cartões, de
+  aparência a sobre; achar «repouso do hover», «prioridade dos motores» ou a pasta dos dicionários
+  era rolar a página inteira. O idioma — a primeira coisa que se procura ao abrir o app num idioma
+  estranho — era o terceiro cartão dessa página.
+
+- **Correção.**
+  - `MainScreen` ganhou `HELP`: a janela principal mostra `HelpContent(settings, onBackRequested)`,
+    o mesmo padrão de `DictionaryManagerContent`, com barra «◀ Voltar ao Menu Anterior» + título, e
+    o título da janela passa a «Yabai OCR - Explicações e Dicas». Nenhuma segunda janela. A aba de
+    Ajustes passou a ser lembrada em `Main.kt` (`initialTab`/`onTabChanged`), então voltar do manual
+    cai na aba de onde se saiu, em vez de recomeçar em «Geral».
+  - `SettingsContent` virou `SettingsTopBar` + `SettingsTabRow` + cinco abas: **Geral** (aparência e
+    tema, renderizador gráfico, monitor da captura, inicialização e janela, integração com o Linux,
+    captura silenciosa no KDE), **Atalhos** (os cinco atalhos globais e o status do backend),
+    **Leitura** (motor de reconhecimento + download do PP-OCR e prioridade, modo hover, comportamento
+    do OCR e resultado, tradução, IA), **Dicionários** (consulta, filtro, pasta, gerenciador,
+    atualizações) e **Sobre** (versão, atualizações, notas, doação e licença). `TabColumn` é o corpo
+    rolável comum — mesma margem, mesmo espaçamento e a mesma barra de rolagem de antes.
+  - O idioma saiu do cartão e virou `LanguageMenu` no canto superior direito, ao lado de «❓ Ajuda»:
+    mostra o idioma em vigor («🌐 Português (Brasil)» / «🌐 English»), o menu marca o que está
+    guardado (sistema, pt-BR, en) e escolher aplica na hora — continua sendo `app_language`.
+  - O estado que não pode morrer com a aba ficou no nível da tela: o download do PP-OCR (`ppOcr*`),
+    a pasta dos dicionários e as janelas de notas da versão e da licença. Trocar de aba não cancela
+    um download em curso nem fecha o que foi aberto.
+  - A aba escolhida passou a ter um dono só (`selectedTab`/`onTabSelected`, guardados em `Main.kt`):
+    o `remember` interno mais o aviso ao pai eram dois estados para a mesma coisa.
+  - Saiu a composable `SettingsWindow(onClose, …)`: uma janela de Ajustes própria que nenhum
+    caminho chamava (o app abre a tela dentro da janela principal). Com ela foram os dois imports
+    de `window`.
+  - **Achado do E2E:** a linha «Modelos instalados / Modelos não instalados» era guardada como
+    **texto** num `remember`, então trocar o idioma deixava «Models installed» em inglês sob a tela
+    em português. O estado agora guarda só o download em curso ou o erro (`ppOcrMessage`) e a linha
+    parada é derivada na hora (`ppOcrInstallLine`), no idioma em vigor.
+- **Arquivos.** `desktop/.../SettingsWindow.kt` · `HelpWindow.kt` · `Main.kt` ·
+  `i18n/DesktopStrings.kt` · `desktop/src/test/.../SettingsTabsTest.kt` (novo) · `HelpManualTest.kt` ·
+  `ARCHITECTURE.md`/`ARCHITECTURE.en.md` · `LANGUAGES.md` · `AGENTS.md`
+
+Regressão (+5 desktop): `the settings open as five tabs, each with a scroll container` exige as cinco
+`SettingsTab` e cinco `TabColumn`, e que o corpo comum use `ScrollableLazyColumn`; `every card lives
+in exactly one tab` lê o corpo de cada aba e exige os cartões certos nela (aparência/renderizador/
+monitor/inicialização/Linux/KDE em Geral; motor, hover, resultado, tradução e IA em Leitura; só os
+dicionários em Dicionários) e cada título de cartão **uma única vez** no arquivo; `the language
+picker sits in the header, next to the help button` exige `LanguageMenu` dentro de `SettingsTopBar`,
+as três opções e a chamada a `DesktopStrings.updateLanguage`; `every tab has a name in both
+languages` compara os cinco rótulos em pt e en. `the manual is a screen of the window, with a way
+back` (no `HelpManualTest`) exige `onClick = onBackRequested` em `HelpWindow.kt`, recusa
+`Window(`/`androidx.compose.ui.window` no manual e confere `MainScreen.HELP` + `HelpContent(` em
+`Main.kt` e `onHelpRequested` em `SettingsWindow.kt`; `the PP-OCR install line follows the interface
+language` monta a linha parada nas duas línguas (e exige que difiram), exige que uma mensagem de
+download ganhe da linha parada e lê o `SettingsWindow.kt` para exigir `ppOcrInstallLine(ppOcrInstalled,
+ppOcrMessage)` no desenho e a ausência do antigo `ppOcrStatus`.
+
+| mutação | teste que acusa |
+| --- | --- |
+| O cabeçalho perde o `LanguageMenu` | `the language picker sits in the header, next to the help button` |
+| O cartão dos dicionários passa a mostrar o título de «Sobre» | `every card lives in exactly one tab` |
+| O «Voltar» do manual deixa de chamar `onBackRequested` | `the manual is a screen of the window, with a way back` |
+| A linha parada do PP-OCR volta a ser um texto fixo | `the PP-OCR install line follows the interface language` |
+| A aba volta a desenhar a linha com um `remember` | o mesmo teste |
+
+`./gradlew :desktop:test`: **612 testes, 610 verdes, 1 skipped, 1 falha pré-existente** —
+`HoverCardGrowthTest > the card header stays under the pointer when the dictionary list opens near
+the taskbar` continua falhando nesta máquina (área de trabalho do AWT: `expected 844 but was 798`),
+como em R52. As cinco mutações acima foram provadas e a restauração voltou ao verde.
+
+- **E2E (feito).** Com o app fechado pelo usuário, ele foi aberto pela janela real (`:desktop:run`,
+  820×713) e dirigido por cliques de verdade (XTest), sem fotografar a tela inteira: cada passo foi
+  capturado com `xwd` só da janela do app e a imagem foi olhada. A janela abriu em «General» com as
+  cinco abas inteiras; «Reading» mostrou o motor de reconhecimento; «❓ Help» trocou a tela (e o
+  título da janela) para «Help & Tips» com «◀ Back to Previous Menu», e o «Voltar» caiu de novo em
+  «Reading», não em «General»; o menu 🌐 trocou toda a interface para português na hora — e foi
+  assim que apareceu a linha «Models installed» fora de lugar, corrigida acima e conferida em
+  português na segunda abertura. O `~/.yabai_ocr/settings.properties` foi salvo antes e restaurado
+  byte a byte depois (`cmp` idêntico), com `global_hotkey`, `region_hotkey`, `hover_hotkey`,
+  `quick_dict_hotkey` e `picker_reading` conferidos; nenhum processo ficou aberto.
+- **Não visto.** Windows (este E2E foi só no Linux desta máquina), a bandeja e o menu nativo, e o
+  `:app`, que continua sem rodar aqui (sem Android SDK e sem toolchain 17). Antes do E2E a
+  composição já tinha sido conferida fora da tela com `ImageComposeScene`, nos dois temas e nas duas
+  línguas: foi ali que o rótulo inglês «OCR & Dictionar…» apareceu cortado, e a correção (motor em
+  «Leitura», aba «Dicionários») é o que faz as cinco abas caberem inteiras.

@@ -190,16 +190,32 @@ class HelpManualTest {
         }
     }
 
+    /**
+     * R53: the manual is a destination of the main window, with a way back — not a window of its
+     * own that the reader had to close.
+     */
     @Test
-    fun `settings offers the Help button and opens the manual`() {
+    fun `the manual is a screen of the window, with a way back`() {
+        val help = sourceFile("HelpWindow.kt").readText()
+        assertTrue("the manual lost its way back", help.contains("onClick = onBackRequested"))
+        assertFalse("the manual is a window of its own again", help.contains("Window("))
+        assertFalse(
+            "the manual opens a window instead of being one of the main window's screens",
+            help.contains("androidx.compose.ui.window"),
+        )
+        assertTrue(
+            "the manual ignores the configured shortcuts",
+            help.contains("helpShortcuts(settings)"),
+        )
+
+        val main = sourceFile("Main.kt").readText()
+        assertTrue("the main window has no manual screen", main.contains("MainScreen.HELP"))
+        assertTrue("the main window no longer draws the manual", main.contains("HelpContent("))
+
         val settings = sourceFile("SettingsWindow.kt").readText()
         assertTrue(
             "Settings lost the Help button",
-            settings.contains("DesktopStrings.btnHelp") && settings.contains("showHelp = true"),
-        )
-        assertTrue(
-            "the Help button no longer opens the manual",
-            settings.contains("HelpWindow(onClose = { showHelp = false })"),
+            settings.contains("DesktopStrings.btnHelp") && settings.contains("onHelpRequested"),
         )
     }
 

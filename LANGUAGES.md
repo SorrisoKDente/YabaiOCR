@@ -115,6 +115,8 @@ Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de
 
 #### 1. `SettingsWindow.kt` (Janela de Ajustes e Configurações)
 - **Título da Janela:** `"Yabai OCR - Ajustes e Configurações"` → `"Yabai OCR - Settings"`
+- **Abas** (`SettingsTab`, `settingsTabLabel`): `"Geral"` → `"General"`, `"Atalhos"` → `"Shortcuts"`, `"Leitura"` → `"Reading"`, `"Dicionários"` → `"Dictionaries"`, `"Sobre"` → `"About"`. O teste `SettingsTabsTest` exige as cinco nas duas línguas e cada cartão em uma única aba.
+- **Idioma no cabeçalho** (`LanguageMenu`): mostra o idioma em vigor («🌐 Português (Brasil)» / «🌐 English») e o menu traz `chooseLanguageDesc`, `langSystem*`, `langPtBr*` e `langEnUs*`. Escolher chama `DesktopStrings.updateLanguage` e grava `app_language`; não existe mais o cartão «Idioma da Interface» (`sectionLanguage` foi removida).
 - **Aparência e Tema:**
   - `"Aparência e Tema"` → `"Appearance & Theme"`
   - `"Tema Escuro 🌙"` → `"Dark Theme 🌙"`
@@ -208,10 +210,10 @@ Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de
 - Telas de Seleção: `"Toque num trecho para copiar ou traduzir"` → `"Click a segment to copy or translate"`, `"Arraste para selecionar a área"` → `"Drag to select a region"`, `"Cancelar"` → `"Cancel"`, `"Reconhecer"` → `"Recognize"`, `"Texto todo"` → `"All text"`.
 
 #### 7. `HelpWindow.kt` (Manual de Ajuda Desktop)
-- **Botão e título:** `"❓ Ajuda"` → `"❓ Help"`, `"Ajuda — Yabai OCR"` → `"Help — Yabai OCR"`
+- **Botão e título:** `"❓ Ajuda"` → `"❓ Help"`, `"Explicações e Dicas"` → `"Help & Tips"` (o mesmo título da versão mobile). O manual é uma **tela** da janela principal (`HelpContent`), com a barra «◀ Voltar ao Menu Anterior» (`btnBackToPrevious`) e o título ao lado; não abre janela separada (R53).
 - **Referência de botões** (`helpButtonsTitle`, `helpBtn*Name/What`): a primeira seção, com o ícone do botão à esquerda, o nome e o que ele faz; `helpButtons()` desenha as linhas.
 - **Entradas do manual** (`helpIntro`, `helpCapture*`, `helpRegion*`, `helpHover*`, `helpQuickSearch*`, `helpDictionaries*`, `helpResult*`, `helpRenderers*`, `helpEngines*`, `helpTray*`): as duas capturas, o hover, a busca rápida, os dicionários, a janela de resultado, o **renderizador gráfico** (uma entrada por renderizador, com vantagem e desvantagem) e os **motores de reconhecimento** (um por um, também com os dois lados), e a bandeja. As entradas das capturas, do hover e da busca recebem o atalho como parâmetro (`HelpShortcuts`, lido do `DesktopSettings` na abertura da janela), então o manual mostra o atalho configurado, não um padrão fixo. O teste `HelpManualTest` compara as duas línguas, exige a referência antes das entradas, os atalhos configurados nas duas línguas, os três renderizadores e os motores com `+`/`−`, e lê o aviso de crash do renderizador.
-- **Ícone da janela:** `AppIconGenerator.getTrayImage()`, os mesmos pixels da bandeja; os PNGs `ic_scan_linux.png`/`ic_scan_windows.png` são regerados do quadro atual do `.ico` e `TrayGlyphsTest` compara os pixels dos dois.
+- **Ícone:** desde R53 o manual não é uma janela; ele usa o ícone da janela principal (`AppIconGenerator.createWindowImage(64)`). Os PNGs `ic_scan_linux.png`/`ic_scan_windows.png` continuam regerados do quadro atual do `.ico` e `TrayGlyphsTest` compara os pixels dos dois.
 
 ---
 

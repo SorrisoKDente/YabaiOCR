@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
@@ -16,10 +17,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowState
 import dev.yabai.ocr.core.DonationInfo
 import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
@@ -33,6 +33,35 @@ import java.io.File
 import java.nio.file.Path
 import javax.swing.JFileChooser
 import kotlin.system.exitProcess
+
+
+/**
+ * One tab of the Settings screen.
+ *
+ * The screen used to be a single column of fifteen cards, so a preference could only be found by
+ * scrolling all of them. The split follows what the user is trying to do, not the order the cards
+ * were written in: how the app looks and runs, the keys that drive it, what a reading shows, where
+ * the text comes from, and the version itself.
+ */
+enum class SettingsTab { GENERAL, SHORTCUTS, READING, DICTIONARIES, ABOUT }
+
+/**
+ * The line under the PP-OCR choice: the download in progress or the failure, and otherwise the
+ * install state — read in the interface language at the moment it is drawn.
+ *
+ * That idle line used to be stored as text, so switching the language left it in the old one.
+ */
+internal fun ppOcrInstallLine(installed: Boolean, message: String?): String =
+    message ?: if (installed) DesktopStrings.ppOcrInstalled else DesktopStrings.ppOcrNotInstalled
+
+/** The tab label, in the interface language. Read by the tab row and by the tab test. */
+internal fun settingsTabLabel(tab: SettingsTab): String = when (tab) {
+    SettingsTab.GENERAL -> DesktopStrings.tabGeneral
+    SettingsTab.SHORTCUTS -> DesktopStrings.tabShortcuts
+    SettingsTab.READING -> DesktopStrings.tabReading
+    SettingsTab.DICTIONARIES -> DesktopStrings.tabDictionaries
+    SettingsTab.ABOUT -> DesktopStrings.tabAbout
+}
 
 @Composable
 fun SettingsContent(
@@ -60,127 +89,295 @@ fun SettingsContent(
         hover: String,
         hoverCycle: String,
     ) -> Unit = { _, _, _, _, _ -> },
+    /**
+     * The tab shown. The window owns it, so coming back from the manual lands on the tab the reader
+     * left instead of starting over at «Geral» (R53).
+     */
+    selectedTab: SettingsTab = SettingsTab.GENERAL,
+    onTabSelected: (SettingsTab) -> Unit = {},
+    /** The manual is a screen of this window, not another window (R53). */
+    onHelpRequested: () -> Unit = {},
+) {
+    // PP-OCR install state: the models are ~23 MB and are not shipped with the app. It lives at the
+    // screen level, not inside the tab, so switching tabs does not cancel a download in progress.
+    val ppOcrScope = rememberCoroutineScope()
+    var ppOcrInstalled by remember { mutableStateOf(DesktopPPOcr.isInstalled(settings)) }
+    var ppOcrDownloading by remember { mutableStateOf(false) }
+    // Only a download in progress or a failure is kept here. The idle line is derived when it is
+    // drawn: storing it meant it stayed in the language the screen opened in (found in the R53 E2E).
+    var ppOcrMessage by remember { mutableStateOf<String?>(null) }
+    fun startPpOcrDownload() {
+        ppOcrDownloading = true
+        ppOcrMessage = DesktopStrings.ppOcrDownloading(0)
+        ppOcrScope.launch {
+            try {
+                PPOcrModelDownloader(DesktopPPOcr.store(settings)).downloadModels { _, read, total ->
+                    val percent = if (total > 0) ((read * 100) / total).toInt() else 0
+                    ppOcrMessage = DesktopStrings.ppOcrDownloading(percent)
+                }
+                // The files on disk changed: an engine built from a missing or partial set must
+                // not answer for them.
+                DesktopPPOcr.close()
+                ppOcrInstalled = DesktopPPOcr.isInstalled(settings)
+                ppOcrMessage = null
+            } catch (t: Throwable) {
+                ppOcrMessage = DesktopStrings.ppOcrDownloadFailed +
+                    (t.message ?: t.javaClass.simpleName.orEmpty())
+            } finally {
+                ppOcrDownloading = false
+            }
+        }
+    }
+
+    // The dictionary folder is set in one tab and listed in another, so both follow one state.
+    var customDictDir by remember { mutableStateOf(settings.dictDirectory().absolutePath) }
+    val installedDictTitles = remember(customDictDir) {
+        DesktopDictLoader.installedTitles(settings.dictDirectory())
+    }
+    // R47f: the two filters offer the dictionaries in the configured priority order (and leave the
+    // disabled ones out, since they cannot answer). The count above stays on the whole folder.
+    val dictionaryChoices = remember(customDictDir) { DesktopDictLoader.installedTitles(settings) }
+    val installedDictCount = installedDictTitles.size
+
+    // Version + notes of the release the user asked to read; null closes the preview window.
+    var releaseNotesPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showLicense by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        SettingsTopBar(settings = settings, onHelpRequested = onHelpRequested)
+        SettingsTabRow(selected = selectedTab, onSelect = onTabSelected)
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (selectedTab) {
+                SettingsTab.GENERAL -> GeneralTab(
+                    settings = settings,
+                    rendererAfterCrash = rendererAfterCrash,
+                    trayStatus = trayStatus,
+                    linuxIntegrationStatus = linuxIntegrationStatus,
+                    onInstallLinuxIntegration = onInstallLinuxIntegration,
+                    kdeCapturePermission = kdeCapturePermission,
+                    kdeCapturePermissionNote = kdeCapturePermissionNote,
+                    onKdeCapturePermissionChange = onKdeCapturePermissionChange,
+                    onThemeChanged = onThemeChanged,
+                )
+
+                SettingsTab.SHORTCUTS -> ShortcutsTab(
+                    settings = settings,
+                    hotkeyBackendStatus = hotkeyBackendStatus,
+                    onHotkeysChanged = onHotkeysChanged,
+                )
+
+                SettingsTab.READING -> ReadingTab(
+                    settings = settings,
+                    hoverActive = hoverActive,
+                    hoverStatus = hoverStatus,
+                    onHoverToggle = onHoverToggle,
+                    onHoverRestChanged = onHoverRestChanged,
+                    dictionaryChoices = dictionaryChoices,
+                    ppOcrInstalled = ppOcrInstalled,
+                    ppOcrDownloading = ppOcrDownloading,
+                    ppOcrMessage = ppOcrMessage,
+                    onPpOcrDownload = { startPpOcrDownload() },
+                )
+
+                SettingsTab.DICTIONARIES -> DictionariesTab(
+                    settings = settings,
+                    customDictDir = customDictDir,
+                    onCustomDictDirChange = { customDictDir = it },
+                    dictionaryChoices = dictionaryChoices,
+                    installedDictCount = installedDictCount,
+                    onManageDictionariesRequested = onManageDictionariesRequested,
+                )
+
+                SettingsTab.ABOUT -> AboutTab(
+                    settings = settings,
+                    onShowReleaseNotes = { info -> releaseNotesPreview = info.latestVersion to info.releaseNotes },
+                    onShowLicense = { showLicense = true },
+                )
+            }
+        }
+    }
+
+    if (showLicense) {
+        LicenseWindow(onClose = { showLicense = false })
+    }
+
+    // Outside the lazy list so scrolling the card away cannot close the preview.
+    val notes = releaseNotesPreview
+    if (notes != null) {
+        ReleaseNotesWindow(
+            version = notes.first,
+            notes = notes.second,
+            onClose = { releaseNotesPreview = null },
+        )
+    }
+}
+
+/**
+ * The header every tab shares: the title, the language picker and the manual.
+ *
+ * The language used to be a card in the middle of the settings, and the manual was a window of its
+ * own. Both are one click away from any tab now (R53).
+ */
+@Composable
+private fun SettingsTopBar(settings: DesktopSettings, onHelpRequested: () -> Unit) {
+    Surface(color = MaterialTheme.colors.surface, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = DesktopStrings.appTitle,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.h5.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colors.onBackground,
+                )
+                LanguageMenu(settings = settings)
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(onClick = onHelpRequested) {
+                    Text(DesktopStrings.btnHelp)
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = DesktopStrings.heroSubtitle,
+                style = MaterialTheme.typography.body2.copy(lineHeight = 19.sp),
+                color = MaterialTheme.colors.secondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * The interface language, one click from every tab.
+ *
+ * «System default» stays a choice: the button shows the language in effect, and the menu marks what
+ * is stored, so the two never disagree.
+ */
+@Composable
+private fun LanguageMenu(settings: DesktopSettings) {
+    var appLang by remember { mutableStateOf(settings.appLanguage) }
+    var expanded by remember { mutableStateOf(false) }
+    val currentLabel = when (appLang) {
+        DesktopLanguageChoice.PT_BR -> DesktopStrings.langPtBr
+        DesktopLanguageChoice.EN_US -> DesktopStrings.langEnUs
+        DesktopLanguageChoice.SYSTEM ->
+            if (DesktopStrings.isEnglish) DesktopStrings.langEnUs else DesktopStrings.langPtBr
+    }
+
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface),
+        ) {
+            Text("🌐 $currentLabel")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            Text(
+                text = DesktopStrings.chooseLanguageDesc,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.caption,
+                color = MaterialTheme.colors.secondary,
+            )
+            val options = listOf(
+                Triple(DesktopLanguageChoice.SYSTEM, DesktopStrings.langSystem, DesktopStrings.langSystemDesc),
+                Triple(DesktopLanguageChoice.PT_BR, DesktopStrings.langPtBr, DesktopStrings.langPtBrDesc),
+                Triple(DesktopLanguageChoice.EN_US, DesktopStrings.langEnUs, DesktopStrings.langEnUsDesc),
+            )
+            options.forEach { (choice, label, description) ->
+                DropdownMenuItem(onClick = {
+                    appLang = choice
+                    settings.appLanguage = choice
+                    // Every screen reads DesktopStrings, which is Compose state: the whole window
+                    // follows the new language without a restart.
+                    DesktopStrings.updateLanguage(choice)
+                    expanded = false
+                }) {
+                    Column {
+                        Text(
+                            text = if (appLang == choice) "✓ $label" else label,
+                            style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
+                        )
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.caption,
+                            color = MaterialTheme.colors.secondary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The tab strip. Five destinations, each named after what the user is looking for. */
+@Composable
+private fun SettingsTabRow(selected: SettingsTab, onSelect: (SettingsTab) -> Unit) {
+    TabRow(
+        selectedTabIndex = selected.ordinal,
+        backgroundColor = MaterialTheme.colors.surface,
+        contentColor = MaterialTheme.colors.primary,
+    ) {
+        SettingsTab.entries.forEach { tab ->
+            Tab(
+                selected = selected == tab,
+                onClick = { onSelect(tab) },
+                text = {
+                    Text(
+                        text = settingsTabLabel(tab),
+                        // 14sp, not the 16sp Material gives tabs: «OCR e Dicionários» is the longest
+                        // name and it has to fit in a fifth of the window without wrapping.
+                        style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.SemiBold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+            )
+        }
+    }
+}
+
+/** The scrolling body every tab shares: same padding, same spacing, same scrollbar. */
+@Composable
+private fun TabColumn(content: LazyListScope.() -> Unit) {
+    ScrollableLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun GeneralTab(
+    settings: DesktopSettings,
+    rendererAfterCrash: SkikoRenderer?,
+    trayStatus: String,
+    linuxIntegrationStatus: String,
+    onInstallLinuxIntegration: (() -> Unit)?,
+    kdeCapturePermission: Boolean,
+    kdeCapturePermissionNote: String,
+    onKdeCapturePermissionChange: ((Boolean) -> Unit)?,
+    onThemeChanged: (Boolean) -> Unit,
 ) {
     val palette = yabaiPalette()
     var darkTheme by remember { mutableStateOf(settings.darkTheme) }
-
-    var globalHotkey by remember { mutableStateOf(settings.globalHotkey) }
-    var regionHotkey by remember { mutableStateOf(settings.regionHotkey) }
-    var quickDictHotkey by remember { mutableStateOf(settings.quickDictHotkey) }
-    var hoverHotkey by remember { mutableStateOf(settings.hoverHotkey) }
-    var hoverCycleHotkey by remember { mutableStateOf(settings.hoverCycleHotkey) }
-
-    var isCapturingHotkey by remember { mutableStateOf(false) }
-    var isCapturingRegionHotkey by remember { mutableStateOf(false) }
-    var isCapturingQuickDictHotkey by remember { mutableStateOf(false) }
-    var isCapturingHoverHotkey by remember { mutableStateOf(false) }
-    var isCapturingHoverCycleHotkey by remember { mutableStateOf(false) }
-
-    val hotkeyFocusRequester = remember { FocusRequester() }
-    val regionHotkeyFocusRequester = remember { FocusRequester() }
-    val quickDictFocusRequester = remember { FocusRequester() }
-    val hoverHotkeyFocusRequester = remember { FocusRequester() }
-    val hoverCycleHotkeyFocusRequester = remember { FocusRequester() }
-
-    fun notifyHotkeysChanged() {
-        onHotkeysChanged(globalHotkey, regionHotkey, quickDictHotkey, hoverHotkey, hoverCycleHotkey)
-    }
-
-    var engineChoice by remember { mutableStateOf(settings.engine) }
-    var enginePriority by remember { mutableStateOf(settings.enginePriorityList) }
+    var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
+    var closeToTray by remember { mutableStateOf(settings.closeToTray) }
     // Skiko picks the renderer while the process loads, so this choice is for the next start.
     var rendererChoice by remember { mutableStateOf(settings.skikoRenderer) }
     // On Linux the card offers one switch instead of a radio list: software on, graphics card off.
     // The stored `opengl`/`automatic` both mean «graphics card» there, so both leave it off (D83).
     var softwareRendering by remember { mutableStateOf(softwareSwitchOn(settings.skikoRenderer)) }
-
-    // PP-OCR install state: the models are ~23 MB and are not shipped with the app.
-    val ppOcrScope = rememberCoroutineScope()
-    var ppOcrInstalled by remember { mutableStateOf(DesktopPPOcr.isInstalled(settings)) }
-    var ppOcrDownloading by remember { mutableStateOf(false) }
-    var ppOcrStatus by remember {
-        mutableStateOf(
-            if (DesktopPPOcr.isInstalled(settings)) DesktopStrings.ppOcrInstalled
-            else DesktopStrings.ppOcrNotInstalled,
-        )
-    }
-    var autoCopy by remember { mutableStateOf(settings.autoCopy) }
-    var checkUpdatesOnStart by remember { mutableStateOf(settings.checkUpdatesOnStart) }
-    // Version + notes of the release the user asked to read; null closes the preview window.
-    var releaseNotesPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var showLicense by remember { mutableStateOf(false) }
-    var showHelp by remember { mutableStateOf(false) }
-    var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
-    var closeToTray by remember { mutableStateOf(settings.closeToTray) }
-    var showSegments by remember { mutableStateOf(settings.showSegments) }
-    var upscaleSmall by remember { mutableStateOf(settings.upscaleSmall) }
-    var showImage by remember { mutableStateOf(settings.showImage) }
-    var furiganaInParentheses by remember { mutableStateOf(settings.furiganaInParentheses) }
-    var showFurigana by remember { mutableStateOf(settings.showFurigana) }
-    var pickerReading by remember { mutableStateOf(settings.pickerReading) }
-
     var captureMonitor by remember { mutableStateOf(settings.captureMonitor) }
     var expandedCaptureMonitor by remember { mutableStateOf(false) }
     // Read once: the settings window is not the place to poll the compositor, and the list only
     // changes when a monitor is plugged or unplugged.
     val captureDisplayList = remember { ScreenCapture.displays() }
 
-    var dictionaryLookup by remember { mutableStateOf(settings.dictionaryLookup) }
-    var dictionaryFilter by remember { mutableStateOf(settings.dictionaryFilter) }
-    var hoverDictionaryFilter by remember { mutableStateOf(settings.hoverDictionaryFilter) }
-    var hoverRestMillis by remember { mutableStateOf(settings.hoverRestMillis) }
-    var dictionaryKeepLastSearch by remember { mutableStateOf(settings.dictionaryKeepLastSearch) }
-    var stripSearchReadings by remember { mutableStateOf(settings.stripSearchReadings) }
-    var dictionaryUpdateInterval by remember { mutableStateOf(settings.dictionaryUpdateInterval) }
-    var customDictDir by remember { mutableStateOf(settings.dictDirectory().absolutePath) }
-
-    var translateSentence by remember { mutableStateOf(settings.translateSentence) }
-    var translateTarget by remember { mutableStateOf(settings.translateTarget) }
-
-    var showAiButton by remember { mutableStateOf(settings.showAiButton) }
-    var aiPrompt by remember { mutableStateOf(settings.aiPrompt) }
-    var aiProvider by remember { mutableStateOf(settings.aiProvider) }
-    var aiCustomUrl by remember { mutableStateOf(settings.aiCustomUrl) }
-
-    val installedDictTitles = remember(customDictDir) {
-        DesktopDictLoader.installedTitles(settings.dictDirectory())
-    }
-
-    // R47f: the two filters offer the dictionaries in the configured priority order (and leave the
-    // disabled ones out, since they cannot answer). The count above stays on the whole folder.
-    val dictionaryChoices = remember(customDictDir) { DesktopDictLoader.installedTitles(settings) }
-
-    val installedDictCount = installedDictTitles.size
-
-    ScrollableLazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        // --- Header ---
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = DesktopStrings.appTitle,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.h4.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colors.onBackground
-                )
-                OutlinedButton(onClick = { showHelp = true }) {
-                    Text(DesktopStrings.btnHelp)
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = DesktopStrings.heroSubtitle,
-                style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
-                color = MaterialTheme.colors.secondary
-            )
-        }
-
+    TabColumn {
         // --- Aparência e Tema ---
         item {
             SettingCard(title = DesktopStrings.sectionAppearance) {
@@ -222,62 +419,304 @@ fun SettingsContent(
             }
         }
 
-        // --- Idioma da Interface ---
+        // --- Renderizador gráfico ---
         item {
-            var appLang by remember { mutableStateOf(settings.appLanguage) }
-            SettingCard(title = DesktopStrings.sectionLanguage) {
+            SettingCard(title = DesktopStrings.sectionRenderer) {
                 Text(
-                    text = DesktopStrings.chooseLanguageDesc,
+                    text = DesktopStrings.rendererSubtitle,
+                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (DesktopPlatform.isLinux) {
+                    // «Automatic» and «OpenGL» are the same renderer on Linux, so a radio list was
+                    // a choice that does not exist — and one loose radio showed up unselected while
+                    // the stored default was Automatic. A switch states the one real decision.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val on = !softwareRendering
+                                softwareRendering = on
+                                val level = rendererAfterSoftwareSwitch(on, settings.skikoRenderer)
+                                rendererChoice = level
+                                settings.skikoRenderer = level
+                            }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Switch(
+                            checked = softwareRendering,
+                            onCheckedChange = { on ->
+                                softwareRendering = on
+                                val level = rendererAfterSoftwareSwitch(on, settings.skikoRenderer)
+                                rendererChoice = level
+                                settings.skikoRenderer = level
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colors.onPrimary,
+                                checkedTrackColor = MaterialTheme.colors.primary,
+                                uncheckedThumbColor = if (MaterialTheme.colors.isLight) Color(0xFFB0B5C0) else Color(0xFF43485A),
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = DesktopStrings.rendererSoftwareToggle,
+                                style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colors.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = DesktopStrings.rendererSoftwareToggleDesc,
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.secondary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = DesktopStrings.rendererLinuxNote,
+                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                        color = MaterialTheme.colors.secondary
+                    )
+                } else {
+                    SkikoRenderer.entries.forEach { level ->
+                        SettingRadioOption(
+                            selected = rendererChoice == level,
+                            title = DesktopStrings.rendererName(level),
+                            description = DesktopStrings.rendererDescription(level),
+                            onClick = {
+                                rendererChoice = level
+                                settings.skikoRenderer = level
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = DesktopStrings.rendererRestartNote,
                     style = MaterialTheme.typography.caption,
                     color = MaterialTheme.colors.secondary
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SettingRadioOption(
-                        selected = appLang == DesktopLanguageChoice.SYSTEM,
-                        title = DesktopStrings.langSystem,
-                        description = DesktopStrings.langSystemDesc,
-                        onClick = {
-                            if (appLang != DesktopLanguageChoice.SYSTEM) {
-                                appLang = DesktopLanguageChoice.SYSTEM
-                                settings.appLanguage = DesktopLanguageChoice.SYSTEM
-                                DesktopStrings.updateLanguage(DesktopLanguageChoice.SYSTEM)
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    SettingRadioOption(
-                        selected = appLang == DesktopLanguageChoice.PT_BR,
-                        title = DesktopStrings.langPtBr,
-                        description = DesktopStrings.langPtBrDesc,
-                        onClick = {
-                            if (appLang != DesktopLanguageChoice.PT_BR) {
-                                appLang = DesktopLanguageChoice.PT_BR
-                                settings.appLanguage = DesktopLanguageChoice.PT_BR
-                                DesktopStrings.updateLanguage(DesktopLanguageChoice.PT_BR)
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    SettingRadioOption(
-                        selected = appLang == DesktopLanguageChoice.EN_US,
-                        title = DesktopStrings.langEnUs,
-                        description = DesktopStrings.langEnUsDesc,
-                        onClick = {
-                            if (appLang != DesktopLanguageChoice.EN_US) {
-                                appLang = DesktopLanguageChoice.EN_US
-                                settings.appLanguage = DesktopLanguageChoice.EN_US
-                                DesktopStrings.updateLanguage(DesktopLanguageChoice.EN_US)
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
+                if (rendererAfterCrash != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = DesktopStrings.rendererAfterCrash(
+                            DesktopStrings.rendererName(rendererAfterCrash),
+                            linux = DesktopPlatform.isLinux,
+                        ),
+                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                        color = yabaiPalette().danger
                     )
                 }
             }
         }
 
+        // --- Captura de Tela: qual monitor ---
+        item {
+            SettingCard(title = DesktopStrings.sectionCapture) {
+                Text(
+                    text = DesktopStrings.captureMonitorDesc,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expandedCaptureMonitor = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
+                    ) {
+                        Text(
+                            captureMonitorLabel(
+                                preference = captureMonitor,
+                                displays = captureDisplayList,
+                                primaryLabel = DesktopStrings.captureMonitorPrimary,
+                                mouseLabel = DesktopStrings.captureMonitorMouse,
+                            )
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = expandedCaptureMonitor,
+                        onDismissRequest = { expandedCaptureMonitor = false }
+                    ) {
+                        DropdownMenuItem(onClick = {
+                            captureMonitor = CAPTURE_MONITOR_PRIMARY
+                            settings.captureMonitor = CAPTURE_MONITOR_PRIMARY
+                            expandedCaptureMonitor = false
+                        }) {
+                            Text(DesktopStrings.captureMonitorPrimary)
+                        }
+                        DropdownMenuItem(onClick = {
+                            captureMonitor = CAPTURE_MONITOR_MOUSE
+                            settings.captureMonitor = CAPTURE_MONITOR_MOUSE
+                            expandedCaptureMonitor = false
+                        }) {
+                            Text(DesktopStrings.captureMonitorMouse)
+                        }
+                        captureDisplayList.forEach { display ->
+                            val value = captureMonitorDisplayPreference(display.index)
+                            DropdownMenuItem(onClick = {
+                                captureMonitor = value
+                                settings.captureMonitor = value
+                                expandedCaptureMonitor = false
+                            }) {
+                                Text(
+                                    DesktopStrings.captureMonitorDisplay(
+                                        display.label,
+                                        display.bounds.width,
+                                        display.bounds.height,
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = DesktopStrings.captureMonitorHint,
+                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                    color = MaterialTheme.colors.secondary
+                )
+            }
+        }
+
+        // --- Inicialização e Comportamento do Sistema ---
+        item {
+            SettingCard(title = DesktopStrings.sectionStartup) {
+                SettingCheckboxItem(
+                    checked = startOnBoot,
+                    title = DesktopStrings.startOnBoot,
+                    description = DesktopStrings.startOnBootDesc,
+                    onCheckedChange = {
+                        startOnBoot = it
+                        settings.startOnBoot = it
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                SettingCheckboxItem(
+                    checked = closeToTray,
+                    title = DesktopStrings.closeToTray,
+                    description = DesktopStrings.closeToTrayDesc,
+                    onCheckedChange = {
+                        closeToTray = it
+                        settings.closeToTray = it
+                    }
+                )
+
+                if (trayStatus.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = trayStatus,
+                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
+                        color = palette.warning
+                    )
+                }
+            }
+        }
+
+        // --- Integração com o Linux ---
+        if (onInstallLinuxIntegration != null) {
+            item {
+                SettingCard(title = DesktopStrings.sectionLinuxIntegration) {
+                    Text(
+                        text = linuxIntegrationStatus.ifBlank {
+                            DesktopStrings.linuxIntegrationDesc
+                        },
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.secondary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onInstallLinuxIntegration,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = palette.button,
+                            contentColor = MaterialTheme.colors.onPrimary
+                        )
+                    ) {
+                        Text(DesktopStrings.btnIntegrateSystem)
+                    }
+                }
+            }
+        }
+
+        // --- Captura silenciosa no KDE Wayland ---
+        // KWin refuses ScreenShot2 to a caller installed under ~/.local or /tmp, and an AppImage
+        // always runs from /tmp/.mount_*: this switch is the only way for hover to capture without
+        // a permission dialog on every read.
+        if (onKdeCapturePermissionChange != null) {
+            item {
+                SettingCard(title = DesktopStrings.kdeCapturePermissionTitle) {
+                    Text(
+                        text = DesktopStrings.kdeCapturePermissionDesc,
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.secondary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingCheckboxItem(
+                        checked = kdeCapturePermission,
+                        title = DesktopStrings.kdeCapturePermissionToggle,
+                        description = DesktopStrings.kdeCapturePermissionHint,
+                        onCheckedChange = onKdeCapturePermissionChange
+                    )
+                    val note = kdeCapturePermissionNote
+                    if (note.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = note,
+                            style = MaterialTheme.typography.caption,
+                            color = palette.info
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShortcutsTab(
+    settings: DesktopSettings,
+    hotkeyBackendStatus: String,
+    onHotkeysChanged: (
+        fullScreen: String,
+        region: String,
+        quickDict: String,
+        hover: String,
+        hoverCycle: String,
+    ) -> Unit,
+) {
+    val palette = yabaiPalette()
+    var globalHotkey by remember { mutableStateOf(settings.globalHotkey) }
+    var regionHotkey by remember { mutableStateOf(settings.regionHotkey) }
+    var quickDictHotkey by remember { mutableStateOf(settings.quickDictHotkey) }
+    var hoverHotkey by remember { mutableStateOf(settings.hoverHotkey) }
+    var hoverCycleHotkey by remember { mutableStateOf(settings.hoverCycleHotkey) }
+
+    var isCapturingHotkey by remember { mutableStateOf(false) }
+    var isCapturingRegionHotkey by remember { mutableStateOf(false) }
+    var isCapturingQuickDictHotkey by remember { mutableStateOf(false) }
+    var isCapturingHoverHotkey by remember { mutableStateOf(false) }
+    var isCapturingHoverCycleHotkey by remember { mutableStateOf(false) }
+
+    val hotkeyFocusRequester = remember { FocusRequester() }
+    val regionHotkeyFocusRequester = remember { FocusRequester() }
+    val quickDictFocusRequester = remember { FocusRequester() }
+    val hoverHotkeyFocusRequester = remember { FocusRequester() }
+    val hoverCycleHotkeyFocusRequester = remember { FocusRequester() }
+
+    fun notifyHotkeysChanged() {
+        onHotkeysChanged(globalHotkey, regionHotkey, quickDictHotkey, hoverHotkey, hoverCycleHotkey)
+    }
+
+    TabColumn {
         // --- Atalhos Globais ---
         item {
             SettingCard(title = DesktopStrings.sectionHotkeys) {
@@ -774,96 +1213,178 @@ fun SettingsContent(
                 }
             }
         }
+    }
+}
 
-        // --- Integração com o Linux ---
-        if (onInstallLinuxIntegration != null) {
-            item {
-                SettingCard(title = DesktopStrings.sectionLinuxIntegration) {
-                    Text(
-                        text = linuxIntegrationStatus.ifBlank {
-                            DesktopStrings.linuxIntegrationDesc
-                        },
-                        style = MaterialTheme.typography.caption,
-                        color = MaterialTheme.colors.secondary
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = onInstallLinuxIntegration,
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = palette.button,
-                            contentColor = MaterialTheme.colors.onPrimary
-                        )
-                    ) {
-                        Text(DesktopStrings.btnIntegrateSystem)
-                    }
-                }
-            }
-        }
+@Composable
+private fun ReadingTab(
+    settings: DesktopSettings,
+    hoverActive: Boolean,
+    hoverStatus: String,
+    onHoverToggle: () -> Unit,
+    onHoverRestChanged: (Long) -> Unit,
+    dictionaryChoices: List<String>,
+    ppOcrInstalled: Boolean,
+    ppOcrDownloading: Boolean,
+    ppOcrMessage: String?,
+    onPpOcrDownload: () -> Unit,
+) {
+    val palette = yabaiPalette()
+    var engineChoice by remember { mutableStateOf(settings.engine) }
+    var enginePriority by remember { mutableStateOf(settings.enginePriorityList) }
+    var hoverDictionaryFilter by remember { mutableStateOf(settings.hoverDictionaryFilter) }
+    var hoverRestMillis by remember { mutableStateOf(settings.hoverRestMillis) }
+    var autoCopy by remember { mutableStateOf(settings.autoCopy) }
+    var showSegments by remember { mutableStateOf(settings.showSegments) }
+    var upscaleSmall by remember { mutableStateOf(settings.upscaleSmall) }
+    var showImage by remember { mutableStateOf(settings.showImage) }
+    var furiganaInParentheses by remember { mutableStateOf(settings.furiganaInParentheses) }
+    var showFurigana by remember { mutableStateOf(settings.showFurigana) }
+    var pickerReading by remember { mutableStateOf(settings.pickerReading) }
+    var translateSentence by remember { mutableStateOf(settings.translateSentence) }
+    var translateTarget by remember { mutableStateOf(settings.translateTarget) }
+    var showAiButton by remember { mutableStateOf(settings.showAiButton) }
+    var aiPrompt by remember { mutableStateOf(settings.aiPrompt) }
+    var aiProvider by remember { mutableStateOf(settings.aiProvider) }
+    var aiCustomUrl by remember { mutableStateOf(settings.aiCustomUrl) }
 
-        // --- Captura silenciosa no KDE Wayland ---
-        // KWin refuses ScreenShot2 to a caller installed under ~/.local or /tmp, and an AppImage
-        // always runs from /tmp/.mount_*: this switch is the only way for hover to capture without
-        // a permission dialog on every read.
-        if (onKdeCapturePermissionChange != null) {
-            item {
-                SettingCard(title = DesktopStrings.kdeCapturePermissionTitle) {
-                    Text(
-                        text = DesktopStrings.kdeCapturePermissionDesc,
-                        style = MaterialTheme.typography.caption,
-                        color = MaterialTheme.colors.secondary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingCheckboxItem(
-                        checked = kdeCapturePermission,
-                        title = DesktopStrings.kdeCapturePermissionToggle,
-                        description = DesktopStrings.kdeCapturePermissionHint,
-                        onCheckedChange = onKdeCapturePermissionChange
-                    )
-                    val note = kdeCapturePermissionNote
-                    if (note.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = note,
-                            style = MaterialTheme.typography.caption,
-                            color = palette.info
-                        )
-                    }
-                }
-            }
-        }
-
-        // --- Inicialização e Comportamento do Sistema ---
+    TabColumn {
+        // --- Motor de Reconhecimento ---
         item {
-            SettingCard(title = DesktopStrings.sectionStartup) {
-                SettingCheckboxItem(
-                    checked = startOnBoot,
-                    title = DesktopStrings.startOnBoot,
-                    description = DesktopStrings.startOnBootDesc,
-                    onCheckedChange = {
-                        startOnBoot = it
-                        settings.startOnBoot = it
+            SettingCard(title = DesktopStrings.sectionEngine) {
+                Text(
+                    text = DesktopStrings.engineSubtitle,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                SettingRadioOption(
+                    selected = engineChoice == DesktopEngineChoice.AUTO,
+                    title = DesktopStrings.engineAuto,
+                    description = DesktopStrings.engineAutoDesc,
+                    onClick = {
+                        engineChoice = DesktopEngineChoice.AUTO
+                        settings.engine = DesktopEngineChoice.AUTO
                     }
                 )
 
+                SettingRadioOption(
+                    selected = engineChoice == DesktopEngineChoice.PP_OCR,
+                    title = DesktopStrings.enginePpOcr,
+                    description = DesktopStrings.enginePpOcrDesc,
+                    onClick = {
+                        engineChoice = DesktopEngineChoice.PP_OCR
+                        settings.engine = DesktopEngineChoice.PP_OCR
+                    }
+                )
+
+                // The offline engine needs 23 MB of models that are not shipped with the app; the
+                // choice is only usable once they are on disk, so the download lives right here.
+                Row(
+                    modifier = Modifier.padding(start = 34.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (!ppOcrInstalled) {
+                        OutlinedButton(
+                            enabled = !ppOcrDownloading,
+                            onClick = onPpOcrDownload
+                        ) {
+                            Text(DesktopStrings.ppOcrDownload)
+                        }
+                    }
+                    Text(
+                        text = ppOcrInstallLine(ppOcrInstalled, ppOcrMessage),
+                        style = MaterialTheme.typography.caption,
+                        color = if (ppOcrInstalled) MaterialTheme.colors.secondary else MaterialTheme.colors.error
+                    )
+                }
+
+                SettingRadioOption(
+                    selected = engineChoice == DesktopEngineChoice.LENS,
+                    title = DesktopStrings.engineLens,
+                    description = DesktopStrings.engineLensDesc,
+                    onClick = {
+                        engineChoice = DesktopEngineChoice.LENS
+                        settings.engine = DesktopEngineChoice.LENS
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Divider(color = palette.fieldBorder)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = DesktopStrings.enginePriorityTitle,
+                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colors.onSurface
+                )
+                Text(
+                    text = DesktopStrings.enginePriorityDesc,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                SettingCheckboxItem(
-                    checked = closeToTray,
-                    title = DesktopStrings.closeToTray,
-                    description = DesktopStrings.closeToTrayDesc,
-                    onCheckedChange = {
-                        closeToTray = it
-                        settings.closeToTray = it
+                enginePriority.forEachIndexed { index, choice ->
+                    val label = when (choice) {
+                        DesktopEngineChoice.PP_OCR -> if (DesktopStrings.isEnglish) "PP-OCRv6 (Offline - Manga AI)" else "PP-OCRv6 (Offline - IA Mangá)"
+                        DesktopEngineChoice.LENS -> if (DesktopStrings.isEnglish) "Google Lens (Online)" else "Google Lens (Online)"
+                        else -> choice.name
                     }
-                )
-
-                if (trayStatus.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = trayStatus,
-                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
-                        color = palette.warning
-                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        backgroundColor = palette.field,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${index + 1}º  $label",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colors.onSurface
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (index > 0) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val list = enginePriority.toMutableList()
+                                            val tmp = list[index]
+                                            list[index] = list[index - 1]
+                                            list[index - 1] = tmp
+                                            enginePriority = list
+                                            settings.enginePriorityList = list
+                                        },
+                                        modifier = Modifier.height(30.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                    ) {
+                                        Text(DesktopStrings.btnMoveUp, fontSize = 11.sp)
+                                    }
+                                }
+                                if (index < enginePriority.size - 1) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val list = enginePriority.toMutableList()
+                                            val tmp = list[index]
+                                            list[index] = list[index + 1]
+                                            list[index + 1] = tmp
+                                            enginePriority = list
+                                            settings.enginePriorityList = list
+                                        },
+                                        modifier = Modifier.height(30.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                    ) {
+                                        Text(DesktopStrings.btnMoveDown, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -990,7 +1511,7 @@ fun SettingsContent(
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = DesktopStrings.hoverShortcutsNotice(hoverHotkey, hoverCycleHotkey),
+                    text = DesktopStrings.hoverShortcutsNotice(settings.hoverHotkey, settings.hoverCycleHotkey),
                     style = MaterialTheme.typography.caption,
                     color = palette.info
                 )
@@ -1002,338 +1523,6 @@ fun SettingsContent(
                         style = MaterialTheme.typography.caption,
                         color = palette.warning
                     )
-                }
-            }
-        }
-
-        // --- Captura de Tela: qual monitor ---
-        item {
-            SettingCard(title = DesktopStrings.sectionCapture) {
-                Text(
-                    text = DesktopStrings.captureMonitorDesc,
-                    style = MaterialTheme.typography.caption,
-                    color = MaterialTheme.colors.secondary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { expandedCaptureMonitor = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
-                    ) {
-                        Text(
-                            captureMonitorLabel(
-                                preference = captureMonitor,
-                                displays = captureDisplayList,
-                                primaryLabel = DesktopStrings.captureMonitorPrimary,
-                                mouseLabel = DesktopStrings.captureMonitorMouse,
-                            )
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = expandedCaptureMonitor,
-                        onDismissRequest = { expandedCaptureMonitor = false }
-                    ) {
-                        DropdownMenuItem(onClick = {
-                            captureMonitor = CAPTURE_MONITOR_PRIMARY
-                            settings.captureMonitor = CAPTURE_MONITOR_PRIMARY
-                            expandedCaptureMonitor = false
-                        }) {
-                            Text(DesktopStrings.captureMonitorPrimary)
-                        }
-                        DropdownMenuItem(onClick = {
-                            captureMonitor = CAPTURE_MONITOR_MOUSE
-                            settings.captureMonitor = CAPTURE_MONITOR_MOUSE
-                            expandedCaptureMonitor = false
-                        }) {
-                            Text(DesktopStrings.captureMonitorMouse)
-                        }
-                        captureDisplayList.forEach { display ->
-                            val value = captureMonitorDisplayPreference(display.index)
-                            DropdownMenuItem(onClick = {
-                                captureMonitor = value
-                                settings.captureMonitor = value
-                                expandedCaptureMonitor = false
-                            }) {
-                                Text(
-                                    DesktopStrings.captureMonitorDisplay(
-                                        display.label,
-                                        display.bounds.width,
-                                        display.bounds.height,
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = DesktopStrings.captureMonitorHint,
-                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
-                    color = MaterialTheme.colors.secondary
-                )
-            }
-        }
-
-        // --- Renderizador gráfico ---
-        item {
-            SettingCard(title = DesktopStrings.sectionRenderer) {
-                Text(
-                    text = DesktopStrings.rendererSubtitle,
-                    style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
-                    color = MaterialTheme.colors.secondary
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                if (DesktopPlatform.isLinux) {
-                    // «Automatic» and «OpenGL» are the same renderer on Linux, so a radio list was
-                    // a choice that does not exist — and one loose radio showed up unselected while
-                    // the stored default was Automatic. A switch states the one real decision.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                val on = !softwareRendering
-                                softwareRendering = on
-                                val level = rendererAfterSoftwareSwitch(on, settings.skikoRenderer)
-                                rendererChoice = level
-                                settings.skikoRenderer = level
-                            }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Switch(
-                            checked = softwareRendering,
-                            onCheckedChange = { on ->
-                                softwareRendering = on
-                                val level = rendererAfterSoftwareSwitch(on, settings.skikoRenderer)
-                                rendererChoice = level
-                                settings.skikoRenderer = level
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = MaterialTheme.colors.onPrimary,
-                                checkedTrackColor = MaterialTheme.colors.primary,
-                                uncheckedThumbColor = if (MaterialTheme.colors.isLight) Color(0xFFB0B5C0) else Color(0xFF43485A),
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = DesktopStrings.rendererSoftwareToggle,
-                                style = MaterialTheme.typography.body1.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colors.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = DesktopStrings.rendererSoftwareToggleDesc,
-                                style = MaterialTheme.typography.caption,
-                                color = MaterialTheme.colors.secondary
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = DesktopStrings.rendererLinuxNote,
-                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
-                        color = MaterialTheme.colors.secondary
-                    )
-                } else {
-                    SkikoRenderer.entries.forEach { level ->
-                        SettingRadioOption(
-                            selected = rendererChoice == level,
-                            title = DesktopStrings.rendererName(level),
-                            description = DesktopStrings.rendererDescription(level),
-                            onClick = {
-                                rendererChoice = level
-                                settings.skikoRenderer = level
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = DesktopStrings.rendererRestartNote,
-                    style = MaterialTheme.typography.caption,
-                    color = MaterialTheme.colors.secondary
-                )
-                if (rendererAfterCrash != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = DesktopStrings.rendererAfterCrash(
-                            DesktopStrings.rendererName(rendererAfterCrash),
-                            linux = DesktopPlatform.isLinux,
-                        ),
-                        style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
-                        color = yabaiPalette().danger
-                    )
-                }
-            }
-        }
-
-        // --- Motor de Reconhecimento ---
-        item {
-            SettingCard(title = DesktopStrings.sectionEngine) {
-                Text(
-                    text = DesktopStrings.engineSubtitle,
-                    style = MaterialTheme.typography.caption,
-                    color = MaterialTheme.colors.secondary
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                SettingRadioOption(
-                    selected = engineChoice == DesktopEngineChoice.AUTO,
-                    title = DesktopStrings.engineAuto,
-                    description = DesktopStrings.engineAutoDesc,
-                    onClick = {
-                        engineChoice = DesktopEngineChoice.AUTO
-                        settings.engine = DesktopEngineChoice.AUTO
-                    }
-                )
-
-                SettingRadioOption(
-                    selected = engineChoice == DesktopEngineChoice.PP_OCR,
-                    title = DesktopStrings.enginePpOcr,
-                    description = DesktopStrings.enginePpOcrDesc,
-                    onClick = {
-                        engineChoice = DesktopEngineChoice.PP_OCR
-                        settings.engine = DesktopEngineChoice.PP_OCR
-                    }
-                )
-
-                // The offline engine needs 23 MB of models that are not shipped with the app; the
-                // choice is only usable once they are on disk, so the download lives right here.
-                Row(
-                    modifier = Modifier.padding(start = 34.dp, bottom = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (!ppOcrInstalled) {
-                        OutlinedButton(
-                            enabled = !ppOcrDownloading,
-                            onClick = {
-                                ppOcrDownloading = true
-                                ppOcrStatus = DesktopStrings.ppOcrDownloading(0)
-                                ppOcrScope.launch {
-                                    try {
-                                        PPOcrModelDownloader(DesktopPPOcr.store(settings)).downloadModels { _, read, total ->
-                                            val percent = if (total > 0) ((read * 100) / total).toInt() else 0
-                                            ppOcrStatus = DesktopStrings.ppOcrDownloading(percent)
-                                        }
-                                        // The files on disk changed: an engine built from a missing
-                                        // or partial set must not answer for them.
-                                        DesktopPPOcr.close()
-                                        ppOcrInstalled = DesktopPPOcr.isInstalled(settings)
-                                        ppOcrStatus = if (ppOcrInstalled) {
-                                            DesktopStrings.ppOcrInstalled
-                                        } else {
-                                            DesktopStrings.ppOcrNotInstalled
-                                        }
-                                    } catch (t: Throwable) {
-                                        ppOcrStatus = DesktopStrings.ppOcrDownloadFailed +
-                                            (t.message ?: t.javaClass.simpleName)
-                                    } finally {
-                                        ppOcrDownloading = false
-                                    }
-                                }
-                            }
-                        ) {
-                            Text(DesktopStrings.ppOcrDownload)
-                        }
-                    }
-                    Text(
-                        text = ppOcrStatus,
-                        style = MaterialTheme.typography.caption,
-                        color = if (ppOcrInstalled) MaterialTheme.colors.secondary else MaterialTheme.colors.error
-                    )
-                }
-
-                SettingRadioOption(
-                    selected = engineChoice == DesktopEngineChoice.LENS,
-                    title = DesktopStrings.engineLens,
-                    description = DesktopStrings.engineLensDesc,
-                    onClick = {
-                        engineChoice = DesktopEngineChoice.LENS
-                        settings.engine = DesktopEngineChoice.LENS
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-                Divider(color = palette.fieldBorder)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = DesktopStrings.enginePriorityTitle,
-                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colors.onSurface
-                )
-                Text(
-                    text = DesktopStrings.enginePriorityDesc,
-                    style = MaterialTheme.typography.caption,
-                    color = MaterialTheme.colors.secondary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                enginePriority.forEachIndexed { index, choice ->
-                    val label = when (choice) {
-                        DesktopEngineChoice.PP_OCR -> if (DesktopStrings.isEnglish) "PP-OCRv6 (Offline - Manga AI)" else "PP-OCRv6 (Offline - IA Mangá)"
-                        DesktopEngineChoice.LENS -> if (DesktopStrings.isEnglish) "Google Lens (Online)" else "Google Lens (Online)"
-                        else -> choice.name
-                    }
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                        backgroundColor = palette.field,
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "${index + 1}º  $label",
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colors.onSurface
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                if (index > 0) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            val list = enginePriority.toMutableList()
-                                            val tmp = list[index]
-                                            list[index] = list[index - 1]
-                                            list[index - 1] = tmp
-                                            enginePriority = list
-                                            settings.enginePriorityList = list
-                                        },
-                                        modifier = Modifier.height(30.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                                    ) {
-                                        Text(DesktopStrings.btnMoveUp, fontSize = 11.sp)
-                                    }
-                                }
-                                if (index < enginePriority.size - 1) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            val list = enginePriority.toMutableList()
-                                            val tmp = list[index]
-                                            list[index] = list[index + 1]
-                                            list[index + 1] = tmp
-                                            enginePriority = list
-                                            settings.enginePriorityList = list
-                                        },
-                                        modifier = Modifier.height(30.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                                    ) {
-                                        Text(DesktopStrings.btnMoveDown, fontSize = 11.sp)
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -1438,219 +1627,6 @@ fun SettingsContent(
                         settings.pickerReading = DesktopPickerReadingMode.LABEL
                     }
                 )
-            }
-        }
-
-        // --- Dicionários e Localização da Pasta ---
-        item {
-            SettingCard(title = DesktopStrings.sectionDicts) {
-                SettingCheckboxItem(
-                    checked = dictionaryLookup,
-                    title = DesktopStrings.dictionaryLookup,
-                    description = DesktopStrings.dictionaryLookupDesc,
-                    onCheckedChange = {
-                        dictionaryLookup = it
-                        settings.dictionaryLookup = it
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = DesktopStrings.defaultDictFilter,
-                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colors.onSurface
-                )
-                Text(
-                    text = DesktopStrings.defaultDictFilterDesc,
-                    style = MaterialTheme.typography.caption,
-                    color = MaterialTheme.colors.secondary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                var expandedFilter by remember { mutableStateOf(false) }
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { expandedFilter = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
-                    ) {
-                        Text(if (dictionaryFilter.isBlank()) DesktopStrings.allDictionaries else "📖 $dictionaryFilter")
-                    }
-                    DropdownMenu(
-                        expanded = expandedFilter,
-                        onDismissRequest = { expandedFilter = false }
-                    ) {
-                        DropdownMenuItem(onClick = {
-                            dictionaryFilter = ""
-                            settings.dictionaryFilter = ""
-                            expandedFilter = false
-                        }) {
-                            Text(DesktopStrings.allDictionaries)
-                        }
-                        dictionaryChoices.forEach { title ->
-                            DropdownMenuItem(onClick = {
-                                dictionaryFilter = title
-                                settings.dictionaryFilter = title
-                                expandedFilter = false
-                            }) {
-                                Text("📖 $title")
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = DesktopStrings.dictFolderLocation,
-                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colors.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .background(palette.field, RoundedCornerShape(8.dp))
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = customDictDir,
-                        style = MaterialTheme.typography.body2,
-                        color = MaterialTheme.colors.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = {
-                                val chooser = JFileChooser()
-                                chooser.dialogTitle = DesktopStrings.selectDictFolderDialogTitle
-                                chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-                                val result = chooser.showOpenDialog(null)
-                                if (result == JFileChooser.APPROVE_OPTION) {
-                                    val selected = chooser.selectedFile
-                                    settings.customDictDirectoryPath = selected.absolutePath
-                                    customDictDir = selected.absolutePath
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(backgroundColor = palette.button, contentColor = palette.onButton)
-                        ) {
-                            Text(DesktopStrings.btnChangeFolder)
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                val defaultDir = settings.defaultDictDirectory().absolutePath
-                                settings.customDictDirectoryPath = defaultDir
-                                customDictDir = defaultDir
-                            },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
-                        ) {
-                            Text(DesktopStrings.btnRestoreDefaultFolder)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = palette.field,
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = 0.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (installedDictCount == 0)
-                                    DesktopStrings.dictSummaryNone
-                                else
-                                    DesktopStrings.dictSummaryCount(installedDictCount),
-                                style = MaterialTheme.typography.body2,
-                                color = if (installedDictCount == 0) palette.danger else MaterialTheme.colors.onSurface
-                            )
-                            Text(
-                                text = DesktopStrings.dictSummaryNote,
-                                style = MaterialTheme.typography.caption,
-                                color = MaterialTheme.colors.secondary
-                            )
-                        }
-                        if (onManageDictionariesRequested != null) {
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Button(
-                                onClick = onManageDictionariesRequested,
-                                colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = palette.field,
-                                    contentColor = MaterialTheme.colors.onSurface
-                                )
-                            ) {
-                                Text(DesktopStrings.btnManageDicts)
-                            }
-                        }
-                    }
-                }
-
-                SettingCheckboxItem(
-                    checked = dictionaryKeepLastSearch,
-                    title = DesktopStrings.keepLastSearch,
-                    description = DesktopStrings.keepLastSearchDesc,
-                    onCheckedChange = {
-                        dictionaryKeepLastSearch = it
-                        settings.dictionaryKeepLastSearch = it
-                    }
-                )
-
-                SettingCheckboxItem(
-                    checked = stripSearchReadings,
-                    title = DesktopStrings.stripSearchReadings,
-                    description = DesktopStrings.stripSearchReadingsDesc,
-                    onCheckedChange = {
-                        stripSearchReadings = it
-                        settings.stripSearchReadings = it
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = DesktopStrings.dictUpdateInterval,
-                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colors.onSurface
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DesktopUpdateInterval.entries.forEach { interval ->
-                        val isSelected = dictionaryUpdateInterval == interval
-                        val label = when (interval) {
-                            DesktopUpdateInterval.OFF -> DesktopStrings.updateOff
-                            DesktopUpdateInterval.DAILY -> DesktopStrings.updateDaily
-                            DesktopUpdateInterval.WEEKLY -> DesktopStrings.updateWeekly
-                            DesktopUpdateInterval.MONTHLY -> DesktopStrings.updateMonthly
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                dictionaryUpdateInterval = interval
-                                settings.dictionaryUpdateInterval = interval
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                backgroundColor = if (isSelected) MaterialTheme.colors.primary.copy(alpha = 0.2f) else Color.Transparent,
-                                contentColor = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.secondary
-                            ),
-                            border = ButtonDefaults.outlinedBorder.copy(
-                                brush = androidx.compose.ui.graphics.SolidColor(
-                                    if (isSelected) MaterialTheme.colors.primary else palette.fieldBorder
-                                )
-                            )
-                        ) {
-                            Text(label, fontSize = 11.sp, maxLines = 1)
-                        }
-                    }
-                }
             }
         }
 
@@ -1820,7 +1796,251 @@ fun SettingsContent(
                 )
             }
         }
+    }
+}
 
+@Composable
+private fun DictionariesTab(
+    settings: DesktopSettings,
+    customDictDir: String,
+    onCustomDictDirChange: (String) -> Unit,
+    dictionaryChoices: List<String>,
+    installedDictCount: Int,
+    onManageDictionariesRequested: (() -> Unit)?,
+) {
+    val palette = yabaiPalette()
+    var dictionaryLookup by remember { mutableStateOf(settings.dictionaryLookup) }
+    var dictionaryFilter by remember { mutableStateOf(settings.dictionaryFilter) }
+    var dictionaryKeepLastSearch by remember { mutableStateOf(settings.dictionaryKeepLastSearch) }
+    var stripSearchReadings by remember { mutableStateOf(settings.stripSearchReadings) }
+    var dictionaryUpdateInterval by remember { mutableStateOf(settings.dictionaryUpdateInterval) }
+
+    TabColumn {
+        // --- Dicionários e Localização da Pasta ---
+        item {
+            SettingCard(title = DesktopStrings.sectionDicts) {
+                SettingCheckboxItem(
+                    checked = dictionaryLookup,
+                    title = DesktopStrings.dictionaryLookup,
+                    description = DesktopStrings.dictionaryLookupDesc,
+                    onCheckedChange = {
+                        dictionaryLookup = it
+                        settings.dictionaryLookup = it
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = DesktopStrings.defaultDictFilter,
+                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colors.onSurface
+                )
+                Text(
+                    text = DesktopStrings.defaultDictFilterDesc,
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                var expandedFilter by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expandedFilter = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
+                    ) {
+                        Text(if (dictionaryFilter.isBlank()) DesktopStrings.allDictionaries else "📖 $dictionaryFilter")
+                    }
+                    DropdownMenu(
+                        expanded = expandedFilter,
+                        onDismissRequest = { expandedFilter = false }
+                    ) {
+                        DropdownMenuItem(onClick = {
+                            dictionaryFilter = ""
+                            settings.dictionaryFilter = ""
+                            expandedFilter = false
+                        }) {
+                            Text(DesktopStrings.allDictionaries)
+                        }
+                        dictionaryChoices.forEach { title ->
+                            DropdownMenuItem(onClick = {
+                                dictionaryFilter = title
+                                settings.dictionaryFilter = title
+                                expandedFilter = false
+                            }) {
+                                Text("📖 $title")
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = DesktopStrings.dictFolderLocation,
+                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colors.onSurface
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .background(palette.field, RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = customDictDir,
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                val chooser = JFileChooser()
+                                chooser.dialogTitle = DesktopStrings.selectDictFolderDialogTitle
+                                chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                                val result = chooser.showOpenDialog(null)
+                                if (result == JFileChooser.APPROVE_OPTION) {
+                                    val selected = chooser.selectedFile
+                                    settings.customDictDirectoryPath = selected.absolutePath
+                                    onCustomDictDirChange(selected.absolutePath)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(backgroundColor = palette.button, contentColor = palette.onButton)
+                        ) {
+                            Text(DesktopStrings.btnChangeFolder)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val defaultDir = settings.defaultDictDirectory().absolutePath
+                                settings.customDictDirectoryPath = defaultDir
+                                onCustomDictDirChange(defaultDir)
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colors.onSurface)
+                        ) {
+                            Text(DesktopStrings.btnRestoreDefaultFolder)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = palette.field,
+                    shape = RoundedCornerShape(8.dp),
+                    elevation = 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (installedDictCount == 0)
+                                    DesktopStrings.dictSummaryNone
+                                else
+                                    DesktopStrings.dictSummaryCount(installedDictCount),
+                                style = MaterialTheme.typography.body2,
+                                color = if (installedDictCount == 0) palette.danger else MaterialTheme.colors.onSurface
+                            )
+                            Text(
+                                text = DesktopStrings.dictSummaryNote,
+                                style = MaterialTheme.typography.caption,
+                                color = MaterialTheme.colors.secondary
+                            )
+                        }
+                        if (onManageDictionariesRequested != null) {
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = onManageDictionariesRequested,
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = palette.field,
+                                    contentColor = MaterialTheme.colors.onSurface
+                                )
+                            ) {
+                                Text(DesktopStrings.btnManageDicts)
+                            }
+                        }
+                    }
+                }
+
+                SettingCheckboxItem(
+                    checked = dictionaryKeepLastSearch,
+                    title = DesktopStrings.keepLastSearch,
+                    description = DesktopStrings.keepLastSearchDesc,
+                    onCheckedChange = {
+                        dictionaryKeepLastSearch = it
+                        settings.dictionaryKeepLastSearch = it
+                    }
+                )
+
+                SettingCheckboxItem(
+                    checked = stripSearchReadings,
+                    title = DesktopStrings.stripSearchReadings,
+                    description = DesktopStrings.stripSearchReadingsDesc,
+                    onCheckedChange = {
+                        stripSearchReadings = it
+                        settings.stripSearchReadings = it
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = DesktopStrings.dictUpdateInterval,
+                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colors.onSurface
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DesktopUpdateInterval.entries.forEach { interval ->
+                        val isSelected = dictionaryUpdateInterval == interval
+                        val label = when (interval) {
+                            DesktopUpdateInterval.OFF -> DesktopStrings.updateOff
+                            DesktopUpdateInterval.DAILY -> DesktopStrings.updateDaily
+                            DesktopUpdateInterval.WEEKLY -> DesktopStrings.updateWeekly
+                            DesktopUpdateInterval.MONTHLY -> DesktopStrings.updateMonthly
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                dictionaryUpdateInterval = interval
+                                settings.dictionaryUpdateInterval = interval
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                backgroundColor = if (isSelected) MaterialTheme.colors.primary.copy(alpha = 0.2f) else Color.Transparent,
+                                contentColor = if (isSelected) MaterialTheme.colors.primary else MaterialTheme.colors.secondary
+                            ),
+                            border = ButtonDefaults.outlinedBorder.copy(
+                                brush = androidx.compose.ui.graphics.SolidColor(
+                                    if (isSelected) MaterialTheme.colors.primary else palette.fieldBorder
+                                )
+                            )
+                        ) {
+                            Text(label, fontSize = 11.sp, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutTab(
+    settings: DesktopSettings,
+    onShowReleaseNotes: (AppUpdateInfo) -> Unit,
+    onShowLicense: () -> Unit,
+) {
+    val palette = yabaiPalette()
+    var checkUpdatesOnStart by remember { mutableStateOf(settings.checkUpdatesOnStart) }
+
+    TabColumn {
         // --- 7. Sobre e Atualizações do Aplicativo ---
         item {
             var isCheckingUpdate by remember { mutableStateOf(false) }
@@ -1923,7 +2143,7 @@ fun SettingsContent(
                                     onClick = {
                                         val info = updateInfo
                                         if (info != null) {
-                                            releaseNotesPreview = info.latestVersion to info.releaseNotes
+                                            onShowReleaseNotes(info)
                                         }
                                     },
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.success)
@@ -2058,50 +2278,7 @@ fun SettingsContent(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                DonationSection(onShowLicense = { showLicense = true })
-            }
-        }
-    }
-
-    if (showLicense) {
-        LicenseWindow(onClose = { showLicense = false })
-    }
-
-    if (showHelp) {
-        HelpWindow(onClose = { showHelp = false })
-    }
-
-    // Outside the lazy list so scrolling the card away cannot close the preview.
-    val notes = releaseNotesPreview
-    if (notes != null) {
-        ReleaseNotesWindow(
-            version = notes.first,
-            notes = notes.second,
-            onClose = { releaseNotesPreview = null },
-        )
-    }
-}
-
-@Composable
-fun SettingsWindow(
-    onClose: () -> Unit,
-    onManageDictionariesRequested: (() -> Unit)? = null
-) {
-    Window(
-        onCloseRequest = onClose,
-        title = DesktopStrings.settingsWindowTitle,
-        state = WindowState(width = 680.dp, height = 820.dp)
-    ) {
-        LaunchedEffect(Unit) {
-            window.iconImage = AppIconGenerator.createWindowImage(64)
-        }
-
-        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colors.background
-            ) {
-                SettingsContent(onManageDictionariesRequested = onManageDictionariesRequested)
+                DonationSection(onShowLicense = onShowLicense)
             }
         }
     }

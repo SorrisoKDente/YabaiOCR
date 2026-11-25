@@ -26,7 +26,8 @@ import java.awt.Point
 import java.awt.Rectangle
 import java.awt.image.BufferedImage
 
-enum class MainScreen { SETTINGS, DICTIONARIES }
+/** The three screens the one main window shows: the tabs of settings, the manual and the dictionaries. */
+enum class MainScreen { SETTINGS, HELP, DICTIONARIES }
 
 class HoverStateHolder(defaultFilter: String = "") {
     var matches by mutableStateOf<List<TokenMatch>>(emptyList())
@@ -161,6 +162,9 @@ fun main(args: Array<String>) {
     var isDarkTheme by remember { mutableStateOf(settings.darkTheme) }
 
     var mainScreen by remember { mutableStateOf(MainScreen.SETTINGS) }
+    // The settings tab is kept here, not in SettingsContent: opening the manual unmounts that screen,
+    // and coming back has to land on the tab the reader left (R53).
+    var settingsTab by remember { mutableStateOf(SettingsTab.GENERAL) }
     var mainDictInitialQuery by remember { mutableStateOf("") }
     var showMainWindow by remember { mutableStateOf(!startMinimized) } // Open main window by default on run
 
@@ -787,10 +791,10 @@ fun main(args: Array<String>) {
     // Main Window (Settings or Integrated Dictionary Manager)
     if (showMainWindow) {
         val windowState = rememberWindowState(width = 820.dp, height = 750.dp)
-        val title = if (mainScreen == MainScreen.SETTINGS) {
-            DesktopStrings.settingsWindowTitle
-        } else {
-            "Yabai OCR - ${DesktopStrings.dictManagerTitle}"
+        val title = when (mainScreen) {
+            MainScreen.SETTINGS -> DesktopStrings.settingsWindowTitle
+            MainScreen.HELP -> "Yabai OCR - ${DesktopStrings.helpWindowTitle}"
+            MainScreen.DICTIONARIES -> "Yabai OCR - ${DesktopStrings.dictManagerTitle}"
         }
         Window(
             onCloseRequest = {
@@ -822,8 +826,8 @@ fun main(args: Array<String>) {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background,
                 ) {
-                    if (mainScreen == MainScreen.SETTINGS) {
-                        SettingsContent(
+                    when (mainScreen) {
+                        MainScreen.SETTINGS -> SettingsContent(
                             settings = settings,
                             // Shown in the renderer card: the run was moved after a native crash.
                             rendererAfterCrash = if (rendererCrashed) rendererDecision.level else null,
@@ -901,9 +905,17 @@ fun main(args: Array<String>) {
                                 mainDictInitialQuery = ""
                                 mainScreen = MainScreen.DICTIONARIES
                             },
+                            selectedTab = settingsTab,
+                            onTabSelected = { settingsTab = it },
+                            onHelpRequested = { mainScreen = MainScreen.HELP },
                         )
-                    } else {
-                        DictionaryManagerContent(
+
+                        MainScreen.HELP -> HelpContent(
+                            settings = settings,
+                            onBackRequested = { mainScreen = MainScreen.SETTINGS },
+                        )
+
+                        MainScreen.DICTIONARIES -> DictionaryManagerContent(
                             initialQuery = mainDictInitialQuery,
                             onBackRequested = {
                                 mainScreen = MainScreen.SETTINGS

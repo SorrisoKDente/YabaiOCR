@@ -55,7 +55,6 @@ object DesktopStrings {
 
     // Settings Window - Sections
     val sectionAppearance: String get() = if (isEnglish) "Appearance & Theme" else "Aparência e Tema"
-    val sectionLanguage: String get() = if (isEnglish) "Interface Language" else "Idioma da Interface"
     val sectionHotkeys: String get() = if (isEnglish) "Global Keyboard Shortcuts" else "Atalhos Globais de Teclado"
     val sectionLinuxIntegration: String get() = if (isEnglish) "Linux System Integration" else "Integração com o Linux"
     val sectionStartup: String get() = if (isEnglish) "Startup & Window Behaviour" else "Inicialização e Comportamento da Janela"
@@ -370,7 +369,14 @@ object DesktopStrings {
 
     // Help manual
     val btnHelp: String get() = if (isEnglish) "❓ Help" else "❓ Ajuda"
-    val helpWindowTitle: String get() = if (isEnglish) "Help — Yabai OCR" else "Ajuda — Yabai OCR"
+    val helpWindowTitle: String get() = if (isEnglish) "Help & Tips" else "Explicações e Dicas"
+
+    // Settings tabs (R53)
+    val tabGeneral: String get() = if (isEnglish) "General" else "Geral"
+    val tabShortcuts: String get() = if (isEnglish) "Shortcuts" else "Atalhos"
+    val tabReading: String get() = if (isEnglish) "Reading" else "Leitura"
+    val tabDictionaries: String get() = if (isEnglish) "Dictionaries" else "Dicionários"
+    val tabAbout: String get() = if (isEnglish) "About" else "Sobre"
     val helpIntro: String get() = if (isEnglish)
         "First a reference to every button, with the icon it shows, and then each action in the order you usually meet it. The shortcuts below are the ones configured right now — every one of them can be changed in Settings."
     else
@@ -425,9 +431,9 @@ object DesktopStrings {
         "Volta às caixas da mesma captura para ler outro trecho, sem fotografar de novo."
     val helpBtnSettingsName: String get() = if (isEnglish) "Settings" else "Ajustes"
     val helpBtnSettingsWhat: String get() = if (isEnglish)
-        "Language, theme, OCR engine, monitor, renderer, shortcuts and start with the system."
+        "Language in the header; theme, renderer, capture, shortcuts, reading, OCR, dictionaries and updates in the tabs."
     else
-        "Idioma, tema, motor de OCR, monitor, renderizador, atalhos e início com o sistema."
+        "Idioma no topo da janela; tema, renderizador, captura, atalhos, leitura, OCR, dicionários e atualizações nas abas."
     val helpBtnExitName: String get() = if (isEnglish) "Exit" else "Sair"
     val helpBtnExitWhat: String get() = if (isEnglish)
         "Closes the app entirely; «Close to tray» only hides the window."
@@ -605,9 +611,9 @@ object DesktopStrings {
     else
         "Bandeja, ajustes e atalhos"
     val helpTrayBody: String get() = if (isEnglish)
-        "The tray icon shows hover at a glance: a green dot is on, a red dot with a stroke is off. A left click captures the whole screen; a right click opens the menu (area, quick search, hover, dictionaries, settings, updates and exit). «Close to tray» keeps the app running when the window closes, and «Start in tray» opens it without a window. Settings hold language, theme, OCR engine and priority, capture monitor, renderer, shortcuts, start with the session and the Linux integration."
+        "The tray icon shows hover at a glance: a green dot is on, a red dot with a stroke is off. A left click captures the whole screen; a right click opens the menu (area, quick search, hover, dictionaries, settings, updates and exit). «Close to tray» keeps the app running when the window closes, and «Start in tray» opens it without a window. Settings open on tabs — general, shortcuts, reading, OCR and dictionaries, about — and the language and this manual are one click away in the header."
     else
-        "O ícone da bandeja mostra o hover de relance: ponto verde ligado, ponto vermelho com traço desligado. Clique esquerdo captura a tela inteira; clique direito abre o menu (área, busca rápida, hover, dicionários, ajustes, atualizações e sair). «Fechar para a bandeja» mantém o app rodando ao fechar a janela, e «Iniciar na bandeja» o abre sem janela. Nos Ajustes ficam idioma, tema, motor de OCR e prioridade, monitor da captura, renderizador, atalhos, iniciar com a sessão e a integração com o Linux."
+        "O ícone da bandeja mostra o hover de relance: ponto verde ligado, ponto vermelho com traço desligado. Clique esquerdo captura a tela inteira; clique direito abre o menu (área, busca rápida, hover, dicionários, ajustes, atualizações e sair). «Fechar para a bandeja» mantém o app rodando ao fechar a janela, e «Iniciar na bandeja» o abre sem janela. Os Ajustes abrem em abas — geral, atalhos, leitura, OCR e dicionários, sobre — e o idioma e este manual ficam a um clique no topo da janela."
 
     // Updating from inside the app
     val btnInstallUpdate: String get() = if (isEnglish) "⬇️ Download and install" else "⬇️ Baixar e instalar"

@@ -121,7 +121,9 @@ iniciar. A bolha flutuante dispara a captura.
 
 O app abre nos Ajustes e fica na bandeja. O ícone da bandeja mostra o estado do hover de relance: um
 ponto verde significa ligado; um ponto vermelho com um traço branco significa desligado. A interface
-existe em **português e inglês**, escolhido nos Ajustes. Atalhos padrão (todos configuráveis):
+existe em **português e inglês**, escolhido no botão 🌐 do topo da janela, ao lado de **❓ Ajuda**. Os
+Ajustes ficam em abas — **Geral**, **Atalhos**, **Leitura**, **Dicionários** e **Sobre** — então cada
+preferência está a um clique, em vez de uma rolagem longa. Atalhos padrão (todos configuráveis):
 
 | atalho | ação |
 | --- | --- |
@@ -131,9 +133,11 @@ existe em **português e inglês**, escolhido nos Ajustes. Atalhos padrão (todo
 | `Ctrl + Shift + D` | busca rápida no dicionário |
 | `Ctrl + Shift + X` | alterna entre as leituras do hover |
 
-O botão **❓ Ajuda**, no topo dos Ajustes, abre um manual com cada função — as duas capturas, o
-hover, a busca rápida, os dicionários, a janela de resultado e a bandeja — com os atalhos padrão. A
-tela **Ajuda** do Android explica o mesmo no celular, incluindo a câmera e os gestos da bolha.
+O botão **❓ Ajuda** abre **Explicações e Dicas**, o mesmo título usado no celular, como uma tela da
+própria janela, com o botão «◀ Voltar ao Menu Anterior». Ela explica cada função — as duas capturas,
+o hover, a busca rápida, os dicionários, a janela de resultado, os renderizadores gráficos, os
+motores de reconhecimento e a bandeja — com os atalhos que você configurou. A tela **Ajuda** do
+Android explica o mesmo no celular, incluindo a câmera e os gestos da bolha.
 
 Em telas múltiplas, os Ajustes deixam escolher qual monitor a captura de tela inteira e o recorte à
 mão usam: o principal, um monitor específico ou aquele em que o ponteiro está no momento da captura.
