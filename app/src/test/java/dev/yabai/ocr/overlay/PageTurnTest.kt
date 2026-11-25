@@ -244,7 +244,7 @@ class PageTurnTest {
         )
         assertTrue(
             "the frame is laid out once, so turning the phone would not move the picture",
-            camera.split("applyPhotoFrame()").size > 3,
+            camera.split("applyPhotoFrame(").size > 3,
         )
 
         // The numbers the two screens share: the photo on the frozen ImageView and the same photo on
@@ -382,32 +382,29 @@ class PageTurnTest {
         val controller = Robolectric.buildActivity(CameraActivity::class.java)
         try {
             val camera = controller.create().get()
+            // The turned frame the phone has with the screen locked: the picture turns into it.
+            camera.applyPhotoFrame(turn = 270)
             val root = camera.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup
+
+            assertTrue(
+                "the picture did not turn, so nothing below is about the turned frame",
+                (0 until root.childCount).any { root.getChildAt(it).rotation == 270f },
+            )
+
             val shutter = root.child(camera.getString(R.string.camera_shutter))
             val close = root.child(camera.getString(R.string.camera_close))
-
             assertEquals("the shutter was turned with the picture", 0f, shutter.rotation, 0f)
             assertEquals("the ✕ was turned with the picture", 0f, close.rotation, 0f)
             assertEquals(
-                "the shutter is not at the window's bottom centre",
+                "the shutter is not at the window's bottom centre: ${shutter.layoutParams}",
                 Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
                 (shutter.layoutParams as FrameLayout.LayoutParams).gravity,
             )
             assertEquals(
-                "the ✕ is not at the window's top-right corner",
+                "the ✕ is not at the window's top-right corner: ${close.layoutParams}",
                 Gravity.TOP or Gravity.END,
                 (close.layoutParams as FrameLayout.LayoutParams).gravity,
             )
-
-            // Only the picture goes into the phone's frame: the controls are not carried with it.
-            val source = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
-            val frame = source.substringAfter("placeInPhoneFrame(").substringBefore(")")
-            assertTrue(
-                "the picture is not the only thing laid out in the phone's frame: $frame",
-                frame.contains("previewView, frozenPhoto"),
-            )
-            assertFalse("the shutter is carried into the turned frame: $frame", frame.contains("shutter"))
-            assertFalse("the ✕ is carried into the turned frame: $frame", frame.contains("close"))
         } finally {
             runCatching { controller.destroy() }
             FloatingOcrService.isRunning = false
@@ -425,7 +422,7 @@ class PageTurnTest {
     @Test
     fun `the camera screen and the page measure the screen the same way`() {
         val camera = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
-        val frame = camera.substringAfter("private fun applyPhotoFrame()")
+        val frame = camera.substringAfter("fun applyPhotoFrame(")
             .substringBefore("private fun matchParent")
         assertTrue(
             "the camera still fits the picture to the area the app draws in, not to the display",
@@ -470,7 +467,8 @@ class PageTurnTest {
     /** The direct child of this group that the screen describes to a reader (a control's label). */
     private fun ViewGroup.child(description: String): View = (0 until childCount)
         .map { getChildAt(it) }
-        .first { it.contentDescription == description }
+        .firstOrNull { it.contentDescription == description }
+        ?: throw AssertionError("no view labelled «$description» on the screen")
 
     /** Where a turned control ends up on screen: its box, turned about its own centre. */
     private fun visualBounds(view: View): RectF {

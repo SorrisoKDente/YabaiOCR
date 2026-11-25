@@ -8968,19 +8968,22 @@ está em pé, sem seguir o giro.
   conteúdo: mover o alvo sob o dedo quando o celular vira é o tipo errado de surpresa, e o que segue o
   quadro (R48g, R48h) é a foto.
 - **Correção.** O ✕ estava no canto **superior esquerdo** (`Gravity.START`, `leftMargin`); passou para
-  o direito (`Gravity.END`, `rightMargin`), com os mesmos 16 dp e a barra de status.
+  o direito (`Gravity.END`, `rightMargin`), com os mesmos 16 dp e a barra de status. Para o teste
+  girar o quadro de verdade, `applyPhotoFrame` recebe o giro por parâmetro (padrão `pageTurn()`) em vez
+  de lê-lo por dentro.
 - **Arquivos.** `app/.../CameraActivity.kt` · `app/src/test/.../overlay/PageTurnTest.kt`
 
 Regressão (+1): `the shutter and the close stay where the upright screen puts them` monta a
-`CameraActivity` no Robolectric e lê a árvore de views: nenhum dos dois gira, o disparo está em
-`BOTTOM|CENTER_HORIZONTAL` e o ✕ em `TOP|END`; e o quadro do celular recebe só a pré-visualização e a
-foto parada, não os controles.
+`CameraActivity` no Robolectric, **gira o quadro** (`applyPhotoFrame(turn = 270)`) e lê a árvore de
+views: a foto girou, mas nenhum dos dois controles girou, e o disparo está em
+`BOTTOM|CENTER_HORIZONTAL` e o ✕ em `TOP|END`.
 
 | mutação | teste que acusa |
 | --- | --- |
 | O ✕ volta ao canto superior esquerdo | `the shutter and the close stay where the upright screen puts them` |
 | O disparo sai de baixo ao centro | o mesmo teste |
-| Os controles entram no quadro girado | o mesmo teste |
+| O ✕ gira com a foto | o mesmo teste |
+| O ✕ entra no quadro girado | o mesmo teste |
 
 Suíte do app: **474 testes por variante (948 no total, debug e release), 0 falhas**.
 

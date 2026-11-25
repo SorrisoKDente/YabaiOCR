@@ -169,9 +169,7 @@ class CameraActivity : AppCompatActivity() {
                 Gravity.CENTER,
             ),
         )
-        // The controls stay in the window's frame, not the phone's (R48k): they are targets, and the
-        // shutter under the thumb and the ✕ in the top-right corner are where an upright camera has
-        // them. Only the picture follows the phone.
+        // Targets, not content: they stay where an upright camera has them (R48k).
         root.addView(
             close,
             FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END),
@@ -263,14 +261,14 @@ class CameraActivity : AppCompatActivity() {
      * view is enough for the preview, the frozen photo and the picker's page to be one rectangle, and
      * for the handovers between them to be invisible.
      */
-    private fun applyPhotoFrame() {
+    internal fun applyPhotoFrame(turn: Int = pageTurn()) {
         // The whole display — the same measurement the picker's page uses (R48j).
         val screen = ScreenMetrics.real(this)
         placeInPhoneFrame(
             listOf(previewView, frozenPhoto),
             screen.widthPixels,
             screen.heightPixels,
-            pageTurn(),
+            turn,
         )
     }
 
