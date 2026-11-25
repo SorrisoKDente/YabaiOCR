@@ -109,6 +109,7 @@ fun SettingsContent(
     // Version + notes of the release the user asked to read; null closes the preview window.
     var releaseNotesPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showLicense by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
     var startOnBoot by remember { mutableStateOf(settings.startOnBoot) }
     var closeToTray by remember { mutableStateOf(settings.closeToTray) }
     var showSegments by remember { mutableStateOf(settings.showSegments) }
@@ -158,21 +159,26 @@ fun SettingsContent(
     ) {
         // --- Header ---
         item {
-            Column(
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = DesktopStrings.appTitle,
+                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.h4.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colors.onBackground
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = DesktopStrings.heroSubtitle,
-                    style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
-                    color = MaterialTheme.colors.secondary
-                )
+                OutlinedButton(onClick = { showHelp = true }) {
+                    Text(DesktopStrings.btnHelp)
+                }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = DesktopStrings.heroSubtitle,
+                style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
+                color = MaterialTheme.colors.secondary
+            )
         }
 
         // --- Aparência e Tema ---
@@ -2058,6 +2064,10 @@ fun SettingsContent(
 
     if (showLicense) {
         LicenseWindow(onClose = { showLicense = false })
+    }
+
+    if (showHelp) {
+        HelpWindow(onClose = { showHelp = false })
     }
 
     // Outside the lazy list so scrolling the card away cannot close the preview.

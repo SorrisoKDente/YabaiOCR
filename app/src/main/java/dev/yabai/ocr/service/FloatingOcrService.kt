@@ -61,7 +61,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +100,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private var translator: OfflineTranslator? = null
     private var analysisJob: Job? = null
     private var lastAnalysedText: String? = null
+
+    /** The reading in flight: what «Cancelar» stops, and who owns the guard (R48m). */
+    private var readJob: Job? = null
 
     /**
      * The dictionary search box (R31): the lookup in flight, whether the panel is in search mode,
@@ -219,6 +224,11 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 if (path != null) {
                     recognisePhoto(File(path), intent.getIntExtra(EXTRA_PHOTO_TURN, 0))
                 }
+                return START_NOT_STICKY
+            }
+
+            ACTION_CANCEL_READ -> {
+                cancelReading()
                 return START_NOT_STICKY
             }
 
@@ -382,6 +392,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     override fun onRegionConfirmed(rect: Rect?) = requestCapture(rect)
 
     override fun onRegionCancelled() = Unit
+
+    /** The panel's «Cancelar» while a reading runs (R48m). */
+    override fun onRecognitionCancelRequested() = cancelReading()
 
     override fun onStopRequested() = stopSelf()
 
@@ -634,7 +647,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         clearPending()
         lastPhoto = null
 
-        scope.launch {
+        startReading {
             var armed = false
             try {
                 // Arm before hiding: the frame our own windows disappearing produces is the one
@@ -655,7 +668,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
                 if (shot == null) {
                     showError(getString(R.string.capture_failed))
-                    return@launch
+                    return@startReading
                 }
 
                 val crop = withContext(Dispatchers.Default) { cropToRegion(shot, region) }
@@ -665,6 +678,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
                 overlays.showResultLoading()
                 val outcome = dispatcher.recognize(crop, forceOffline)
+                // «Cancelar» can land while an engine that cannot be interrupted is still finishing.
+                ensureActive()
                 lastOutcome = outcome
 
                 // «Ler kanji»: the same capture, but the boxes are strips to point at instead of
@@ -675,7 +690,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                     if (strips.isNotEmpty() && overlays.showKanji(strips, shot)) {
                         pendingKanji = strips
                         overlays.hideResult()
-                        return@launch
+                        return@startReading
                     }
                 }
 
@@ -693,7 +708,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                             pendingReadingMode = mode
                             pendingPage = shot
                             overlays.hideResult()
-                            return@launch
+                            return@startReading
                         }
                     }
                     clearPending()
@@ -708,7 +723,6 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             } finally {
                 if (armed) session.disarmCapture()
                 overlays.restoreAfterCapture()
-                busy = false
             }
         }
     }
@@ -731,12 +745,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         // After [beginPhoto], which clears what the previous capture left: the page of this photo is
         // laid out in the frame the phone was held in when it was taken (R48g).
         photoTurn = turn
-        scope.launch {
+        startReading {
             try {
                 val photo = withContext(Dispatchers.Default) { CameraPhoto.loadUpright(file) }
                 if (photo == null) {
                     showError(getString(R.string.capture_failed))
-                    return@launch
+                    return@startReading
                 }
                 // The camera screen is the loading state of a photo (R48a): it already shows the very
                 // picture the boxes land on, and a second spinner at the top of the screen would
@@ -746,8 +760,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 Log.e(TAG, "photo pipeline failed", t)
                 showError(t.message ?: getString(R.string.result_failed))
             } finally {
-                busy = false
-                photoShown()
+                // A cancelled reading has nothing to show, and the notice would close the camera
+                // screen the user just sent back to its preview (R48m).
+                if (isActive) photoShown()
             }
         }
     }
@@ -766,14 +781,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     /** The same photo again, offline: the retry of a result that came from the camera. */
     private fun retryPhoto(photo: Bitmap) {
         if (!beginPhoto()) return
-        scope.launch {
+        startReading {
             try {
                 recogniseImage(photo, forceOffline = true)
             } catch (t: Throwable) {
                 Log.e(TAG, "photo retry failed", t)
                 showError(t.message ?: getString(R.string.result_failed))
-            } finally {
-                busy = false
             }
         }
     }
@@ -794,6 +807,41 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         return true
     }
 
+    /**
+     * Runs one reading and keeps the handle «Cancelar» stops (R48m).
+     *
+     * Only the reading that is still the current one gives the guard back: a cancelled reading can
+     * finish after the next capture has started, and it must not free that one's `busy`.
+     */
+    private fun startReading(block: suspend CoroutineScope.() -> Unit) {
+        readJob = scope.launch {
+            try {
+                block()
+            } finally {
+                if (readJob === coroutineContext[Job]) {
+                    readJob = null
+                    busy = false
+                }
+            }
+        }
+    }
+
+    /**
+     * Stops the reading that is running (R48m): the panel's «Cancelar» and the camera's ask the same
+     * thing and get the same answer — the work in flight is dropped, and its pixels with it.
+     */
+    private fun cancelReading() {
+        // Nothing in flight: a late cancel must not take down a panel that is already the answer.
+        val job = readJob ?: return
+        readJob = null
+        job.cancel()
+        busy = false
+        lastCrop = null
+        lastPhoto = null
+        clearPending()
+        overlays.hideResult()
+    }
+
     private suspend fun recogniseImage(
         photo: Bitmap,
         forceOffline: Boolean = false,
@@ -804,6 +852,8 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         lastPhoto = photo
         if (loadingPanel) overlays.showResultLoading()
         val outcome = dispatcher.recognize(photo, forceOffline)
+        // The same, for a photo: no boxes from a reading that was cancelled (R48m).
+        currentCoroutineContext().ensureActive()
         lastOutcome = outcome
 
         // R47a: a photo is read like a whole-screen capture — the paragraphs become boxes the user
@@ -1567,6 +1617,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
 
         /** A photo from [CameraActivity], in [EXTRA_PHOTO_PATH] (R46d). */
         const val ACTION_PHOTO = "dev.yabai.ocr.action.PHOTO"
+
+        /** That photo's reading is no longer wanted: [CameraActivity] abandoned it (R48m). */
+        const val ACTION_CANCEL_READ = "dev.yabai.ocr.action.CANCEL_READ"
         const val EXTRA_RESULT_CODE = "dev.yabai.ocr.extra.RESULT_CODE"
         const val EXTRA_RESULT_DATA = "dev.yabai.ocr.extra.RESULT_DATA"
         const val EXTRA_PHOTO_PATH = "dev.yabai.ocr.extra.PHOTO_PATH"

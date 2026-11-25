@@ -8510,6 +8510,8 @@ linha própria. Mutações provadas:
 | R48i | `[x]` | **Home e lista de apps fecham a foto da câmera**: sair da tela da câmera pelo botão do sistema fecha a foto, como os painéis já faziam | fácil |
 | R48j | `[x]` | **A permissão não fecha a câmera, e o quadro é o mesmo dos dois lados**: a tela só fecha com a câmera rodando, e a câmera e a página medem a tela pelo display inteiro | fácil |
 | R48k | `[x]` | **O disparo e o ✕ ficam no lugar de quando o celular está em pé**: o ✕ passa para o canto superior direito e os dois continuam no quadro da janela, mesmo com a foto girada | fácil |
+| R48l | `[x]` | **A tela da câmera é a tela inteira em qualquer posição, e o «Reconhecendo…» gira com ela**: o quadro é medido de novo quando a janela vira, e o indicador segue o quadro do celular como a pré-visualização | fácil |
+| R48m | `[x]` | **«Cancelar» durante o reconhecimento**: um botão no indicador do painel e no da câmera que abandona a leitura em curso, em todas as funções — tela inteira, recorte, kanji, câmera e nova tentativa offline | média |
 
 ### R48a — A foto é lida na própria tela da câmera  `[x]` (23/11/2026)
 
@@ -8990,3 +8992,170 @@ Suíte do app: **474 testes por variante (948 no total, debug e release), 0 falh
 - **Limite.** Sem aparelho: o Robolectric lê a árvore de views, não os pixels. Falta conferir no
   celular, deitado com o giro automático desligado: o ✕ legível no canto superior direito e o disparo
   sob o polegar, com a foto em pé.
+
+### R48l — A tela da câmera é a tela inteira em qualquer posição  `[x]` (25/11/2026)
+
+**Pedido.** Ao rotacionar o celular, a tela da câmera devia ficar igual à de quando estava em pé —
+mesmo tamanho, nenhuma mudança visível na câmera ou na foto —, e só os textos do reconhecimento
+deviam girar; o indicador «Reconhecendo…» continuava deitado com o celular em pé ou deitado
+invertido.
+
+- **Causa.** `applyPhotoFrame()` era chamado ao montar a tela e, depois, só quando o *sensor* mudava de
+  faixa (`OrientationEventListener`). Com «giro automático» ligado a janela vira sem o sensor mudar de
+  faixa: o quadro continuava o retrato de antes (1080×2400) dentro da janela deitada (2400×1080) —
+  uma faixa no meio da tela, menor do que a câmera em pé. O indicador, por sua vez, era filho da
+  janela e não do quadro: com a tela travada e o celular deitado, o cartão e o texto ficavam deitados
+  sobre uma foto em pé.
+- **Correção.** `onConfigurationChanged` mede a tela e refaz o quadro (`applyPhotoFrame()`), então a
+  pré-visualização e a foto parada são a tela inteira nas duas posições; `applyPhotoFrame` gira o
+  cartão do «Reconhecendo…» com o mesmo giro do quadro, como a pré-visualização. Nada mais mudou: o
+  disparo continua preso a `BOTTOM|CENTER_HORIZONTAL` e o ✕ a `TOP|END` no quadro da janela (R48k).
+- **Arquivos.** `app/.../CameraActivity.kt` · `app/src/test/.../overlay/PageTurnTest.kt`
+
+Regressão (+2): `the camera screen keeps the whole screen when the window turns` monta uma
+`CameraActivity` no Robolectric em retrato, vira a configuração para deitado (640×320) e chama
+`onConfigurationChanged`: a pré-visualização tem de voltar a ser 640×320, e não o retrato de antes.
+`the reading indicator turns with the phone's frame` gira o quadro (`applyPhotoFrame(turn = 270)`) e
+exige o cartão do «Reconhecendo…» a 270°, voltando a 0° quando o quadro é o da janela.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `onConfigurationChanged` não refaz o quadro | `the camera screen keeps the whole screen when the window turns` |
+| O indicador deixa de girar com o quadro | `the reading indicator turns with the phone's frame` |
+
+Suíte do app: **481 testes por variante (962 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric vira a configuração e lê a árvore de views, não o raster.
+  Falta conferir no celular, com «giro automático» ligado e desligado e deitado dos dois lados: a
+  câmera ocupando a tela toda e o «Reconhecendo…» alinhado à foto.
+
+### R48m — «Cancelar» durante o reconhecimento  `[x]` (25/11/2026)
+
+**Pedido.** Um botão para cancelar enquanto o texto está sendo reconhecido, em qualquer função —
+recorte, tela inteira, câmera ou outra.
+
+- **Causa.** O trabalho de OCR corria num `scope.launch` sem handle guardado, e o spinner não tinha
+  saída: cancelar só era possível fechando o painel (perdendo a captura) ou a tela da câmera — que,
+  pior, não parava a leitura, só deixava de ter onde mostrá-la.
+- **Correção.** `startReading { }` guarda o `Job`; `cancelReading()` cancela o trabalho, solta o guarda
+  `busy` e os bitmaps da captura, e fecha o painel. Só a leitura que ainda é a atual devolve o guarda
+  no próprio `finally` (`readJob === coroutineContext[Job]`): uma cancelada pode terminar depois de a
+  próxima captura já ter começado, e não pode liberar o `busy` dela. O spinner do painel ganha
+  «Cancelar» (`ResultOverlay.showLoading(onCancel)`, ligado ao serviço por
+  `onRecognitionCancelRequested`); o cartão da câmera ganha o mesmo botão, que avisa o serviço por
+  `ACTION_CANCEL_READ` e devolve a tela à pré-visualização com o disparo armado. `ensureActive()`
+  depois de cada `recognize` impede que um motor que não verifica o próprio cancelamento ainda
+  desenhe os balões de uma leitura abandonada. As três portas de leitura — captura (tela inteira,
+  recorte e «Ler kanji»), foto da câmera e nova tentativa offline — passam todas por `startReading`.
+- **Arquivos.** `service/FloatingOcrService.kt`, `overlay/OverlayController.kt`,
+  `overlay/ResultOverlay.kt`, `CameraActivity.kt`, `res/values{,-en}/strings.xml`
+  (`recognition_cancel`) · `app/src/test/.../overlay/RecognitionCancelTest.kt`
+
+Regressão (+5): `the spinner offers a way out of a reading` exige o «Cancelar» no cartão do spinner e
+que o toque chegue ao callback. `the panel's cancel asks the service to stop the reading` abre o
+painel pelo `OverlayController` com callbacks de teste e exige que o toque vire
+`onRecognitionCancelRequested`. `the service drops the reading it is told to cancel` monta o
+`FloatingOcrService` no Robolectric, injeta um `Job` em `readJob` e `busy = true` e percorre as duas
+portas — o callback do painel e o `ACTION_CANCEL_READ` da câmera: o `Job` tem de sair cancelado e o
+guarda, livre. `the camera cancels the reading and goes back to the preview` põe a tela da câmera no
+estado de foto parada (reflexão nos campos), toca no «Cancelar» e exige o `ACTION_CANCEL_READ`
+entregue ao serviço, o cartão escondido e o disparo armado. `every reading is registered for the
+cancel` lê cada uma das três funções de leitura e exige `startReading {` dentro dela — e nenhum
+`scope.launch {` —, mais o aviso que não sai de uma leitura cancelada.
+
+| mutação | teste que acusa |
+| --- | --- |
+| O serviço não cancela o `Job` | `the service drops the reading it is told to cancel` |
+| O serviço ignora o intento da câmera | o mesmo teste |
+| O serviço ignora o callback do painel | o mesmo teste |
+| Uma leitura fora do `startReading` | `every reading is registered for the cancel` |
+| A leitura cancelada ainda anuncia «já está na tela» | `every reading is registered for the cancel` |
+| O «Cancelar» do painel não faz nada | `the spinner offers a way out of a reading` e `the panel's cancel asks the service to stop the reading` |
+| O painel deixa de avisar o serviço | `the panel's cancel asks the service to stop the reading` |
+| A câmera deixa de avisar o serviço | `the camera cancels the reading and goes back to the preview` |
+
+Suíte do app: **481 testes por variante (962 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho e sem motor de OCR real no Robolectric: o cancelamento é medido pela
+  ligação entre as peças (botão → callback → serviço → `Job`), não pelo tempo que um Lens ou um
+  PP-OCR levam para soltar a CPU. O guarda de `startReading` — uma leitura cancelada que termina
+  depois de a próxima captura começar não pode liberar o `busy` dela — é um caso de corrida e não tem
+  teste próprio: nenhuma das mutações acima o exercita. Falta conferir no celular, com uma página
+  grande: tocar «Cancelar», ver o painel fechar (ou a câmera voltar à pré-visualização) sem esperar o
+  motor.
+
+### R48n — O «Cancelar» do painel fecha o painel, com teste que prova  `[x]` (25/11/2026)
+
+**Pedido.** A regressão do «Cancelar» não provava que o painel some: apagar `overlays.hideResult()`
+do `cancelReading()` mantinha a suíte verde.
+
+- **Causa.** O teste do serviço media o `Job` cancelado e o `busy` liberado, mas nunca o painel; o
+  `hideResult()` era a única linha do cancelamento sem cobertura.
+- **Correção.** `the service closes the spinner when it cancels the reading` abre o spinner pelo
+  `overlays` do próprio `FloatingOcrService`, injeta um `Job` em `readJob` e `busy = true`, chama
+  `onRecognitionCancelRequested()` e exige `isResultVisible()` falso. Nenhuma linha de produção
+  mudou.
+- **Arquivos.** `app/src/test/.../overlay/RecognitionCancelTest.kt`
+
+Regressão (+1): o teste acima (6 na classe).
+
+| mutação | teste que acusa |
+| --- | --- |
+| `overlays.hideResult()` sai do `cancelReading()` | `the service closes the spinner when it cancels the reading` |
+
+Suíte do app: **483 testes por variante (966 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric mostra que a view saiu da árvore, não que o pixel sumiu.
+
+### R48o — A Ajuda do celular explica a câmera e a bolha  `[x]` (25/11/2026)
+
+**Pedido.** Atualizar a ajuda do celular com o que ainda não estava incluído, como a câmera.
+
+- **Correção.** Duas entradas novas no `activity_help.xml` e nos dois idiomas: «Câmera» (disparo e ✕
+  fixos, quadro girado, «Cancelar» e «Tirar outra foto») e «Bolha, gestos e «Ler kanji»» (funções da
+  bolha, arrastar até o ✕, cartão de kanji e o «Cancelar» de qualquer leitura). As seções seguintes
+  foram renumeradas de 2–7 para 4–9.
+- **Arquivos.** `res/layout/activity_help.xml` · `res/values{,-en}/strings.xml` (`help_tip_camera_*`,
+  `help_tip_bubble_*`) · `app/src/test/.../HelpContentTest.kt` (novo)
+
+Regressão (+1): `the help screen explains the camera and the bubble's gestures` infla a
+`HelpActivity` no Robolectric e exige os quatro textos na árvore de views.
+
+| mutação | teste que acusa |
+| --- | --- |
+| O bloco da câmera sai do layout | `the help screen explains the camera and the bubble's gestures` |
+
+Suíte do app: **483 testes por variante (966 no total), 0 falhas**.
+
+- **Limite.** A prova é a árvore de views, não o texto quebrado em tela pequena; falta rolar a tela
+  num aparelho para conferir o espaçamento.
+
+## D104 — Manual de ajuda no desktop  `[x]` (25/11/2026)
+
+**Pedido.** Um botão de ajuda que explique cada função do aplicativo, como um manual, semelhante ao
+da versão mobile.
+
+- **Correção.** `HelpWindow.kt` desenha o manual com uma entrada por função — tela inteira, recorte à
+  mão, hover, busca rápida, dicionários, janela de resultado e bandeja/ajustes — com os atalhos
+  padrão. Os textos vivem no `DesktopStrings` (pt/en) e `helpTopics()` devolve a lista com ids
+  estáveis. O botão «❓ Ajuda» fica no topo dos Ajustes e abre a janela; a janela usa
+  `ScrollableLazyColumn`, então entra na lista do `ScrollbarCoverageTest`.
+- **Arquivos.** `desktop/.../HelpWindow.kt` (novo) · `desktop/.../i18n/DesktopStrings.kt` ·
+  `desktop/.../SettingsWindow.kt` · `desktop/src/test/.../HelpManualTest.kt` (novo) ·
+  `desktop/src/test/.../ScrollbarCoverageTest.kt`
+
+Regressão (+2): `the manual covers the same actions in both languages` exige os sete ids na mesma
+ordem em pt e en, texto não vazio e nenhuma entrada repetida entre os idiomas; `settings offers the
+Help button and opens the manual` lê o `SettingsWindow.kt` e exige o botão e a chamada
+`HelpWindow(onClose = …)`.
+
+| mutação | teste que acusa |
+| --- | --- |
+| O botão deixa de abrir a janela | `settings offers the Help button and opens the manual` |
+| Uma entrada some do manual | `the manual covers the same actions in both languages` |
+
+Suíte desktop: **601 testes, 0 falhas** (5 pulados: PP-OCR real e os quatro de D-Bus sem sessão).
+
+- **Limite.** Sem ver a janela desenhada: o Compose não roda headless nesta suíte, então o teste
+  cobre o conteúdo e a ligação do botão, não o layout. Falta abrir os Ajustes e rolar o manual nas
+  duas línguas.

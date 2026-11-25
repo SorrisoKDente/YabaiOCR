@@ -2,6 +2,7 @@ package dev.yabai.ocr.overlay
 
 import android.Manifest
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -15,6 +16,7 @@ import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.TextView
 import dev.yabai.ocr.CameraActivity
 import dev.yabai.ocr.R
 import dev.yabai.ocr.capture.DeviceRotation
@@ -412,6 +414,74 @@ class PageTurnTest {
     }
 
     /**
+     * R48l: the camera screen is the whole screen, whichever way the window is turned.
+     *
+     * The frame is laid out once, from the display's measurement at the time. With «giro
+     * automático» on the window turns under it, and the picture keeps the portrait frame inside a
+     * landscape window — a band down the middle of the screen, smaller than what the user had with
+     * the phone upright. Laid out again when the window turns, it is the whole screen in either
+     * position.
+     */
+    @Test
+    fun `the camera screen keeps the whole screen when the window turns`() {
+        FloatingOcrService.isRunning = true
+        shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(Manifest.permission.CAMERA)
+        val controller = Robolectric.buildActivity(CameraActivity::class.java)
+        try {
+            val camera = controller.create().get()
+            val root = camera.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup
+            val preview = root.getChildAt(0)
+            assertEquals("the picture does not start as the window", 320, preview.layoutParams.width)
+
+            // The window turns with the phone: landscape, 640×320.
+            RuntimeEnvironment.setQualifiers("w640dp-h320dp-land-mdpi")
+            CameraActivity::class.java
+                .getDeclaredMethod("onConfigurationChanged", Configuration::class.java)
+                .apply { isAccessible = true }
+                .invoke(camera, Configuration(camera.resources.configuration))
+
+            val screen = ScreenMetrics.real(camera)
+            assertEquals("the display did not turn in this test", 640, screen.widthPixels)
+            assertEquals(
+                "the picture kept the portrait frame inside a landscape window",
+                screen.widthPixels,
+                preview.layoutParams.width,
+            )
+            assertEquals(screen.heightPixels, preview.layoutParams.height)
+        } finally {
+            runCatching { controller.destroy() }
+            FloatingOcrService.isRunning = false
+        }
+    }
+
+    /**
+     * R48l: «Reconhecendo…» turns with the phone's frame, like the preview.
+     *
+     * It was the one thing left in the window's frame: with the phone on its side and the screen
+     * locked, the card and its text lay sideways while the picture under it was upright — the one
+     * piece of the screen saying the phone was being held wrong.
+     */
+    @Test
+    fun `the reading indicator turns with the phone's frame`() {
+        FloatingOcrService.isRunning = true
+        shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(Manifest.permission.CAMERA)
+        val controller = Robolectric.buildActivity(CameraActivity::class.java)
+        try {
+            val camera = controller.create().get()
+            val card = text(camera, camera.getString(R.string.camera_reading)).parent as View
+
+            camera.applyPhotoFrame(turn = 270)
+            assertEquals("«Reconhecendo…» still lies on its side", 270f, card.rotation, 0.01f)
+
+            camera.applyPhotoFrame(turn = 0)
+            assertEquals("upright, the indicator is still turned", 0f, card.rotation, 0.01f)
+        } finally {
+            runCatching { controller.destroy() }
+            FloatingOcrService.isRunning = false
+        }
+    }
+
+    /**
      * R48j: one measurement of the screen for both sides.
      *
      * The camera laid the preview and the frozen photo out from `resources.displayMetrics` — the area
@@ -469,6 +539,20 @@ class PageTurnTest {
         .map { getChildAt(it) }
         .firstOrNull { it.contentDescription == description }
         ?: throw AssertionError("no view labelled «$description» on the screen")
+
+    /** The screen's own text view reading [label]. */
+    private fun text(activity: CameraActivity, label: String): TextView =
+        textViews(activity.findViewById(android.R.id.content)).firstOrNull { it.text.toString() == label }
+            ?: throw AssertionError("no text reading «$label» on the screen")
+
+    private fun textViews(view: View): List<TextView> {
+        val found = ArrayList<TextView>()
+        if (view is TextView) found.add(view)
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) found.addAll(textViews(view.getChildAt(index)))
+        }
+        return found
+    }
 
     /** Where a turned control ends up on screen: its box, turned about its own centre. */
     private fun visualBounds(view: View): RectF {

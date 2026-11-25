@@ -867,7 +867,13 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         }
     }
 
-    fun showLoading() {
+    /**
+     * The panel while the engines read, with the way out of the wait (R48m).
+     *
+     * [onCancel] is its «Cancelar»: a page can take seconds, and a spinner with no way out is a
+     * screen the user can only escape by dismissing the panel, losing the capture anyway.
+     */
+    fun showLoading(onCancel: () -> Unit) {
         card.removeAllViews()
         selectionToolbar.hide()
         // A spinner is not a search box, and a query typed into the previous card is not a capture.
@@ -882,13 +888,29 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         minimised = false
         card.addView(
             LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(0, dp(10), 0, dp(10))
-                addView(ProgressBar(context).apply { isIndeterminate = true })
                 addView(
-                    textLabel(context.getString(R.string.recognizing), 16f, context.getColor(R.color.text_primary))
-                        .apply { setPadding(dp(14), 0, 0, 0) },
+                    LinearLayout(context).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        addView(ProgressBar(context).apply { isIndeterminate = true })
+                        addView(
+                            textLabel(
+                                context.getString(R.string.recognizing),
+                                16f,
+                                context.getColor(R.color.text_primary),
+                            ).apply { setPadding(dp(14), 0, 0, 0) },
+                        )
+                    },
+                )
+                addView(
+                    actionButton(context.getString(R.string.recognition_cancel)) { onCancel() },
+                    LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        topMargin = dp(12)
+                    },
                 )
             },
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),

@@ -130,6 +130,11 @@ green dot means hover is on; a red dot with a white minus means it is off. The i
 | `Ctrl + Shift + D` | quick dictionary lookup |
 | `Ctrl + Shift + X` | cycles the hover readings |
 
+The **❓ Help** button at the top of Settings opens a manual for every action — the two captures,
+hover, the quick search, the dictionaries, the result window and the tray — with the default
+shortcuts. The Android **Help** screen explains the same on the phone, including the camera and the
+bubble's gestures.
+
 On multi-monitor setups, Settings lets you choose which monitor the full-screen capture and the
 manual crop use: the primary one, a specific monitor, or the one under the pointer when you capture.
 

@@ -182,6 +182,7 @@ rodam com as flags acima.
 | `DictionaryMatchText.kt` | a linha «forma lida → verbete · forma antiga» que o hover e o resultado desenham (R46e) |
 | `ReleaseNotesWindow.kt` | preview em Markdown das notas do release do GitHub, aberto em Ajustes → Sobre |
 | `LicenseWindow.kt` | texto da licença empacotado no jar, lido em Ajustes → Sobre |
+| `HelpWindow.kt` | manual de uso aberto pelo botão «❓ Ajuda» dos Ajustes: uma entrada por função (capturas, hover, busca rápida, dicionários, resultado e bandeja), em pt/en |
 | `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
 | `InstanceLock.kt` | trava de arquivo em `~/.yabai_ocr/instance.lock`: uma instância por usuário, antes de D-Bus e bandeja |
 | `KdeCapturePermission.kt` | opção «captura silenciosa no KDE»: grava `~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, porque o KWin só autoriza `ScreenShot2` a um `Exec` fixo em diretório de root |
@@ -288,9 +289,9 @@ valem destaque:
 | `MainActivity.kt` | ajustes e permissões; escolhe motor, baixa modelos, inicia o serviço |
 | `StartOcrActivity.kt` | atalho/atalho de tela para iniciar a captura |
 | `LookupActivity.kt` | abre a busca do dicionário a partir de um texto |
-| `CameraActivity.kt` | a câmera da bolha, tela própria com CameraX: pré-visualização, disparo sem confirmação, a foto parada atrás do indicador enquanto o serviço lê e a entrega do arquivo; sai quando os balões estão na tela; o giro da foto segue a orientação do aparelho, não a tela, do disparo e depois de virar o celular; a pré-visualização e a foto parada ficam no quadro do celular, e é esse mesmo quadro que ela entrega ao serviço para a página do seletor; fecha-se quando o usuário vai para a home ou a lista de apps, mas só com a câmera já rodando, porque o diálogo de permissão também anuncia uma saída; mede a tela pelo display inteiro, a mesma medida da página do seletor, e deixa o disparo e o ✕ no quadro da janela — embaixo ao centro e no canto superior direito —, sem girá-los com a foto (R46d, R47a, R48a, R48d, R48f, R48g, R48h, R48i, R48j, R48k) |
+| `CameraActivity.kt` | a câmera da bolha, tela própria com CameraX: pré-visualização, disparo sem confirmação, a foto parada atrás do indicador enquanto o serviço lê e a entrega do arquivo; sai quando os balões estão na tela; o giro da foto segue a orientação do aparelho, não a tela, do disparo e depois de virar o celular; a pré-visualização e a foto parada ficam no quadro do celular, e é esse mesmo quadro que ela entrega ao serviço para a página do seletor; fecha-se quando o usuário vai para a home ou a lista de apps, mas só com a câmera já rodando, porque o diálogo de permissão também anuncia uma saída; mede a tela pelo display inteiro, a mesma medida da página do seletor, e deixa o disparo e o ✕ no quadro da janela — embaixo ao centro e no canto superior direito —, sem girá-los com a foto; com a janela virada pelo celular, mede o quadro de novo para a câmera continuar sendo a tela inteira, gira o «Reconhecendo…» com esse quadro e tem no indicador o «Cancelar» que avisa o serviço e devolve a pré-visualização (R46d, R47a, R48a, R48d, R48f, R48g, R48h, R48i, R48j, R48k, R48l, R48m) |
 | `DictionaryActivity.kt` | tela de dicionários (instalar, atualizar, filtrar) |
-| `HelpActivity.kt` | ajuda e explicações |
+| `HelpActivity.kt` | manual de uso: capturas, câmera, bolha e gestos, motores, dicionários, IA e tradução |
 | `YabaiOcrApplication.kt` | `Application`: tema, idioma, agendador de atualizações |
 | `AppSettings.kt` | `SharedPreferences` tipadas de **todo** o app |
 | `UsageTracker.kt` | quantas chamadas ao Lens por dia (não há cota pública) |
@@ -315,11 +316,11 @@ valem destaque:
 | `capture/ScreenMetrics.kt` | a medida única da tela — o display inteiro, com as barras — usada pela bolha (R23), pela tela da câmera e pela página do seletor (R48j) |
 | `capture/PhotoWait.kt` | o limite da espera pela leitura de uma foto na tela da câmera, e o fallback que devolve o controle (R48c) |
 | `capture/PhotoPage.kt` | geometria da foto na página do seletor (encaixe uniforme, retângulos, alocação da página), o tamanho da página no quadro do celular (R48g) e o mesmo quadro aplicado às views da tela da câmera (R48h) (R47a, R48g, R48h) |
-| `service/FloatingOcrService.kt` | serviço em primeiro plano: captura, OCR, mostra o resultado |
+| `service/FloatingOcrService.kt` | serviço em primeiro plano: captura, OCR, mostra o resultado; toda leitura corre em `startReading`, que guarda o `Job` que «Cancelar» cancela (R48m) |
 | `service/LookupOverlayService.kt` | busca do dicionário sobre outras apps |
 | `service/YabaiTileService.kt` | bloco de configurações rápidas |
 | `overlay/OverlayController.kt` | ciclo de vida dos overlays |
-| `overlay/ResultOverlay.kt` | painel de resultado (texto, tradução, ações, dicionário) |
+| `overlay/ResultOverlay.kt` | painel de resultado (texto, tradução, ações, dicionário; o spinner do reconhecimento com o «Cancelar» — R48m) |
 | `overlay/TextPickerOverlay.kt` | seletor de trechos sobre a captura, com a página virada para o quadro do celular (R48g) e a barra de ações e a dica acompanhando o giro (R48g, R48h) |
 | `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` / `PageTurn.kt` | regra de "sempre mostrar o seletor", alvos de toque, zoom, leituras e o giro da página para o quadro do celular (R48g) |
 | `overlay/RegionOverlay.kt` | recorte à mão |

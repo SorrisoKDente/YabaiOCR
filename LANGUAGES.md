@@ -62,7 +62,7 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 6. **Perguntar à IA (`8. IA` / `8. Ask AI`):**
    - `section_ai` ("8. Ask an AI"), `setting_ai_button`, `setting_ai_prompt`, `setting_ai_app`, `ai_note`.
 7. **Overlay e Painéis Flutuantes:**
-   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_camera`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`), a recusa da permissão da câmera (`camera_permission_denied`), a nova foto a partir dos trechos ou do resultado (`camera_retake`) e a tela da câmera (`camera_shutter`, `camera_reading`, `camera_close`).
+   - Ícones da bolha (`overlay_full_screen`, `overlay_select_area`, `overlay_camera`, `overlay_kanji`, `overlay_dictionary`, `overlay_settings`, `overlay_close_service`), a recusa da permissão da câmera (`camera_permission_denied`), a nova foto a partir dos trechos ou do resultado (`camera_retake`) e a tela da câmera (`camera_shutter`, `camera_reading`, `camera_close`) e o «Cancelar» da espera pelo reconhecimento (`recognition_cancel`).
    - Forma antiga do kanji, mostrada no painel quando a busca segue um redirecionamento: `dictionary_old_form`.
    - Painel de resultado (`result_title`, `result_retry_offline`, `result_copy_original`, `result_copy_translation`, `result_repick`, `result_image`, `result_ask_ai`, `result_translation_label`, `result_dictionary_label`, `result_kanji_label`).
    - Tela de leitura de kanji (`kanji_hint`, `kanji_on`, `kanji_kun`, `kanji_parts`, `kanji_dictionary_missing`).
@@ -71,7 +71,7 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 9. **Gerenciador de Dicionários e Atualizações:**
    - `dictionary_title`, `dictionary_installed_section`, `dictionary_available_section`, `dictionary_import_section`, mensagens de progresso de download e conversão, verificador de atualizações, «Reinstalar» (`dictionary_reinstall`), créditos e licenças.
 10. **Tela de Ajuda (`HelpActivity`):**
-    - `help_title` ("Help & Tips"), `menu_help` ("Help"), `help_tip_area_*`, `help_tip_kanji_*`, `help_tip_engines_*`, `help_tip_behaviours_*`, `help_tip_dicts_*`, `help_tip_ai_*`, `help_tip_translation_*`.
+    - `help_title` ("Help & Tips"), `menu_help` ("Help"), `help_tip_area_*`, `help_tip_camera_*` (a câmera: disparo e ✕ fixos, quadro girado, «Cancelar» e nova foto), `help_tip_bubble_*` (gestos da bolha, «Ler kanji» e o «Cancelar» de qualquer leitura), `help_tip_kanji_*`, `help_tip_engines_*`, `help_tip_behaviours_*`, `help_tip_dicts_*`, `help_tip_ai_*`, `help_tip_translation_*`.
 
 ### 3.2. Extração de Strings Hardcoded no Kotlin (`:app`)
 As seguintes strings escritas diretamente no código Kotlin devem ser extraídas para `strings.xml`:
@@ -206,6 +206,10 @@ Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de
 #### 6. `HoverTooltipWindow.kt`, `SegmentPickerWindow.kt`, `RegionSelectionWindow.kt`
 - Tooltip do Hover: `"🌐 Todos os Dicionários"` → `"🌐 All Dictionaries"`, `"Sem verbete"` → `"No match found"`
 - Telas de Seleção: `"Toque num trecho para copiar ou traduzir"` → `"Click a segment to copy or translate"`, `"Arraste para selecionar a área"` → `"Drag to select a region"`, `"Cancelar"` → `"Cancel"`, `"Reconhecer"` → `"Recognize"`, `"Texto todo"` → `"All text"`.
+
+#### 7. `HelpWindow.kt` (Manual de Ajuda Desktop)
+- **Botão e título:** `"❓ Ajuda"` → `"❓ Help"`, `"Ajuda — Yabai OCR"` → `"Help — Yabai OCR"`
+- **Entradas do manual** (`helpIntro`, `helpCapture*`, `helpRegion*`, `helpHover*`, `helpQuickSearch*`, `helpDictionaries*`, `helpResult*`, `helpTray*`): as duas capturas, o hover, a busca rápida, os dicionários, a janela de resultado e a bandeja, cada uma com os atalhos padrão e o que a função faz. O teste `HelpManualTest` compara as duas línguas e a lista de ações.
 
 ---
 

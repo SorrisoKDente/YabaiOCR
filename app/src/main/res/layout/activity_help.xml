@@ -61,7 +61,45 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
-            <!-- Tip 2: Kanji & Zoom -->
+            <!-- Tip 2: Camera -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/help_tip_camera_title"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="20dp"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/help_tip_camera_desc"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <!-- Tip 3: Bubble & Kanji reading -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/help_tip_bubble_title"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="20dp"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/help_tip_bubble_desc"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <!-- Tip 4: Kanji & Zoom -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -42,6 +42,7 @@ class ScrollbarCoverageTest {
             "ResultWindow.kt",
             "DictionaryManagerWindow.kt",
             "LicenseWindow.kt",
+            "HelpWindow.kt",
             "ReleaseNotesWindow.kt",
             "QuickDictWindow.kt",
         )

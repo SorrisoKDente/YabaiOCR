@@ -40,6 +40,7 @@ import dev.yabai.ocr.capture.DeviceRotation
 import dev.yabai.ocr.capture.placeInPhoneFrame
 import dev.yabai.ocr.capture.PhotoWait
 import dev.yabai.ocr.capture.ScreenMetrics
+import dev.yabai.ocr.overlay.actionButton
 import dev.yabai.ocr.overlay.roundedBackground
 import dev.yabai.ocr.service.FloatingOcrService
 import dev.yabai.ocr.util.dp
@@ -222,6 +223,17 @@ class CameraActivity : AppCompatActivity() {
                 setPadding(0, dp(12), 0, 0)
             },
         )
+        // The ✕ closes the screen without stopping the reading; this is the way out that keeps it (R48m).
+        addView(
+            actionButton(getString(R.string.recognition_cancel)) { cancelReading() },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = dp(10)
+            },
+        )
     }
 
     private fun buildShutter(): View = FrameLayout(this).apply {
@@ -270,6 +282,8 @@ class CameraActivity : AppCompatActivity() {
             screen.heightPixels,
             turn,
         )
+        // Content, like the picture: turned with it, «Reconhecendo…» stays readable (R48l).
+        loading.rotation = turn.toFloat()
     }
 
     private fun matchParent() = FrameLayout.LayoutParams(
@@ -408,13 +422,34 @@ class CameraActivity : AppCompatActivity() {
      */
     private fun photoWaitExpired() {
         if (!waitingForReading) return
+        resetShot()
+        Toast.makeText(this, R.string.camera_no_answer, Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * «Cancelar»: the reading is abandoned and the camera is ready for another shot (R48m).
+     *
+     * From the handoff the service owns the read, so it is the one told to stop; a file it never
+     * decoded is swept with the next shot (`CameraPhoto.clearLeftovers`).
+     */
+    private fun cancelReading() {
+        if (!waitingForReading) return
+        if (handedOff) {
+            val intent = Intent(this, FloatingOcrService::class.java)
+                .setAction(FloatingOcrService.ACTION_CANCEL_READ)
+            runCatching { startService(intent) }
+        }
+        resetShot()
+    }
+
+    /** The picture gives the screen back to the preview, with the shutter armed again. */
+    private fun resetShot() {
         waitingForReading = false
         loading.visibility = View.GONE
         frozenPhoto.visibility = View.GONE
         frozenPhoto.setImageDrawable(null)
         previewView.visibility = View.VISIBLE
         shutter.isEnabled = true
-        Toast.makeText(this, R.string.camera_no_answer, Toast.LENGTH_LONG).show()
         startCamera()
     }
 
@@ -506,6 +541,18 @@ class CameraActivity : AppCompatActivity() {
     private fun cameraFailed() {
         Toast.makeText(this, R.string.capture_failed, Toast.LENGTH_SHORT).show()
         finish()
+    }
+
+    /**
+     * The window turned with the phone (R48l): the picture takes the new window's size.
+     *
+     * The frame is laid out from the display's measurement, so a window that turns while this screen
+     * is up would keep the frame it had — a portrait rectangle in a landscape window, a band down the
+     * middle of the screen. Laid out again here, the picture is the whole screen in either position.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyPhotoFrame()
     }
 
     override fun onDestroy() {

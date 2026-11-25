@@ -131,6 +131,10 @@ existe em **português e inglês**, escolhido nos Ajustes. Atalhos padrão (todo
 | `Ctrl + Shift + D` | busca rápida no dicionário |
 | `Ctrl + Shift + X` | alterna entre as leituras do hover |
 
+O botão **❓ Ajuda**, no topo dos Ajustes, abre um manual com cada função — as duas capturas, o
+hover, a busca rápida, os dicionários, a janela de resultado e a bandeja — com os atalhos padrão. A
+tela **Ajuda** do Android explica o mesmo no celular, incluindo a câmera e os gestos da bolha.
+
 Em telas múltiplas, os Ajustes deixam escolher qual monitor a captura de tela inteira e o recorte à
 mão usam: o principal, um monitor específico ou aquele em que o ponteiro está no momento da captura.
 

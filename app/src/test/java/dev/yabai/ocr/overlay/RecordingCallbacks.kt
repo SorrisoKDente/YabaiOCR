@@ -57,6 +57,10 @@ class RecordingCallbacks(private val asked: MutableList<String> = ArrayList()) :
         asked.add("retry offline")
     }
 
+    override fun onRecognitionCancelRequested() {
+        asked.add("cancel reading")
+    }
+
     override fun onResultDismissed() {
         asked.add("result dismissed")
     }

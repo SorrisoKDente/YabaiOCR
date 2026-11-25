@@ -357,6 +357,70 @@ object DesktopStrings {
     else
         "O arquivo de licença não foi encontrado neste build."
 
+    // Help manual
+    val btnHelp: String get() = if (isEnglish) "❓ Help" else "❓ Ajuda"
+    val helpWindowTitle: String get() = if (isEnglish) "Help — Yabai OCR" else "Ajuda — Yabai OCR"
+    val helpIntro: String get() = if (isEnglish)
+        "Every action the app offers, in the order you usually meet it: the two captures, hover, the quick search, the dictionaries, the result window and the tray. The shortcuts shown are the defaults; all of them can be changed in Settings."
+    else
+        "Cada função do aplicativo, na ordem em que você costuma encontrá-la: as duas capturas, o hover, a busca rápida, os dicionários, a janela de resultado e a bandeja. Os atalhos mostrados são os padrões; todos podem ser trocados nos Ajustes."
+    val helpCaptureTitle: String get() = if (isEnglish)
+        "1. Full-screen capture — Ctrl + Shift + O"
+    else
+        "1. Tela inteira — Ctrl + Shift + O"
+    val helpCaptureBody: String get() = if (isEnglish)
+        "Ctrl + Shift + O (or a left click on the tray icon) captures the whole screen and puts a box over every speech bubble or paragraph. Click the box you want to read, or «All text» to read the whole page. After a result, «Snippets» goes back to the same capture instead of taking the screenshot again."
+    else
+        "Ctrl + Shift + O (ou clique esquerdo no ícone da bandeja) captura a tela inteira e marca cada balão ou parágrafo com uma caixa. Clique na caixa que quer ler, ou em «Texto todo» para ler a página inteira. Depois de um resultado, «Trechos» volta à mesma captura em vez de fotografar a tela de novo."
+    val helpRegionTitle: String get() = if (isEnglish)
+        "2. Hand-drawn area — Ctrl + Shift + A"
+    else
+        "2. Recorte à mão — Ctrl + Shift + A"
+    val helpRegionBody: String get() = if (isEnglish)
+        "Ctrl + Shift + A opens the hand-drawn crop: drag the rectangle over the text and release it. Inside the paragraph picker, «✂️ Manual Crop» swaps the boxes for a rectangle you draw yourself. The result opens in the same window as any other reading."
+    else
+        "Ctrl + Shift + A abre o recorte à mão: arraste o retângulo sobre o texto e solte. Dentro do seletor de trechos, «✂️ Recortar à mão» troca as caixas por um retângulo desenhado por você. O resultado abre na mesma janela de qualquer leitura."
+    val helpHoverTitle: String get() = if (isEnglish)
+        "3. Hover mode — Ctrl + Shift + H"
+    else
+        "3. Modo hover — Ctrl + Shift + H"
+    val helpHoverBody: String get() = if (isEnglish)
+        "Ctrl + Shift + H turns hover on. Rest the pointer over a Japanese word and the card shows the word and the entry from the chosen dictionary; Ctrl + Shift + X cycles the dictionaries. When the chosen dictionary has no entry, the card says so instead of switching dictionaries on its own. It works in a browser, a manga reader, a game and a PDF."
+    else
+        "Ctrl + Shift + H liga o hover. Pare o ponteiro sobre uma palavra japonesa e o cartão mostra a palavra e o verbete do dicionário escolhido; Ctrl + Shift + X alterna entre os dicionários. Quando o dicionário escolhido não tem o verbete, o cartão avisa em vez de trocar de dicionário sozinho. Funciona em navegador, leitor de mangá, jogo e PDF."
+    val helpQuickSearchTitle: String get() = if (isEnglish)
+        "4. Quick dictionary search — Ctrl + Shift + D"
+    else
+        "4. Busca rápida no dicionário — Ctrl + Shift + D"
+    val helpQuickSearchBody: String get() = if (isEnglish)
+        "Ctrl + Shift + D opens the search without capturing the screen: look up a word, a kanji, a reading (hiragana or romaji) or a definition, with a filter for one dictionary. «Paste» takes the clipboard text and «Clear» empties the field."
+    else
+        "Ctrl + Shift + D abre a busca sem capturar a tela: procure uma palavra, um kanji, uma leitura (hiragana ou romaji) ou uma definição, com filtro por dicionário. «Colar» aproveita o texto da área de transferência e «Apagar» limpa o campo."
+    val helpDictionariesTitle: String get() = if (isEnglish)
+        "5. Dictionaries"
+    else
+        "5. Dicionários"
+    val helpDictionariesBody: String get() = if (isEnglish)
+        "The manager accepts Yomitan/Yomichan dictionaries (.yabai or .zip), imports local files and downloads the recommended ones from the catalog. The order of the list is the lookup priority. The automatic update (off, daily, weekly or monthly) announces itself in the tray and installs without leaving the app; each dictionary's credits and license stay in the manager."
+    else
+        "O gerenciador aceita dicionários Yomitan/Yomichan (.yabai ou .zip), importa arquivos locais e baixa os recomendados no catálogo. A ordem da lista é a prioridade de busca. A atualização automática (desligada, diária, semanal ou mensal) avisa na bandeja e instala sem sair do app; os créditos e a licença de cada dicionário ficam no próprio gerenciador."
+    val helpResultTitle: String get() = if (isEnglish)
+        "6. Result window"
+    else
+        "6. Janela de resultado"
+    val helpResultBody: String get() = if (isEnglish)
+        "The result window shows the recognised text (editable and copyable), furigana as the Settings choose, the lines separately, the kanji card for a segment, the offline translation of the sentence and the «Ask an AI» button. «Captured image» shows the crop beside the text and «Try offline» reads the same capture again without the network."
+    else
+        "A janela de resultado mostra o texto reconhecido (editável e copiável), o furigana conforme os Ajustes, as linhas separadas, o cartão de kanji de um trecho, a tradução offline da frase e o botão «Perguntar à IA». «Imagem capturada» mostra o recorte ao lado do texto e «Tentar offline» lê a mesma captura de novo sem internet."
+    val helpTrayTitle: String get() = if (isEnglish)
+        "7. Tray icon, settings and shortcuts"
+    else
+        "7. Bandeja, ajustes e atalhos"
+    val helpTrayBody: String get() = if (isEnglish)
+        "The tray icon shows hover at a glance: a green dot is on, a red dot with a stroke is off. A left click captures the whole screen; a right click opens the menu (area, quick search, hover, dictionaries, settings, updates and exit). «Close to tray» keeps the app running when the window closes, and «Start in tray» opens it without a window. Settings hold language, theme, OCR engine and priority, capture monitor, renderer, shortcuts, start with the session and the Linux integration."
+    else
+        "O ícone da bandeja mostra o hover de relance: ponto verde ligado, ponto vermelho com traço desligado. Clique esquerdo captura a tela inteira; clique direito abre o menu (área, busca rápida, hover, dicionários, ajustes, atualizações e sair). «Fechar para a bandeja» mantém o app rodando ao fechar a janela, e «Iniciar na bandeja» o abre sem janela. Nos Ajustes ficam idioma, tema, motor de OCR e prioridade, monitor da captura, renderizador, atalhos, iniciar com a sessão e a integração com o Linux."
+
     // Updating from inside the app
     val btnInstallUpdate: String get() = if (isEnglish) "⬇️ Download and install" else "⬇️ Baixar e instalar"
     fun updateDownloading(percent: Int?): String = when {

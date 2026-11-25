@@ -66,6 +66,9 @@ class OverlayController(
         fun onCopyRequested(text: String, closeAfter: Boolean)
         fun onAnalyseRequested(text: String)
         fun onRetryOfflineRequested()
+
+        /** The user gave up on the reading that is running (R48m). */
+        fun onRecognitionCancelRequested() {}
         fun onResultDismissed()
 
         /** The user tapped one of the recognised text boxes after a whole-screen capture. */
@@ -1038,7 +1041,7 @@ class OverlayController(
     }
 
     fun showResultLoading() {
-        ensureResultPanel()?.showLoading()
+        ensureResultPanel()?.showLoading { callbacks?.onRecognitionCancelRequested() }
     }
 
     /**
@@ -1262,6 +1265,9 @@ class OverlayController(
     }
 
     fun isResultVisible(): Boolean = resultView != null
+
+    /** The panel itself, for the tests that drive its buttons. */
+    internal fun resultPanel(): ResultOverlay? = resultView
 
     // --- capture helpers -----------------------------------------------------------------------
 
