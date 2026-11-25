@@ -169,9 +169,12 @@ class CameraActivity : AppCompatActivity() {
                 Gravity.CENTER,
             ),
         )
+        // The controls stay in the window's frame, not the phone's (R48k): they are targets, and the
+        // shutter under the thumb and the ✕ in the top-right corner are where an upright camera has
+        // them. Only the picture follows the phone.
         root.addView(
             close,
-            FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.START),
+            FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END),
         )
         root.addView(
             shutter,
@@ -188,7 +191,7 @@ class CameraActivity : AppCompatActivity() {
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             (close.layoutParams as? FrameLayout.LayoutParams)?.let {
                 it.topMargin = dp(16) + bars.top
-                it.leftMargin = dp(16) + bars.left
+                it.rightMargin = dp(16) + bars.right
                 close.requestLayout()
             }
             (shutter.layoutParams as? FrameLayout.LayoutParams)?.let {

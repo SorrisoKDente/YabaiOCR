@@ -9,11 +9,14 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import dev.yabai.ocr.CameraActivity
+import dev.yabai.ocr.R
 import dev.yabai.ocr.capture.DeviceRotation
 import dev.yabai.ocr.capture.placeInPhoneFrame
 import dev.yabai.ocr.capture.PhotoPageGeometry
@@ -365,6 +368,53 @@ class PageTurnTest {
     }
 
     /**
+     * R48k: the shutter and the ✕ stay where the upright screen puts them.
+     *
+     * The picture follows the phone's frame (R48g, R48h), but these two do not: they are targets, not
+     * content, and a target that moves under the thumb when the phone is turned is the wrong kind of
+     * surprise. The shutter keeps the window's bottom centre and the ✕ the window's top-right corner
+     * — where an upright camera has them — with the picture turned or not.
+     */
+    @Test
+    fun `the shutter and the close stay where the upright screen puts them`() {
+        FloatingOcrService.isRunning = true
+        shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(Manifest.permission.CAMERA)
+        val controller = Robolectric.buildActivity(CameraActivity::class.java)
+        try {
+            val camera = controller.create().get()
+            val root = camera.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup
+            val shutter = root.child(camera.getString(R.string.camera_shutter))
+            val close = root.child(camera.getString(R.string.camera_close))
+
+            assertEquals("the shutter was turned with the picture", 0f, shutter.rotation, 0f)
+            assertEquals("the ✕ was turned with the picture", 0f, close.rotation, 0f)
+            assertEquals(
+                "the shutter is not at the window's bottom centre",
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+                (shutter.layoutParams as FrameLayout.LayoutParams).gravity,
+            )
+            assertEquals(
+                "the ✕ is not at the window's top-right corner",
+                Gravity.TOP or Gravity.END,
+                (close.layoutParams as FrameLayout.LayoutParams).gravity,
+            )
+
+            // Only the picture goes into the phone's frame: the controls are not carried with it.
+            val source = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+            val frame = source.substringAfter("placeInPhoneFrame(").substringBefore(")")
+            assertTrue(
+                "the picture is not the only thing laid out in the phone's frame: $frame",
+                frame.contains("previewView, frozenPhoto"),
+            )
+            assertFalse("the shutter is carried into the turned frame: $frame", frame.contains("shutter"))
+            assertFalse("the ✕ is carried into the turned frame: $frame", frame.contains("close"))
+        } finally {
+            runCatching { controller.destroy() }
+            FloatingOcrService.isRunning = false
+        }
+    }
+
+    /**
      * R48j: one measurement of the screen for both sides.
      *
      * The camera laid the preview and the frozen photo out from `resources.displayMetrics` — the area
@@ -416,6 +466,11 @@ class PageTurnTest {
         )
         layout(0, 0, 320, 640)
     }
+
+    /** The direct child of this group that the screen describes to a reader (a control's label). */
+    private fun ViewGroup.child(description: String): View = (0 until childCount)
+        .map { getChildAt(it) }
+        .first { it.contentDescription == description }
 
     /** Where a turned control ends up on screen: its box, turned about its own centre. */
     private fun visualBounds(view: View): RectF {

@@ -8509,6 +8509,7 @@ linha própria. Mutações provadas:
 | R48h | `[x]` | **A tela da câmera e os controles do seletor seguem o giro**: pré-visualização, foto parada, barra de ações e dica no quadro do celular, para nada crescer nem girar ao abrir o seletor | média |
 | R48i | `[x]` | **Home e lista de apps fecham a foto da câmera**: sair da tela da câmera pelo botão do sistema fecha a foto, como os painéis já faziam | fácil |
 | R48j | `[x]` | **A permissão não fecha a câmera, e o quadro é o mesmo dos dois lados**: a tela só fecha com a câmera rodando, e a câmera e a página medem a tela pelo display inteiro | fácil |
+| R48k | `[x]` | **O disparo e o ✕ ficam no lugar de quando o celular está em pé**: o ✕ passa para o canto superior direito e os dois continuam no quadro da janela, mesmo com a foto girada | fácil |
 
 ### R48a — A foto é lida na própria tela da câmera  `[x]` (23/11/2026)
 
@@ -8884,8 +8885,8 @@ Suíte do app: **471 testes por variante (942 no total, debug e release), 0 falh
 - **Limite.** Sem aparelho: o Robolectric mede a geometria das views, não o fluxo da câmera. Falta
   conferir no celular, deitado com o giro automático desligado: a pré-visualização já grande e em pé,
   o disparo sem salto ao congelar a foto, e os três botões legíveis na borda de baixo do leitor.
-- **Pendência conhecida.** O disparo e o ✕ continuam no quadro da janela: são alvos redondos nas
-  bordas, não texto, e girar a tela inteira da câmera (botões inclusive) é outra decisão de produto.
+- **Decisão (R48k).** O disparo e o ✕ **não** giram: ficam no quadro da janela — o disparo embaixo
+  ao centro e o ✕ no canto superior direito, como com o celular em pé. São alvos, não conteúdo.
 
 ### R48i — Home e lista de apps fecham a foto da câmera  `[x]` (25/11/2026)
 
@@ -8954,3 +8955,35 @@ Suíte do app: **473 testes por variante (946 no total, debug e release), 0 falh
   permissão nem a câmera. Falta conferir no celular: abrir a câmera pela primeira vez, conceder a
   permissão e ver a tela seguir; depois tirar uma foto e comparar o quadro da pré-visualização com a
   página do seletor, deitado dos dois lados.
+
+### R48k — O disparo e o ✕ ficam no lugar de quando o celular está em pé  `[x]` (25/11/2026)
+
+**Pedido.** O disparo e o ✕ deviam seguir o giro, como a pré-visualização e a foto parada; ao revisar,
+a decisão mudou: o disparo tem de ficar **sempre na mesma posição**, a de quando o celular está em
+pé, e o ✕ numa posição padrão no **canto superior direito** da tela — também a de quando o celular
+está em pé, sem seguir o giro.
+
+- **Decisão.** Os dois controles continuam filhos da janela, não do quadro girado: o disparo preso ao
+  `Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL`, o ✕ ao `Gravity.TOP or Gravity.END`. São alvos, não
+  conteúdo: mover o alvo sob o dedo quando o celular vira é o tipo errado de surpresa, e o que segue o
+  quadro (R48g, R48h) é a foto.
+- **Correção.** O ✕ estava no canto **superior esquerdo** (`Gravity.START`, `leftMargin`); passou para
+  o direito (`Gravity.END`, `rightMargin`), com os mesmos 16 dp e a barra de status.
+- **Arquivos.** `app/.../CameraActivity.kt` · `app/src/test/.../overlay/PageTurnTest.kt`
+
+Regressão (+1): `the shutter and the close stay where the upright screen puts them` monta a
+`CameraActivity` no Robolectric e lê a árvore de views: nenhum dos dois gira, o disparo está em
+`BOTTOM|CENTER_HORIZONTAL` e o ✕ em `TOP|END`; e o quadro do celular recebe só a pré-visualização e a
+foto parada, não os controles.
+
+| mutação | teste que acusa |
+| --- | --- |
+| O ✕ volta ao canto superior esquerdo | `the shutter and the close stay where the upright screen puts them` |
+| O disparo sai de baixo ao centro | o mesmo teste |
+| Os controles entram no quadro girado | o mesmo teste |
+
+Suíte do app: **474 testes por variante (948 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric lê a árvore de views, não os pixels. Falta conferir no
+  celular, deitado com o giro automático desligado: o ✕ legível no canto superior direito e o disparo
+  sob o polegar, com a foto em pé.
