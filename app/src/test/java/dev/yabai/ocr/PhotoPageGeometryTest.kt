@@ -78,6 +78,36 @@ class PhotoPageGeometryTest {
         assertEquals("the letterbox below the photo is not black", Color.BLACK, page.getPixel(50, 90))
     }
 
+    /**
+     * R48g: a landscape photo on a portrait screen gets a page in the phone's frame.
+     *
+     * With the rotation locked the screen stays portrait while the phone is on its side, and the
+     * photo — upright, 4000×3000 — was fitted to the 1080×2400 page: 1080×810, a strip in the middle
+     * of the screen, where the text is a third of the size it could be. The page takes the phone's
+     * frame (2400×1080) instead, and the picker turns it into the window.
+     */
+    @Test
+    fun `a sideways page is the phone's frame, so a landscape photo is not a strip`() {
+        val frame = PhotoPageGeometry.frame(1080, 2400, turn = 270)
+        assertEquals(2400, frame.width)
+        assertEquals(1080, frame.height)
+
+        val turned = requireNotNull(PhotoPageGeometry.fit(4000, 3000, frame.width, frame.height))
+        assertEquals(0.36f, turned.scale, 0.0001f)
+        assertEquals(1440, turned.drawnWidth)
+        assertEquals(1080, turned.drawnHeight)
+
+        // The page the photo got before the turn, kept here as the regression: an 810-pixel strip.
+        val portrait = requireNotNull(PhotoPageGeometry.fit(4000, 3000, 1080, 2400))
+        assertEquals(1080, portrait.drawnWidth)
+        assertEquals(810, portrait.drawnHeight)
+
+        // A screen that turned with the phone already has the frame: nothing is exchanged.
+        assertEquals(1080, PhotoPageGeometry.frame(1080, 2400, turn = 0).width)
+        assertEquals(2400, PhotoPageGeometry.frame(1080, 2400, turn = 0).height)
+        assertEquals(2400, PhotoPageGeometry.frame(1080, 2400, turn = 90).width)
+    }
+
     @Test
     fun `a picture or a page with no area has no fit`() {
         assertNull(PhotoPageGeometry.fit(0, 20, 100, 100))

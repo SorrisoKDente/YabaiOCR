@@ -5,6 +5,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
+import android.util.Size
+import android.view.Gravity
+import android.view.View
+import android.widget.FrameLayout
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -34,7 +38,45 @@ internal data class PhotoPageLayout(
         get() = Rect(left, top, left + drawnWidth, top + drawnHeight)
 }
 
+/**
+ * Lays the views that show a photo out in the phone's frame (R48h).
+ *
+ * The camera screen's preview and frozen photo are the picture the picker draws as its page, and the
+ * page is the phone's frame (R48g). Fitted to the window instead — which is the frame only when the
+ * screen turned with the phone — they were an 810-pixel strip with the page on its side, and the
+ * picture grew and turned the moment the picker opened. Laid out as the frame and turned into the
+ * window, the three are one rectangle.
+ *
+ * Only the layout changes: the picture is still drawn whole and fitted, never cropped.
+ */
+internal fun placeInPhoneFrame(views: List<View>, screenWidth: Int, screenHeight: Int, turn: Int) {
+    val frame = PhotoPageGeometry.frame(screenWidth, screenHeight, turn)
+    for (view in views) {
+        view.layoutParams = FrameLayout.LayoutParams(frame.width, frame.height, Gravity.CENTER)
+        view.rotation = turn.toFloat()
+    }
+}
+
 internal object PhotoPageGeometry {
+
+    /**
+     * The page a photo is drawn on: the screen's size, in the frame the phone was held in (R48g).
+     *
+     * A photo is laid out in the rectangle it was taken in, and that rectangle is the screen only
+     * when the screen turned with the phone. With «giro automático» off it does not: a 4000×3000
+     * photo fitted to a 1080×2400 page keeps its proportions by shrinking to 1080×810 — a strip in
+     * the middle of the screen, where the text is a third of the size the page could give it. The
+     * page takes the turned size instead (2400×1080) and the picker turns it into the window, so the
+     * photo is fitted by the side it shares with the screen. Nothing is cropped: the whole picture is
+     * still on the page, black bands and all.
+     *
+     * [turn] is the turn the picker gives the page, in degrees: a sideways one exchanges the sides.
+     */
+    fun frame(screenWidth: Int, screenHeight: Int, turn: Int): Size = if (turn % 180 != 0) {
+        Size(screenHeight.coerceAtLeast(1), screenWidth.coerceAtLeast(1))
+    } else {
+        Size(screenWidth.coerceAtLeast(1), screenHeight.coerceAtLeast(1))
+    }
 
     /**
      * Fits a [photoWidth]×[photoHeight] picture inside a [pageWidth]×[pageHeight] page.

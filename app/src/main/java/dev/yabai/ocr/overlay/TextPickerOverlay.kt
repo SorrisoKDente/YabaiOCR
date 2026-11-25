@@ -3,7 +3,9 @@ package dev.yabai.ocr.overlay
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -78,6 +80,17 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
     /** The area the page and the boxes share, so a test can prove it did not lose a pixel (R48b). */
     internal val pageView: View get() = blocks
 
+    /** The line that says what the picker is for; it turns with the page (R48h). */
+    internal val hintView: View get() = hint
+
+    /** The turn the page was shown with; the controls follow it (R48h). */
+    private var turn = 0
+
+    private val hint = textLabel(context.getString(R.string.picker_hint), 13f, android.graphics.Color.WHITE).apply {
+        setPadding(dp(14), dp(9), dp(14), dp(9))
+        background = roundedBackground(0xCC000000.toInt(), dp(20).toFloat())
+    }
+
     private val bar = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
@@ -122,20 +135,16 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
             if (index >= 0) onPick?.invoke(index) else onCancel?.invoke()
         }
 
-        val hint = textLabel(context.getString(R.string.picker_hint), 13f, android.graphics.Color.WHITE).apply {
-            setPadding(dp(14), dp(9), dp(14), dp(9))
-            background = roundedBackground(0xCC000000.toInt(), dp(20).toFloat())
-        }
         addView(
             hint,
-            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                .apply { topMargin = dp(48) },
+            controlParams(Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(48) },
         )
 
         addView(
             bar,
-            LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                .apply { bottomMargin = dp(16) + navigationBarHeight },
+            controlParams(Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(16) + navigationBarHeight
+            },
         )
     }
 
@@ -145,11 +154,87 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
         page: Bitmap? = null,
         /** Whether the page came from the camera, which is the only source with a retake. */
         retake: Boolean = false,
+        /**
+         * How the page is turned into the window (R48g). A photo's page is in the frame the phone
+         * was held in; with the rotation locked that frame is sideways to the window, and the page
+         * is turned to fill it instead of being squashed into it.
+         */
+        turn: Int = 0,
     ) {
         retakeButton.visibility = if (retake) View.VISIBLE else View.GONE
         blocks.setBlocks(pickerBlocks, mode)
         blocks.setPage(page)
+        blocks.setTurn(turn)
+        placeControls(turn)
     }
+
+    /**
+     * Puts the actions and the hint where the reader's own screen has its edges (R48h).
+     *
+     * When the page is turned into the window, the window's bottom is not the reader's bottom: with
+     * the phone held on its side it is one of their sides. «Cancelar», «Texto todo» and «Tirar outra
+     * foto» were left lying along the window's edge, on their side, where the reader could neither
+     * read them at a glance nor reach them comfortably. They turn with the page and move to the
+     * edges the reader has at the top and the bottom — the window's sides — each on the side that
+     * corresponds to its old one.
+     */
+    private fun placeControls(degrees: Int) {
+        turn = degrees
+        hint.rotation = degrees.toFloat()
+        bar.rotation = degrees.toFloat()
+        hint.layoutParams = if (degrees % 180 == 0) {
+            controlParams(Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(48) }
+        } else {
+            // Centred, and then slid to the edge once the control has been measured: rotated, its
+            // width on screen is its height, which is not known before a layout pass (R48h).
+            controlParams(Gravity.CENTER)
+        }
+        bar.layoutParams = if (degrees % 180 == 0) {
+            controlParams(Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(16) + navigationBarHeight
+            }
+        } else {
+            controlParams(Gravity.CENTER)
+        }
+        hint.requestLayout()
+        bar.requestLayout()
+    }
+
+    /**
+     * Slides the turned controls to the edges the reader has at the top and the bottom (R48h).
+     *
+     * 270° puts the page's top at the window's left, so the reader's bottom is the window's right
+     * and their top is its left; 90° is the same the other way round. The phone's own buttons stay
+     * on the window's bottom — the reader's side, in that case — so a control centred on the side
+     * edge clears them without being lifted off the screen.
+     */
+    private fun placeTurnedControls() {
+        if (turn % 180 == 0) {
+            bar.translationX = 0f
+            hint.translationX = 0f
+            return
+        }
+        val barInset = dp(16).toFloat()
+        val hintInset = dp(48).toFloat()
+        // A control turned a quarter is as wide on screen as it is tall, so half of *that* is what
+        // separates its centre from the edge.
+        bar.translationX = sideOffset(bar.height, barInset)
+        hint.translationX = -sideOffset(hint.height, hintInset)
+    }
+
+    /** How far a centred, turned control moves to sit [inset] from the edge with its bottom. */
+    private fun sideOffset(height: Int, inset: Float): Float {
+        val offset = width / 2f - inset - height / 2f
+        return if (turn == 270) offset else -offset
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        placeTurnedControls()
+    }
+
+    private fun controlParams(gravity: Int) =
+        LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, gravity)
 
     /** The zoom the boxes are drawn with; the picker's touch tests read it too. */
     internal val zoomScale: Float get() = blocks.zoomScale
@@ -181,6 +266,13 @@ private class BlockCanvasView(context: Context) : View(context) {
      * captured and lets the user pinch that.
      */
     private var page: Bitmap? = null
+
+    /** The turn the page takes into the window (R48g); boxes and readings turn with it. */
+    private var turn = 0
+
+    /** [turn] applied to the page, and its inverse for touches; thrown away when stale. */
+    private var pageMatrix: Matrix? = null
+    private var pageInverse: Matrix? = null
 
     private val zoom = PickerZoom()
 
@@ -285,20 +377,41 @@ private class BlockCanvasView(context: Context) : View(context) {
 
     fun setPage(bitmap: Bitmap?) {
         page = bitmap
+        // The matrix is built for a page: one kept from the previous page would draw this one, and
+        // the boxes on it, at the old size.
+        pageMatrix = null
+        pageInverse = null
         invalidate()
     }
 
-    /** View pixels per page pixel: 1 when the window is exactly the capture, less when it is not. */
-    private val pageScaleX: Float
-        get() = page?.let { if (it.width > 0 && width > 0) width.toFloat() / it.width else 1f } ?: 1f
+    fun setTurn(degrees: Int) {
+        turn = degrees
+        pageMatrix = null
+        pageInverse = null
+        invalidate()
+    }
 
-    private val pageScaleY: Float
-        get() = page?.let { if (it.height > 0 && height > 0) height.toFloat() / it.height else 1f } ?: 1f
+    /** Page pixels → window pixels: the turn into the window, then the stretch to it (R23, R48g). */
+    private fun drawMatrix(): Matrix = pageMatrix ?: PageTurn.matrix(
+        degrees = turn,
+        pageWidth = page?.width ?: width,
+        pageHeight = page?.height ?: height,
+        windowWidth = width,
+        windowHeight = height,
+    ).also { pageMatrix = it }
 
-    /** A point of the window in page pixels: undo the zoom, then the stretch to the window (R23). */
-    private fun pageX(x: Float): Float = zoom.toPageX(x) / pageScaleX
+    /** Window pixels → page pixels: what a tap has to be converted with. */
+    private fun touchMatrix(): Matrix = pageInverse ?: Matrix().also {
+        drawMatrix().invert(it)
+        pageInverse = it
+    }
 
-    private fun pageY(y: Float): Float = zoom.toPageY(y) / pageScaleY
+    /** A point of the window in page pixels: undo the zoom, then the turn and the stretch. */
+    private fun pagePoint(x: Float, y: Float): PointF {
+        val point = floatArrayOf(zoom.toPageX(x), zoom.toPageY(y))
+        touchMatrix().mapPoints(point)
+        return PointF(point[0], point[1])
+    }
 
     internal val zoomScale: Float get() = zoom.scale
 
@@ -309,6 +422,8 @@ private class BlockCanvasView(context: Context) : View(context) {
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
+        pageMatrix = null
+        pageInverse = null
         zoom.reset(width.toFloat(), height.toFloat())
     }
 
@@ -323,8 +438,10 @@ private class BlockCanvasView(context: Context) : View(context) {
         // …and that system is the capture, not the window. The page is drawn stretched into the
         // window (a full-screen capture into a window that the system made shorter when the status
         // bar came back), so the boxes have to take the same stretch. Without this, every box sits
-        // a few pixels off its text and the error grows toward the side the bars took (R23).
-        canvas.scale(pageScaleX, pageScaleY)
+        // a few pixels off its text and the error grows toward the side the bars took (R23). A page
+        // that is sideways to the window is turned first, and everything drawn on it turns with it
+        // (R48g).
+        canvas.concat(drawMatrix())
 
         page?.let { bitmap ->
             canvas.drawBitmap(
@@ -451,7 +568,8 @@ private class BlockCanvasView(context: Context) : View(context) {
                 pinched = false
                 lastX = event.x
                 lastY = event.y
-                pressed = hitTest(pageX(event.x), pageY(event.y))
+                val point = pagePoint(event.x, event.y)
+                pressed = hitTest(point.x, point.y)
                 invalidate()
                 return true
             }
@@ -495,7 +613,8 @@ private class BlockCanvasView(context: Context) : View(context) {
                     invalidate()
                     return true
                 }
-                val index = hitTest(pageX(event.x), pageY(event.y))
+                val point = pagePoint(event.x, event.y)
+                val index = hitTest(point.x, point.y)
                 if (index != pressed) {
                     pressed = index
                     invalidate()
@@ -505,9 +624,10 @@ private class BlockCanvasView(context: Context) : View(context) {
 
             MotionEvent.ACTION_UP -> {
                 val tapped = !dragging && !pinched
+                val point = pagePoint(event.x, event.y)
                 val index = if (tapped) {
-                    hitTest(pageX(event.x), pageY(event.y)).takeIf { it >= 0 }
-                        ?: stripHit(pageX(event.x), pageY(event.y))
+                    hitTest(point.x, point.y).takeIf { it >= 0 }
+                        ?: stripHit(point.x, point.y)
                 } else {
                     -1
                 }

@@ -29,6 +29,7 @@ import androidx.core.content.ContextCompat
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.R
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.capture.ScreenMetrics
 import dev.yabai.ocr.util.dp
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -353,22 +354,9 @@ class OverlayController(
         params.y = params.y.coerceIn(bounds.top + margin, maxY)
     }
 
-    /**
-     * The whole display, bars and all.
-     *
-     * `Display.getRealMetrics` is deprecated in favour of `WindowMetrics`, but it is the one call
-     * that answers on every API level this app supports (26+) and in Robolectric.
-     */
-    internal fun displayBounds(): Rect {
-        val manager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
-        val metrics = android.util.DisplayMetrics()
-        @Suppress("DEPRECATION")
-        manager?.defaultDisplay?.getRealMetrics(metrics)
-        if (metrics.widthPixels > 0 && metrics.heightPixels > 0) {
-            return Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
-        }
-        val fallback = context.resources.displayMetrics
-        return Rect(0, 0, fallback.widthPixels, fallback.heightPixels)
+    /** The whole display, bars and all — the measurement the camera screen and the page also use. */
+    internal fun displayBounds(): Rect = ScreenMetrics.real(context).run {
+        Rect(0, 0, widthPixels, heightPixels)
     }
 
     // --- action menu ---------------------------------------------------------------------------
@@ -884,6 +872,8 @@ class OverlayController(
         page: Bitmap?,
         /** The page is a camera photo, so the picker can offer another shot (R47a). */
         retake: Boolean = false,
+        /** How the page is turned into the window, so it follows the phone (R48g). */
+        turn: Int = 0,
     ): Boolean {
         if (blocks.isEmpty() || !canDrawOverlays() || paused) return false
         hideTextPicker()
@@ -904,7 +894,7 @@ class OverlayController(
         // Focusable so BACK cancels the selection instead of reaching the app underneath; while the
         // picker is up the app was not receiving touches anyway.
         if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
-        overlay.show(blocks, mode, page, retake)
+        overlay.show(blocks, mode, page, retake, turn)
         pickerView = overlay
         return true
     }

@@ -7,14 +7,14 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.util.TypedValue
-import android.view.Display
 import android.view.Gravity
+import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.View
 import android.widget.FrameLayout
@@ -36,7 +36,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.yabai.ocr.capture.CameraPhoto
+import dev.yabai.ocr.capture.DeviceRotation
+import dev.yabai.ocr.capture.placeInPhoneFrame
 import dev.yabai.ocr.capture.PhotoWait
+import dev.yabai.ocr.capture.ScreenMetrics
 import dev.yabai.ocr.overlay.roundedBackground
 import dev.yabai.ocr.service.FloatingOcrService
 import dev.yabai.ocr.util.dp
@@ -64,6 +67,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var close: View
 
     private var cameraProvider: ProcessCameraProvider? = null
+    private var previewUseCase: Preview? = null
     private var imageCapture: ImageCapture? = null
 
     /** The file the camera wrote, until the service takes it over. */
@@ -77,8 +81,29 @@ class CameraActivity : AppCompatActivity() {
 
     private var reading: BroadcastReceiver? = null
 
-    /** Keeps the photo's rotation following the phone while this screen is up (R48d). */
-    private var rotationListener: DisplayManager.DisplayListener? = null
+    /**
+     * The turn the picture is written in, from the phone's own orientation (R48f).
+     *
+     * The display is not the phone: with the rotation locked, or one that has not been applied yet,
+     * it says upright while the phone is sideways.
+     */
+    private var targetRotation: Int = Surface.ROTATION_0
+
+    /**
+     * The turn the page of this shot takes, read at the shutter (R48g).
+     *
+     * Not read when the file is handed over: the phone can still be turned while the picture is
+     * being written, and the page belongs to the frame the photograph was aimed in.
+     */
+    private var photoPageTurn = 0
+
+    /**
+     * Whether the camera is already running (R48j): a leave only closes the screen with it up.
+     */
+    private var cameraRunning = false
+
+    /** Keeps the preview and [targetRotation] following the phone while this screen is up (R48d). */
+    private var rotationListener: OrientationEventListener? = null
 
     /**
      * The wait for the service to say the reading is on screen (R48c).
@@ -120,6 +145,10 @@ class CameraActivity : AppCompatActivity() {
         previewView = PreviewView(this).apply {
             // The whole frame, letterboxed, so the preview already has the size of the photo (R48e).
             scaleType = PreviewView.ScaleType.FIT_CENTER
+            // A TextureView, not a SurfaceView: the preview is turned by the phone's orientation and
+            // a surface view can only follow the display's, which is what the rotation leaves behind
+            // when the display does not turn (R48f).
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
         frozenPhoto = ImageView(this).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -149,6 +178,7 @@ class CameraActivity : AppCompatActivity() {
             FrameLayout.LayoutParams(dp(76), dp(76), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL),
         )
         setContentView(root)
+        applyPhotoFrame()
         applyBarInsets(root)
     }
 
@@ -222,6 +252,25 @@ class CameraActivity : AppCompatActivity() {
         setOnClickListener { finish() }
     }
 
+    /**
+     * Lays the preview and the photo out in the phone's frame (R48h).
+     *
+     * Only the layout changes: the preview stream and the bitmap are the same, drawn whole and
+     * fitted. CameraX already renders the preview with the phone's rotation (R48f), so turning the
+     * view is enough for the preview, the frozen photo and the picker's page to be one rectangle, and
+     * for the handovers between them to be invisible.
+     */
+    private fun applyPhotoFrame() {
+        // The whole display — the same measurement the picker's page uses (R48j).
+        val screen = ScreenMetrics.real(this)
+        placeInPhoneFrame(
+            listOf(previewView, frozenPhoto),
+            screen.widthPixels,
+            screen.heightPixels,
+            pageTurn(),
+        )
+    }
+
     private fun matchParent() = FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.MATCH_PARENT,
         FrameLayout.LayoutParams.MATCH_PARENT,
@@ -238,12 +287,13 @@ class CameraActivity : AppCompatActivity() {
                 return@addListener
             }
             cameraProvider = provider
-            val preview = Preview.Builder().build().apply {
-                setSurfaceProvider(previewView.surfaceProvider)
-            }
+            val preview = Preview.Builder()
+                .setTargetRotation(targetRotation)
+                .build()
+                .apply { setSurfaceProvider(previewView.surfaceProvider) }
             val capture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .setTargetRotation(displayRotation())
+                .setTargetRotation(targetRotation)
                 .build()
             // A camera that cannot be opened (in use, removed, disabled) closes the screen, not the
             // app: the bubble is still there behind it.
@@ -256,6 +306,9 @@ class CameraActivity : AppCompatActivity() {
                 return@addListener
             }
             imageCapture = capture
+            previewUseCase = preview
+            // Only now is there a camera to leave: from here a home press closes the picture (R48j).
+            cameraRunning = true
             shutter.isEnabled = true
         }, ContextCompat.getMainExecutor(this))
     }
@@ -263,6 +316,10 @@ class CameraActivity : AppCompatActivity() {
     private fun shoot() {
         val capture = imageCapture ?: return
         if (waitingForReading) return
+        // Applied again here, so the file cannot be written in a rotation the phone has already left
+        // behind: the use case keeps the last value it was given (R48f).
+        capture.targetRotation = targetRotation
+        photoPageTurn = pageTurn()
         // The app's own cache, never the gallery: the service reads the file and deletes it, and a
         // shot that never got read is swept here before the next one.
         val directory = File(cacheDir, "photos").apply { mkdirs() }
@@ -303,6 +360,8 @@ class CameraActivity : AppCompatActivity() {
      */
     private fun freezeAndHand(file: File) {
         cameraProvider?.unbindAll()
+        // No camera to leave until it is opened again, so the home button keeps the picture (R48j).
+        cameraRunning = false
         previewView.visibility = View.GONE
         loading.visibility = View.VISIBLE
         val maxSide = resources.displayMetrics.widthPixels.coerceAtLeast(1)
@@ -325,6 +384,9 @@ class CameraActivity : AppCompatActivity() {
         val intent = Intent(this, FloatingOcrService::class.java).apply {
             action = FloatingOcrService.ACTION_PHOTO
             putExtra(FloatingOcrService.EXTRA_PHOTO_PATH, file.path)
+            // How the picker has to lay the page out so it follows the phone rather than the window
+            // (R48g) — the frame this picture was taken in.
+            putExtra(FloatingOcrService.EXTRA_PHOTO_TURN, photoPageTurn)
         }
         if (runCatching { startService(intent) }.isFailure) {
             handedOff = false
@@ -356,45 +418,44 @@ class CameraActivity : AppCompatActivity() {
     }
 
     /**
-     * The turn the picture has to be written in, from the display and not from the view (R48d).
+     * Follows the phone while this screen is open (R48d, R48f).
      *
-     * `previewView.display` is null until the view is attached to a window, and the camera provider
-     * can be ready before that — the fallback then was `ROTATION_0`, which happens to be right on a
-     * phone held upright and wrong on one held sideways: the JPEG came out turned 90°, the page was
-     * fitted on its side and every box the engines reported covered something else. The display knows
-     * its rotation whether or not a view is attached to it.
-     */
-    private fun displayRotation(): Int =
-        runCatching {
-            getSystemService(DisplayManager::class.java)
-                ?.getDisplay(Display.DEFAULT_DISPLAY)
-                ?.rotation
-        }.getOrNull() ?: Surface.ROTATION_0
-
-    /**
-     * Follows the phone when it is turned while this screen is open (R48d).
-     *
-     * The preview turns itself — CameraX listens to the display for it — but `ImageCapture` keeps the
-     * rotation it was built with, so turning the phone after opening the camera left the photo turned
-     * by the old one: read sideways, the page's boxes came out grouped and ordered for a sideways
-     * page. Updating the use case is what makes the picture match what the preview showed.
+     * The rotation comes from how the phone is held, not from the display. A display that does not
+     * rotate — the user turned the phone with «giro automático» off, or the new turn had not landed
+     * yet — left `ImageCapture` with `ROTATION_0` while the page was sideways: CameraX wrote the
+     * picture in that turn, [CameraPhoto] read it back the same way, and the engines were handed a
+     * page on its side, where they pick up glyph fragments instead of text columns and every box
+     * lands over the wrong piece. The preview gets the same rotation, so the picture frozen over it
+     * at the shutter is the frame the user aimed at.
      */
     private fun listenForRotation() {
         if (rotationListener != null) return
-        val manager = getSystemService(DisplayManager::class.java) ?: return
-        val listener = object : DisplayManager.DisplayListener {
-            override fun onDisplayAdded(displayId: Int) = Unit
-
-            override fun onDisplayRemoved(displayId: Int) = Unit
-
-            override fun onDisplayChanged(displayId: Int) {
-                if (displayId != Display.DEFAULT_DISPLAY) return
-                imageCapture?.targetRotation = displayRotation()
+        val listener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                // Lying flat: the sensor has no answer, and ROTATION_0 would be a guess.
+                if (orientation == DeviceRotation.UNKNOWN) return
+                val rotation = DeviceRotation.surfaceRotation(orientation)
+                if (rotation == targetRotation) return
+                targetRotation = rotation
+                previewUseCase?.targetRotation = rotation
+                applyPhotoFrame()
             }
         }
-        runCatching { manager.registerDisplayListener(listener, null) }
+        if (listener.canDetectOrientation()) listener.enable()
         rotationListener = listener
     }
+
+    /**
+     * The turn the picker's page takes so the picture follows the phone (R48g).
+     *
+     * The page takes the photo's frame. When the screen did not turn with the phone — «giro
+     * automático» off, or a turn that has not landed yet — that frame is sideways to the window, and
+     * the picker turns the page into it: a landscape window means the screen did turn, so no turn.
+     */
+    private fun pageTurn(): Int = DeviceRotation.pageTurn(
+        targetRotation,
+        resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT,
+    )
 
     /**
      * Waits for the service to put the reading on screen.
@@ -420,6 +481,22 @@ class CameraActivity : AppCompatActivity() {
         reading = receiver
     }
 
+    /**
+     * The home screen or the list of apps takes the user away from the picture (R48i).
+     *
+     * A photo belongs to this screen: the file lives in the app's cache and the reading belongs to
+     * the panel behind the bubble, so the camera does not wait in the background — which is what the
+     * app already does when the picker or a panel loses the screen. The file the service never took
+     * is deleted on the way out ([onDestroy]).
+     *
+     * Only once the camera is running: the system announces the same leave when the camera
+     * permission dialog is put up, and there is no camera to take away then (R48j).
+     */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (cameraRunning) finish()
+    }
+
     private fun denyCamera() {
         Toast.makeText(this, R.string.camera_permission_denied, Toast.LENGTH_SHORT).show()
         finish()
@@ -434,9 +511,7 @@ class CameraActivity : AppCompatActivity() {
         wait.settle()
         reading?.let { runCatching { unregisterReceiver(it) } }
         reading = null
-        rotationListener?.let { listener ->
-            runCatching { getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(listener) }
-        }
+        runCatching { rotationListener?.disable() }
         rotationListener = null
         runCatching { cameraProvider?.unbindAll() }
         // Until the service has the file it is this screen's to delete; after that the service

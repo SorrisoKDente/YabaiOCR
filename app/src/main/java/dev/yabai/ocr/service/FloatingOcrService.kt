@@ -13,7 +13,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.Rect
-import android.hardware.display.DisplayManager
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -22,7 +21,6 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
-import android.view.Display
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -37,6 +35,7 @@ import dev.yabai.ocr.capture.CameraPhoto
 import dev.yabai.ocr.capture.PhotoPageGeometry
 import dev.yabai.ocr.capture.PhotoPageLayout
 import dev.yabai.ocr.capture.ScreenCaptureSession
+import dev.yabai.ocr.capture.ScreenMetrics
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.dict.DictionaryRepository
@@ -132,6 +131,16 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      */
     private var pendingPage: Bitmap? = null
 
+    /** The turn the picker's page takes into the window (R48g); 0 for a screen capture. */
+    private var pendingPageTurn = 0
+
+    /**
+     * The turn this photo's page is laid out with, from the frame the camera took it in (R48g).
+     *
+     * Kept across a retry: the photo is the same picture, taken in the same frame.
+     */
+    private var photoTurn = 0
+
     /** The strips of the last capture, while the kanji reader is on screen (R17). */
     private var pendingKanji: List<KanjiPiece> = emptyList()
 
@@ -207,7 +216,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             ACTION_PHOTO -> {
                 val path = intent.getStringExtra(EXTRA_PHOTO_PATH)
                 // The doorway finishes before this arrives; without a path there is nothing to read.
-                if (path != null) recognisePhoto(File(path))
+                if (path != null) {
+                    recognisePhoto(File(path), intent.getIntExtra(EXTRA_PHOTO_TURN, 0))
+                }
                 return START_NOT_STICKY
             }
 
@@ -430,6 +441,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 pendingReadingMode,
                 pendingPage ?: lastCrop,
                 retake = lastPhoto != null,
+                // A screen capture has no turn; the page falls back to it only when the photo's page
+                // could not be allocated.
+                turn = if (pendingPage != null) pendingPageTurn else 0,
             )
         ) {
             // The boxes are gone (the screen changed, or the service was restarted): fall back to the
@@ -587,6 +601,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         pendingPicker = emptyList()
         pendingReadingMode = PickerReadingMode.OFF
         pendingPage = null
+        pendingPageTurn = 0
         pendingKanji = emptyList()
     }
 
@@ -707,12 +722,15 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      * returns — [CameraPhoto] deletes it while decoding — and the camera screen is told to go once
      * the reading is on screen.
      */
-    private fun recognisePhoto(file: File) {
+    private fun recognisePhoto(file: File, turn: Int = 0) {
         if (!beginPhoto()) {
             file.delete()
             photoShown()
             return
         }
+        // After [beginPhoto], which clears what the previous capture left: the page of this photo is
+        // laid out in the frame the phone was held in when it was taken (R48g).
+        photoTurn = turn
         scope.launch {
             try {
                 val photo = withContext(Dispatchers.Default) { CameraPhoto.loadUpright(file) }
@@ -799,10 +817,18 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                 if (pendingBlocks.isNotEmpty()) {
                     val mode = settings.pickerReading
                     val picker = pickerBlocks(pendingBlocks, mode)
-                    if (overlays.showTextPicker(picker, mode, page.bitmap, retake = true)) {
+                    if (overlays.showTextPicker(
+                            picker,
+                            mode,
+                            page.bitmap,
+                            retake = true,
+                            turn = photoTurn,
+                        )
+                    ) {
                         pendingPicker = picker
                         pendingReadingMode = mode
                         pendingPage = page.bitmap
+                        pendingPageTurn = photoTurn
                         overlays.hideResult()
                         return
                     }
@@ -832,11 +858,19 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
      */
     private fun photoPage(photo: Bitmap): PhotoPage? {
         val metrics = realDisplayMetrics()
+        // The page is the phone's frame, not the window's (R48g): a portrait window with the phone on
+        // its side would fit a landscape photo to the window's long side and leave a strip in the
+        // middle of it, with the text a third of the size the screen can give.
+        val frame = PhotoPageGeometry.frame(
+            screenWidth = metrics.widthPixels.coerceAtLeast(1),
+            screenHeight = metrics.heightPixels.coerceAtLeast(1),
+            turn = photoTurn,
+        )
         val layout = PhotoPageGeometry.fit(
             photoWidth = photo.width,
             photoHeight = photo.height,
-            pageWidth = metrics.widthPixels.coerceAtLeast(1),
-            pageHeight = metrics.heightPixels.coerceAtLeast(1),
+            pageWidth = frame.width,
+            pageHeight = frame.height,
         ) ?: return null
         val page = PhotoPageGeometry.page(photo, layout) ?: return null
         return PhotoPage(page, layout)
@@ -1338,21 +1372,11 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         return false
     }
 
-    private fun realDisplayMetrics(): DisplayMetrics {
-        val metrics = DisplayMetrics()
-        val display = getSystemService(DisplayManager::class.java)
-            ?.getDisplay(Display.DEFAULT_DISPLAY)
-        if (display != null) {
-            @Suppress("DEPRECATION")
-            display.getRealMetrics(metrics)
-        }
-        if (metrics.widthPixels <= 0 || metrics.heightPixels <= 0) {
-            val fallback = resources.displayMetrics
-            metrics.widthPixels = fallback.widthPixels
-            metrics.heightPixels = fallback.heightPixels
-        }
-        return metrics
-    }
+    /**
+     * The whole display: the rectangle the camera laid the preview and the frozen photo out in,
+     * which the page is stretched into (R48j).
+     */
+    private fun realDisplayMetrics(): DisplayMetrics = ScreenMetrics.real(this)
 
     private fun showError(message: String) {
         overlays.showResultError(message, dispatcher.offlineAvailable(forceOffline = false))
@@ -1546,6 +1570,9 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         const val EXTRA_RESULT_CODE = "dev.yabai.ocr.extra.RESULT_CODE"
         const val EXTRA_RESULT_DATA = "dev.yabai.ocr.extra.RESULT_DATA"
         const val EXTRA_PHOTO_PATH = "dev.yabai.ocr.extra.PHOTO_PATH"
+
+        /** The turn the picker's page takes into the window: the phone's frame (R48g). */
+        const val EXTRA_PHOTO_TURN = "dev.yabai.ocr.extra.PHOTO_TURN"
 
         /** Lets the settings screen tell whether the bubble is already up. */
         @Volatile

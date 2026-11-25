@@ -8504,6 +8504,11 @@ linha própria. Mutações provadas:
 | R48c | `[x]` | **Câmera sem foto guardada e sem tela travada**: o arquivo vive só no cache, é varrido a cada disparo, e a espera pelo serviço tem limite | fácil |
 | R48d | `[x]` | **A foto é girada como o celular está**: giro lido da tela (não da view) e refeito quando o aparelho vira, para o retrato não sair deitado | média |
 | R48e | `[x]` | **A pré-visualização já no tamanho da foto**: `FIT_CENTER` na pré-visualização, para a foto não aparecer menor que a câmera | fácil |
+| R48f | `[x]` | **A foto é girada como o celular está, não como a tela está**: giro lido da orientação do aparelho, na pré-visualização e no disparo | média |
+| R48g | `[x]` | **A página do seletor segue o quadro do celular**: com a tela travada, a página e os balões giram para o quadro em que a foto foi tirada, em vez de encolherem a foto numa faixa | média |
+| R48h | `[x]` | **A tela da câmera e os controles do seletor seguem o giro**: pré-visualização, foto parada, barra de ações e dica no quadro do celular, para nada crescer nem girar ao abrir o seletor | média |
+| R48i | `[x]` | **Home e lista de apps fecham a foto da câmera**: sair da tela da câmera pelo botão do sistema fecha a foto, como os painéis já faziam | fácil |
+| R48j | `[x]` | **A permissão não fecha a câmera, e o quadro é o mesmo dos dois lados**: a tela só fecha com a câmera rodando, e a câmera e a página medem a tela pelo display inteiro | fácil |
 
 ### R48a — A foto é lida na própria tela da câmera  `[x]` (23/11/2026)
 
@@ -8725,3 +8730,227 @@ Suíte do app: **461 testes por variante (922 no total, debug e release), 0 falh
   câmera no Robolectric, então o tamanho na tela não foi medido em aparelho. O que falta conferir no
   celular: abrir a câmera, ver a foto inteira enquadrada com as faixas pretas, disparar e confirmar
   que a imagem não muda de tamanho nem de posição até os balões aparecerem — em pé e deitado.
+
+### R48f — A foto é girada como o celular está, não como a tela está  `[x]` (24/11/2026)
+
+**Pedido.** Dois problemas com a câmera, aparentemente sem relação com o enquadramento (R48e): com o
+celular deitado mas **sem** rotacionar a tela, o texto não é reconhecido e os balões cobrem os
+trechos errados; e, com o aparelho deitado e rotacionado corretamente, às vezes a foto sai girada
+90° e o erro é o mesmo.
+
+- **Causa.** `ImageCapture.targetRotation` era lido de `Display.rotation`, e a tela não é o celular.
+  (1) Com o «giro automático» desligado — ou enquanto a tela ainda está em pé e o aparelho já virou —
+  a tela continua em `ROTATION_0` com o celular deitado, e o CameraX grava o quadro naquele giro. O
+  EXIF diz «gire 90°» e `CameraPhoto.loadUpright` obedece: os motores recebem uma página **deitada no
+  bitmap**. O ML Kit então não encontra colunas de texto, encontra pedaços de glifos — é o print do
+  relato: balões estreitos e verticais por cima de caracteres soltos, e a maior parte do texto sem
+  balão nenhum. Os balões não estão deslocados: eles estão fiéis a uma imagem lida ao contrário.
+  (2) O giro também só chegava ao caso de uso pelo callback da tela; um callback entregue antes de o
+  valor novo valer deixava o `ImageCapture` com o giro anterior, e a foto saía 90° fora — o que
+  explica o sintoma intermitente deitado.
+- **Correção.** O giro passa a vir de `OrientationEventListener`, que é a receita da documentação do
+  CameraX justamente para a tela que não gira, com a tabela de graus do sensor para `Surface.ROTATION_*`
+  isolada em `DeviceRotation` (90° → `ROTATION_270`, 180° → `ROTATION_180`, 270° → `ROTATION_90`) — as
+  duas numerações correm em sentidos opostos, e uma faixa trocada gira a foto 180°. Os dois casos de
+  uso recebem o **mesmo** giro: a pré-visualização, para continuar mostrando o quadro como o picker
+  vai desenhá-lo (R48e), e o `ImageCapture`, reaplicado no disparo para o arquivo não sair com um giro
+  que o celular já deixou para trás. Para a pré-visualização poder girar fora do giro da tela, a
+  `PreviewView` passou a `ImplementationMode.COMPATIBLE`: em modo de desempenho ela usa um `SurfaceView`,
+  que só sabe seguir a tela, e a imagem ficaria deitada enquanto a foto já sairia em pé. O listener de
+  tela e o `displayRotation()` saíram; leitura plana (`ORIENTATION_UNKNOWN`) é ignorada, porque
+  `ROTATION_0` ali seria um chute.
+- **Arquivos.** `app/.../CameraActivity.kt` · `capture/DeviceRotation.kt` (novo) ·
+  `app/src/test/.../CameraCaptureTest.kt` · `ARCHITECTURE.md` · `ARCHITECTURE.en.md`
+
+Regressão: `the picture turns with the phone, not with the display` mede a tabela de verdade
+(`surfaceRotation(90) == ROTATION_270`, `270 == ROTATION_90`, `180 == ROTATION_180`, as bordas `359` e
+`315`) e confere a ligação na `CameraActivity`: o giro vem do `OrientationEventListener`, não do
+`displayRotation()`, é aplicado ao `ImageCapture` no disparo e o listener é desligado no `onDestroy`.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `surfaceRotation(90)` volta a `ROTATION_90` (faixas 90/270 trocadas) | `the picture turns with the phone, not with the display` |
+| O disparo deixa de reaplicar `capture.targetRotation = targetRotation` | o mesmo teste |
+| O `OrientationEventListener` volta a ser `DisplayManager.DisplayListener` | o mesmo teste |
+| A `PreviewView` volta ao modo de desempenho (`SurfaceView`) | o mesmo teste |
+
+Suíte do app: **461 testes por variante (922 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric não abre câmera, então a prova de que o arquivo sai no giro
+  certo é a tabela + a ligação acima, não uma foto de verdade. Falta conferir no celular, com o giro
+  automático **desligado** e deitado, que a página chega em pé (balões sobre as colunas) e, com o giro
+  ligado, que virar o aparelho com a câmera aberta não gira a foto depois do disparo.
+### R48g — A página do seletor segue o quadro do celular  `[x]` (25/11/2026)
+
+**Pedido.** Com o giro automático desligado a foto agora chega em pé (R48f), mas uma foto 4000×3000
+numa página de 1080×2400 vira uma faixa de 1080×810 no meio da tela — encolhe justo onde a R48e
+prometeu que não encolheria — e o texto fica miúdo. A página do seletor e os balões têm de seguir o
+quadro do celular nesse caso, sem cortar texto e sem mexer na precisão do OCR.
+
+- **Causa.** A página do seletor era sempre do tamanho da **janela**. A foto está no quadro do
+  celular; quando a tela gira com ele os dois quadros coincidem e o encaixe da R48e é o melhor
+  possível. Com a tela travada (ou um giro que ainda não valeu), a janela continua 1080×2400 e a foto
+  é 4000×3000: `fit` encaixa pela **altura** da página e a foto fica 1080×810, um terço da tela, com
+  o texto a 27% do original em vez dos 36% que a largura permite. Nada disso é OCR: a geometria fazia
+  o que foi escrita para fazer com uma página que não tinha o quadro da foto.
+- **Correção.** (1) A página passa a ser o quadro do **celular**: `PhotoPageGeometry.frame` troca os
+  lados da janela quando o giro é 90°/270°, e `fit`, `place` e `page` não mudaram — o encaixe continua
+  uniforme e centrado, sem cortar um pixel; 4000×3000 na página 2400×1080 dá 1440×1080 (escala 0,36
+  em vez de 0,27). (2) O giro vem do aparelho, como o da foto (R48f): `DeviceRotation.pageTurn`
+  devolve 0 quando a janela já tem o quadro do celular (a tela girou com ele, ou o celular está em
+  pé) e, com a janela em pé e o celular deitado, 90° com o lado direito para cima e 270° com o
+  esquerdo — é o lado para onde o topo da página tem de apontar, e a tabela ao contrário desenharia
+  tudo de cabeça para baixo. A `CameraActivity` calcula o giro no disparo (orientação do sensor contra
+  `Configuration.orientation`) e o entrega em `EXTRA_PHOTO_TURN`. (3) O seletor desenha a página
+  girada para dentro da janela com uma matriz (`overlay/PageTurn.kt`): página, balões, realces e
+  leituras passam pela **mesma** matriz (`canvas.concat`), então nada sai do texto; o toque é
+  convertido pelo inverso dela antes de ser testado contra um balão. A matriz é jogada fora quando a
+  página ou o tamanho da janela muda.
+- **Por que uma matriz, e não uma página já virada.** Girar os pixels da foto dentro da página
+  deixaria o texto na horizontal do bitmap: as leituras (RUBY/LABEL) são desenhadas na horizontal do
+  canvas e ficariam atravessadas sobre o texto. Com o giro no desenho, a página inteira é o quadro do
+  celular e todo o resto — peças verticais, rubi, faixas — continua valendo como no caso normal.
+- **Arquivos.** `app/.../capture/PhotoPage.kt` · `capture/DeviceRotation.kt` · `CameraActivity.kt` ·
+  `service/FloatingOcrService.kt` · `overlay/PageTurn.kt` (novo) · `overlay/TextPickerOverlay.kt` ·
+  `overlay/OverlayController.kt` · `app/src/test/.../overlay/PageTurnTest.kt` (novo) ·
+  `app/src/test/.../PhotoPageGeometryTest.kt` · `CameraCaptureTest.kt` (a chamada do picker)
+
+Regressão (+7): `PageTurnTest` (6) mede a tabela do giro (270/90/0/180 e a janela deitada), a matriz
+da página deitada nos quatro cantos da janela, o inverso que o toque usa, o toque **onde o balão é
+desenhado** numa página virada, os pixels desenhados (o quarto vermelho no canto inferior esquerdo da
+janela) e a ligação câmera→serviço→seletor; `PhotoPageGeometryTest` (+1) mede a página 2400×1080 e a
+compara com a faixa de 810 que a página em pé dava.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `PhotoPageGeometry.frame` deixa de trocar os lados | `a sideways page is the phone's frame, so a landscape photo is not a strip` |
+| O desenho deixa de aplicar a matriz (`canvas.concat` vira nada) | `the picture is drawn turned into the window` |
+| O toque deixa de desfazer o giro | `a tap lands on the box it covers on a turned page` |
+| `DeviceRotation.pageTurn` devolve 0 sempre | `the page only turns when the window did not turn with the phone` |
+
+Suíte do app: **468 testes por variante (936 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric mede a matriz, o toque e os pixels de uma view de verdade,
+  não uma foto de celular numa tela travada. Falta conferir no celular, com o giro automático
+  **desligado** e deitado dos dois lados: a página do seletor tem de aparecer grande, com o texto em
+  pé, os balões colados no texto e o toque caindo no balão certo.
+- **Pendência conhecida.** A tela da câmera (pré-visualização e foto parada) continua com o encaixe na
+  janela em pé: com o celular deitado e a tela travada, a foto aparecia ali como uma faixa pequena e
+  crescia ao virar a página do seletor. **Resolvido em R48h**, pelo mesmo caminho: o quadro do
+  celular aplicado às views da câmera, e não só à página.
+### R48h — A tela da câmera e os controles do seletor seguem o giro  `[x]` (25/11/2026)
+
+**Pedido.** Levar o mesmo giro da R48g para a tela da câmera: com a tela travada e o celular deitado,
+a pré-visualização e a foto parada devem aparecer no quadro do celular, para a foto não aparecer
+pequena ali e crescer/girar ao abrir o seletor. E a barra «Cancelar / Texto todo / Tirar outra foto» e
+a dica do seletor, que continuavam na horizontal da janela — de lado para quem lê a página virada —,
+devem acompanhar o giro da página.
+
+- **Causa.** (1) A `CameraActivity` punha a `PreviewView` e a foto parada em `MATCH_PARENT`: as duas
+  encaixavam o quadro do celular (2400×1080, o mesmo da página depois da R48g) na janela (1080×2400),
+  e o resultado era a faixa de 1080×810 no meio da tela — a página crescia e virava no instante em que
+  o seletor abria a dele. Nada de OCR: o mesmo bitmap, encaixado em outro retângulo. (2) Os controles
+  do seletor nasceram no quadro da janela (`Gravity.BOTTOM` + a altura da barra de navegação): com a
+  página virada, o «bottom» da janela é um dos lados do leitor, e a barra ficava deitada de lado, na
+  borda errada.
+- **Correção.** (1) `placeInPhoneFrame` (em `capture/PhotoPage.kt`) põe as views no
+  `PhotoPageGeometry.frame(...)` do giro e as gira por ele; a `CameraActivity` aplica-o às duas — no
+  `buildScreen` e de novo no listener de rotação —, e a `PreviewView` continua em `FIT_CENTER` com o
+  `targetRotation` do sensor (R48f): a pré-visualização já vem da câmera em pé no quadro, e girar a
+  view era o que faltava. Pré-visualização, foto parada e página do seletor passam a ser o **mesmo
+  retângulo** (1080×1440 centrado numa janela de 1080×2400) e o handover some. (2)
+  `TextPickerOverlay.placeControls` gira a barra e a dica pelo mesmo ângulo e, no `onLayout` — onde a
+  medida já existe —, `placeTurnedControls` desliza cada uma para a borda que o leitor tem embaixo e
+  em cima: 16 dp para a barra, 48 dp para a dica. Um controle virado tem por largura na tela a sua
+  **altura**, então o afastamento é metade da altura: ancorar por `Gravity.END` deixaria a barra no
+  meio da tela ou metade fora dela.
+- **Arquivos.** `app/.../CameraActivity.kt` · `capture/PhotoPage.kt` · `overlay/TextPickerOverlay.kt`
+  · `app/src/test/.../overlay/PageTurnTest.kt` · `ARCHITECTURE.md` · `ARCHITECTURE.en.md`
+
+Regressão (+2): `the camera screen shows the picture in the phone's frame` mede as duas views
+(2400×1080 com giro 270, e a janela com giro 0) e exige a chamada na `CameraActivity`;
+`the actions and the hint turn with the page and stay on the screen` mede o giro dos dois, a borda
+exata (16 dp e 48 dp) e que nada sai da janela — uma barra apenas girada ficaria metade fora dela.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `placeInPhoneFrame` deixa de girar as views | `the camera screen shows the picture in the phone's frame` |
+| `placeInPhoneFrame` mantém o quadro da janela | o mesmo teste |
+| A barra deixa de girar com a página | `the actions and the hint turn with the page and stay on the screen` |
+| A barra girada não é deslizada para a borda | o mesmo teste |
+
+Suíte do app: **471 testes por variante (942 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric mede a geometria das views, não o fluxo da câmera. Falta
+  conferir no celular, deitado com o giro automático desligado: a pré-visualização já grande e em pé,
+  o disparo sem salto ao congelar a foto, e os três botões legíveis na borda de baixo do leitor.
+- **Pendência conhecida.** O disparo e o ✕ continuam no quadro da janela: são alvos redondos nas
+  bordas, não texto, e girar a tela inteira da câmera (botões inclusive) é outra decisão de produto.
+
+### R48i — Home e lista de apps fecham a foto da câmera  `[x]` (25/11/2026)
+
+**Pedido.** O botão de lista de aplicativos/home deve fechar a foto da câmera, como o app já faz na
+captura de tela inteira ou ao tocar num texto reconhecido.
+
+- **Causa.** A `CameraActivity` não tinha `onUserLeaveHint`, e nada a fechava quando o usuário ia para
+  a home ou para a lista de apps: a tela — com a foto parada e a espera pela leitura — continuava viva
+  atrás das outras telas, ao contrário do seletor e dos painéis, que já se fecham quando perdem a
+  janela.
+- **Correção.** `onUserLeaveHint` → `finish()`. O `onDestroy` que já existia apaga o arquivo quando o
+  serviço ainda não o tomou, e desarma a espera e a escuta de rotação.
+- **Arquivos.** `app/.../CameraActivity.kt` · `app/src/test/.../overlay/PageTurnTest.kt`
+
+Regressão (+1): `the home screen or the list of apps closes the picture` exige o `onUserLeaveHint` e
+que o `finish()` esteja nele. É leitura de fonte, como os demais testes da câmera: o Robolectric não
+reproduz o botão de home.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `onUserLeaveHint` deixa de chamar `finish()` | `the home screen or the list of apps closes the picture` |
+
+Suíte do app: **471 testes por variante (942 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o teste prova a ligação, não o comportamento do sistema. Falta conferir no
+  celular: tirar a foto, ir para a home e voltar — a tela da câmera não deve estar mais lá, e o
+  arquivo não deve ter ficado no cache.
+
+### R48j — A permissão não fecha a câmera, e o quadro é o mesmo dos dois lados  `[x]` (25/11/2026)
+
+**Pedido.** O `onUserLeaveHint` também dispara quando o diálogo de permissão da câmera abre, então a
+tela só deve fechar com a câmera já rodando, com teste de regressão e prova de mutação. E as duas
+medidas de tela — a da tela da câmera e a da página do seletor — devem ser a mesma: a tela da câmera
+media o quadro com `resources.displayMetrics` e a página com as métricas reais do display.
+
+- **Causa 1.** `onUserLeaveHint` → `finish()` sem guarda: o sistema anuncia a mesma saída quando o
+  diálogo de permissão é posto sobre a tela, então pedir a permissão fechava a tela — e a permissão
+  concedida caía numa activity já a caminho de baixo.
+- **Correção 1.** `cameraRunning`, marcado em `startCamera` só depois do `bindToLifecycle` e
+  desmarcado ao soltar a câmera para congelar a foto; `onUserLeaveHint` só fecha com a câmera
+  rodando. Com a foto parada não há câmera para deixar, então a home não fecha a leitura em andamento.
+- **Causa 2.** `resources.displayMetrics` é a área em que o app desenha, já sem as barras do sistema;
+  a página e a captura usavam `getRealMetrics`, o display inteiro. Os dois retângulos diferiam por
+  uma barra, e a foto se mexia na troca de tela.
+- **Correção 2.** `capture/ScreenMetrics.kt`: uma medida só, `getRealMetrics` com queda para
+  `resources.displayMetrics`; a tela da câmera, `realDisplayMetrics()` do serviço e o
+  `displayBounds()` da bolha — que antes repetia a mesma chamada — chamam a mesma.
+- **Arquivos.** `app/.../CameraActivity.kt` · `app/.../capture/ScreenMetrics.kt` (novo) ·
+  `app/.../service/FloatingOcrService.kt` · `app/src/test/.../overlay/PageTurnTest.kt`
+
+Regressão (+2): `the camera permission dialog does not close the screen` monta a `CameraActivity` no
+Robolectric (serviço «rodando», permissão negada), chama `onUserLeaveHint` e exige a tela viva; e
+`the camera screen and the page measure the screen the same way` exige a mesma medida nos dois lados,
+e que a foto seja encaixada no retângulo que o display dá.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `onUserLeaveHint` volta a fechar sem guarda | `the camera permission dialog does not close the screen` |
+| `cameraRunning` nasce `true` | `the camera permission dialog does not close the screen` |
+| `applyPhotoFrame` volta a `resources.displayMetrics` | `the camera screen and the page measure the screen the same way` |
+| `realDisplayMetrics()` do serviço mede por conta própria | `the camera screen and the page measure the screen the same way` |
+
+Suíte do app: **473 testes por variante (946 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric monta a activity e mede a geometria, não o diálogo de
+  permissão nem a câmera. Falta conferir no celular: abrir a câmera pela primeira vez, conceder a
+  permissão e ver a tela seguir; depois tirar uma foto e comparar o quadro da pré-visualização com a
+  página do seletor, deitado dos dois lados.

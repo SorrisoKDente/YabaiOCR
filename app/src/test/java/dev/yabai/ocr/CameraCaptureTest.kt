@@ -4,10 +4,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.media.ExifInterface
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import dev.yabai.ocr.capture.CameraPhoto
+import dev.yabai.ocr.capture.DeviceRotation
 import dev.yabai.ocr.overlay.PickerBlock
 import dev.yabai.ocr.overlay.PickerReadingMode
 import dev.yabai.ocr.overlay.ResultOverlay
@@ -211,7 +213,7 @@ class CameraCaptureTest {
         )
         assertTrue(
             "the picker is not shown over the photo",
-            photoRead.contains("showTextPicker(picker, mode, page.bitmap, retake = true)"),
+            photoRead.contains("showTextPicker(") && photoRead.contains("page.bitmap") && photoRead.contains("retake = true") && photoRead.contains("turn = photoTurn"),
         )
         assertTrue(
             "going back to the boxes after the panel has no page to draw",
@@ -284,33 +286,48 @@ class CameraCaptureTest {
     }
 
     /**
-     * R48d: the picture is turned the way the phone is held, at the shutter and after a turn.
+     * R48f: the picture is turned the way the phone is held, not the way the display is.
      *
-     * `ImageCapture` is built with one rotation and keeps it: read from an unattached view it falls
-     * back to `ROTATION_0`, which is right upright and wrong sideways, and turning the phone after
-     * the screen opened left the old one behind. A photo turned 90° is read sideways by the engines,
-     * which is what put the boxes over the wrong pieces and the text in the wrong order.
+     * The file is written in the `ImageCapture`'s target rotation, and the engines then read the page
+     * the way the file has it: a page saved on its side is read sideways, where the boxes land over
+     * glyph fragments instead of text columns (R48d). A locked rotation — or a display turn that has
+     * not landed yet — leaves the display upright while the phone is sideways, so the rotation comes
+     * from the phone itself, and the shutter applies it before the picture is taken.
      */
     @Test
-    fun `the photo turns with the phone, not with the view it was opened in`() {
-        val camera = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+    fun `the picture turns with the phone, not with the display`() {
+        assertEquals(
+            "a phone turned 90° counter-clockwise is written 180° off",
+            Surface.ROTATION_270,
+            DeviceRotation.surfaceRotation(90),
+        )
+        assertEquals(Surface.ROTATION_90, DeviceRotation.surfaceRotation(270))
+        assertEquals(Surface.ROTATION_180, DeviceRotation.surfaceRotation(180))
+        assertEquals(Surface.ROTATION_0, DeviceRotation.surfaceRotation(0))
+        assertEquals("a phone just short of upright is upright", Surface.ROTATION_0, DeviceRotation.surfaceRotation(359))
+        assertEquals("the range just inside 270 is still landscape", Surface.ROTATION_90, DeviceRotation.surfaceRotation(314))
+        assertEquals("the range just outside it is upright again", Surface.ROTATION_0, DeviceRotation.surfaceRotation(315))
 
+        val camera = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+        assertTrue(
+            "the picture's rotation does not come from the phone itself",
+            camera.contains("OrientationEventListener"),
+        )
         assertFalse(
-            "the picture's rotation is read from a view that may not be attached to a window",
-            camera.contains("previewView.display?.rotation"),
+            "the picture's rotation is read from the display, which stays upright when it is locked",
+            camera.contains("DisplayManager") || camera.contains("getDisplay("),
         )
         assertTrue(
-            "the shutter does not take the picture's rotation from the display",
-            camera.contains(".setTargetRotation(displayRotation())"),
+            "the shutter does not apply the rotation before taking the picture",
+            camera.contains("capture.targetRotation = targetRotation"),
         )
         assertTrue(
-            "turning the phone after the screen opened leaves the picture turned the old way",
-            camera.contains("onDisplayChanged") &&
-                camera.contains("imageCapture?.targetRotation = displayRotation()"),
+            "the rotation listener is never switched off",
+            camera.contains("rotationListener?.disable()"),
         )
         assertTrue(
-            "the rotation listener is never removed",
-            camera.contains("unregisterDisplayListener"),
+            "the preview is a surface view, which can only follow the display's rotation",
+            camera.contains("PreviewView.ImplementationMode.COMPATIBLE"),
         )
     }
 

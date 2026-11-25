@@ -291,7 +291,7 @@ worth knowing:
 | `MainActivity.kt` | settings and permissions; picks the engine, downloads models, starts the service |
 | `StartOcrActivity.kt` | launcher/shortcut to start the capture |
 | `LookupActivity.kt` | opens the dictionary lookup from a text |
-| `CameraActivity.kt` | the bubble's camera, a screen of its own on CameraX: live preview, a shutter with no confirmation, the picture held behind the spinner while the service reads it, and the file handoff; it leaves once the boxes are on screen; the photo's rotation follows the display, at the shutter and after the phone is turned (R46d, R47a, R48a, R48d) |
+| `CameraActivity.kt` | the bubble's camera, a screen of its own on CameraX: live preview, a shutter with no confirmation, the picture held behind the spinner while the service reads it, and the file handoff; it leaves once the boxes are on screen; the photo's rotation follows the phone's own orientation, not the display, at the shutter and after the phone is turned; the preview and the frozen photo sit in the phone's frame, and that frame is what it hands the service for the picker's page; it closes itself when the user goes to the home screen or the list of apps, but only once the camera is running, because the permission dialog announces a leave too; and it measures the screen from the whole display, the same measurement as the picker's page (R46d, R47a, R48a, R48d, R48f, R48g, R48h, R48i, R48j) |
 | `DictionaryActivity.kt` | dictionary screen (install, update, filter) |
 | `HelpActivity.kt` | help and explanations |
 | `YabaiOcrApplication.kt` | `Application`: theme, language, update scheduler |
@@ -314,15 +314,17 @@ worth knowing:
 | --- | --- |
 | `capture/ScreenCaptureSession.kt` | `MediaProjection`: one screen capture per session |
 | `capture/CameraPhoto.kt` | camera photo turned upright from EXIF, read once and deleted; and the reduced copy the camera screen shows without deleting the file (R48a) |
+| `capture/DeviceRotation.kt` | the photo's rotation from the phone's orientation: sensor degrees to `Surface.ROTATION_*` (R48f), and the turn the picker's page takes to follow the phone's frame (R48g) |
+| `capture/ScreenMetrics.kt` | the single screen measurement — the whole display, bars included — used by the bubble (R23), the camera screen and the picker's page (R48j) |
 | `capture/PhotoWait.kt` | the limit on the camera screen's wait for a photo's reading, and the fallback that hands control back (R48c) |
-| `capture/PhotoPage.kt` | photo geometry on the picker's page (uniform fit, boxes and page allocation) (R47a) |
+| `capture/PhotoPage.kt` | photo geometry on the picker's page (uniform fit, boxes, page allocation) and the page's size in the phone's frame (R48g) and that frame applied to the camera screen's views (R48h) (R47a, R48g, R48h) |
 | `service/FloatingOcrService.kt` | foreground service: capture, OCR, shows the result |
 | `service/LookupOverlayService.kt` | dictionary lookup over other apps |
 | `service/YabaiTileService.kt` | quick settings tile |
 | `overlay/OverlayController.kt` | overlay lifecycle |
 | `overlay/ResultOverlay.kt` | result panel (text, translation, actions, dictionary) |
-| `overlay/TextPickerOverlay.kt` | segment picker over the capture |
-| `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` | "always show the picker" rule, touch targets, zoom and readings |
+| `overlay/TextPickerOverlay.kt` | segment picker over the capture, with the page turned into the phone's frame (R48g) and the action bar and the hint following that turn (R48g, R48h) |
+| `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` / `PageTurn.kt` | "always show the picker" rule, touch targets, zoom, readings and the page's turn into the phone's frame (R48g) |
 | `overlay/RegionOverlay.kt` | manual crop |
 | `overlay/AppPickerOverlay.kt` | AI app choice |
 | `overlay/KanjiOverlay.kt` / `KanjiCardText.kt` | kanji card (strokes, readings, compounds) |
