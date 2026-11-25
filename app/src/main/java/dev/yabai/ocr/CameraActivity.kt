@@ -172,10 +172,13 @@ class CameraActivity : AppCompatActivity() {
         root.addView(
             loading,
             FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER,
-            ),
+            ).apply {
+                leftMargin = dp(16)
+                rightMargin = dp(16)
+            },
         )
         // Targets, not content: they keep their place on the phone (R48p).
         root.addView(close, FrameLayout.LayoutParams(dp(44), dp(44)))
@@ -237,36 +240,54 @@ class CameraActivity : AppCompatActivity() {
         return display?.rotation ?: Surface.ROTATION_0
     }
 
-    /** The picture stays put while the engines read it; this is the only thing that moves. */
+    /**
+     * The picture stays put while the engines read it; this is the only thing that moves.
+     *
+     * The card spans the window, and the label takes the line the spinner leaves: measured to its own
+     * content, «Reconhecendo o texto…» came out cut (R50).
+     */
     private fun buildLoading(): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        gravity = Gravity.CENTER
-        setPadding(dp(22), dp(18), dp(22), dp(18))
+        setPadding(dp(18), dp(14), dp(18), dp(12))
         background = roundedBackground(0xCC1B1D24.toInt(), dp(16).toFloat(), 0x33FFFFFF)
         visibility = View.GONE
+        tag = LOADING_TAG
         addView(
-            ProgressBar(this@CameraActivity).apply {
-                isIndeterminate = true
-                indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
+            LinearLayout(this@CameraActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(
+                    ProgressBar(this@CameraActivity).apply {
+                        isIndeterminate = true
+                        indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
+                    },
+                )
+                addView(
+                    TextView(this@CameraActivity).apply {
+                        text = getString(R.string.camera_reading)
+                        setTextColor(Color.WHITE)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                        setPadding(dp(14), 0, 0, 0)
+                    },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+                )
             },
-        )
-        addView(
-            TextView(this@CameraActivity).apply {
-                text = getString(R.string.camera_reading)
-                setTextColor(Color.WHITE)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                gravity = Gravity.CENTER
-                setPadding(0, dp(12), 0, 0)
-            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ),
         )
         // The ✕ closes the screen without stopping the reading; this is the way out that keeps it (R48m).
         addView(
-            actionButton(getString(R.string.recognition_cancel)) { cancelReading() },
+            actionButton(
+                getString(R.string.recognition_cancel),
+                background = getColor(R.color.warn),
+            ) { cancelReading() },
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
+                gravity = Gravity.END
                 topMargin = dp(10)
             },
         )
@@ -604,5 +625,10 @@ class CameraActivity : AppCompatActivity() {
         // deletes it, and doing it here could pull it from under the read.
         if (!handedOff) photo?.delete()
         super.onDestroy()
+    }
+
+    companion object {
+        /** Tag on the loading card, so a layout test can find it without walking the tree. */
+        const val LOADING_TAG = "yabai.cameraLoading"
     }
 }

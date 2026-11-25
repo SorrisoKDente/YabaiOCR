@@ -889,26 +889,34 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         card.addView(
             LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(0, dp(10), 0, dp(10))
                 addView(
                     LinearLayout(context).apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.CENTER_VERTICAL
                         addView(ProgressBar(context).apply { isIndeterminate = true })
+                        // The label takes whatever the spinner leaves: the row is as wide as the card,
+                        // so «Reconhecendo o texto…» has room to be read whole (R50).
                         addView(
                             textLabel(
                                 context.getString(R.string.recognizing),
                                 16f,
                                 context.getColor(R.color.text_primary),
                             ).apply { setPadding(dp(14), 0, 0, 0) },
+                            LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f),
                         )
                     },
+                    LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
                 )
+                // «Cancelar» is the way out of the wait, so it is red like every way out and sits at
+                // the right end of the card, out of the line the text is read on (R50).
                 addView(
-                    actionButton(context.getString(R.string.recognition_cancel)) { onCancel() },
+                    actionButton(
+                        context.getString(R.string.recognition_cancel),
+                        background = context.getColor(R.color.warn),
+                    ) { onCancel() },
                     LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-                        gravity = Gravity.CENTER_HORIZONTAL
+                        gravity = Gravity.END
                         topMargin = dp(12)
                     },
                 )
@@ -1064,8 +1072,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             )
         }
         // R47g: «Fechar» is red and always the bottom-left action, whatever the card offers around
-        // it — the way out must be found in the same place every time.
-        actions.addOnOwnRow(
+        // it — the way out must be found in the same place every time. R50: it takes the free cell
+        // of the last row instead of a row of its own, because a sideways phone has no height to
+        // spare for a one-button row above the dictionary text.
+        actions.addClosing(
             context.actionButton(
                 context.getString(R.string.result_close),
                 background = context.getColor(R.color.warn),
@@ -1120,7 +1130,10 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             )
         }
         buttons.addView(
-            context.actionButton(context.getString(R.string.result_close)) { callbacks?.onDismiss() },
+            context.actionButton(
+                context.getString(R.string.result_close),
+                background = context.getColor(R.color.warn),
+            ) { callbacks?.onDismiss() },
             wrapWithMargin(if (offlineAvailable) dp(6) else 0),
         )
         card.addView(buttons)

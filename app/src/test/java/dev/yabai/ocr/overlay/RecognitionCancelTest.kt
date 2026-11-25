@@ -150,7 +150,8 @@ class RecognitionCancelTest {
         try {
             val camera = controller.create().get()
             val root = camera.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup
-            val card = text(camera, camera.getString(R.string.camera_reading)).parent as View
+            val card = camera.findViewById<ViewGroup>(android.R.id.content)
+                .findViewWithTag<View>(CameraActivity.LOADING_TAG)
             val shutter = (0 until root.childCount)
                 .map { root.getChildAt(it) }
                 .first { it.contentDescription == camera.getString(R.string.camera_shutter) }

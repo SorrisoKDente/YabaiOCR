@@ -107,9 +107,10 @@ class ImagePanelTest {
                 context.getString(R.string.result_copy_translation),
                 context.getString(R.string.result_ask_ai),
                 imageLabel,
-                context.getString(R.string.result_repick),
-                // R47g: the way out is the last action, on a row of its own.
+                // R47g: the way out starts the bottom-left. R50: it takes the free cell beside the
+                // last action instead of opening a row of its own, so it comes before «Repetir».
                 context.getString(R.string.result_close),
+                context.getString(R.string.result_repick),
             ),
             withImage,
         )

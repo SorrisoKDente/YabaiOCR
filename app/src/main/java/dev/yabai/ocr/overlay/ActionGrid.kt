@@ -1,6 +1,7 @@
 package dev.yabai.ocr.overlay
 
 import android.content.Context
+import android.content.res.Configuration
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
@@ -17,9 +18,9 @@ import dev.yabai.ocr.util.dp
  * has the same widths.
  *
  * The number of columns follows the screen: two on a phone held up, where a wider button would need a
- * label to wrap, and three once the screen is wide enough for a row to hold three labels. A landscape
- * phone has very little height, and the third column is what keeps six actions in two rows instead of
- * three — rows that used to push the last button off the bottom of the card.
+ * label to wrap, three on a tablet, and four on a phone turned sideways — where the window has width
+ * to spare and no height at all, and a fourth column is what keeps the actions in two rows instead of
+ * three, with the dictionary text winning the room back (R50).
  *
  * A last row that does not fill every cell stretches its buttons across the row. A half-width button
  * with an empty hole beside it looks like a button that failed to load; one that fills the row looks
@@ -27,12 +28,21 @@ import dev.yabai.ocr.util.dp
  */
 class ActionGrid(context: Context) : LinearLayout(context) {
 
+    /** A phone on its side: less height for the text, so tighter rows and one more column (R50). */
+    private val compact: Boolean =
+        context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     /**
      * Chosen once, from the screen the panel is opening on. A capture closes and reopens the card, so
      * the grid never lives across a rotation.
      */
-    private val columns: Int =
-        if (context.resources.configuration.screenWidthDp >= THREE_COLUMN_WIDTH_DP) 3 else 2
+    private val columns: Int = when {
+        compact -> 4
+        context.resources.configuration.screenWidthDp >= THREE_COLUMN_WIDTH_DP -> 3
+        else -> 2
+    }
+
+    private val gap: Int = context.dp(if (compact) GAP_COMPACT_DP else GAP_DP)
 
     init {
         orientation = VERTICAL
@@ -46,7 +56,7 @@ class ActionGrid(context: Context) : LinearLayout(context) {
     fun add(button: View) {
         // The grid is tighter than a button standing on its own: these sit under the text the user is
         // reading, so every pixel of height they take is a line of text they cover.
-        (button as? TextView)?.applyGridStyle()
+        (button as? TextView)?.applyGridStyle(compact)
         var target = row
         if (target == null || filled >= columns) {
             target = newRow()
@@ -56,20 +66,30 @@ class ActionGrid(context: Context) : LinearLayout(context) {
         target.addView(
             button,
             LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
-                if (filled > 0) marginStart = context.dp(GAP_DP)
+                if (filled > 0) marginStart = gap
             },
         )
         filled++
     }
 
     /**
-     * Puts [button] at the start of a row of its own.
+     * Puts the way out at the bottom-left, in a row of its own only when there is no room left.
      *
-     * Used for the one action that has to keep its place in the panel: «Fechar» is the way out, and
-     * it stays at the bottom-left whatever the other actions are. Simply adding it last would put it
-     * on the right whenever the row before it ended on an odd count.
+     * «Fechar» must be found in the same corner every time, and adding it last would put it on the
+     * right whenever the row before it ended on an odd count. Filling the free cell of the last row
+     * instead of opening another one is what keeps a sideways phone to two rows of actions instead
+     * of three — the row saved is a line of dictionary text (R50).
      */
-    fun addOnOwnRow(button: View) {
+    fun addClosing(button: View) {
+        val target = row
+        if (target != null && filled < columns) {
+            (button as? TextView)?.applyGridStyle(compact)
+            target.addView(button, 0, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            // The button that was first in the row is now second, and the first cell never has a gap.
+            (target.getChildAt(1).layoutParams as LayoutParams).marginStart = gap
+            filled++
+            return
+        }
         row = null
         filled = 0
         add(button)
@@ -101,6 +121,9 @@ class ActionGrid(context: Context) : LinearLayout(context) {
 
         /** Both the gap between columns and the gap between rows. */
         private const val GAP_DP = 6
+
+        /** The same gap on a sideways phone, where every pixel of height is text. */
+        private const val GAP_COMPACT_DP = 4
 
         /** From this width on, three labels fit side by side without wrapping. */
         private const val THREE_COLUMN_WIDTH_DP = 600

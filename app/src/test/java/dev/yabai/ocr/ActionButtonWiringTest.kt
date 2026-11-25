@@ -123,7 +123,8 @@ class ActionButtonWiringTest {
 
     /**
      * R47g: «Fechar» is red and always the bottom-left action of the result card, wherever the other
-     * buttons end up — the way out has to be in the same place every time.
+     * buttons end up — the way out has to be in the same place every time. R50: it starts the last
+     * row, sharing it instead of owning one, so a sideways phone keeps the dictionary text.
      */
     @Test
     fun `the result close is red and is the bottom-left action`() {
@@ -144,9 +145,12 @@ class ActionButtonWiringTest {
         assertNotNull("the result card has no action grid: ${panel.texts().map { it.text }}", grid)
 
         val lastRow = grid!!.getChildAt(grid.childCount - 1) as ViewGroup
-        assertEquals("«Fechar» is not alone in the last row: ${lastRow.texts().map { it.text }}", 1, lastRow.childCount)
         val close = lastRow.getChildAt(0) as TextView
-        assertEquals(context.getString(R.string.result_close), close.text.toString())
+        assertEquals(
+            "«Fechar» does not start the last row: ${lastRow.texts().map { it.text }}",
+            context.getString(R.string.result_close),
+            close.text.toString(),
+        )
         assertEquals(
             "«Fechar» is not red",
             context.getColor(R.color.warn),

@@ -181,7 +181,8 @@ class ResultOverlayLayoutTest {
      * take the last button with it — the button was there in the view tree, half of it below the
      * window, and could not be tapped. A landscape window is barely 360 dp tall and the actions were
      * two per row; the picture, a long OCR result, its translation and a dictionary entry had already
-     * spent the height. Three narrower columns and a tighter button style are what buy the rows back.
+     * spent the height. Four narrower columns, a tighter button style and «Fechar» sharing the last
+     * row are what buy the rows back (R50).
      *
      * This is the worst case the panel can be in, so the assertion is the whole card and every one of
      * its actions, not just the grid.
@@ -220,19 +221,19 @@ class ResultOverlayLayoutTest {
     }
 
     /**
-     * The number of columns follows the screen: three on a phone turned sideways, where the width
-     * has room for a third label and the height has none to spare; two held upright, where a third
-     * would only force the labels to wrap.
+     * The number of columns follows the screen: four on a phone turned sideways, where the width has
+     * room for a fourth label and the height has none to spare; two held upright, where a third would
+     * only force the labels to wrap.
      */
     @Test
     fun `a phone held up keeps two actions on a row`() {
-        // Five actions pair up and «Fechar» owns the last row (R47g).
-        assertEquals(listOf(2, 2, 1, 1), gridRows(layout(capturedFullPageWithPicture(), 320)).map { it.size })
+        // Four actions pair up and «Fechar» fills the free cell of the last row (R47g, R50).
+        assertEquals(listOf(2, 2, 2), gridRows(layout(capturedFullPageWithPicture(), 320)).map { it.size })
     }
 
     @Test
     @Config(qualifiers = "w780dp-h360dp-xxhdpi")
-    fun `a phone turned sideways puts three actions on a row`() {
+    fun `a phone turned sideways puts four actions on a row`() {
         val panel = capturedFullPageWithPicture()
         val metrics = context.resources.displayMetrics
         panel.measure(
@@ -241,8 +242,8 @@ class ResultOverlayLayoutTest {
         )
         panel.layout(0, 0, metrics.widthPixels, metrics.heightPixels)
 
-        // Two full rows of three, then «Fechar» alone at the bottom-left (R47g).
-        assertEquals(listOf(3, 2, 1), gridRows(panel).map { it.size })
+        // A full row of four, then the last action and «Fechar» sharing the bottom row (R50).
+        assertEquals(listOf(4, 2), gridRows(panel).map { it.size })
     }
 
     /** The actions on offer, in the order the user sees them. */

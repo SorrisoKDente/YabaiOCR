@@ -70,6 +70,9 @@ fun Context.actionButton(
 /** Label size, in sp, of an action inside [ActionGrid]. */
 private const val GRID_TEXT_SIZE_SP = 13f
 
+/** Label size, in sp, of an action inside [ActionGrid] on a phone held sideways. */
+private const val GRID_COMPACT_TEXT_SIZE_SP = 12f
+
 /**
  * Makes an action button fit the panel's grid.
  *
@@ -77,14 +80,17 @@ private const val GRID_TEXT_SIZE_SP = 13f
  * actions sit under the text the user is reading, and on a phone turned sideways — where the window is
  * barely 360 dp tall — that padding made every row 34 dp of buttons covering the meanings. The label
  * keeps its weight, the box around it shrinks, and the grid spends the height it saved on text.
+ *
+ * [compact] is the sideways phone: the same label one point smaller and a 26 dp box, so a row of the
+ * grid costs 4 dp less of the dictionary text it sits above.
  */
-fun TextView.applyGridStyle() {
-    setTextSize(TypedValue.COMPLEX_UNIT_SP, GRID_TEXT_SIZE_SP)
+fun TextView.applyGridStyle(compact: Boolean) {
+    setTextSize(TypedValue.COMPLEX_UNIT_SP, if (compact) GRID_COMPACT_TEXT_SIZE_SP else GRID_TEXT_SIZE_SP)
     // The font's extra top and bottom padding is what made the row taller than its glyphs.
     includeFontPadding = false
-    minHeight = context.dp(30)
-    val h = context.dp(10)
-    val v = context.dp(6)
+    minHeight = context.dp(if (compact) 26 else 30)
+    val h = context.dp(if (compact) 8 else 10)
+    val v = context.dp(if (compact) 4 else 6)
     setPadding(h, v, h, v)
 }
 

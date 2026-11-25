@@ -9263,3 +9263,74 @@ variante (972 no total, debug e release), 0 falhas**.
   presença dos ícones), não o espaçamento; a janela Compose do desktop não roda headless, então o
   teste cobre o conteúdo e a ordem, não o desenho. Falta abrir as duas ajudas e o cartão do
   renderizador num Ubuntu com X11.
+### R50 — «Reconhecendo» inteiro, Cancelar vermelho à direita e ações em duas linhas no celular deitado  `[x]` (25/11/2026)
+
+**Pedido.** «O texto de "Reconhecendo" está ficando cortado na função da câmera. Em inglês por
+exemplo aparece apenas "Recogni". Botão "Cancelar" na parte de "Reconhecendo" e o "Fechar" que
+aparece no popup depois devem ser vermelhos. Acredito que o botão de cancelar também pode ser movido
+para ficar ordenado na direita ao invés do centro. Quando o celular está deitado, os botões devem ser
+menores e ficarem melhores organizados para ter mais espaço para leitura dos itens dos dicionários.
+Por exemplo atualmente quando usa a função da câmera com o celular deitado, aparecem 6 botões, sendo
+2 na primeira linha, 3 na segunda e 1 na terceira. Se colocasse um botão a mais na primeira linha, já
+poderia reduzir uma linha e ficar com um espaço maior. Lembrando que o botão de fechar deve sempre
+ficar mais a esquerda/inferior em relação aos outros botões.»
+
+- **Causa do corte.** O cartão do «Reconhecendo…» da câmera era um `LinearLayout` com
+  `WRAP_CONTENT` num `FrameLayout`: a largura saía do próprio conteúdo, e o rótulo — centralizado e
+  sem peso — recebia exatamente a largura que o texto pediu. Um texto que quebra em duas linhas
+  («Recognising the text…») deixava o cartão com a largura de uma palavra, e o que sobrava era
+  recortado no quadro girado; em inglês, «Recogni». O mesmo aperto existia no painel, onde o rótulo
+  ficava ao lado do spinner com a largura do texto (`layoutWidth=12` na sonda).
+- **Correção.** O cartão da câmera passou a ocupar a janela (`MATCH_PARENT` com 16 dp de folga de
+  cada lado) e o rótulo ganhou `weight(1f)` ao lado do spinner: ele recebe toda a linha que sobra,
+  em vez de ditar a largura do cartão. O mesmo peso foi dado ao rótulo do painel, e a linha do
+  spinner passou a `MATCH_PARENT` dentro do cartão. «Cancelar» ficou vermelho (`R.color.warn`, como
+  todo caminho de saída) e encostado à direita (`gravity = END`), fora da linha em que o texto é
+  lido, nos dois lugares — câmera e painel. O «Fechar» do `showError`, que ainda saía com a cor de
+  destaque, também ficou vermelho.
+- **Deitado.** `ActionGrid` passou a usar quatro colunas quando a orientação é paisagem, com o estilo
+  compacto de `applyGridStyle(compact = true)`: 12 sp, caixa de 26 dp, padding 8/4 e vão de 4 dp (no
+  retrato seguem 13 sp, 30 dp, 10/6 e 6 dp). O vão de uma linha é uma linha de dicionário a mais. E
+  «Fechar» deixou de pedir uma linha só para si: `addClosing` o coloca como **primeiro botão da
+  última linha** quando há célula vaga, e só abre linha própria quando a última está cheia — ele
+  continua sendo o canto inferior esquerdo (R47g), mas os seis botões da câmera deitada passaram de
+  `[2,3,1]` para `[4,2]`. O teste de R47g («sozinho na última linha») foi reescrito para «primeiro da
+  última linha», e a ordem de `labels()` no `ImagePanelTest` acompanhou (o «Fechar» agora vem antes
+  do último botão da linha).
+- **Arquivos.** `app/src/main/java/dev/yabai/ocr/overlay/ActionGrid.kt` ·
+  `app/src/main/java/dev/yabai/ocr/overlay/Widgets.kt` ·
+  `app/src/main/java/dev/yabai/ocr/overlay/ResultOverlay.kt` ·
+  `app/src/main/java/dev/yabai/ocr/CameraActivity.kt` ·
+  `app/src/test/.../overlay/ActionGridTest.kt` · `app/src/test/.../overlay/ResultOverlayLayoutTest.kt` ·
+  `app/src/test/.../overlay/ReadingCardTest.kt` (novo) · `app/src/test/.../overlay/ImagePanelTest.kt` ·
+  `app/src/test/.../ActionButtonWiringTest.kt` · `app/src/test/.../overlay/RecognitionCancelTest.kt` ·
+  `app/src/test/.../overlay/PageTurnTest.kt`
+
+Regressão (+7 app, 493 por variante): `ReadingCardTest` mede o cartão da câmera contra a janela
+(`root.width - 2×16 dp`) e exige o rótulo com largura para o próprio texto, o «Cancelar» vermelho
+encostado na borda direita do cartão e o do painel vermelho no fim da linha; `ActionGridTest` exige
+quatro ações por linha em `w780dp-h360dp`, 12 sp/26 dp no estilo compacto (13 sp/30 dp no retrato),
+seis ações mais «Fechar» em `[4,3]`, o «Fechar» abrindo a última linha e, com a última linha cheia,
+mantendo o canto numa linha própria. Como o Robolectric mede texto com métricas falsas, o
+`ReadingCardTest` não compara com `paint.measureText` (passaria sempre): ele mede a estrutura que
+torna o corte impossível — o cartão da largura da janela e o rótulo com mais da metade dele (o cartão
+antigo media 78 px com rótulo de 34 px numa tela de 320 dp). `ResultOverlayLayoutTest` passou a
+esperar `[2,2,2]` no retrato e `[4,2]` deitado; `ActionButtonWiringTest` passou a exigir «Fechar»
+como primeiro da última linha.
+
+| mutação | teste que acusa |
+| --- | --- |
+| O cartão da câmera volta a `WRAP_CONTENT` | `the camera's reading card takes the window width so the label is not cut` |
+| O «Cancelar» da câmera volta à cor de destaque | `the camera's cancel is red and sits at the right end` |
+| O rótulo da câmera volta sem peso | `the camera's reading card takes the window width so the label is not cut` |
+| O rótulo do painel volta sem peso | `the panel's cancel is red and sits at the right end` (o rótulo fica com a largura do texto) |
+| A grade deitada volta a 3 colunas | `a phone turned sideways puts four actions on a row`, `a sideways phone puts four actions on a row`, `a phone held up keeps two actions on a row` |
+| `addClosing` volta a abrir linha própria | `the closing button starts the last row`, `sideways, six actions and the way out fit in two rows`, `a phone held up keeps two actions on a row` |
+
+Suíte do app: **493 testes por variante (986 no total, debug e release), 0 falhas**. A suíte desktop
+não foi tocada nesta rodada.
+
+- **Limite.** Nada foi visto em tela: o Robolectric mede a árvore com métricas de fonte falsas, então
+  o teste prova a estrutura (cartão da largura da janela, rótulo com peso, colunas e alinhamento), não
+  o desenho. Falta confirmar no aparelho, em pé e deitado, com pt-BR e inglês, que «Reconhecendo o
+  texto…» aparece inteiro e que os botões deitados cabem com folga sobre o texto do dicionário.

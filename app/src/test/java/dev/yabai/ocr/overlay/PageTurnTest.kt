@@ -554,7 +554,8 @@ class PageTurnTest {
         val controller = Robolectric.buildActivity(CameraActivity::class.java)
         try {
             val camera = controller.create().get()
-            val card = text(camera, camera.getString(R.string.camera_reading)).parent as View
+            val card = camera.findViewById<ViewGroup>(android.R.id.content)
+                .findViewWithTag<View>(CameraActivity.LOADING_TAG)
 
             camera.applyPhotoFrame(turn = 270)
             assertEquals("«Reconhecendo…» still lies on its side", 270f, card.rotation, 0.01f)
