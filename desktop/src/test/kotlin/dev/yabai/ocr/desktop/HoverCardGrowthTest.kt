@@ -20,7 +20,12 @@ import org.junit.Test
  * placement the hover chose near the taskbar, applies the same [planCardPlacement] the window uses,
  * and reads the bounds AWT reports — so it covers the window move/resize, not just the arithmetic.
  *
- * A display is needed; on a headless machine the window test is skipped.
+ * The work area is built by the test (1280×700 at the display's origin, clamped to it), not read
+ * from the desktop: the scenario needs the closed card's bottom near the taskbar, and a taller
+ * display turned that into «the card still fits», which measured nothing.
+ *
+ * A display is needed; on a headless machine the window test is skipped, and so is a display too
+ * small to host the work area.
  */
 class HoverCardGrowthTest {
 
@@ -32,14 +37,30 @@ class HoverCardGrowthTest {
     fun `the card header stays under the pointer when the dictionary list opens near the taskbar`() {
         assumeFalse("needs a display", GraphicsEnvironment.isHeadless())
 
+        // The work area is built here instead of read from the machine. Read from the machine, the
+        // pointer under a 200 px card sat 206 px above the taskbar of this 1920×892 screen, the
+        // taller card still fitted below it, and the move this test exists for never happened — the
+        // last assertion then failed on the screen size, not on a regression. With fixed numbers the
+        // scenario is the same on every machine, and only «is the display big enough» varies.
         val screen = GraphicsEnvironment.getLocalGraphicsEnvironment()
             .defaultScreenDevice.defaultConfiguration.bounds
-        // The work area the card is placed in: the bottom strip belongs to the taskbar.
-        val workArea = Rectangle(screen.x, screen.y, screen.width, screen.height - 48)
-        // Room for the closed card below the pointer and for the open card above it, without the
-        // screen clamping the old placement back down (which would hide the regression).
-        assumeTrue("the work area is too short for this scenario", workArea.height >= 620)
-        val pointer = Point(workArea.x + workArea.width - 420, workArea.y + 420)
+        // The work area the card is placed in: everything above the taskbar.
+        val workArea = Rectangle(
+            screen.x,
+            screen.y,
+            minOf(1280, screen.width),
+            minOf(700, screen.height),
+        )
+        assumeTrue(
+            "the display is too small for this scenario: $workArea",
+            workArea.width >= 620 && workArea.height >= 620,
+        )
+        // Below the pointer there is room for the closed card and 40 px more; the open card does not
+        // fit in that strip, so opening the list has to be answered by moving the card up.
+        val pointer = Point(
+            workArea.x + workArea.width - 520,
+            workArea.y + workArea.height - closedHeight - HoverGeometry.TOOLTIP_GAP - 40,
+        )
 
         val before = HoverGeometry.placeTooltip(
             pointer = pointer,
@@ -48,6 +69,12 @@ class HoverCardGrowthTest {
         )
         // The card is below the pointer, with its bottom already close to the taskbar.
         assertEquals(pointer.y + HoverGeometry.TOOLTIP_GAP, before.y)
+        assertTrue(
+            "the closed card must sit near the bottom ($before in $workArea), or opening the list " +
+                "would not move it and nothing would be measured",
+            before.y + closedHeight < workArea.y + workArea.height &&
+                before.y + openHeight > workArea.y + workArea.height,
+        )
         val headerClick = Point(before.x + 60, before.y + 15)
 
         val window = JFrame().apply {

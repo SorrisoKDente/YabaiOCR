@@ -67,8 +67,8 @@ Opções do `:core`:
 .\gradlew.bat :core:test -Pdicts="E:\Documentos\DicionariosJapones" # ZIPs reais do Yomitan
 ```
 
-A suíte desktop tem **612 testes** (610 verdes + `HoverCardGrowthTest`, que depende da área de
-trabalho do AWT da máquina), o `:core` padrão (sem `-Plive`/`-Pdicts`) em **208** e o app, com
+A suíte desktop tem **612 testes** (611 verdes + 1 pulado; nenhum depende da área de trabalho da
+máquina), o `:core` padrão (sem `-Plive`/`-Pdicts`) em **208** e o app, com
 Robolectric, em **986** (493 em cada variante, debug e release) na verificação de 25/11/2026. Se os
 números mudarem, confirme que os testes novos são intencionais e atualize ROADMAP/AGENTS.
 

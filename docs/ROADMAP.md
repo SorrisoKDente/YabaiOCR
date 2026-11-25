@@ -9530,7 +9530,8 @@ ppOcrMessage)` no desenho e a ausência do antigo `ppOcrStatus`.
 `./gradlew :desktop:test`: **612 testes, 610 verdes, 1 skipped, 1 falha pré-existente** —
 `HoverCardGrowthTest > the card header stays under the pointer when the dictionary list opens near
 the taskbar` continua falhando nesta máquina (área de trabalho do AWT: `expected 844 but was 798`),
-como em R52. As cinco mutações acima foram provadas e a restauração voltou ao verde.
+como em R52 — resolvida em R54. As cinco mutações acima foram provadas e a restauração voltou ao
+verde.
 
 - **E2E (feito).** Com o app fechado pelo usuário, ele foi aberto pela janela real (`:desktop:run`,
   820×713) e dirigido por cliques de verdade (XTest), sem fotografar a tela inteira: cada passo foi
@@ -9547,3 +9548,48 @@ como em R52. As cinco mutações acima foram provadas e a restauração voltou a
   composição já tinha sido conferida fora da tela com `ImageComposeScene`, nos dois temas e nas duas
   línguas: foi ali que o rótulo inglês «OCR & Dictionar…» apareceu cortado, e a correção (motor em
   «Leitura», aba «Dicionários») é o que faz as cinco abas caberem inteiras.
+
+### R54 — A área de trabalho do hover é montada pelo teste  `[x]` (25/11/2026)
+
+**Contexto.** `HoverCardGrowthTest` mede o cartão do hover crescendo quando a lista de dicionários
+abre perto da barra de tarefas: o cabeçalho clicado tem de continuar dentro do cartão e o cartão tem
+de andar só o que a área de trabalho exigir. Desde que foi escrito ele falhava nesta máquina
+(`expected 843`/`844 but was 798`, registrado como «falha pré-existente» em R52 e R53) e passava em
+outras — por causa da tela, não do produto.
+
+- **Causa raiz.** A premissa do cenário — «o cartão fechado já está perto da barra» — vinha da tela
+  da máquina (`defaultConfiguration.bounds` menos 48 px, ponteiro a 420 px do topo). Numa tela de
+  1920×892 isso punha o fundo do cartão fechado 206 px acima da barra e o cartão aberto (360 px)
+  ainda cabia abaixo dele: `holdCardLocation` não tinha por que mover nada, o movimento que o teste
+  existe para medir nunca acontecia, e a última asserção acusava a diferença de geometria como se
+  fosse regressão.
+- **Correção.** A área de trabalho é **montada no teste**: 1280×700 na origem do display, limitada a
+  ele (`minOf(…, screen.width/height)`), e o ponteiro é derivado dela — abaixo dele ficam o cartão
+  fechado e 40 px a mais. Uma asserção nova prova a premissa (o fechado cabe abaixo, o aberto não
+  cabe); o `assumeTrue` sobrou só para um display pequeno demais para hospedar a área (620×620), de
+  modo que o que muda entre máquinas é o pulo, não o cenário. A janela AWT real continua sendo
+  aberta, redimensionada, movida e lida por `window.bounds`, então o teste segue cobrindo o
+  movimento e o `setSize`, não só a aritmética.
+- **Arquivos.** `desktop/src/test/.../HoverCardGrowthTest.kt`
+
+Testes: **612 no total** (nenhum teste novo; um deixou de depender da tela). As duas causas que ele
+vigia foram conferidas por mutação:
+
+| mutação | teste que acusa |
+| --- | --- |
+| `planCardPlacement` ignora `sameAnchor` e ancora de novo no ponteiro | `the card header stays under the pointer when the dictionary list opens near the taskbar` |
+| `holdCardLocation` deixa de limitar o cartão à área de trabalho | o mesmo teste |
+
+Números do cenário montado: cartão fechado em (778,460) com 460×200, cabeçalho clicado em (838,475);
+aberto com 460×360 em (778,340), com o fundo em 700 — exatamente o fundo da área montada. Com a
+mutação da âncora o cartão ia para y=64 e o teste acusou `the clicked header … left the card`; com a
+mutação da trava o retângulo `x=778,y=460,width=460,height=360` saía da área e o teste acusou `the
+card left the work area`. O relatório XML da classe dá `tests 2, skipped 0`, então o cenário rodou de
+verdade nas duas rodadas (nada de pulo silencioso).
+
+`./gradlew :desktop:test`: **612 testes, 611 verdes, 1 skipped, 0 falhas** — a suíte desktop inteira
+verde nesta máquina pela primeira vez desde R52.
+
+- **Limite.** Nada do comportamento do app mudou (só o teste), então não houve E2E. Num display menor
+  que 620×620 o teste é pulado em vez de rodar num cenário encolhido; Windows e macOS seguem sem
+  execução nesta máquina.
