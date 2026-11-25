@@ -50,6 +50,54 @@ class HelpManualTest {
     }
 
     @Test
+    fun `the button reference comes first and follows the interface language`() {
+        val previous = DesktopStrings.currentChoice
+        try {
+            DesktopStrings.updateLanguage(DesktopLanguageChoice.PT_BR)
+            val portuguese = helpButtons()
+            DesktopStrings.updateLanguage(DesktopLanguageChoice.EN_US)
+            val english = helpButtons()
+
+            assertTrue("the manual opens without the button reference", portuguese.isNotEmpty())
+            assertEquals("the two languages disagree on the buttons", portuguese.size, english.size)
+            assertTrue(
+                "a button row is missing its icon, name or explanation",
+                portuguese.all { it.icon.isNotBlank() && it.name.isNotBlank() && it.what.isNotBlank() } &&
+                    english.all { it.icon.isNotBlank() && it.name.isNotBlank() && it.what.isNotBlank() },
+            )
+            assertTrue(
+                "a button was written in only one language",
+                portuguese.zip(english).all { (pt, en) -> pt.what != en.what },
+            )
+        } finally {
+            DesktopStrings.updateLanguage(previous)
+        }
+
+        // The manual draws the reference before the topic list; a reader meets it first.
+        val window = sourceFile("HelpWindow.kt").readText()
+        assertTrue(
+            "the button reference is not the first section of the manual",
+            window.indexOf("helpButtons().forEach") in 0 until window.indexOf("items(topics)"),
+        )
+    }
+
+    @Test
+    fun `the crash note offers the choice the platform actually has`() {
+        val previous = DesktopStrings.currentChoice
+        try {
+            DesktopStrings.updateLanguage(DesktopLanguageChoice.PT_BR)
+            val linux = DesktopStrings.rendererAfterCrash("Software", linux = true)
+            assertTrue("the Linux note does not name the switch", linux.contains("Renderização por software"))
+            assertTrue("the Linux note still points at an «Automático» the card does not have", !linux.contains("Automático"))
+
+            val windows = DesktopStrings.rendererAfterCrash("OpenGL", linux = false)
+            assertTrue("the Windows note lost the way back", windows.contains("Automático"))
+        } finally {
+            DesktopStrings.updateLanguage(previous)
+        }
+    }
+
+    @Test
     fun `settings offers the Help button and opens the manual`() {
         val settings = sourceFile("SettingsWindow.kt").readText()
         assertTrue(

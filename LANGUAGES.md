@@ -71,7 +71,7 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 9. **Gerenciador de Dicionários e Atualizações:**
    - `dictionary_title`, `dictionary_installed_section`, `dictionary_available_section`, `dictionary_import_section`, mensagens de progresso de download e conversão, verificador de atualizações, «Reinstalar» (`dictionary_reinstall`), créditos e licenças.
 10. **Tela de Ajuda (`HelpActivity`):**
-    - `help_title` ("Help & Tips"), `menu_help` ("Help"), `help_tip_area_*`, `help_tip_camera_*` (a câmera: disparo e ✕ fixos, quadro girado, «Cancelar» e nova foto), `help_tip_bubble_*` (gestos da bolha, «Ler kanji» e o «Cancelar» de qualquer leitura), `help_tip_kanji_*`, `help_tip_engines_*`, `help_tip_behaviours_*`, `help_tip_dicts_*`, `help_tip_ai_*`, `help_tip_translation_*`.
+    - `help_title` ("Help & Tips"), `menu_help` ("Help"), `help_buttons_*` (a primeira seção: um resumo por botão da bolha, com o ícone do botão à esquerda), `help_tip_area_*`, `help_tip_camera_*` (a câmera, «Cancelar» e nova foto), `help_tip_bubble_*` (gestos da bolha, «Ler kanji» e o «Cancelar» de qualquer leitura), `help_tip_kanji_*`, `help_tip_engines_*` (inclui o PP-OCRv6; não há mais manga-ocr), `help_tip_behaviours_*`, `help_tip_dicts_*`, `help_tip_ai_*`, `help_tip_translation_*`.
 
 ### 3.2. Extração de Strings Hardcoded no Kotlin (`:app`)
 As seguintes strings escritas diretamente no código Kotlin devem ser extraídas para `strings.xml`:
@@ -209,7 +209,8 @@ Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de
 
 #### 7. `HelpWindow.kt` (Manual de Ajuda Desktop)
 - **Botão e título:** `"❓ Ajuda"` → `"❓ Help"`, `"Ajuda — Yabai OCR"` → `"Help — Yabai OCR"`
-- **Entradas do manual** (`helpIntro`, `helpCapture*`, `helpRegion*`, `helpHover*`, `helpQuickSearch*`, `helpDictionaries*`, `helpResult*`, `helpTray*`): as duas capturas, o hover, a busca rápida, os dicionários, a janela de resultado e a bandeja, cada uma com os atalhos padrão e o que a função faz. O teste `HelpManualTest` compara as duas línguas e a lista de ações.
+- **Referência de botões** (`helpButtonsTitle`, `helpBtn*Name/What`): a primeira seção, com o ícone do botão à esquerda, o nome e o que ele faz; `helpButtons()` desenha as linhas.
+- **Entradas do manual** (`helpIntro`, `helpCapture*`, `helpRegion*`, `helpHover*`, `helpQuickSearch*`, `helpDictionaries*`, `helpResult*`, `helpTray*`): as duas capturas, o hover, a busca rápida, os dicionários, a janela de resultado e a bandeja, cada uma com os atalhos padrão e o que a função faz. O teste `HelpManualTest` compara as duas línguas, exige a referência antes das entradas e lê o aviso de crash do renderizador.
 
 ---
 

@@ -1164,6 +1164,7 @@ fun SettingsContent(
                     Text(
                         text = DesktopStrings.rendererAfterCrash(
                             DesktopStrings.rendererName(rendererAfterCrash),
+                            linux = DesktopPlatform.isLinux,
                         ),
                         style = MaterialTheme.typography.caption.copy(lineHeight = 17.sp),
                         color = yabaiPalette().danger

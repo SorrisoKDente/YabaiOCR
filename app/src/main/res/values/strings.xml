@@ -308,23 +308,39 @@
 
     <string name="help_title">Explicações e Dicas</string>
     <string name="menu_help">Ajuda</string>
-    <string name="help_tip_area_title">1. Seleção de Área vs. Tela Inteira</string>
+    <string name="help_buttons_title">Botões da bolha</string>
+    <string name="help_button_full_screen_title">Tela inteira</string>
+    <string name="help_button_full_screen_desc">Captura a tela toda e deixa você escolher o balão que quer ler.</string>
+    <string name="help_button_region_title">Selecionar área</string>
+    <string name="help_button_region_desc">Você desenha o recorte em volta do texto; é a leitura mais precisa.</string>
+    <string name="help_button_camera_title">Câmera</string>
+    <string name="help_button_camera_desc">Fotografa uma página de papel, uma placa ou outra tela.</string>
+    <string name="help_button_kanji_title">Ler kanji</string>
+    <string name="help_button_kanji_desc">Abre o cartão do caractere sob o dedo, com traços, leituras e compostos.</string>
+    <string name="help_button_dictionary_title">Dicionário</string>
+    <string name="help_button_dictionary_desc">Abre a busca nos dicionários sem capturar nada.</string>
+    <string name="help_button_settings_title">Ajustes</string>
+    <string name="help_button_settings_desc">Idioma, tema, motor de OCR, prioridade dos motores e comportamento do painel.</string>
+    <string name="help_button_stop_title">Encerrar</string>
+    <string name="help_button_stop_desc">Desliga o OCR flutuante; a bolha também pode ser arrastada até o ✕.</string>
+
+    <string name="help_tip_area_title">Seleção de área vs. tela inteira</string>
     <string name="help_tip_area_desc">A seleção de área (recorte) oferece muito mais precisão que a captura de tela inteira. Ao selecionar apenas o balão de texto ou parágrafo que deseja ler, você evita que o OCR seja confundido por elementos externos, imagens de fundo ou anúncios da página.</string>
-    <string name="help_tip_camera_title">2. Câmera: fotografar a página</string>
-    <string name="help_tip_camera_desc">Na bolha, toque em «Câmera» para ler uma página de papel, uma placa ou uma tela que o celular não consegue capturar. O disparo fica sempre embaixo, no centro, e o ✕ no canto superior direito do aparelho, mesmo quando a tela gira — deitado, eles aparecem no lado e no canto da tela que mostram essas bordas do celular; a pré-visualização, a foto parada e o indicador «Reconhecendo…» giram com o quadro, os controles não. Enquanto o texto é reconhecido, «Cancelar» descarta a leitura e devolve a câmera, e «Tirar outra foto» volta ao disparo sem fechar o OCR flutuante.</string>
-    <string name="help_tip_bubble_title">3. Bolha, gestos e «Ler kanji»</string>
+    <string name="help_tip_camera_title">Câmera: fotografar a página</string>
+    <string name="help_tip_camera_desc">Na bolha, toque em «Câmera» para ler uma página de papel, uma placa ou uma tela que o celular não consegue capturar. Enquanto o texto é reconhecido, «Cancelar» descarta a leitura e devolve a câmera, e «Tirar outra foto» volta ao disparo sem fechar o OCR flutuante.</string>
+    <string name="help_tip_bubble_title">Bolha, gestos e ler kanji</string>
     <string name="help_tip_bubble_desc">A bolha flutuante abre as funções: tela inteira, selecionar área, câmera, ler kanji, dicionário, ajustes e encerrar. Arraste a bolha para movê-la pela tela; ao soltá-la sobre o ✕ que aparece, o OCR flutuante é encerrado, com confirmação. «Ler kanji» abre o cartão do caractere sob o dedo, com traços, leituras e compostos, e «Dicionário» abre a busca sem capturar nada. O mesmo «Cancelar» do painel interrompe qualquer reconhecimento em andamento — tela inteira, recorte, kanji, câmera ou nova tentativa offline.</string>
-    <string name="help_tip_kanji_title">4. Dicas para Kanji Complexos e Furigana</string>
+    <string name="help_tip_kanji_title">Kanji complexo e furigana</string>
     <string name="help_tip_kanji_desc">Se o OCR não conseguir identificar um kanji corretamente ou ignorar leituras pequenas (furigana), tente aproximar o zoom na página antes de capturar, ou utilize a seleção por área focando bem de perto no trecho desejado. Recortes menores e ampliados melhoram drasticamente a taxa de reconhecimento de caracteres complexos.</string>
-    <string name="help_tip_engines_title">5. Diferença entre os Motores de Reconhecimento</string>
-    <string name="help_tip_engines_desc">• Automático: Usa o Google Lens (máxima precisão) e recorre ao ML Kit offline se faltar internet.\n\n• Somente Google Lens: Máxima precisão em mangás e textos estilizados verticais, exigindo conexão com a internet.\n\n• Somente ML Kit: Roda 100% offline no dispositivo. Excelente para textos impressos padrão, mas pode ter menor precisão em fontes estilizadas.</string>
-    <string name="help_tip_behaviours_title">6. Comportamentos do Aplicativo</string>
+    <string name="help_tip_engines_title">Motores de reconhecimento</string>
+    <string name="help_tip_engines_desc" formatted="false">• Automático: usa o Google Lens (máxima precisão) e passa para o PP-OCRv6 ou o ML Kit offline se faltar internet.\n\n• Somente Google Lens: máxima precisão em mangás e textos estilizados verticais, exigindo conexão com a internet.\n\n• Somente PP-OCRv6: 100% offline, detecta os balões e lê mangá vertical; baixe os modelos (~23 MB) nos Ajustes.\n\n• Somente ML Kit: 100% offline no dispositivo. Excelente para textos impressos padrão, mas pode ter menor precisão em fontes estilizadas.</string>
+    <string name="help_tip_behaviours_title">Comportamentos do aplicativo</string>
     <string name="help_tip_behaviours_desc">• Cópia automática: Copia o texto reconhecido diretamente para a área de transferência.\n\n• Listar linhas: Mostra o texto dividido linha por linha no painel.\n\n• Escolher trecho: Permite selecionar exatamente qual caixa de texto deseja extrair.\n\n• Prender bolha nas bordas: Mantém a bolha fixa nas laterais da tela.\n\n• Ampliar recortes: Melhora a leitura de letras muito pequenas.\n\n• Imagem capturada: Mostra a imagem ao lado do texto reconhecido.</string>
-    <string name="help_tip_dicts_title">7. Dicionários e Atribuições Legais</string>
+    <string name="help_tip_dicts_title">Dicionários e licenças</string>
     <string name="help_tip_dicts_desc">O app suporta dicionários no formato Yomitan/Yomichan (como JMdict, KANJIDIC, etc.). A ordem na lista define a prioridade de busca. Por questões legais, os créditos e licenças de cada dicionário estão sempre disponíveis na tela de gerenciamento de dicionários.</string>
-    <string name="help_tip_ai_title">8. Perguntar à IA</string>
+    <string name="help_tip_ai_title">Perguntar à IA</string>
     <string name="help_tip_ai_desc">Permite enviar o texto extraído junto com um prompt personalizado para qualquer aplicativo de IA instalado no seu celular (como Gemini, ChatGPT, etc.) com apenas um toque.</string>
-    <string name="help_tip_translation_title">9. Tradução Offline (Aviso importante)</string>
+    <string name="help_tip_translation_title">Tradução offline</string>
     <string name="help_tip_translation_desc">A tradução offline realizada pelo modelo do dispositivo (ML Kit) é bastante limitada e possui grande chance de conter imprecisões ou erros contextuais, especialmente em japonês. Para maior precisão, recomenda-se consultar os verbetes detalhados no dicionário ou usar a função de Perguntar à IA / consultar outro dicionário especializado.</string>
 
     <!-- App updates -->

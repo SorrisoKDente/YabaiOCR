@@ -42,6 +42,23 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- Button reference: the first item, each button with its icon on the left -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/help_buttons_title"
+                android:textColor="@color/text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/helpButtonList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="20dp"
+                android:orientation="vertical" />
+
             <!-- Tip 1: Area vs Whole Screen -->
             <TextView
                 android:layout_width="match_parent"
@@ -118,7 +135,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
-            <!-- Tip 3: Engine Behaviors -->
+            <!-- Tip 5: Engines -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -137,7 +154,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
-            <!-- Tip 4: Behaviours -->
+            <!-- Tip 6: Behaviours -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -156,7 +173,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
-            <!-- Tip 5: Dictionaries -->
+            <!-- Tip 7: Dictionaries -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -175,7 +192,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
-            <!-- Tip 6: Ask AI -->
+            <!-- Tip 8: Ask AI -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -194,7 +211,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
-            <!-- Tip 7: Translation Disclaimer -->
+            <!-- Tip 9: Translation -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

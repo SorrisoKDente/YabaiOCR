@@ -309,23 +309,39 @@
 
     <string name="help_title">Help &amp; Tips</string>
     <string name="menu_help">Help</string>
-    <string name="help_tip_area_title">1. Area Selection vs. Full Screen</string>
+    <string name="help_buttons_title">Bubble buttons</string>
+    <string name="help_button_full_screen_title">Full screen</string>
+    <string name="help_button_full_screen_desc">Captures the whole screen and lets you choose the bubble to read.</string>
+    <string name="help_button_region_title">Select area</string>
+    <string name="help_button_region_desc">You draw the crop around the text; it is the most accurate reading.</string>
+    <string name="help_button_camera_title">Camera</string>
+    <string name="help_button_camera_desc">Photographs a paper page, a sign or another screen.</string>
+    <string name="help_button_kanji_title">Read kanji</string>
+    <string name="help_button_kanji_desc">Opens the card of the character under your finger, with strokes, readings and compounds.</string>
+    <string name="help_button_dictionary_title">Dictionary</string>
+    <string name="help_button_dictionary_desc">Opens the dictionary search without capturing anything.</string>
+    <string name="help_button_settings_title">Settings</string>
+    <string name="help_button_settings_desc">Language, theme, OCR engine, engine priority and panel behaviour.</string>
+    <string name="help_button_stop_title">Stop</string>
+    <string name="help_button_stop_desc">Stops the floating OCR; the bubble can also be dragged onto the ✕.</string>
+
+    <string name="help_tip_area_title">Area selection vs. full screen</string>
     <string name="help_tip_area_desc">Selecting a specific area (crop) yields higher recognition accuracy than capturing the entire screen. By framing only the speech bubble or paragraph you want to read, you prevent background elements, graphics, or ads from confusing the OCR.</string>
-    <string name="help_tip_camera_title">2. Camera: photographing the page</string>
-    <string name="help_tip_camera_desc">In the bubble, tap “Camera” to read a paper page, a sign, or a screen the phone cannot capture. The shutter always sits at the bottom centre and the ✕ in the top-right corner of the phone, even when the screen turns — sideways, they appear on the side and in the corner of the screen that show those edges of the phone; the preview, the frozen photo and the “Recognising the text…” indicator turn with the frame, the controls do not. While the text is being recognised, “Cancel” drops the reading and gives the camera back, and “Take another photo” returns to the shutter without closing the floating OCR.</string>
-    <string name="help_tip_bubble_title">3. Bubble, gestures and “Read kanji”</string>
+    <string name="help_tip_camera_title">Camera: photographing the page</string>
+    <string name="help_tip_camera_desc">In the bubble, tap “Camera” to read a paper page, a sign, or a screen the phone cannot capture. While the text is being recognised, “Cancel” drops the reading and gives the camera back, and “Take another photo” returns to the shutter without closing the floating OCR.</string>
+    <string name="help_tip_bubble_title">Bubble, gestures and read kanji</string>
     <string name="help_tip_bubble_desc">The floating bubble opens the actions: full screen, select area, camera, read kanji, dictionary, settings and stop. Drag the bubble to move it around; dropping it on the ✕ that appears stops the floating OCR, after a confirmation. “Read kanji” opens a card for the character under your finger, with strokes, readings and compounds, and “Dictionary” opens the search without capturing anything. The same “Cancel” as the panel stops any reading in progress — full screen, area, kanji, camera or offline retry.</string>
-    <string name="help_tip_kanji_title">4. Tips for Complex Kanji and Furigana</string>
+    <string name="help_tip_kanji_title">Complex kanji and furigana</string>
     <string name="help_tip_kanji_desc">If OCR fails on a complex kanji character or skips small furigana readings, try zooming in on the page before capturing, or use area selection cropped tightly around the text. Smaller, enlarged crops significantly improve recognition accuracy for detailed glyphs.</string>
-    <string name="help_tip_engines_title">5. Recognition Engines Comparison</string>
-    <string name="help_tip_engines_desc">• Automatic: Uses Google Lens (maximum accuracy) and falls back to offline ML Kit if network is unavailable.\n\n• Manga-OCR: Offline AI specialized in vertical manga text and stylized fonts.\n\n• Google Lens Only: Maximum accuracy on manga and vertical stylized text, requires an active internet connection.\n\n• ML Kit Only: Runs 100% offline on-device. Excellent for standard printed text.</string>
-    <string name="help_tip_behaviours_title">6. Application Behaviours</string>
+    <string name="help_tip_engines_title">Recognition engines</string>
+    <string name="help_tip_engines_desc" formatted="false">• Automatic: uses Google Lens (maximum accuracy) and falls back to PP-OCRv6 or offline ML Kit if the network is unavailable.\n\n• Google Lens Only: maximum accuracy on manga and vertical stylized text, requires an active internet connection.\n\n• PP-OCRv6 Only: 100% offline, detects the balloons and reads vertical manga; download the models (~23 MB) in Settings.\n\n• ML Kit Only: 100% offline on-device. Excellent for standard printed text, but less accurate on stylized fonts.</string>
+    <string name="help_tip_behaviours_title">Application behaviours</string>
     <string name="help_tip_behaviours_desc">• Auto-copy: Automatically copies recognized text to your clipboard.\n\n• Line by line: Displays text separated line by line in the panel.\n\n• Choose segment: Lets you select the exact text block to extract.\n\n• Snap bubble: Keeps the floating bubble anchored to screen edges.\n\n• Upscale crops: Improves reading accuracy on tiny fonts.\n\n• Captured image: Displays image crop alongside recognized text.</string>
-    <string name="help_tip_dicts_title">7. Dictionaries &amp; Legal Attributions</string>
+    <string name="help_tip_dicts_title">Dictionaries and licenses</string>
     <string name="help_tip_dicts_desc">Supports Yomitan/Yomichan format dictionaries (such as JMdict, KANJIDIC, etc.). List order defines search priority. Legal credits and licenses for each dictionary are available on the dictionary management screen.</string>
-    <string name="help_tip_ai_title">8. Ask an AI</string>
+    <string name="help_tip_ai_title">Ask an AI</string>
     <string name="help_tip_ai_desc">Sends extracted text along with a custom prompt to any AI app installed on your phone (such as Gemini, ChatGPT, etc.) with a single tap.</string>
-    <string name="help_tip_translation_title">9. Offline Translation Notice</string>
+    <string name="help_tip_translation_title">Offline translation</string>
     <string name="help_tip_translation_desc">Offline translation performed by the on-device model (ML Kit) is limited and may contain contextual inaccuracies, especially for Japanese. For higher precision, consult detailed dictionary entries or use Ask AI / external specialized tools.</string>
 
     <!-- App updates -->

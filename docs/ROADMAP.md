@@ -9201,3 +9201,65 @@ Suíte do app: **483 testes por variante (966 no total, debug e release), 0 falh
 - **Limite.** Sem aparelho: o Robolectric lê `gravity` e margens, não os pixels. Falta conferir no
   celular, com o giro automático ligado: girar para a esquerda e para a direita e ver o disparo e o
   ✕ parados no aparelho, inclusive quando a barra do sistema muda de lado.
+
+### R49 — O help que ainda prometia manga-ocr e mandava escolher «Automático» no Ubuntu  `[x]` (25/11/2026)
+
+**Pedido.** «Botão help do celular precisa retirar a informação do manga-ocr, adicionar do PP-OCRv6.
+No help adicione uma parte que dá um resumo sobre cada botão com o ícone do botão ao lado esquerdo da
+explicação (esse deve ser o primeiro item do help), isso tanto para a versão mobile, como desktop.
+Revise todo o help para ver o que pode estar desatualizado e o que pode ser melhorado (como melhor
+explicação, melhor ordem, retirar informações desnecessárias como a posição que o botão fica quando
+vira a tela...). No Ubuntu com X11 apareceu mensagem de erro do Skiko e ele diz para utilizar a
+configuração automática para corrigir isso, mas no Ubuntu não tem essa opção.»
+
+- **Causa.** 1) `help_tip_engines_desc` (en) ainda listava «Manga-OCR», motor removido no D39, e o pt
+  nem citava o PP-OCRv6 — o app tem quatro motores (Automático, Lens, PP-OCRv6 e ML Kit). 2) Nenhuma
+  das duas ajudas tinha a referência de botões. 3) `help_tip_camera_desc` gastava um parágrafo
+  explicando onde o disparo e o ✕ ficam com a tela girada (R48p), coisa que a própria tela mostra.
+  4) O aviso vermelho de crash (`rendererAfterCrash`) mandava «Escolha Automático aqui quando quiser
+  voltar», mas no Linux o cartão do renderizador é um único interruptor de software (D83) e
+  «Automático» não existe ali — a mensagem apontava para uma opção que a janela não tem.
+- **Correção.** A ajuda mobile abre com a seção «Botões da bolha»: sete linhas, cada uma com o ícone
+  que a bolha desenha (tela inteira, selecionar área, câmera, 漢, dicionário, ajustes, encerrar), o
+  nome do botão e uma frase do que ele faz. O manual do desktop ganhou a mesma seção primeiro
+  (`helpButtons()`, onze botões do app com o emoji que cada um mostra), e as entradas viraram tópicos
+  sem numeração — o número brigava com a referência que agora vem antes. A câmera perdeu o parágrafo
+  da posição ao girar; os motores passaram a descrever o PP-OCRv6 no lugar do manga-ocr (pt e en);
+  «Aviso importante» na tradução virou «Tradução offline» e os títulos ficaram mais curtos
+  («Kanji complexo e furigana», «Dicionários e licenças»). No aviso de crash,
+  `rendererAfterCrash(level, linux)` troca «Automático» por «Desligue «Renderização por software»»
+  quando a plataforma é Linux; Windows e macOS continuam com as três opções do rádio.
+  Na revisão da própria rodada a seção mobile deixou de repetir sete blocos iguais no layout: uma
+  linha por botão vive em `item_help_button.xml` e a `HelpActivity` infla a lista, então acrescentar
+  um botão é uma entrada em `HELP_BUTTONS`.
+- **Arquivos.** `app/src/main/res/layout/activity_help.xml` · `app/src/main/res/layout/item_help_button.xml` (novo) ·
+  `app/src/main/java/dev/yabai/ocr/HelpActivity.kt` · `app/src/main/res/values/strings.xml` ·
+  `app/src/main/res/values-en/strings.xml` · `app/src/test/.../HelpContentTest.kt` ·
+  `desktop/.../HelpWindow.kt` · `desktop/.../i18n/DesktopStrings.kt` · `desktop/.../SettingsWindow.kt` ·
+  `desktop/src/test/.../HelpManualTest.kt` · `ARCHITECTURE.md`/`.en.md` · `LANGUAGES.md`
+
+Regressão (+2 desktop, +3 app): `the button reference comes first and follows the interface language`
+exige a referência não vazia, nos dois idiomas, e que o `HelpWindow` a desenhe antes de
+`items(topics)`; `the crash note offers the choice the platform actually has` exige
+«Renderização por software» e recusa «Automático» no Linux (e o contrário no Windows). No app,
+`the button reference opens the manual and lists every bubble button` exige o título antes do primeiro
+tópico, os sete nomes e explicações na árvore, as sete linhas da lista e seis ícones vetoriais (o kanji
+é o glifo 漢); `the engine help names
+PP-OCRv6 and no engine the app no longer has` recusa manga-ocr; `the camera help describes the
+actions, not where the controls sit when the phone turns` recusa as frases de posição (pt e en).
+
+| mutação | teste que acusa |
+| --- | --- |
+| O aviso de crash volta a mandar «Escolha Automático» no Linux | `the crash note offers the choice the platform actually has` |
+| Os motores voltam a listar «Manga-OCR Only» | `the engine help names PP-OCRv6 and no engine the app no longer has` |
+| A referência de botões desce para depois do primeiro tópico | `the button reference opens the manual and lists every bubble button` |
+| Um botão some da lista `HELP_BUTTONS` | `the button reference opens the manual and lists every bubble button` |
+| A câmera volta a dizer onde ficam os controles ao girar | `the camera help describes the actions, not where the controls sit when the phone turns` |
+
+Suíte desktop: **603 testes (597 executados, 6 pulados), 0 falhas**. Suíte do app: **486 testes por
+variante (972 no total, debug e release), 0 falhas**.
+
+- **Limite.** Nada foi visto em tela: o Robolectric confere a árvore de views da Ajuda mobile (texto e
+  presença dos ícones), não o espaçamento; a janela Compose do desktop não roda headless, então o
+  teste cobre o conteúdo e a ordem, não o desenho. Falta abrir as duas ajudas e o cartão do
+  renderizador num Ubuntu com X11.
