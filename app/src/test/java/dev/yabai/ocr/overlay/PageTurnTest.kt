@@ -10,6 +10,8 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
+import android.hardware.display.DisplayManager
+import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.Surface
@@ -17,6 +19,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import dev.yabai.ocr.CameraActivity
 import dev.yabai.ocr.R
 import dev.yabai.ocr.capture.DeviceRotation
@@ -24,6 +29,7 @@ import dev.yabai.ocr.capture.placeInPhoneFrame
 import dev.yabai.ocr.capture.PhotoPageGeometry
 import dev.yabai.ocr.capture.ScreenMetrics
 import dev.yabai.ocr.service.FloatingOcrService
+import dev.yabai.ocr.util.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -370,15 +376,16 @@ class PageTurnTest {
     }
 
     /**
-     * R48k: the shutter and the ✕ stay where the upright screen puts them.
+     * R48p: the shutter and the ✕ keep their place on the phone, not on the window.
      *
-     * The picture follows the phone's frame (R48g, R48h), but these two do not: they are targets, not
-     * content, and a target that moves under the thumb when the phone is turned is the wrong kind of
-     * surprise. The shutter keeps the window's bottom centre and the ✕ the window's top-right corner
-     * — where an upright camera has them — with the picture turned or not.
+     * The window turns with the screen, so a control pinned to the window walks around the phone as
+     * the phone is turned: «bottom centre» becomes whichever side the window has there. Pinned to the
+     * phone instead, the shutter stays centred on the phone's bottom edge and the ✕ in its top-right
+     * corner. The display rotation says which side of the window shows those edges — «left» is
+     * `ROTATION_90`, where the phone's bottom edge is the window's right side (R48f).
      */
     @Test
-    fun `the shutter and the close stay where the upright screen puts them`() {
+    fun `the shutter and the close keep their place on the phone`() {
         FloatingOcrService.isRunning = true
         shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(Manifest.permission.CAMERA)
         val controller = Robolectric.buildActivity(CameraActivity::class.java)
@@ -395,18 +402,97 @@ class PageTurnTest {
 
             val shutter = root.child(camera.getString(R.string.camera_shutter))
             val close = root.child(camera.getString(R.string.camera_close))
+            val display = camera.getSystemService(DisplayManager::class.java)
+                .getDisplay(Display.DEFAULT_DISPLAY)
+
+            fun assertPlacement(rotation: Int, shutterGravity: Int, closeGravity: Int, where: String) {
+                // The screen's rotation, as the system reports it: the activity reads this itself.
+                shadowOf(display).setRotation(rotation)
+                camera.applyControlFrame()
+                assertEquals(
+                    "the shutter is not $where: ${shutter.layoutParams}",
+                    shutterGravity,
+                    (shutter.layoutParams as FrameLayout.LayoutParams).gravity,
+                )
+                assertEquals(
+                    "the ✕ is not $where: ${close.layoutParams}",
+                    closeGravity,
+                    (close.layoutParams as FrameLayout.LayoutParams).gravity,
+                )
+            }
+
+            assertPlacement(
+                Surface.ROTATION_0,
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+                Gravity.TOP or Gravity.END,
+                "on the phone's bottom edge and in its top-right corner",
+            )
+            // Turned left: the phone's bottom edge is the window's right side, and its top-right
+            // corner is the window's top-left one.
+            assertPlacement(
+                Surface.ROTATION_90,
+                Gravity.END or Gravity.CENTER_VERTICAL,
+                Gravity.TOP or Gravity.START,
+                "on the phone's bottom edge with the phone turned left",
+            )
+            assertPlacement(
+                Surface.ROTATION_180,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL,
+                Gravity.BOTTOM or Gravity.START,
+                "on the phone's bottom edge upside down",
+            )
+            // Turned right: the bottom edge is the window's left side, and the top-right corner is
+            // the window's bottom-right one.
+            assertPlacement(
+                Surface.ROTATION_270,
+                Gravity.START or Gravity.CENTER_VERTICAL,
+                Gravity.BOTTOM or Gravity.END,
+                "on the phone's bottom edge with the phone turned right",
+            )
+            // Back upright: the first position again, with no margin left over from a turn.
+            assertPlacement(
+                Surface.ROTATION_0,
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+                Gravity.TOP or Gravity.END,
+                "back on the phone's bottom edge",
+            )
+
             assertEquals("the shutter was turned with the picture", 0f, shutter.rotation, 0f)
             assertEquals("the ✕ was turned with the picture", 0f, close.rotation, 0f)
-            assertEquals(
-                "the shutter is not at the window's bottom centre: ${shutter.layoutParams}",
-                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
-                (shutter.layoutParams as FrameLayout.LayoutParams).gravity,
+
+            // The bars reach the edge each control is pinned to: the shutter's right side and the
+            // ✕'s top-left corner when the window is turned left (R48p).
+            ViewCompat.dispatchApplyWindowInsets(
+                root,
+                WindowInsetsCompat.Builder()
+                    .setInsets(
+                        WindowInsetsCompat.Type.systemBars(),
+                        Insets.of(camera.dp(10), camera.dp(20), camera.dp(30), camera.dp(40)),
+                    )
+                    .build(),
             )
+            shadowOf(display).setRotation(Surface.ROTATION_90)
+            camera.applyControlFrame()
+            val shutterParams = shutter.layoutParams as FrameLayout.LayoutParams
             assertEquals(
-                "the ✕ is not at the window's top-right corner: ${close.layoutParams}",
-                Gravity.TOP or Gravity.END,
-                (close.layoutParams as FrameLayout.LayoutParams).gravity,
+                "the shutter does not clear the bar on its edge",
+                camera.dp(28) + camera.dp(30),
+                shutterParams.rightMargin,
             )
+            assertEquals("the shutter kept a margin from the old edge", 0, shutterParams.bottomMargin)
+            val closeParams = close.layoutParams as FrameLayout.LayoutParams
+            assertEquals(camera.dp(16) + camera.dp(20), closeParams.topMargin)
+            assertEquals(camera.dp(16) + camera.dp(10), closeParams.leftMargin)
+            assertEquals("the ✕ kept a margin from the old corner", 0, closeParams.rightMargin)
+
+            val source = source("app/src/main/java/dev/yabai/ocr/CameraActivity.kt")
+            val frame = source.substringAfter("placeInPhoneFrame(").substringBefore(")")
+            assertTrue(
+                "the picture is not the only thing laid out in the phone's frame: $frame",
+                frame.contains("previewView, frozenPhoto"),
+            )
+            assertFalse("the shutter is carried into the turned frame: $frame", frame.contains("shutter"))
+            assertFalse("the ✕ is carried into the turned frame: $frame", frame.contains("close"))
         } finally {
             runCatching { controller.destroy() }
             FloatingOcrService.isRunning = false

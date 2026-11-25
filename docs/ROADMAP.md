@@ -8512,6 +8512,7 @@ linha própria. Mutações provadas:
 | R48k | `[x]` | **O disparo e o ✕ ficam no lugar de quando o celular está em pé**: o ✕ passa para o canto superior direito e os dois continuam no quadro da janela, mesmo com a foto girada | fácil |
 | R48l | `[x]` | **A tela da câmera é a tela inteira em qualquer posição, e o «Reconhecendo…» gira com ela**: o quadro é medido de novo quando a janela vira, e o indicador segue o quadro do celular como a pré-visualização | fácil |
 | R48m | `[x]` | **«Cancelar» durante o reconhecimento**: um botão no indicador do painel e no da câmera que abandona a leitura em curso, em todas as funções — tela inteira, recorte, kanji, câmera e nova tentativa offline | média |
+| R48p | `[x]` | **O disparo e o ✕ ficam presos ao celular, não à janela**: com a tela girada, continuam na borda de baixo e no canto superior direito do aparelho, mesmo que isso os ponha à direita, em cima ou à esquerda na janela | média |
 
 ### R48a — A foto é lida na própria tela da câmera  `[x]` (23/11/2026)
 
@@ -8975,6 +8976,9 @@ está em pé, sem seguir o giro.
   de lê-lo por dentro.
 - **Arquivos.** `app/.../CameraActivity.kt` · `app/src/test/.../overlay/PageTurnTest.kt`
 
+- **Correção posterior (R48p).** «Mesmo lugar» era a borda do **celular**, não a da janela:
+  presos à janela, os dois andavam com o giro da tela. Ver R48p.
+
 Regressão (+1): `the shutter and the close stay where the upright screen puts them` monta a
 `CameraActivity` no Robolectric, **gira o quadro** (`applyPhotoFrame(turn = 270)`) e lê a árvore de
 views: a foto girou, mas nenhum dos dois controles girou, e o disparo está em
@@ -9159,3 +9163,41 @@ Suíte desktop: **601 testes, 0 falhas** (5 pulados: PP-OCR real e os quatro de 
 - **Limite.** Sem ver a janela desenhada: o Compose não roda headless nesta suíte, então o teste
   cobre o conteúdo e a ligação do botão, não o layout. Falta abrir os Ajustes e rolar o manual nas
   duas línguas.
+
+### R48p — O disparo e o ✕ ficam presos ao celular  `[x]` (25/11/2026)
+
+**Pedido.** «Fixo na posição» era a posição no celular, não na janela: em pé o disparo fica embaixo
+ao centro; virando o celular para a esquerda, ele fica à direita, centralizado; para a direita, à
+esquerda; e o ✕ segue a mesma lógica. Antes, os dois andavam com a borda da janela.
+
+- **Causa.** O disparo e o ✕ eram filhos da janela (`BOTTOM|CENTER_HORIZONTAL`, `TOP|END`, R48k).
+  Com «giro automático» ligado a janela vira, e o «embaixo» dela passa a ser a borda comprida que o
+  usuário está segurando: o controle mudava de lugar no aparelho a cada giro.
+- **Correção.** `CameraControls.placement(displayRotation)` converte a rotação do display
+  (`Display.getRotation()`, o oposto do giro do aparelho, R48f) no lado da janela que mostra a borda
+  de baixo e o canto superior direito do celular. O disparo fica centrado na borda de baixo do
+  aparelho e o ✕ no canto superior direito; os ícones continuam em pé na janela. As margens das
+  barras do sistema passam a ser aplicadas na borda certa depois de cada giro (`applyControlFrame`
+  ao montar, no `onConfigurationChanged`, no sensor e quando as insets chegam).
+- **Arquivos.** `app/.../capture/CameraControls.kt` (novo) · `app/.../CameraActivity.kt` ·
+  `app/src/test/.../overlay/PageTurnTest.kt` · `app/src/test/.../CameraCaptureTest.kt`
+- **Teste.** `the shutter and the close keep their place on the phone` lê as gravities nas quatro
+  rotações: 0° (embaixo/centro e canto superior direito), 90° (direita/centro e canto superior
+  esquerdo), 180° (cima/centro e canto inferior esquerdo), 270° (esquerda/centro e canto inferior
+  direito) e de volta a 0°, com os dois ícones sem rotação. A rotação vem do próprio display no
+  Robolectric (`ShadowDisplay`), não de um parâmetro injetado, e um despacho de insets com valores
+  diferentes por borda confere que o disparo e o ✕ recebem a margem da borda certa e não guardam a
+  anterior. O guarda de R48f passou a recusar a rotação do display **na foto**
+  (`targetRotation = displayRotation`), não a presença do display no arquivo.
+
+Regressão (+0): o teste substitui o de R48k na mesma classe (14 testes).
+
+| mutação | teste que acusa |
+| --- | --- |
+| O disparo volta a `BOTTOM|CENTER_HORIZONTAL` aos 90° | `the shutter and the close keep their place on the phone` |
+
+Suíte do app: **483 testes por variante (966 no total, debug e release), 0 falhas**.
+
+- **Limite.** Sem aparelho: o Robolectric lê `gravity` e margens, não os pixels. Falta conferir no
+  celular, com o giro automático ligado: girar para a esquerda e para a direita e ver o disparo e o
+  ✕ parados no aparelho, inclusive quando a barra do sistema muda de lado.

@@ -315,7 +315,8 @@ class CameraCaptureTest {
         )
         assertFalse(
             "the picture's rotation is read from the display, which stays upright when it is locked",
-            camera.contains("DisplayManager") || camera.contains("getDisplay("),
+            camera.contains("targetRotation = displayRotation") ||
+                camera.contains("setTargetRotation(displayRotation"),
         )
         assertTrue(
             "the shutter does not apply the rotation before taking the picture",

@@ -11,8 +11,10 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.Display
 import android.view.Gravity
 import android.view.OrientationEventListener
 import android.view.Surface
@@ -32,9 +34,11 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import dev.yabai.ocr.capture.CameraControls
 import dev.yabai.ocr.capture.CameraPhoto
 import dev.yabai.ocr.capture.DeviceRotation
 import dev.yabai.ocr.capture.placeInPhoneFrame
@@ -81,6 +85,9 @@ class CameraActivity : AppCompatActivity() {
     private var handedOff = false
 
     private var reading: BroadcastReceiver? = null
+
+    /** The system bars of the window, as margin for the controls pinned to those edges (R48p). */
+    private var bars: Insets = Insets.NONE
 
     /**
      * The turn the picture is written in, from the phone's own orientation (R48f).
@@ -170,35 +177,64 @@ class CameraActivity : AppCompatActivity() {
                 Gravity.CENTER,
             ),
         )
-        // Targets, not content: they stay where an upright camera has them (R48k).
-        root.addView(
-            close,
-            FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END),
-        )
-        root.addView(
-            shutter,
-            FrameLayout.LayoutParams(dp(76), dp(76), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL),
-        )
+        // Targets, not content: they keep their place on the phone (R48p).
+        root.addView(close, FrameLayout.LayoutParams(dp(44), dp(44)))
+        root.addView(shutter, FrameLayout.LayoutParams(dp(76), dp(76)))
         setContentView(root)
         applyPhotoFrame()
+        applyControlFrame()
         applyBarInsets(root)
     }
 
-    /** Keeps the shutter and the ✕ off the system bars, which this screen draws behind. */
+    /** Keeps the controls off the system bars, which this screen draws behind (R48p). */
     private fun applyBarInsets(root: FrameLayout) {
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            (close.layoutParams as? FrameLayout.LayoutParams)?.let {
-                it.topMargin = dp(16) + bars.top
-                it.rightMargin = dp(16) + bars.right
-                close.requestLayout()
-            }
-            (shutter.layoutParams as? FrameLayout.LayoutParams)?.let {
-                it.bottomMargin = dp(28) + bars.bottom
-                shutter.requestLayout()
-            }
+            bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            applyControlFrame()
             insets
         }
+    }
+
+    /** Pins the shutter to the phone's bottom edge and the ✕ to its top-right corner (R48p). */
+    internal fun applyControlFrame(rotation: Int = displayRotation()) {
+        val placement = CameraControls.placement(rotation)
+        placeControl(shutter, dp(76), dp(28), placement.shutterGravity, placement.shutterSide)
+        placeControl(
+            close,
+            dp(44),
+            dp(16),
+            placement.closeGravity,
+            placement.closeVertical,
+            placement.closeHorizontal,
+        )
+    }
+
+    /** One control, sized and pinned to the [sides] of the window that show the phone's edges. */
+    private fun placeControl(
+        view: View,
+        size: Int,
+        baseMargin: Int,
+        gravity: Int,
+        vararg sides: CameraControls.Side,
+    ) {
+        val params = FrameLayout.LayoutParams(size, size, gravity)
+        for (side in sides) {
+            when (side) {
+                CameraControls.Side.TOP -> params.topMargin = baseMargin + bars.top
+                CameraControls.Side.BOTTOM -> params.bottomMargin = baseMargin + bars.bottom
+                CameraControls.Side.START -> params.leftMargin = baseMargin + bars.left
+                CameraControls.Side.END -> params.rightMargin = baseMargin + bars.right
+            }
+        }
+        view.layoutParams = params
+    }
+
+    /** The display's turn from the phone's natural frame: 0 when the screen did not turn (R48p). */
+    private fun displayRotation(): Int {
+        @Suppress("DEPRECATION")
+        val display = getSystemService(DisplayManager::class.java)
+            ?.getDisplay(Display.DEFAULT_DISPLAY)
+        return display?.rotation ?: Surface.ROTATION_0
     }
 
     /** The picture stays put while the engines read it; this is the only thing that moves. */
@@ -475,6 +511,7 @@ class CameraActivity : AppCompatActivity() {
                 targetRotation = rotation
                 previewUseCase?.targetRotation = rotation
                 applyPhotoFrame()
+                applyControlFrame()
             }
         }
         if (listener.canDetectOrientation()) listener.enable()
@@ -553,6 +590,7 @@ class CameraActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         applyPhotoFrame()
+        applyControlFrame()
     }
 
     override fun onDestroy() {
