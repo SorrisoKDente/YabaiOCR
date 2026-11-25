@@ -59,7 +59,7 @@ object AppIconGenerator {
             if (bytes.isEmpty()) return null
 
             // 1. Try parsing as ICO binary container to extract original PNG/BMP frame
-            val fromIco = parseIcoBytes(bytes)
+            val fromIco = icoFrame(bytes)
             if (fromIco != null) return fromIco
 
             // 2. Direct ImageIO read (for PNG/BMP/JPG)
@@ -69,8 +69,12 @@ object AppIconGenerator {
 
     /**
      * Parses Microsoft ICO binary format and extracts the original PNG/BMP image frame.
+     *
+     * Internal so the test can compare the raster icons against the artwork the Windows icon packs
+     * (R52): the PNGs are the fallback on every platform, and a stale one made the Help window show
+     * the old design.
      */
-    private fun parseIcoBytes(bytes: ByteArray): BufferedImage? {
+    internal fun icoFrame(bytes: ByteArray): BufferedImage? {
         if (bytes.size < 6) return null
 
         // If file starts with PNG magic bytes (0x89 'P' 'N' 'G')

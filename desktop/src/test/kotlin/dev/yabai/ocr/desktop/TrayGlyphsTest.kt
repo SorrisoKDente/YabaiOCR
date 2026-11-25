@@ -4,7 +4,9 @@ import java.awt.Color
 import java.awt.image.BufferedImage
 import java.awt.image.DataBufferInt
 import java.io.File
+import javax.imageio.ImageIO
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -71,6 +73,47 @@ class TrayGlyphsTest {
             reference.rgb
         }
         assertEquals("two rows share the same colour", colours.size, colours.distinct().size)
+    }
+
+    /**
+     * R52: the updates row used to borrow the dictionary glyph, so two different rows showed the same
+     * picture. It has its own arrow now, and the two drawings are not the same thing.
+     */
+    @Test
+    fun `the updates row draws its own glyph, not the dictionaries one`() {
+        val tray = File("src/main/kotlin/dev/yabai/ocr/desktop/SystemTrayManager.kt").readText()
+        val updatesRow = tray.substringAfter("createTrayButton(DesktopStrings.trayUpdates")
+            .substringBefore("{")
+        assertTrue("the updates row lost its glyph: $updatesRow", updatesRow.contains("TrayGlyph.UPDATE"))
+        assertFalse(
+            "the updates row still uses the dictionaries icon: $updatesRow",
+            updatesRow.contains("TrayGlyph.BOOK"),
+        )
+        assertFalse(
+            "the update glyph is the book drawing under another name",
+            samePixels(painted(TrayGlyph.UPDATE), painted(TrayGlyph.BOOK)),
+        )
+    }
+
+    /**
+     * R52: the shipped PNGs were left with the old artwork while the packed Windows icon had the new
+     * one, so whichever surface fell back to the PNG (the Help window, the Linux entry) showed a
+     * different icon from the tray.
+     */
+    @Test
+    fun `the raster icons carry the artwork the Windows icon packs`() {
+        val current = AppIconGenerator.icoFrame(resource("ic_scan_windows.ico").readBytes())
+            ?: error("the Windows icon has no readable frame")
+
+        for (name in listOf("ic_scan_linux.png", "ic_scan_windows.png")) {
+            val png = ImageIO.read(resource(name))
+            assertEquals(
+                "$name has another size than the packed icon",
+                current.width to current.height,
+                png.width to png.height,
+            )
+            assertTrue("$name still carries the old artwork", samePixels(current, png))
+        }
     }
 
     @Test
@@ -190,6 +233,22 @@ class TrayGlyphsTest {
             step.contains("RemoveAutostartEntry"),
         )
     }
+
+    private fun painted(glyph: TrayGlyph): BufferedImage {
+        val image = BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        TrayGlyphIcon(glyph).paintIcon(null, g, 0, 0)
+        g.dispose()
+        return image
+    }
+
+    private fun samePixels(a: BufferedImage, b: BufferedImage): Boolean =
+        a.width == b.width && a.height == b.height &&
+            (0 until a.width).all { x -> (0 until a.height).all { y -> a.getRGB(x, y) == b.getRGB(x, y) } }
+
+    private fun resource(name: String): File =
+        sequenceOf(File("src/main/resources/$name"), File("desktop/src/main/resources/$name"))
+            .firstOrNull { it.isFile } ?: error("$name not found from ${File(".").absolutePath}")
 
     private fun alphaOf(argb: Int): Int = (argb ushr 24) and 0xFF
 

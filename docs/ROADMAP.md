@@ -9334,3 +9334,125 @@ não foi tocada nesta rodada.
   o teste prova a estrutura (cartão da largura da janela, rótulo com peso, colunas e alinhamento), não
   o desenho. Falta confirmar no aparelho, em pé e deitado, com pt-BR e inglês, que «Reconhecendo o
   texto…» aparece inteiro e que os botões deitados cabem com folga sobre o texto do dicionário.
+
+### R51 — A bolha não some ao girar a tela  `[x]` (25/11/2026)
+
+**Pedido.** Ao rotacionar a tela, dependendo de onde a bolha estava, ela pode sumir — e às vezes
+parece acontecer também ao bloquear a tela ou trocar de aplicativo. A bolha tem que ficar presa dentro
+dos limites da tela e, se por algum motivo for parar fora (rotação, tela menor), ser trazida de volta.
+
+- **Causa.** A janela da bolha é `TYPE_APPLICATION_OVERLAY` com `FLAG_LAYOUT_NO_LIMITS` e gravidade
+  `TOP|START`: o `x`/`y` são pixels do **display** e o window manager desenha exatamente ali, mesmo que
+  o ponto esteja fora da tela — o limite existe no arrasto (`clampBubbleTo` no `ACTION_MOVE` e no
+  `settleBubble`), não na posição guardada. Girar o aparelho troca largura por altura: uma bolha
+  encostada embaixo em pé fica **abaixo** da mesma tela deitada, e uma encostada à direita deitada
+  fica **fora da direita** em pé. Nada reaplicava o limite depois da rotação, então ela continuava
+  desenhada fora, sem alcance para o dedo e sem painel para abrir.
+- **Correção.** `OverlayController.keepBubbleOnScreen(bounds = displayBounds())` passa a posição pelo
+  mesmo `clampBubbleTo` do arrasto e empurra o resultado para a janela. O lugar de repouso não precisa
+  de nada extra: o `restBubble` desemboca no `settleBubble`, que prende a bolha na tela do momento de
+  qualquer jeito. Quem chama: um `DisplayManager.DisplayListener` registrado junto com a bolha
+  (`showBubble`, removido em `hideBubble`/`destroy`) — `onDisplayChanged` do display padrão é rotação,
+  dobra ou divisão de tela — e o fim da pausa (`setPaused(false)`), porque a tela pode ter virado
+  enquanto a bolha estava escondida. Um arrasto em andamento fica de fora: o dedo manda até soltar, e
+  o `ACTION_UP` termina no `settleBubble`, que já prende a bolha na tela daquele momento.
+- **Arquivos.** `app/.../overlay/OverlayController.kt` · `app/src/test/.../overlay/BubblePlacementTest.kt`
+
+Regressão (+3), no `BubblePlacementTest`: `rotacionar a tela traz a bolha de volta para dentro` solta a
+bolha em (250, 500) numa tela 320×640 e aplica os limites de uma tela 640×320 — ela tem que terminar
+em `320 − 58 − 4 = 258` de altura, dentro da tela mais baixa. `girar de volta para em pé traz a bolha
+para a esquerda` faz o caminho contrário (640×320 → 320×640) e exige a bolha em
+`320 − 58 + 4 = 266` de largura. `a bolha escuta a tela virar e é solta junto com ela` lê o
+`OverlayController.kt` e exige que `onDisplayChanged` chegue em `keepBubbleOnScreen`, que o listener
+seja registrado em `showBubble` e removido em `hideBubble`.
+
+A revisão da rodada tirou o teste que girava o display do Robolectric de verdade
+(`ShadowDisplayManager.changeDisplay`): ele passava a depender de o shadow atualizar
+`Display.getRealMetrics` com o qualificador `w640dp-h320dp-land` e da orientação natural simulada — um
+jeito de quebrar por motivo que não é o bug. As duas telas agora são passadas ao controller como
+`Rect`, então o teste mede o clamp, e a ligação com o listener é a leitura de fonte (o mesmo formato
+do R48d). `keepBubbleOnScreen` também ficou menor: sem guardar `restingX/restingY` (o
+`settleBubble` já prende a bolha na tela do momento) e sem comparar a posição antiga — o clamp e o
+`updateWindow` acontecem sempre.
+
+| mutação | teste que acusa |
+| --- | --- |
+| `onDisplayChanged` vira `Unit` | `a bolha escuta a tela virar e é solta junto com ela` |
+| O listener deixa de ser registrado em `showBubble` (ou não é removido) | o mesmo teste |
+| `keepBubbleOnScreen` deixa de chamar `clampBubbleTo` | `rotacionar a tela traz a bolha de volta para dentro` e `girar de volta para em pé traz a bolha para a esquerda` |
+
+- **Limite.** A suíte do app **não foi executada** nesta rodada (a máquina não tem Android SDK e só
+  tem JDK 21, e o `:app` pede toolchain 17), então as mutações acima ficam por provar. A última
+  execução registrada é a de R50 (493 testes por variante, 986 no total); esta rodada acrescenta 3, a
+  confirmar. O teste mede a posição que a janela passa a ter (`bubbleParams`), não os pixels na tela:
+  o empurrão da posição para o window manager é o mesmo `updateWindow` que o arrasto usa. Falta
+  conferir no aparelho: deixar a bolha encostada embaixo em pé, girar para deitado e ver que ela
+  aparece na borda de baixo da tela nova; repetir com ela à direita em deitado; e pausar, girar e
+  retomar.
+- **Bloqueio de tela / troca de app.** O pedido diz que talvez aconteça nesses casos também, sem
+  certeza. O clamp cobre o que passa por mudança de display e pela retomada; se o sistema remover a
+  janela da bolha (e não só deslocá-la), nenhum limite resolve — a janela teria que ser recriada, e
+  isso ficou fora desta rodada por não haver sintoma confirmado.
+
+### R52 — Bandeja, manual e ícone do desktop  `[x]` (25/11/2026)
+
+**Pedido.** No desktop: o ícone de atualizações da bandeja é o mesmo do dicionário; o manual precisa
+explicar melhor os renderizadores gráficos (cada um, com vantagens e desvantagens) e os motores de
+reconhecimento; os atalhos podem ser trocados, então o manual não pode mostrar um atalho fixo; e o
+ícone que aparece na Ajuda é o antigo, tem que refletir o ícone atual da bandeja do Windows.
+
+- **Causa (atualizações).** A linha «Atualizações…» era `createTrayButton(..., TrayGlyph.BOOK)` — o
+  mesmo glifo de «Gerenciar Dicionários»: duas funções diferentes com o mesmo desenho.
+- **Causa (atalhos fixos).** `helpCaptureTitle`/`helpRegionTitle`/`helpHover*`/`helpQuickSearch*` eram
+  strings com «Ctrl + Shift + O» e companhia escritas à mão; quem trocava um atalho nos Ajustes lia no
+  manual uma combinação que não fazia mais nada.
+- **Causa (ícone antigo).** `ic_scan_linux.png` e `ic_scan_windows.png` ainda tinham a arte antiga
+  (cantos retos, texto fino) enquanto o `.ico` do Windows já tinha a nova (cantos arredondados). Toda
+  superfície que caísse no PNG — o fallback do `AppIconGenerator`, a entrada do Linux e a janela da
+  Ajuda — mostrava o ícone velho.
+- **Causa (manual raso).** O manual só citava «renderizador» e «motor» de passagem, sem dizer o preço
+  de cada escolha (Direct3D caindo, Lens sem internet e com cota, modelo de 23 MB para o PP-OCRv6).
+
+- **Correção.** `TrayGlyph.UPDATE` (seta para cima sobre a linha do piso) e a linha de atualizações
+  passa a usá-lo. O manual ganhou «Renderizador gráfico, um por um» e «Motores de reconhecimento, um
+  por um»: nome, o que é, `+` vantagem e `−` desvantagem dos três renderizadores (Automático/Direct3D,
+  OpenGL, Software) e dos três modos de motor (Automático, Google Lens, PP-OCRv6). As entradas de
+  captura, recorte, hover e busca passam a receber os atalhos: `HelpShortcuts` é montado do
+  `DesktopSettings` na abertura da janela (`globalHotkey`, `regionHotkey`, `hoverHotkey`,
+  `hoverCycleHotkey`, `quickDictHotkey`) e o texto diz que são os configurados agora. Os dois PNGs
+  foram regerados do quadro 256×256 do `.ico` atual, e a janela da Ajuda usa
+  `AppIconGenerator.getTrayImage()` — a mesma arte da bandeja, sem o ponto de status.
+- **Arquivos.** `desktop/.../TrayGlyphs.kt` · `SystemTrayManager.kt` · `HelpWindow.kt` ·
+  `i18n/DesktopStrings.kt` · `AppIconGenerator.kt` (`icoFrame` virou interno para o teste) ·
+  `resources/ic_scan_linux.png` · `resources/ic_scan_windows.png` · `desktop/src/test/.../HelpManualTest.kt`
+  · `TrayGlyphsTest.kt` · `LANGUAGES.md`
+
+Regressão (+4 desktop): `the updates row draws its own glyph, not the dictionaries one` exige
+`TrayGlyph.UPDATE` na linha de atualizações, recusa `TrayGlyph.BOOK` e compara os pixels dos dois
+glifos; `the raster icons carry the artwork the Windows icon packs` lê o quadro do `.ico` com
+`AppIconGenerator.icoFrame` e exige que os dois PNGs tenham o mesmo tamanho e os mesmos pixels;
+`the manual prints the configured shortcuts, not the defaults` monta o manual com atalhos inventados
+(F9…F12) nas duas línguas, exige que apareçam e recusa os cinco padrões
+(«Ctrl + Shift + O», «A», «H», «X» e «D») em qualquer título ou corpo, além de ler o
+`HelpWindow.kt` para exigir `helpShortcuts(settings)`; `the manual explains every renderer and every
+engine, with both sides` exige os três nomes de renderizador, três linhas `+`, três `−`, e Lens e
+PP-OCRv6 na entrada dos motores.
+
+| mutação | teste que acusa |
+| --- | --- |
+| A linha de atualizações volta a `TrayGlyph.BOOK` | `the updates row draws its own glyph, not the dictionaries one` |
+| Os PNGs voltam à arte antiga (`git show HEAD:…png`) | `the raster icons carry the artwork the Windows icon packs` |
+| O título da captura volta a «Ctrl + Shift + O» (pt ou en) | `the manual prints the configured shortcuts, not the defaults` |
+| O corpo do recorte volta a «Ctrl + Shift + A» (o título já mostra o atalho configurado) | o mesmo teste |
+| Uma descrição de renderizador some do manual | `the manual explains every renderer and every engine, with both sides` |
+
+`./gradlew :desktop:test`: **607 testes, 606 verdes, 1 falha pré-existente** —
+`HoverCardGrowthTest > the card header stays under the pointer when the dictionary list opens near
+the taskbar` falha nesta máquina (área de trabalho do AWT: `expected 843 but was 798`) e falha igual
+com as mudanças guardadas em `git stash`, então não é desta rodada. As cinco mutações acima foram
+provadas: cada uma derrubou o teste correspondente e a restauração voltou ao verde.
+
+- **Limite.** Nada foi visto em tela: o glifo novo e a janela da Ajuda não foram abertos. Falta olhar
+  no Windows a bandeja (a linha «Atualizações…» com a seta, distinta do dicionário) e a Ajuda nas duas
+  línguas, conferindo os textos novos e um atalho trocado nos Ajustes aparecendo no manual. O `:app`
+  continua sem rodar nesta máquina (sem Android SDK e sem toolchain 17).

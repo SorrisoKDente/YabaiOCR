@@ -18,7 +18,7 @@ import javax.swing.Icon
  * on Windows the menu came out as flat silhouettes. Every glyph is drawn here with Java2D instead, so
  * its colour is ours and does not depend on a colour-emoji font the JVM cannot use.
  */
-internal enum class TrayGlyph { MONITOR, SCISSORS, MAGNIFIER, BUBBLE, BOOK, GEAR, EXIT }
+internal enum class TrayGlyph { MONITOR, SCISSORS, MAGNIFIER, BUBBLE, BOOK, UPDATE, GEAR, EXIT }
 
 /** Accent of each glyph, matched to the card colours of the app. */
 internal fun trayGlyphColor(glyph: TrayGlyph): Color = when (glyph) {
@@ -27,6 +27,7 @@ internal fun trayGlyphColor(glyph: TrayGlyph): Color = when (glyph) {
     TrayGlyph.MAGNIFIER -> Color(0xA7, 0x7B, 0xFF)
     TrayGlyph.BUBBLE -> Color(0x3D, 0xDC, 0x97)
     TrayGlyph.BOOK -> Color(0xFF, 0xC0, 0x48)
+    TrayGlyph.UPDATE -> Color(0xA8, 0xE0, 0x4C)
     TrayGlyph.GEAR -> Color(0x35, 0xC4, 0xE0)
     TrayGlyph.EXIT -> Color(0xFF, 0x6B, 0x6B)
 }
@@ -79,6 +80,14 @@ internal fun paintTrayGlyph(g: Graphics, glyph: TrayGlyph, x: Int, y: Int, size:
             TrayGlyph.BOOK -> {
                 g2.draw(RoundRectangle2D.Float(s * 0.08f, s * 0.18f, s * 0.38f, s * 0.64f, s * 0.10f, s * 0.10f))
                 g2.draw(RoundRectangle2D.Float(s * 0.54f, s * 0.18f, s * 0.38f, s * 0.64f, s * 0.10f, s * 0.10f))
+            }
+            TrayGlyph.UPDATE -> {
+                // The arrow the menu row used to carry as an emoji, over the line an install lands on:
+                // an update is downloaded and replaces the current version (R52).
+                g2.draw(Line2D.Float(s * 0.50f, s * 0.74f, s * 0.50f, s * 0.26f))
+                g2.draw(Line2D.Float(s * 0.28f, s * 0.46f, s * 0.50f, s * 0.24f))
+                g2.draw(Line2D.Float(s * 0.72f, s * 0.46f, s * 0.50f, s * 0.24f))
+                g2.draw(Line2D.Float(s * 0.24f, s * 0.84f, s * 0.76f, s * 0.84f))
             }
             TrayGlyph.GEAR -> {
                 g2.draw(Ellipse2D.Float(s * 0.22f, s * 0.22f, s * 0.56f, s * 0.56f))

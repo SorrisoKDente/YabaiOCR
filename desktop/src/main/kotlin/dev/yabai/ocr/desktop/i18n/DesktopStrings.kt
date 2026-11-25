@@ -372,9 +372,9 @@ object DesktopStrings {
     val btnHelp: String get() = if (isEnglish) "❓ Help" else "❓ Ajuda"
     val helpWindowTitle: String get() = if (isEnglish) "Help — Yabai OCR" else "Ajuda — Yabai OCR"
     val helpIntro: String get() = if (isEnglish)
-        "First a reference to every button, with the icon it shows, and then each action in the order you usually meet it. The shortcuts shown are the defaults; all of them can be changed in Settings."
+        "First a reference to every button, with the icon it shows, and then each action in the order you usually meet it. The shortcuts below are the ones configured right now — every one of them can be changed in Settings."
     else
-        "Primeiro uma referência de cada botão, com o ícone que ele mostra, e depois cada função na ordem em que você costuma encontrá-la. Os atalhos mostrados são os padrões; todos podem ser trocados nos Ajustes."
+        "Primeiro uma referência de cada botão, com o ícone que ele mostra, e depois cada função na ordem em que você costuma encontrá-la. Os atalhos abaixo são os que estão configurados agora — todos podem ser trocados nos Ajustes."
 
     // Help manual — button reference (the first section)
     val helpButtonsTitle: String get() = if (isEnglish) "Buttons" else "Botões"
@@ -434,38 +434,44 @@ object DesktopStrings {
     else
         "Fecha o app por inteiro; «Fechar para a bandeja» só esconde a janela."
 
-    val helpCaptureTitle: String get() = if (isEnglish)
-        "Full-screen capture — Ctrl + Shift + O"
+    /**
+     * The action titles and bodies take the shortcut as it is configured right now (R52).
+     *
+     * They used to print the defaults hardcoded, so a reader who had changed a shortcut was told to
+     * press a key that no longer does anything.
+     */
+    fun helpCaptureTitle(shortcut: String): String = if (isEnglish)
+        "Full-screen capture — $shortcut"
     else
-        "Tela inteira — Ctrl + Shift + O"
-    val helpCaptureBody: String get() = if (isEnglish)
-        "Ctrl + Shift + O (or a left click on the tray icon) captures the whole screen and puts a box over every speech bubble or paragraph. Click the box you want to read, or «All text» to read the whole page. After a result, «Snippets» goes back to the same capture instead of taking the screenshot again."
+        "Tela inteira — $shortcut"
+    fun helpCaptureBody(shortcut: String): String = if (isEnglish)
+        "$shortcut (or a left click on the tray icon) captures the whole screen and puts a box over every speech bubble or paragraph. Click the box you want to read, or «All text» to read the whole page. After a result, «Snippets» goes back to the same capture instead of taking the screenshot again."
     else
-        "Ctrl + Shift + O (ou clique esquerdo no ícone da bandeja) captura a tela inteira e marca cada balão ou parágrafo com uma caixa. Clique na caixa que quer ler, ou em «Texto todo» para ler a página inteira. Depois de um resultado, «Trechos» volta à mesma captura em vez de fotografar a tela de novo."
-    val helpRegionTitle: String get() = if (isEnglish)
-        "Hand-drawn area — Ctrl + Shift + A"
+        "$shortcut (ou clique esquerdo no ícone da bandeja) captura a tela inteira e marca cada balão ou parágrafo com uma caixa. Clique na caixa que quer ler, ou em «Texto todo» para ler a página inteira. Depois de um resultado, «Trechos» volta à mesma captura em vez de fotografar a tela de novo."
+    fun helpRegionTitle(shortcut: String): String = if (isEnglish)
+        "Hand-drawn area — $shortcut"
     else
-        "Recorte à mão — Ctrl + Shift + A"
-    val helpRegionBody: String get() = if (isEnglish)
-        "Ctrl + Shift + A opens the hand-drawn crop: drag the rectangle over the text and release it. Inside the paragraph picker, «✂️ Manual Crop» swaps the boxes for a rectangle you draw yourself. The result opens in the same window as any other reading."
+        "Recorte à mão — $shortcut"
+    fun helpRegionBody(shortcut: String): String = if (isEnglish)
+        "$shortcut opens the hand-drawn crop: drag the rectangle over the text and release it. Inside the paragraph picker, «✂️ Manual Crop» swaps the boxes for a rectangle you draw yourself. The result opens in the same window as any other reading."
     else
-        "Ctrl + Shift + A abre o recorte à mão: arraste o retângulo sobre o texto e solte. Dentro do seletor de trechos, «✂️ Recortar à mão» troca as caixas por um retângulo desenhado por você. O resultado abre na mesma janela de qualquer leitura."
-    val helpHoverTitle: String get() = if (isEnglish)
-        "Hover mode — Ctrl + Shift + H"
+        "$shortcut abre o recorte à mão: arraste o retângulo sobre o texto e solte. Dentro do seletor de trechos, «✂️ Recortar à mão» troca as caixas por um retângulo desenhado por você. O resultado abre na mesma janela de qualquer leitura."
+    fun helpHoverTitle(toggle: String, cycle: String): String = if (isEnglish)
+        "Hover mode — $toggle (and $cycle to cycle dictionaries)"
     else
-        "Modo hover — Ctrl + Shift + H"
-    val helpHoverBody: String get() = if (isEnglish)
-        "Ctrl + Shift + H turns hover on. Rest the pointer over a Japanese word and the card shows the word and the entry from the chosen dictionary; Ctrl + Shift + X cycles the dictionaries. When the chosen dictionary has no entry, the card says so instead of switching dictionaries on its own. It works in a browser, a manga reader, a game and a PDF."
+        "Modo hover — $toggle (e $cycle para alternar os dicionários)"
+    fun helpHoverBody(toggle: String, cycle: String): String = if (isEnglish)
+        "$toggle turns hover on. Rest the pointer over a Japanese word and the card shows the word and the entry from the chosen dictionary; $cycle cycles the dictionaries. When the chosen dictionary has no entry, the card says so instead of switching dictionaries on its own. It works in a browser, a manga reader, a game and a PDF."
     else
-        "Ctrl + Shift + H liga o hover. Pare o ponteiro sobre uma palavra japonesa e o cartão mostra a palavra e o verbete do dicionário escolhido; Ctrl + Shift + X alterna entre os dicionários. Quando o dicionário escolhido não tem o verbete, o cartão avisa em vez de trocar de dicionário sozinho. Funciona em navegador, leitor de mangá, jogo e PDF."
-    val helpQuickSearchTitle: String get() = if (isEnglish)
-        "Quick dictionary search — Ctrl + Shift + D"
+        "$toggle liga o hover. Pare o ponteiro sobre uma palavra japonesa e o cartão mostra a palavra e o verbete do dicionário escolhido; $cycle alterna entre os dicionários. Quando o dicionário escolhido não tem o verbete, o cartão avisa em vez de trocar de dicionário sozinho. Funciona em navegador, leitor de mangá, jogo e PDF."
+    fun helpQuickSearchTitle(shortcut: String): String = if (isEnglish)
+        "Quick dictionary search — $shortcut"
     else
-        "Busca rápida no dicionário — Ctrl + Shift + D"
-    val helpQuickSearchBody: String get() = if (isEnglish)
-        "Ctrl + Shift + D opens the search without capturing the screen: look up a word, a kanji, a reading (hiragana or romaji) or a definition, with a filter for one dictionary. «Paste» takes the clipboard text and «Clear» empties the field."
+        "Busca rápida no dicionário — $shortcut"
+    fun helpQuickSearchBody(shortcut: String): String = if (isEnglish)
+        "$shortcut opens the search without capturing the screen: look up a word, a kanji, a reading (hiragana or romaji) or a definition, with a filter for one dictionary. «Paste» takes the clipboard text and «Clear» empties the field."
     else
-        "Ctrl + Shift + D abre a busca sem capturar a tela: procure uma palavra, um kanji, uma leitura (hiragana ou romaji) ou uma definição, com filtro por dicionário. «Colar» aproveita o texto da área de transferência e «Apagar» limpa o campo."
+        "$shortcut abre a busca sem capturar a tela: procure uma palavra, um kanji, uma leitura (hiragana ou romaji) ou uma definição, com filtro por dicionário. «Colar» aproveita o texto da área de transferência e «Apagar» limpa o campo."
     val helpDictionariesTitle: String get() = if (isEnglish)
         "Dictionaries"
     else
@@ -482,6 +488,118 @@ object DesktopStrings {
         "The result window shows the recognised text (editable and copyable), furigana as the Settings choose, the lines separately, the kanji card for a segment, the offline translation of the sentence and the «Ask an AI» button. «Captured image» shows the crop beside the text and «Try offline» reads the same capture again without the network."
     else
         "A janela de resultado mostra o texto reconhecido (editável e copiável), o furigana conforme os Ajustes, as linhas separadas, o cartão de kanji de um trecho, a tradução offline da frase e o botão «Perguntar à IA». «Imagem capturada» mostra o recorte ao lado do texto e «Tentar offline» lê a mesma captura de novo sem internet."
+    // Help manual — the graphics renderers, each with what it is good at and what it costs (R52)
+    val helpRenderersTitle: String get() = if (isEnglish)
+        "Graphics renderer, one by one"
+    else
+        "Renderizador gráfico, um por um"
+    val helpRenderersIntro: String get() = if (isEnglish)
+        "Every window is drawn by Skiko, which can use the graphics card or the CPU. The choice " +
+            "lives in Settings → Graphics Renderer and applies the next time the app starts; the same " +
+            "choice can also be given on the command line with " +
+            "--renderer=automatic|opengl|software. What each one means:"
+    else
+        "Todas as janelas são desenhadas pelo Skiko, que pode usar a placa de vídeo ou a CPU. A " +
+            "escolha fica em Ajustes → Renderizador gráfico e vale na próxima abertura do app; a " +
+            "mesma escolha também pode ser dada na linha de comando com " +
+            "--renderer=automatic|opengl|software. O que cada um significa:"
+    val helpRendererAutomaticPros: String get() = if (isEnglish)
+        "fastest: it uses the graphics card the way the system expects"
+    else
+        "o mais rápido: usa a placa de vídeo do jeito que o sistema espera"
+    val helpRendererAutomaticCons: String get() = if (isEnglish)
+        "on Windows it is Direct3D, the path that dies on some drivers — it is the one behind the " +
+            "crash notice"
+    else
+        "no Windows é o Direct3D, o caminho que cai em alguns drivers — é ele por trás do aviso de " +
+            "crash"
+    val helpRendererOpenGlPros: String get() = if (isEnglish)
+        "keeps the graphics card but avoids Direct3D, so scrolling and animations stay smooth"
+    else
+        "continua usando a placa de vídeo mas evita o Direct3D, então a rolagem e as animações " +
+            "continuam lisas"
+    val helpRendererOpenGlCons: String get() = if (isEnglish)
+        "on some drivers it is slower than Direct3D, and very old cards may not support the version " +
+            "Skiko asks for"
+    else
+        "em alguns drivers é mais lento que o Direct3D, e placas muito antigas podem não ter a " +
+            "versão que o Skiko pede"
+    val helpRendererSoftwarePros: String get() = if (isEnglish)
+        "the most stable: it works in a virtual machine, with a broken driver and when every " +
+            "graphics path crashes"
+    else
+        "o mais estável: funciona em máquina virtual, com driver quebrado e quando todo caminho " +
+            "gráfico cai"
+    val helpRendererSoftwareCons: String get() = if (isEnglish)
+        "the slowest: it uses the CPU, so big windows, scrolling and the picker feel heavier and the " +
+            "rest of the machine loses a core"
+    else
+        "o mais lento: usa a CPU, então janelas grandes, rolagem e o seletor ficam mais pesados e o " +
+            "resto da máquina perde um núcleo"
+
+    /** The three renderers, each with its description and its two sides. */
+    fun helpRenderersBody(): String = listOf(
+        "$rendererAutomatic — $rendererAutomaticDesc\n+ $helpRendererAutomaticPros\n− $helpRendererAutomaticCons",
+        "$rendererOpenGl — $rendererOpenGlDesc\n+ $helpRendererOpenGlPros\n− $helpRendererOpenGlCons",
+        "$rendererSoftware — $rendererSoftwareDesc\n+ $helpRendererSoftwarePros\n− $helpRendererSoftwareCons",
+    ).joinToString("\n\n", prefix = "$helpRenderersIntro\n\n")
+
+    // Help manual — the recognition engines, the same way (R52)
+    val helpEnginesTitle: String get() = if (isEnglish)
+        "Recognition engines, one by one"
+    else
+        "Motores de reconhecimento, um por um"
+    val helpEnginesIntro: String get() = if (isEnglish)
+        "The engine reads the image and returns the text blocks the app boxes. The choice lives in " +
+            "Settings → Recognition Engine; «Automatic» walks your priority list and stops at the " +
+            "first engine that returns text, so a Lens failure falls back to the offline reader " +
+            "without asking. What each one means:"
+    else
+        "O motor lê a imagem e devolve os blocos de texto que o app marca com caixas. A escolha " +
+            "fica em Ajustes → Motor de reconhecimento; «Automático» percorre a sua lista de " +
+            "prioridade e para no primeiro motor que devolver texto, então uma falha do Lens cai no " +
+            "leitor offline sem perguntar. O que cada um significa:"
+    val helpEngineAutoName: String get() = if (isEnglish) "Automatic" else "Automático"
+    val helpEngineLensName: String get() = if (isEnglish) "Google Lens (online)" else "Google Lens (online)"
+    val helpEnginePpOcrName: String get() = if (isEnglish) "PP-OCRv6 (offline)" else "PP-OCRv6 (offline)"
+    val helpEngineAutoPros: String get() = if (isEnglish)
+        "survives an engine being unavailable, and follows the priority you set"
+    else
+        "sobrevive a um motor indisponível, e segue a prioridade que você definiu"
+    val helpEngineAutoCons: String get() = if (isEnglish)
+        "when the first engine fails, the reading waits for the attempt before falling back"
+    else
+        "quando o primeiro motor falha, a leitura espera a tentativa antes de cair para o próximo"
+    val helpEngineLensPros: String get() = if (isEnglish)
+        "the most accurate segmentation on mixed pages and small text, vertical or horizontal, and " +
+            "nothing to download"
+    else
+        "a segmentação mais precisa em páginas variadas e texto pequeno, vertical ou horizontal, e " +
+            "nada para baixar"
+    val helpEngineLensCons: String get() = if (isEnglish)
+        "needs internet, has usage limits and sends the image to Google"
+    else
+        "exige internet, tem limite de uso e manda a imagem para o Google"
+    val helpEnginePpOcrPros: String get() = if (isEnglish)
+        "offline and unlimited, nothing leaves the machine, and it is built for manga: balloon " +
+            "detection and vertical columns"
+    else
+        "offline e sem limite, nada sai da máquina, e é feito para mangá: detecta balões e colunas " +
+            "verticais"
+    val helpEnginePpOcrCons: String get() = if (isEnglish)
+        "needs the ~23 MB model downloaded in Settings and uses CPU and memory; it is less forgiving " +
+            "with unusual pages"
+    else
+        "precisa do modelo de ~23 MB baixado nos Ajustes e usa CPU e memória; é menos tolerante " +
+            "com páginas fora do padrão"
+
+    /** The three engines, each with its description and its two sides. */
+    fun helpEnginesBody(): String = listOf(
+        "$helpEngineAutoName — $engineAutoDesc\n+ $helpEngineAutoPros\n− $helpEngineAutoCons",
+        "$helpEngineLensName — $engineLensDesc\n+ $helpEngineLensPros\n− $helpEngineLensCons",
+        "$helpEnginePpOcrName — $enginePpOcrDesc\n+ $helpEnginePpOcrPros\n− $helpEnginePpOcrCons",
+    ).joinToString("\n\n", prefix = "$helpEnginesIntro\n\n")
+
     val helpTrayTitle: String get() = if (isEnglish)
         "Tray icon, settings and shortcuts"
     else

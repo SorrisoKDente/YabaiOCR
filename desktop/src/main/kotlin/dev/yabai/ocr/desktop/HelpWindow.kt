@@ -36,6 +36,28 @@ internal data class HelpTopic(val id: String, val title: String, val body: Strin
 internal data class HelpButton(val icon: String, val name: String, val what: String)
 
 /**
+ * The shortcuts the manual prints (R52).
+ *
+ * Taken from the settings at the moment the window opens: the manual used to hardcode the defaults,
+ * so a reader who had changed one was told to press a key that does nothing.
+ */
+internal data class HelpShortcuts(
+    val fullScreen: String,
+    val region: String,
+    val hover: String,
+    val hoverCycle: String,
+    val quickDict: String,
+)
+
+internal fun helpShortcuts(settings: DesktopSettings): HelpShortcuts = HelpShortcuts(
+    fullScreen = settings.globalHotkey,
+    region = settings.regionHotkey,
+    hover = settings.hoverHotkey,
+    hoverCycle = settings.hoverCycleHotkey,
+    quickDict = settings.quickDictHotkey,
+)
+
+/**
  * The quick reference the manual opens with: each button with the glyph it draws, so a control can be
  * looked up by its picture instead of by its name.
  */
@@ -55,25 +77,46 @@ internal fun helpButtons(): List<HelpButton> = listOf(
 
 /**
  * The manual, in the order a new user meets the actions: the button reference first, then the two
- * captures, the hover, the search, the dictionaries, the result window and the tray.
+ * captures, the hover, the search, the dictionaries, the result window, the renderers, the engines
+ * and the tray.
  *
  * The texts come from [DesktopStrings], so the window follows the interface language like the rest of
  * the app, and the ids are what `HelpManualTest` holds against the list of things the app can do.
+ * [shortcuts] is what makes the two capture entries name the keys the user actually has.
  */
-internal fun helpTopics(): List<HelpTopic> = listOf(
-    HelpTopic("capture", DesktopStrings.helpCaptureTitle, DesktopStrings.helpCaptureBody),
-    HelpTopic("region", DesktopStrings.helpRegionTitle, DesktopStrings.helpRegionBody),
-    HelpTopic("hover", DesktopStrings.helpHoverTitle, DesktopStrings.helpHoverBody),
-    HelpTopic("quick-search", DesktopStrings.helpQuickSearchTitle, DesktopStrings.helpQuickSearchBody),
+internal fun helpTopics(shortcuts: HelpShortcuts): List<HelpTopic> = listOf(
+    HelpTopic(
+        "capture",
+        DesktopStrings.helpCaptureTitle(shortcuts.fullScreen),
+        DesktopStrings.helpCaptureBody(shortcuts.fullScreen),
+    ),
+    HelpTopic(
+        "region",
+        DesktopStrings.helpRegionTitle(shortcuts.region),
+        DesktopStrings.helpRegionBody(shortcuts.region),
+    ),
+    HelpTopic(
+        "hover",
+        DesktopStrings.helpHoverTitle(shortcuts.hover, shortcuts.hoverCycle),
+        DesktopStrings.helpHoverBody(shortcuts.hover, shortcuts.hoverCycle),
+    ),
+    HelpTopic(
+        "quick-search",
+        DesktopStrings.helpQuickSearchTitle(shortcuts.quickDict),
+        DesktopStrings.helpQuickSearchBody(shortcuts.quickDict),
+    ),
     HelpTopic("dictionaries", DesktopStrings.helpDictionariesTitle, DesktopStrings.helpDictionariesBody),
     HelpTopic("result", DesktopStrings.helpResultTitle, DesktopStrings.helpResultBody),
+    HelpTopic("renderers", DesktopStrings.helpRenderersTitle, DesktopStrings.helpRenderersBody()),
+    HelpTopic("engines", DesktopStrings.helpEnginesTitle, DesktopStrings.helpEnginesBody()),
     HelpTopic("tray", DesktopStrings.helpTrayTitle, DesktopStrings.helpTrayBody),
 )
 
 /** Read-only manual, opened from the Help button at the top of Settings. */
 @Composable
 fun HelpWindow(onClose: () -> Unit) {
-    val topics = helpTopics()
+    val settings = remember { DesktopSettings() }
+    val topics = remember { helpTopics(helpShortcuts(settings)) }
 
     Window(
         onCloseRequest = onClose,
@@ -81,10 +124,12 @@ fun HelpWindow(onClose: () -> Unit) {
         state = WindowState(width = 760.dp, height = 720.dp),
     ) {
         LaunchedEffect(Unit) {
-            runCatching { window.iconImage = AppIconGenerator.createWindowImage(64) }
+            // The artwork the tray uses, without its status dot: the window used to fall back to
+            // the old PNG artwork when the packed icon could not be read (R52).
+            runCatching { window.iconImage = AppIconGenerator.getTrayImage() }
         }
 
-        YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
+        YabaiDesktopTheme(darkTheme = settings.darkTheme) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                 SelectionContainer {
                     ScrollableLazyColumn(

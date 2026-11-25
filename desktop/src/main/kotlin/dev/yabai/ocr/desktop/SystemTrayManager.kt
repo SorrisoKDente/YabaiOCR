@@ -242,7 +242,7 @@ internal class SystemTrayManager(
             panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton(DesktopStrings.trayManageDicts, TrayGlyph.BOOK) { onFullDictRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
-            panel.add(createTrayButton(DesktopStrings.trayUpdates(updatesCount()), TrayGlyph.BOOK) { onUpdatesRequested() })
+            panel.add(createTrayButton(DesktopStrings.trayUpdates(updatesCount()), TrayGlyph.UPDATE) { onUpdatesRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 2)))
             panel.add(createTrayButton(DesktopStrings.traySettings, TrayGlyph.GEAR) { onSettingsRequested() })
             panel.add(Box.createRigidArea(Dimension(0, 4)))

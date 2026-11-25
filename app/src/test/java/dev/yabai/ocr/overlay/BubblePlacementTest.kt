@@ -11,6 +11,7 @@ import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.MainActivity
 import dev.yabai.ocr.R
 import dev.yabai.ocr.util.dp
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -120,6 +121,87 @@ class BubblePlacementTest {
         assertEquals(2400 - controller.bubbleSize - context.dp(4), params.y)
     }
 
+    /**
+     * Regression (R51): the bubble kept its coordinates across a rotation, and nothing re-placed it.
+     *
+     * The window is added with `FLAG_LAYOUT_NO_LIMITS`, so the window manager draws the bubble
+     * exactly where it is told — including past the edge of the new screen, where no finger can
+     * reach it and no panel can be opened from it. A corner of a portrait screen is below the bottom
+     * of the same screen turned sideways.
+     *
+     * The bounds are given to the controller instead of turning the Robolectric display: what is
+     * under test is the clamp, and a simulated display would make the test depend on how the shadow
+     * builds its metrics. The wiring that calls it is the next test.
+     */
+    @Test
+    fun `rotacionar a tela traz a bolha de volta para dentro`() {
+        val controller = controller(pinned = false)
+        controller.showBubble()
+        val bubble = controller.bubbleWindow() ?: error("the bubble was not created")
+        drag(bubble, controller.bubbleOrigin(), Point(250, 500))
+        assertEquals(Point(250, 500), controller.bubbleOrigin())
+
+        // The phone turned: what was a 320×640 screen is now 640 wide and 320 tall.
+        controller.keepBubbleOnScreen(Rect(0, 0, 640, 320))
+
+        assertEquals(
+            "the bubble stayed below the shorter screen",
+            Point(250, 320 - controller.bubbleSize - context.dp(4)),
+            controller.bubbleOrigin(),
+        )
+    }
+
+    /** The other direction: the screen is narrower upright than it is sideways (R51). */
+    @Test
+    fun `girar de volta para em pe traz a bolha para a esquerda`() {
+        val controller = controller(pinned = false)
+        controller.showBubble()
+        val bubble = controller.bubbleWindow() ?: error("the bubble was not created")
+        drag(bubble, controller.bubbleOrigin(), Point(250, 150))
+
+        // The same drop, with the screen as wide as it is tall in landscape and narrower upright.
+        controller.keepBubbleOnScreen(Rect(0, 0, 640, 320))
+        controller.keepBubbleOnScreen(Rect(0, 0, 320, 640))
+
+        assertEquals(
+            "the bubble stayed past the right edge of the narrower screen",
+            Point(320 - controller.bubbleSize + context.dp(4), 150),
+            controller.bubbleOrigin(),
+        )
+    }
+
+    /**
+     * The clamp helps only if the display change reaches it: the bubble's window is never told, so
+     * the controller has to listen for the display, and let go of it with the bubble (R51).
+     *
+     * Read from the source for the same reason the camera rotation is: the Robolectric display is
+     * not a phone that turns, and the listener is what makes a real turn call [keepBubbleOnScreen].
+     */
+    @Test
+    fun `a bolha escuta a tela virar e e solta junto com ela`() {
+        val source = sequenceOf(File(SOURCE), File("../$SOURCE"))
+            .firstOrNull { it.isFile }?.readText().orEmpty()
+        assertTrue("OverlayController.kt not found", source.isNotEmpty())
+
+        val onDisplayChanged = source.substringAfter("override fun onDisplayChanged(displayId: Int)", "")
+            .substringBefore("}")
+        assertTrue(
+            "the display change does not bring the bubble back",
+            onDisplayChanged.contains("keepBubbleOnScreen()"),
+        )
+        assertTrue(
+            "the display listener is not registered with the bubble",
+            source.substringAfter("fun showBubble()", "").substringBefore("fun hideBubble()")
+                .contains("listenForDisplayChanges()"),
+        )
+        assertTrue(
+            "the display listener outlives the bubble",
+            source.substringAfter("fun hideBubble()", "").substringBefore("fun onBubbleTouch")
+                .contains("stopListeningForDisplayChanges()") &&
+                source.contains("unregisterDisplayListener"),
+        )
+    }
+
     /** The choice is a setting like any other: off by default, saved for the next start. */
     @Test
     fun `a escolha comeca livre e e guardada nos ajustes`() {
@@ -183,4 +265,9 @@ class BubblePlacementTest {
 
     private fun touch(action: Int, x: Int, y: Int): MotionEvent =
         MotionEvent.obtain(0L, 0L, action, x.toFloat(), y.toFloat(), 0)
+
+    private companion object {
+        /** The controller the wiring guard reads, from the module root or the repo root. */
+        const val SOURCE = "app/src/main/java/dev/yabai/ocr/overlay/OverlayController.kt"
+    }
 }

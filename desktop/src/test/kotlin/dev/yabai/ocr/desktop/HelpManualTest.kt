@@ -3,6 +3,7 @@ package dev.yabai.ocr.desktop
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,14 +16,23 @@ import org.junit.Test
  */
 class HelpManualTest {
 
+    /** Shortcuts that are not the defaults, so a hardcoded default in the manual stands out. */
+    private val shortcuts = HelpShortcuts(
+        fullScreen = "F9",
+        region = "F10",
+        hover = "F11",
+        hoverCycle = "F7",
+        quickDict = "F12",
+    )
+
     @Test
     fun `the manual covers the same actions in both languages`() {
         val previous = DesktopStrings.currentChoice
         try {
             DesktopStrings.updateLanguage(DesktopLanguageChoice.PT_BR)
-            val portuguese = helpTopics()
+            val portuguese = helpTopics(shortcuts)
             DesktopStrings.updateLanguage(DesktopLanguageChoice.EN_US)
-            val english = helpTopics()
+            val english = helpTopics(shortcuts)
 
             val expected = listOf(
                 "capture",
@@ -31,6 +41,8 @@ class HelpManualTest {
                 "quick-search",
                 "dictionaries",
                 "result",
+                "renderers",
+                "engines",
                 "tray",
             )
             assertEquals("the manual lost or reordered an action", expected, portuguese.map { it.id })
@@ -79,6 +91,87 @@ class HelpManualTest {
             "the button reference is not the first section of the manual",
             window.indexOf("helpButtons().forEach") in 0 until window.indexOf("items(topics)"),
         )
+    }
+
+    /**
+     * R52: the manual names the shortcuts the user configured, not the defaults.
+     *
+     * A reader who had changed a shortcut was sent to a key that no longer does anything.
+     */
+    @Test
+    fun `the manual prints the configured shortcuts, not the defaults`() {
+        val previous = DesktopStrings.currentChoice
+        try {
+            // Both languages: each one has its own copy of the titles and bodies.
+            for (language in listOf(DesktopLanguageChoice.PT_BR, DesktopLanguageChoice.EN_US)) {
+                DesktopStrings.updateLanguage(language)
+                val topics = helpTopics(shortcuts).associateBy { it.id }
+
+                val text = listOf("capture", "region", "hover", "quick-search")
+                    .joinToString("\n") { id -> topics.getValue(id).title + "\n" + topics.getValue(id).body }
+
+                listOf("F9", "F10", "F11", "F7", "F12").forEach { key ->
+                    assertTrue(
+                        "the $language manual does not print the configured shortcut $key",
+                        text.contains(key),
+                    )
+                }
+                // Every one of the defaults the manual used to print, not just the first: a body
+                // left with its old key would still show the configured one in the title.
+                listOf("Ctrl + Shift + O", "Ctrl + Shift + A", "Ctrl + Shift + H", "Ctrl + Shift + X", "Ctrl + Shift + D")
+                    .forEach { key ->
+                        assertFalse(
+                            "the $language manual still prints the default shortcut $key",
+                            text.contains(key),
+                        )
+                    }
+            }
+        } finally {
+            DesktopStrings.updateLanguage(previous)
+        }
+
+        // The window has to read the settings, otherwise the parameter is just a different default.
+        val window = sourceFile("HelpWindow.kt").readText()
+        assertTrue(
+            "the manual is built without the shortcuts that are saved",
+            window.contains("helpShortcuts(settings)") && window.contains("settings.globalHotkey"),
+        )
+    }
+
+    /**
+     * R52: «gráfico» and «motor» are choices with trade-offs, and the manual has to explain each one
+     * instead of naming it.
+     */
+    @Test
+    fun `the manual explains every renderer and every engine, with both sides`() {
+        val previous = DesktopStrings.currentChoice
+        try {
+            DesktopStrings.updateLanguage(DesktopLanguageChoice.PT_BR)
+            val topics = helpTopics(shortcuts).associateBy { it.id }
+            val renderers = topics.getValue("renderers").body
+            val engines = topics.getValue("engines").body
+
+            SkikoRenderer.entries.forEach { level ->
+                assertTrue(
+                    "the renderer help does not name ${DesktopStrings.rendererName(level)}",
+                    renderers.contains(DesktopStrings.rendererName(level)),
+                )
+            }
+            assertTrue("the renderer help has no advantages line", renderers.contains("\n+ "))
+            assertTrue("the renderer help has no drawbacks line", renderers.contains("\n− "))
+            assertEquals(
+                "the renderer help is missing a draw",
+                SkikoRenderer.entries.size,
+                renderers.split("\n+ ").size - 1,
+            )
+
+            listOf("Google Lens", "PP-OCRv6").forEach { engine ->
+                assertTrue("the engine help does not name $engine", engines.contains(engine))
+            }
+            assertEquals("the engine help is missing a drawback", 3, engines.split("\n− ").size - 1)
+        } finally {
+            DesktopStrings.updateLanguage(previous)
+        }
     }
 
     @Test

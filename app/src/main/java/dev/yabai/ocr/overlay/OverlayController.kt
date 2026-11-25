@@ -12,10 +12,12 @@ import android.graphics.PixelFormat
 import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
+import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -154,6 +156,16 @@ class OverlayController(
     private var bubbleParams: WindowManager.LayoutParams? = null
 
     /**
+     * The bubble's ear for the display changing (R51).
+     *
+     * The bubble is placed in display pixels, and a rotation swaps the screen's width and height: a
+     * position that was inside the old screen can be past the edge of the new one. Nothing re-placed
+     * it, and `FLAG_LAYOUT_NO_LIMITS` happily drew it there — off screen, out of reach. Registered
+     * with the bubble and removed with it.
+     */
+    private var displayListener: DisplayManager.DisplayListener? = null
+
+    /**
      * Whether the bubble is paused (R33c): the capture session is still alive, but nothing of the
      * reader is on screen until the notification asks it back. A capture that was already running
      * when the pause arrived must not bring the bubble back — [restoreAfterCapture] checks this.
@@ -236,10 +248,12 @@ class OverlayController(
         restingX = params.x
         restingY = params.y
         addWindow(bubble, params)
+        listenForDisplayChanges()
         if (paused) bubble.visibility = View.GONE
     }
 
     fun hideBubble() {
+        stopListeningForDisplayChanges()
         val view = bubbleView ?: return
         removeWindow(view)
         bubbleView = null
@@ -345,6 +359,51 @@ class OverlayController(
         val maxY = (bounds.bottom - bubbleSize - margin).coerceAtLeast(bounds.top + margin)
         params.x = params.x.coerceIn(-margin, maxX)
         params.y = params.y.coerceIn(bounds.top + margin, maxY)
+    }
+
+    /**
+     * Brings the bubble back inside [bounds], whatever it was doing before (R51).
+     *
+     * A rotation — and a fold, or a split-screen resize — changes the screen the bubble's coordinates
+     * are measured against. It is the same clamp a drop obeys, so the rest position needs nothing
+     * extra: [restBubble] settles through [settleBubble], which clamps again against the screen as it
+     * is by then.
+     *
+     * A drag in progress is left alone: the finger owns the position until it lifts, and the release
+     * ends in [settleBubble], which clamps against the screen as it is then.
+     */
+    internal fun keepBubbleOnScreen(bounds: Rect = displayBounds()) {
+        val view = bubbleView ?: return
+        val params = bubbleParams ?: return
+        if (dragging) return
+        clampBubbleTo(params, bounds)
+        updateWindow(view, params)
+    }
+
+    private fun listenForDisplayChanges() {
+        if (displayListener != null) return
+        val manager = context.getSystemService(DisplayManager::class.java) ?: return
+        val listener = object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) = Unit
+
+            override fun onDisplayRemoved(displayId: Int) = Unit
+
+            /** The screen turned (or was resized): the bubble has to stay where a finger reaches. */
+            override fun onDisplayChanged(displayId: Int) {
+                if (displayId == Display.DEFAULT_DISPLAY) keepBubbleOnScreen()
+            }
+        }
+        runCatching { manager.registerDisplayListener(listener, null) }
+            .onSuccess { displayListener = listener }
+            .onFailure { Log.w(TAG, "could not listen for display changes", it) }
+    }
+
+    private fun stopListeningForDisplayChanges() {
+        val listener = displayListener ?: return
+        displayListener = null
+        runCatching {
+            context.getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(listener)
+        }
     }
 
     private fun snapToEdge(params: WindowManager.LayoutParams) = snapToEdgeIn(params, displayBounds())
@@ -1312,6 +1371,9 @@ class OverlayController(
             hideAppPicker()
             hideResult()
         }
+        // The screen may have turned while the reader was paused, when the bubble was not drawn;
+        // resuming must put it back where a finger can reach it, not at the old coordinates.
+        if (!paused) keepBubbleOnScreen()
         bubbleView?.visibility = if (paused) View.GONE else View.VISIBLE
     }
 

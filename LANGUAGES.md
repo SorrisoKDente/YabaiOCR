@@ -210,7 +210,8 @@ Para localizar o Desktop de forma sustentável sem acoplamento nem dispersão de
 #### 7. `HelpWindow.kt` (Manual de Ajuda Desktop)
 - **Botão e título:** `"❓ Ajuda"` → `"❓ Help"`, `"Ajuda — Yabai OCR"` → `"Help — Yabai OCR"`
 - **Referência de botões** (`helpButtonsTitle`, `helpBtn*Name/What`): a primeira seção, com o ícone do botão à esquerda, o nome e o que ele faz; `helpButtons()` desenha as linhas.
-- **Entradas do manual** (`helpIntro`, `helpCapture*`, `helpRegion*`, `helpHover*`, `helpQuickSearch*`, `helpDictionaries*`, `helpResult*`, `helpTray*`): as duas capturas, o hover, a busca rápida, os dicionários, a janela de resultado e a bandeja, cada uma com os atalhos padrão e o que a função faz. O teste `HelpManualTest` compara as duas línguas, exige a referência antes das entradas e lê o aviso de crash do renderizador.
+- **Entradas do manual** (`helpIntro`, `helpCapture*`, `helpRegion*`, `helpHover*`, `helpQuickSearch*`, `helpDictionaries*`, `helpResult*`, `helpRenderers*`, `helpEngines*`, `helpTray*`): as duas capturas, o hover, a busca rápida, os dicionários, a janela de resultado, o **renderizador gráfico** (uma entrada por renderizador, com vantagem e desvantagem) e os **motores de reconhecimento** (um por um, também com os dois lados), e a bandeja. As entradas das capturas, do hover e da busca recebem o atalho como parâmetro (`HelpShortcuts`, lido do `DesktopSettings` na abertura da janela), então o manual mostra o atalho configurado, não um padrão fixo. O teste `HelpManualTest` compara as duas línguas, exige a referência antes das entradas, os atalhos configurados nas duas línguas, os três renderizadores e os motores com `+`/`−`, e lê o aviso de crash do renderizador.
+- **Ícone da janela:** `AppIconGenerator.getTrayImage()`, os mesmos pixels da bandeja; os PNGs `ic_scan_linux.png`/`ic_scan_windows.png` são regerados do quadro atual do `.ico` e `TrayGlyphsTest` compara os pixels dos dois.
 
 ---
 
