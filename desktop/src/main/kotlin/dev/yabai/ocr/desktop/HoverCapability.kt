@@ -1,5 +1,7 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.desktop.i18n.DesktopStrings
+
 /**
  * Where the hover pointer comes from.
  *
@@ -9,6 +11,16 @@ package dev.yabai.ocr.desktop
  * moves.
  */
 internal enum class HoverBackendKind { AWT, KWIN, GNOME, UNSUPPORTED }
+
+/**
+ * Why the hover cannot start when the dictionaries installed are [titles], or null when it can.
+ *
+ * The hover answers with dictionaries: with none installed it had nothing to say and came up empty,
+ * which reads as a broken feature rather than as a missing download. The refusal is a notice, not a
+ * silent no-op, and the hover stays off until there is a dictionary to open (R57).
+ */
+internal fun hoverDictionaryRefusal(titles: List<String>): String? =
+    if (titles.isEmpty()) DesktopStrings.hoverNeedsDictionary else null
 
 internal fun hoverBackendKindFor(
     family: OsFamily,

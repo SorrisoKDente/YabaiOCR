@@ -7,6 +7,7 @@ import org.junit.Test
 import java.awt.Dimension
 import java.awt.Point
 import java.awt.Rectangle
+import java.io.File
 
 /**
  * Where the picker draws a reading and where it puts the readable strip.
@@ -47,10 +48,128 @@ class PickerReadingsTest {
         assertEquals(10f, spot.size, 0.01f)
     }
 
+    /**
+     * R58: a narrow gutter is not a dead end. The reading shrinks into it instead of disappearing,
+     * and stays clear of the next column.
+     */
+    @Test
+    fun `a narrow gutter shrinks the reading instead of dropping it`() {
+        val spot = PickerRuby.spot(
+            Rectangle(100, 100, 30, 120),
+            vertical = true,
+            characters = 3,
+            blocked = listOf(Rectangle(141, 95, 40, 130)), // 11 px of gutter
+        )!!
+
+        // The 16.5 px reading does not fit, but 9 px do; it hugs the run with 1 px of air.
+        assertEquals(9f, spot.size, 0.01f)
+        assertEquals(131f, spot.x, 0.01f)
+        assertTrue(spot.stacked)
+    }
+
+    /** A full-size reading may sit closer than the usual 15% offset to avoid the next column. */
+    @Test
+    fun `a full-size reading hugs the run when the usual offset does not fit`() {
+        val spot = PickerRuby.spot(
+            Rectangle(100, 100, 30, 120),
+            vertical = true,
+            characters = 3,
+            blocked = listOf(Rectangle(149, 95, 50, 130)),
+        )!!
+
+        assertEquals(16.5f, spot.size, 0.01f)
+        assertEquals(131f, spot.x, 0.01f)
+    }
+
+    @Test
+    fun `a row shrinks upward when the line above is close`() {
+        val spot = PickerRuby.spot(
+            Rectangle(100, 100, 60, 40),
+            vertical = false,
+            characters = 2,
+            blocked = listOf(Rectangle(100, 50, 60, 40)), // 10 px above the run
+        )!!
+
+        assertEquals(8f, spot.size, 0.01f)
+        assertEquals(91f, spot.y, 0.01f)
+    }
+
+    /** Only when neither gutter has room for a legible reading is none drawn. */
+    @Test
+    fun `a reading disappears only when both gutters are too narrow`() {
+        assertNull(
+            PickerRuby.spot(
+                Rectangle(100, 100, 30, 120),
+                vertical = true,
+                characters = 3,
+                blocked = listOf(Rectangle(130, 95, 20, 130), Rectangle(82, 95, 18, 130)),
+            ),
+        )
+    }
+
+    /** R57: a reading does not cover the column beside the one it belongs to. */
+    @Test
+    fun `ruby steps to the left gutter when the right one is another column`() {
+        val spot = PickerRuby.spot(
+            Rectangle(100, 100, 30, 120),
+            vertical = true,
+            characters = 3,
+            blocked = listOf(Rectangle(134, 95, 30, 130)),
+        )!!
+
+        assertEquals(100f - 30f * 0.15f - 16.5f, spot.x, 0.01f)
+        assertEquals(100f, spot.y, 0.01f)
+    }
+
+    @Test
+    fun `ruby of a row goes below when the line above is taken`() {
+        val spot = PickerRuby.spot(
+            Rectangle(100, 100, 60, 40),
+            vertical = false,
+            characters = 2,
+            blocked = listOf(Rectangle(100, 60, 60, 40)),
+        )!!
+
+        assertEquals(100f + 40f + PickerRuby.GAP, spot.y, 0.01f)
+    }
+
+    @Test
+    fun `ruby with both sides covered is not drawn at all`() {
+        assertNull(
+            PickerRuby.spot(
+                Rectangle(100, 100, 30, 120),
+                vertical = true,
+                characters = 3,
+                blocked = listOf(Rectangle(0, 0, 400, 400)),
+            ),
+        )
+    }
+
     @Test
     fun `a reading is not drawn when the run is too thin to read it`() {
         assertNull(PickerRuby.spot(Rectangle(0, 0, 100, 10), vertical = false, characters = 1))
         assertNull(PickerRuby.spot(Rectangle(0, 0, 4, 100), vertical = true, characters = 1))
+    }
+
+    /**
+     * R57: the two halves of the rule are wiring — the printed stretches reach the scan, and the
+     * layout is told where the other text is. The arithmetic is pinned above.
+     */
+    @Test
+    fun `the picker skips printed furigana and keeps ruby off the other text`() {
+        val source = listOf(
+            File("src/main/kotlin/dev/yabai/ocr/desktop/SegmentPickerWindow.kt"),
+            File("desktop/src/main/kotlin/dev/yabai/ocr/desktop/SegmentPickerWindow.kt"),
+        ).first { it.exists() }.readText()
+
+        assertTrue(
+            "the scan draws every dictionary reading, including over the page's own furigana",
+            source.contains("withoutPrintedReadings(piece.printed"),
+        )
+        assertTrue(
+            "the scan draws ruby without knowing where the rest of the text is",
+            source.contains("PickerRuby.spot(span, vertical, reading.text.length, blocked)"),
+        )
     }
 
     @Test

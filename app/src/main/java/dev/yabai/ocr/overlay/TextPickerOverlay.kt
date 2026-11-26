@@ -460,7 +460,21 @@ private class BlockCanvasView(context: Context) : View(context) {
         }
         when (mode) {
             PickerReadingMode.OFF -> Unit
-            PickerReadingMode.RUBY -> blocks.forEach { drawRuby(canvas, it) }
+            PickerReadingMode.RUBY -> {
+                // Every piece of the page, so a reading can step aside instead of covering another
+                // column of text (R57).
+                val occupied = blocks.flatMap { block ->
+                    block.pieces.map { piece ->
+                        RubyBox(
+                            piece.rect.left.toFloat(),
+                            piece.rect.top.toFloat(),
+                            piece.rect.right.toFloat(),
+                            piece.rect.bottom.toFloat(),
+                        )
+                    }
+                }
+                blocks.forEach { drawRuby(canvas, it, occupied) }
+            }
             PickerReadingMode.LABEL -> {
                 // Fresh each pass: both the hit areas and the strips already placed.
                 placed.clear()
@@ -472,7 +486,7 @@ private class BlockCanvasView(context: Context) : View(context) {
     }
 
     /** The reading beside the characters it belongs to, on every column and row of the page. */
-    private fun drawRuby(canvas: Canvas, block: PickerBlock) {
+    private fun drawRuby(canvas: Canvas, block: PickerBlock, occupied: List<RubyBox>) {
         for (piece in block.pieces) {
             for (reading in piece.readings) {
                 val spot = RubyLayout.spot(
@@ -484,6 +498,7 @@ private class BlockCanvasView(context: Context) : View(context) {
                     from = reading.from,
                     to = reading.to,
                     characters = reading.text.length,
+                    blocked = occupied,
                 ) ?: continue
                 drawReading(canvas, reading.text, spot)
             }

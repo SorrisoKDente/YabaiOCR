@@ -109,6 +109,18 @@ internal class HoverOcrManager(
 
     private val robots = HashMap<Int, Robot>()
 
+    /**
+     * Why the last attempt to turn the hover on was refused, or null when it was not (R57).
+     *
+     * The status line is published asynchronously — `publishStatus` posts through
+     * `SwingUtilities.invokeLater` — so a caller that shows a notice right after [setEnabled] would
+     * read the *previous* status and announce the wrong thing. This is set before returning, for
+     * exactly that caller.
+     */
+    @Volatile
+    var lastRefusal: String? = null
+        private set
+
     fun isRunning(): Boolean = isEnabled
 
     fun toggle(): Boolean {
@@ -117,11 +129,26 @@ internal class HoverOcrManager(
     }
 
     fun setEnabled(enabled: Boolean): Boolean {
+        // Nothing to do is not a reason to refuse: asking to keep the hover on must not re-read the
+        // dictionaries and fail, which would leave the switch off while the pointer is still
+        // being watched.
+        if (isEnabled == enabled) return isEnabled
+        lastRefusal = null
         if (enabled && backendKind == HoverBackendKind.UNSUPPORTED) {
-            publishStatus(hoverBackendLabel(HoverBackendKind.UNSUPPORTED))
+            val reason = hoverBackendLabel(HoverBackendKind.UNSUPPORTED)
+            lastRefusal = reason
+            publishStatus(reason)
             return false
         }
-        if (isEnabled == enabled) return isEnabled
+        if (enabled) {
+            // The card is the dictionary: without one there is nothing to show, and turning the
+            // hover on would look like a feature that does nothing (R57).
+            hoverDictionaryRefusal(getInstalledDictionaryTitles())?.let { reason ->
+                lastRefusal = reason
+                publishStatus(reason)
+                return false
+            }
+        }
         isEnabled = enabled
 
         if (enabled) {

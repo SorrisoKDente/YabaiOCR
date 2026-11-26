@@ -38,6 +38,8 @@ import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.capture.ScreenMetrics
 import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.jp.JapaneseText
+import dev.yabai.ocr.core.lens.PrintedReading
+import dev.yabai.ocr.core.lens.withoutPrintedReadings
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.KanjiDefault
 import dev.yabai.ocr.dict.searchWords
@@ -187,8 +189,18 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         val pieces: List<PendingPiece>,
     )
 
-    /** A column or row of a [PendingBlock], on screen. */
-    private data class PendingPiece(val text: String, val rect: Rect, val vertical: Boolean)
+    /**
+     * A column or row of a [PendingBlock], on screen.
+     *
+     * [printed] are the characters the page already annotates with its own furigana: the picker skips
+     * the dictionary reading there instead of drawing a second one over the print (R57).
+     */
+    private data class PendingPiece(
+        val text: String,
+        val rect: Rect,
+        val vertical: Boolean,
+        val printed: List<PrintedReading> = emptyList(),
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -950,7 +962,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                     val box = piece.rect ?: return@mapNotNull null
                     val placed = PhotoPageGeometry.place(page.layout, box)
                     if (placed.width() <= 0 || placed.height() <= 0) return@mapNotNull null
-                    PendingPiece(piece.text, placed, placed.height() >= placed.width())
+                    PendingPiece(
+                        piece.text,
+                        placed,
+                        placed.height() >= placed.width(),
+                        piece.printed,
+                    )
                 },
             )
         }
@@ -1039,7 +1056,12 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
                         (box.bottom * scaleY).roundToInt(),
                     )
                     if (placed.width() <= 0 || placed.height() <= 0) return@mapNotNull null
-                    PendingPiece(piece.text, placed, placed.height() >= placed.width())
+                    PendingPiece(
+                        piece.text,
+                        placed,
+                        placed.height() >= placed.width(),
+                        piece.printed,
+                    )
                 },
             )
         }
@@ -1236,7 +1258,10 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     ): PickerPiece? {
         val length = piece.text.length
         if (length == 0) return null
+        // The page's own furigana is already where a reading would go; a second one would cover the
+        // print and say the same thing twice (R57).
         val readings = engine.readings(piece.text, engine.lookup(piece.text, only = only), only)
+            .withoutPrintedReadings(piece.printed, { it.start }, { it.end })
         if (readings.isEmpty()) return null
         return PickerPiece(
             rect = piece.rect,

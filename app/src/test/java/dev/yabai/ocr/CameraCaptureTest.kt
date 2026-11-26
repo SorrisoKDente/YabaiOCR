@@ -116,9 +116,9 @@ class CameraCaptureTest {
         )
         assertTrue(
             "the photo is not drawn behind the spinner while it is read",
-            activity.contains("CameraPhoto.preview(") &&
+                            activity.contains("CameraPhoto.preview(") &&
                 activity.contains("frozenPhoto.setImageBitmap(") &&
-                activity.contains("R.string.camera_reading"),
+                activity.contains("R.string.recognizing"),
         )
         assertTrue(
             "the screen never waits for the reading, so it would close before the boxes are up",
@@ -134,6 +134,12 @@ class CameraCaptureTest {
         assertTrue(
             "the camera screen's loading would be covered by the panel's spinner",
             service.contains("recogniseImage(photo, loadingPanel = false)"),
+        )
+        // R57: the wait is one bar, built once, and the camera no longer has a card and a wording
+        // of its own.
+        assertTrue(
+            "the camera still builds its own waiting card instead of the shared bar",
+            activity.contains("loadingBar(") && !activity.contains("camera_reading"),
         )
     }
 

@@ -65,7 +65,7 @@
     <string name="setting_pick_text">Choose text segment on page (like Google Lens)</string>
     <string name="dictionary_strip_readings">Ignore readings in parentheses during search</string>
     <string name="dictionary_strip_readings_hint">Applies to typed queries only: 職員（しょくいん） is searched as 職員. Displayed and copied text remain unchanged.</string>
-    <string name="setting_bubble_on_edge">Snap bubble to screen edges</string>
+    <string name="setting_bubble_on_edge">Snap the floating bubble to screen edges</string>
     <string name="setting_upscale">Upscale small image crops (helps with tiny text)</string>
     <string name="setting_show_image">Show captured image next to text</string>
     <string name="setting_furigana">Keep original printed furigana — 職員（しょくいん）</string>
@@ -87,7 +87,6 @@
     <string name="camera_permission_denied">Allow camera access to take the picture.</string>
     <string name="camera_retake">Take another photo</string>
     <string name="camera_shutter">Take photo</string>
-    <string name="camera_reading">Recognising the text…</string>
     <string name="camera_close">Close the camera</string>
     <string name="camera_no_answer">The reading did not answer. Take another photo or close the camera.</string>
     <string name="recognition_cancel">Cancel</string>
@@ -342,7 +341,7 @@
     <string name="help_tip_engines_title">Recognition engines</string>
     <string name="help_tip_engines_desc" formatted="false">• Automatic: uses Google Lens (maximum accuracy) and falls back to PP-OCRv6 or offline ML Kit if the network is unavailable.\n\n• Google Lens Only: maximum accuracy on manga and vertical stylized text, requires an active internet connection.\n\n• PP-OCRv6 Only: 100% offline, detects the balloons and reads vertical manga; download the models (~23 MB) in Settings.\n\n• ML Kit Only: 100% offline on-device. Excellent for standard printed text, but less accurate on stylized fonts.</string>
     <string name="help_tip_behaviours_title">Application behaviours</string>
-    <string name="help_tip_behaviours_desc">• Auto-copy: Automatically copies recognized text to your clipboard.\n\n• Line by line: Displays text separated line by line in the panel.\n\n• Choose segment: Lets you select the exact text block to extract.\n\n• Snap bubble: Keeps the floating bubble anchored to screen edges.\n\n• Upscale crops: Improves reading accuracy on tiny fonts.\n\n• Captured image: Displays image crop alongside recognized text.</string>
+    <string name="help_tip_behaviours_desc">• Auto-copy: Automatically copies recognized text to your clipboard.\n\n• Line by line: Displays text separated line by line in the panel.\n\n• Choose segment: Lets you select the exact text block to extract.\n\n• Snap floating bubble: Keeps the floating bubble anchored to screen edges.\n\n• Upscale crops: Improves reading accuracy on tiny fonts.\n\n• Captured image: Displays image crop alongside recognized text.</string>
     <string name="help_tip_dicts_title">Dictionaries and licenses</string>
     <string name="help_tip_dicts_desc">Supports Yomitan/Yomichan format dictionaries (such as JMdict, KANJIDIC, etc.). List order defines search priority. Legal credits and licenses for each dictionary are available on the dictionary management screen.</string>
     <string name="help_tip_ai_title">Ask an AI</string>

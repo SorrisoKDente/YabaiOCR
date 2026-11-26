@@ -16,8 +16,43 @@ data class PixelBox(val x: Int, val y: Int, val width: Int, val height: Int) {
     val bottom: Int get() = y + height
 }
 
+/**
+ * A stretch of a line the page itself already prints a reading over, in characters.
+ *
+ * The picker draws readings from the dictionary, and drawing one over characters that already carry
+ * a printed reading would double the ruby and cover the print. [start] is the first character and
+ * [count] how many it spans.
+ */
+data class PrintedReading(val start: Int, val count: Int) {
+
+    /** True when the characters `[start, end)` are at least partly covered by this reading. */
+    fun covers(start: Int, end: Int): Boolean = start < this.start + count && this.start < end
+}
+
+/** True when any of the page's own readings covers the characters `[start, end)`. */
+fun List<PrintedReading>.covers(start: Int, end: Int): Boolean = any { it.covers(start, end) }
+
+/**
+ * The readings worth drawing for a piece: the ones the page does not already print itself.
+ *
+ * [start] and [end] read the character span of one reading, which is what the dictionary hands out
+ * (the mobile and the desktop picker use different shapes for the same thing). A reading that even
+ * partly covers printed furigana is dropped: the print is already there, and a second reading over it
+ * would double the ruby and cover the page (R57).
+ */
+fun <T> List<T>.withoutPrintedReadings(
+    printed: List<PrintedReading>,
+    start: (T) -> Int,
+    end: (T) -> Int,
+): List<T> = if (printed.isEmpty()) this else filterNot { printed.covers(start(it), end(it)) }
+
 /** A recognised line of text plus where it sits in the submitted image. */
-data class LensSegment(val text: String, val box: PixelBox?)
+data class LensSegment(
+    val text: String,
+    val box: PixelBox?,
+    /** The stretches of [text] the page already prints a reading over, if any. */
+    val printed: List<PrintedReading> = emptyList(),
+)
 
 /**
  * One text block — in manga, one speech balloon — plus where it sits.

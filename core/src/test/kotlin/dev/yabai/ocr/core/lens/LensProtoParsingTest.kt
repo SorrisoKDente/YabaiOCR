@@ -3,6 +3,7 @@ package dev.yabai.ocr.core.lens
 import dev.yabai.ocr.core.proto.ProtoReader
 import dev.yabai.ocr.core.proto.ProtoWriter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -204,6 +205,36 @@ class LensProtoParsingTest {
             "the raw lines still show what the recogniser saw",
             blocks.single().lines.contains("しょくいん"),
         )
+        // R57: the piece knows which characters the page already annotates, so the picker can skip
+        // the dictionary reading there instead of drawing a second one over the print.
+        assertEquals(
+            listOf(PrintedReading(0, 1)),
+            blocks.single().pieces.single().printed,
+        )
+    }
+
+    /** R57: the picker must not draw a dictionary reading over the page's own furigana. */
+    @Test
+    fun `readings the page already prints are not drawn again`() {
+        val readings = listOf(0 to 2, 2 to 5, 5 to 6)
+
+        val kept = readings.withoutPrintedReadings(
+            printed = listOf(PrintedReading(0, 2), PrintedReading(5, 1)),
+            start = { it.first },
+            end = { it.second },
+        )
+
+        assertEquals(listOf(2 to 5), kept)
+    }
+
+    @Test
+    fun `a printed reading covers the characters it was placed on`() {
+        val printed = listOf(PrintedReading(start = 1, count = 2))
+
+        assertTrue(printed.covers(start = 0, end = 2))
+        assertTrue(printed.covers(start = 2, end = 3))
+        assertFalse("a stretch before the reading is not covered", printed.covers(0, 1))
+        assertFalse("a stretch after the reading is not covered", printed.covers(3, 5))
     }
 
     private fun blocksOf(lines: List<Pair<PixelBox, String>>): List<LensBlock> =

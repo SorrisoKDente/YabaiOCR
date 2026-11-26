@@ -109,8 +109,17 @@ object LensResultBuilder {
                 box = union(group.mapNotNull { lines[it].box }),
                 // The placed ones, in reading order and without the readings: the picker draws a
                 // reading beside the characters it belongs to, and the readings belong to nothing.
+                // Each piece carries the stretches the page already annotates, so the picker does
+                // not draw a second reading over the printed furigana.
                 pieces = group.filterNot { readings.contains(it) }
-                    .map { LensSegment(lines[it].text, lines[it].box) },
+                    .map { index ->
+                        LensSegment(
+                            lines[index].text,
+                            lines[index].box,
+                            printed = rubies[index].orEmpty()
+                                .map { ruby -> PrintedReading(ruby.start, ruby.count) },
+                        )
+                    },
             )
         }
     }

@@ -181,6 +181,14 @@ object DesktopStrings {
     val hoverActive: String get() = if (isEnglish) "🟢 Active — hover over Japanese text." else "🟢 Ativo — pare o mouse sobre um texto japonês."
     val hoverInactive: String get() = if (isEnglish) "⚪ Inactive — enable to translate on hover." else "⚪ Inativo — ative para traduzir só passando o mouse."
     val hoverDefaultDict: String get() = if (isEnglish) "Default Hover Dictionary:" else "Dicionário Padrão do Modo Hover:"
+    /**
+     * Turning the hover on with no dictionary installed: there would be nothing to answer with, and
+     * the card would come up empty with no way to tell why (R57).
+     */
+    val hoverNeedsDictionary: String get() = if (isEnglish)
+        "Hover mode needs at least one installed and enabled dictionary. Download or enable one (Settings → Dictionaries) to use it."
+    else
+        "O Modo Hover precisa de pelo menos um dicionário instalado e ativado. Baixe ou ative um em Ajustes → Dicionários para usar a função."
     val hoverAllDicts: String get() = if (isEnglish) "🌐 All Dictionaries (Default)" else "🌐 Todos os Dicionários (Padrão)"
 
     // Engine

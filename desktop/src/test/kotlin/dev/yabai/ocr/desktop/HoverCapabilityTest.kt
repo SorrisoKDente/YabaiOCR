@@ -2,6 +2,7 @@ package dev.yabai.ocr.desktop
 
 import java.awt.Rectangle
 import java.awt.image.BufferedImage
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -62,6 +63,51 @@ class HoverCapabilityTest {
         assertEquals(labels.size, labels.toSet().size)
         assertTrue(hoverBackendLabel(HoverBackendKind.UNSUPPORTED).contains("indisponível"))
         assertTrue(hoverBackendLabel(HoverBackendKind.GNOME).contains("GNOME"))
+    }
+
+    /** R57: the hover answers with dictionaries, so it says so instead of coming up empty. */
+    @Test
+    fun `hover refuses to start with no dictionary and says why`() {
+        val refusal = hoverDictionaryRefusal(emptyList())
+
+        assertNotNull("the hover would start with nothing to answer with", refusal)
+        assertTrue(refusal!!.contains("dicionário"))
+        assertNull(hoverDictionaryRefusal(listOf("Jitendex")))
+    }
+
+    /** The refusal is only a notice if turning the switch on actually asks the question. */
+    @Test
+    fun `the hover asks for a dictionary before it starts`() {
+        val source = listOf(
+            File("src/main/kotlin/dev/yabai/ocr/desktop/HoverOcrManager.kt"),
+            File("desktop/src/main/kotlin/dev/yabai/ocr/desktop/HoverOcrManager.kt"),
+        ).first { it.exists() }.readText()
+
+        assertTrue(
+            "the hover starts with no dictionary to answer with",
+            source.contains("hoverDictionaryRefusal(getInstalledDictionaryTitles())"),
+        )
+        // Asking to keep the hover on must not re-read the dictionaries and refuse: that would
+        // switch the UI off while the pointer is still being watched.
+        assertTrue(
+            "an already-enabled hover is re-checked against the dictionaries before anything else",
+            source.indexOf("if (isEnabled == enabled) return isEnabled") in 0 until
+                source.indexOf("hoverDictionaryRefusal(getInstalledDictionaryTitles())"),
+        )
+        assertTrue(
+            "the refusal reason is not kept synchronously for the notice",
+            source.contains("var lastRefusal: String?") &&
+                source.contains("lastRefusal = reason"),
+        )
+
+        val main = listOf(
+            File("src/main/kotlin/dev/yabai/ocr/desktop/Main.kt"),
+            File("desktop/src/main/kotlin/dev/yabai/ocr/desktop/Main.kt"),
+        ).first { it.exists() }.readText()
+        assertTrue(
+            "the hover notice reads the asynchronous status line instead of the refusal reason",
+            main.contains("hoverNotice = hoverOcrManager.lastRefusal"),
+        )
     }
 
     @Test

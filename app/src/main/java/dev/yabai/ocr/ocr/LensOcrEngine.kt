@@ -46,7 +46,14 @@ class LensOcrEngine(
                 pieces = block.pieces.mapNotNull { piece ->
                     val pieceText = JapaneseText.normalize(piece.text).trim()
                     if (pieceText.isEmpty()) return@mapNotNull null
-                    OcrPiece(pieceText, piece.box?.scaledTo(scale, bitmap.width, bitmap.height))
+                    OcrPiece(
+                        text = pieceText,
+                        rect = piece.box?.scaledTo(scale, bitmap.width, bitmap.height),
+                        // The printed stretches are character offsets into the line as reported.
+                        // If normalizing changed the text, they no longer point at the same
+                        // characters; dropping them is safer than skipping the wrong reading.
+                        printed = piece.printed.takeIf { pieceText.length == piece.text.length }.orEmpty(),
+                    )
                 },
             )
         }

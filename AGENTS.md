@@ -67,10 +67,11 @@ Opções do `:core`:
 .\gradlew.bat :core:test -Pdicts="E:\Documentos\DicionariosJapones" # ZIPs reais do Yomitan
 ```
 
-A suíte desktop tem **614 testes** (613 verdes + 1 pulado; nenhum depende da área de trabalho da
-máquina), o `:core` padrão (sem `-Plive`/`-Pdicts`) em **208** e o app, com
-Robolectric, em **986** (493 em cada variante, debug e release) na verificação de 25/11/2026. Se os
-números mudarem, confirme que os testes novos são intencionais e atualize ROADMAP/AGENTS.
+A suíte desktop tem **624 testes** (618 executados + 6 pulados nesta máquina; nenhum depende da
+área de trabalho da máquina), o `:core` padrão (sem `-Plive`/`-Pdicts`) em **210** (184 executados
++ 26 pulados) e o app, com Robolectric, em **1020** (510 em cada variante, debug e release) na
+verificação de 26/11/2026. Se os números mudarem, confirme que os testes novos são intencionais e
+atualize ROADMAP/AGENTS.
 
 ## Teste de regressão e prova de mutação
 

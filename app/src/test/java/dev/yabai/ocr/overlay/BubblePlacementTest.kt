@@ -157,7 +157,9 @@ class BubblePlacementTest {
         val controller = controller(pinned = false)
         controller.showBubble()
         val bubble = controller.bubbleWindow() ?: error("the bubble was not created")
-        drag(bubble, controller.bubbleOrigin(), Point(250, 150))
+        // Dropped past where the narrower screen will end: x=250 still fits in 320 px, so it never
+        // exercised the clamp (the test was expecting the clamp to push it further out).
+        drag(bubble, controller.bubbleOrigin(), Point(500, 150))
 
         // The same drop, with the screen as wide as it is tall in landscape and narrower upright.
         controller.keepBubbleOnScreen(Rect(0, 0, 640, 320))

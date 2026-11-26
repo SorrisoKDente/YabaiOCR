@@ -17,13 +17,22 @@ object RubyLayout {
     /** Above this fraction of the glyph size a reading stops being ruby and starts being noise. */
     private const val SIZE_RATIO = 0.55f
 
+    /** Air kept between the reading and the text it steps away from. */
+    private const val AIR = 1f
+
     /**
-     * Where to draw [text] over [characters] characters of a line, or null when the line is too thin
-     * to carry a legible reading.
+     * Where to draw [text] over [characters] characters of a line, or null when there is no room for
+     * even a small reading on either side.
+     *
+     * The reading goes where Japanese prints it — the right gutter of a column, above a row — and
+     * never covers another piece of text. It first tries its full size there; when the gutter is
+     * narrower than that, it **shrinks** to whatever the gap allows, down to [MIN_SIZE]. Only when
+     * neither side has room for a legible reading is none drawn (R57, R58).
      *
      * @param left,top,width,height the line's box on screen.
      * @param vertical true for a column of vertical text, false for a row.
      * @param from,to the stretch the reading belongs to, as fractions of the line's length.
+     * @param blocked the boxes of every other piece of text on the page, on screen.
      */
     fun spot(
         left: Float,
@@ -34,8 +43,10 @@ object RubyLayout {
         from: Float,
         to: Float,
         characters: Int,
+        blocked: List<RubyBox> = emptyList(),
     ): RubySpot? {
         if (characters <= 0 || width <= 0f || height <= 0f) return null
+
         if (vertical) {
             val spanTop = top + height * from.coerceIn(0f, 1f)
             // As thin as the glyphs of the line it explains, and never more than the line can hold:
@@ -45,28 +56,121 @@ object RubyLayout {
             if (size < MIN_SIZE) return null
             // Anchored on the characters it reads, but pushed up rather than running past the
             // bottom of the column.
-            val y = spanTop.coerceAtMost(top + height - size * characters).coerceAtLeast(top)
-            return RubySpot(
-                x = left + width + width * 0.15f,
-                y = y,
-                size = size,
-                stacked = true,
-            )
+            fun yFor(heightAtSize: Float): Float =
+                spanTop.coerceAtMost(top + height - heightAtSize * characters).coerceAtLeast(top)
+            fun placed(at: Float, x: Float): RubySpot? =
+                RubySpot(x = x, y = yFor(at), size = at, stacked = true)
+                    .takeIf { it.isFree(characters, blocked) }
+
+            val right = left + width
+            val bandTop = yFor(size)
+            val bandBottom = bandTop + size * characters
+            placed(size, right + width * 0.15f)?.let { return it }
+            shrunkToFit(size, freeWidth(blocked, right, toRight = true, bandTop, bandBottom))
+                ?.let { fitted -> placed(fitted, right + AIR)?.let { return it } }
+
+            // The other gutter, for a column that is the last one of its balloon.
+            placed(size, left - width * 0.15f - size)?.let { return it }
+            shrunkToFit(size, freeWidth(blocked, left, toRight = false, bandTop, bandBottom))
+                ?.let { fitted -> placed(fitted, left - AIR - fitted)?.let { return it } }
+            return null
         }
 
         val size = height * SIZE_RATIO
         if (size < MIN_SIZE) return null
         val start = left + width * from.coerceIn(0f, 1f)
         val end = left + width * to.coerceIn(0f, 1f)
-        return RubySpot(
-            // A horizontal reading is centred over the characters, so it is laid out around the
-            // middle of the stretch rather than from its start.
-            x = (start + end) / 2f,
-            y = top - size,
-            size = size,
-            stacked = false,
-        )
+        val centre = (start + end) / 2f
+        fun placed(at: Float, y: Float): RubySpot? =
+            RubySpot(x = centre, y = y, size = at, stacked = false)
+                .takeIf { it.isFree(characters, blocked) }
+        val bandLeft = centre - size * characters / 2f
+        val bandRight = centre + size * characters / 2f
+
+        // A horizontal reading is centred over the characters, so it is laid out around the middle
+        // of the stretch rather than from its start.
+        placed(size, top - size)?.let { return it }
+        shrunkToFit(size, freeHeight(blocked, top, toBottom = false, bandLeft, bandRight))
+            ?.let { fitted -> placed(fitted, top - fitted)?.let { return it } }
+        placed(size, top + height)?.let { return it }
+        shrunkToFit(size, freeHeight(blocked, top + height, toBottom = true, bandLeft, bandRight))
+            ?.let { fitted -> placed(fitted, top + height)?.let { return it } }
+        return null
     }
+
+    /**
+     * The reading shrunk to [free] room, leaving [AIR] of clear space on each side, or null when not
+     * even [MIN_SIZE] fits there. Unlimited room keeps the full [size].
+     *
+     * The room is measured across the reading's **full-size** box. Every smaller reading sits inside
+     * it — a shorter stack starts no higher and ends no lower, and a narrower line stays centred — so
+     * one measurement covers every size the reading can end up at, including the pushed-up placement
+     * near the end of a column.
+     */
+    private fun shrunkToFit(size: Float, free: Float): Float? =
+        if (!free.isFinite()) size else minOf(size, free - 2f * AIR).takeIf { it >= MIN_SIZE }
+
+    /** Room from [edge] to the nearest box on that side, across [bandTop, bandBottom). */
+    private fun freeWidth(
+        blocked: List<RubyBox>,
+        edge: Float,
+        toRight: Boolean,
+        bandTop: Float,
+        bandBottom: Float,
+    ): Float {
+        var nearest = if (toRight) Float.POSITIVE_INFINITY else Float.NEGATIVE_INFINITY
+        for (box in blocked) {
+            if (box.bottom <= bandTop || box.top >= bandBottom) continue
+            if (toRight) {
+                if (box.left >= edge) nearest = minOf(nearest, box.left)
+            } else {
+                if (box.right <= edge) nearest = maxOf(nearest, box.right)
+            }
+        }
+        if (!nearest.isFinite()) return Float.POSITIVE_INFINITY
+        return if (toRight) nearest - edge else edge - nearest
+    }
+
+    /** Room from [edge] to the nearest box above or below, across [bandLeft, bandRight). */
+    private fun freeHeight(
+        blocked: List<RubyBox>,
+        edge: Float,
+        toBottom: Boolean,
+        bandLeft: Float,
+        bandRight: Float,
+    ): Float {
+        var nearest = if (toBottom) Float.POSITIVE_INFINITY else Float.NEGATIVE_INFINITY
+        for (box in blocked) {
+            if (box.right <= bandLeft || box.left >= bandRight) continue
+            if (toBottom) {
+                if (box.top >= edge) nearest = minOf(nearest, box.top)
+            } else {
+                if (box.bottom <= edge) nearest = maxOf(nearest, box.bottom)
+            }
+        }
+        if (!nearest.isFinite()) return Float.POSITIVE_INFINITY
+        return if (toBottom) nearest - edge else edge - nearest
+    }
+
+    /** The room the reading will take: as thin as one glyph, as long as its kana. */
+    private fun RubySpot.area(characters: Int): RubyBox = if (stacked) {
+        RubyBox(x, y, x + size, y + size * characters)
+    } else {
+        RubyBox(x - size * characters / 2f, y, x + size * characters / 2f, y + size)
+    }
+
+    private fun RubySpot.isFree(characters: Int, blocked: List<RubyBox>): Boolean {
+        val area = area(characters)
+        return blocked.none { it.overlaps(area) }
+    }
+}
+
+/** A rectangle on screen, used to keep a reading off the text it must not cover (R57). */
+data class RubyBox(val left: Float, val top: Float, val right: Float, val bottom: Float) {
+
+    /** True when the two share any pixels. Boxes that merely touch do not fight for the page. */
+    fun overlaps(other: RubyBox): Boolean =
+        left < other.right && other.left < right && top < other.bottom && other.top < bottom
 }
 
 /**

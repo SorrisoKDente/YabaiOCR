@@ -43,10 +43,10 @@ class ReadingCardTest {
     fun `the camera's reading card takes the window width so the label is not cut`() {
         val root = cameraRoot()
         val card = root.findViewWithTag<View>(CameraActivity.LOADING_TAG)
-        val label = texts(card).first { it.text.toString() == context.getString(R.string.camera_reading) }
+        val label = texts(card).first { it.text.toString() == context.getString(R.string.recognizing) }
 
         assertEquals(
-            "the card hugging its own label is what cut «Reconhecendo o texto…»",
+            "the card hugging its own label is what cut «Reconhecendo…»",
             root.width - context.dp(2 * 16),
             card.width,
         )
@@ -73,6 +73,34 @@ class ReadingCardTest {
         )
     }
 
+    /**
+     * R57: the wait is one thin line, with the way out beside the label instead of under it.
+     *
+     * The old two-row card was over 110 dp tall. Robolectric's fake font metrics can wrap the label
+     * in a test even though it fits on a phone, so the height is only held under the two-row card's,
+     * and the same row is proved by «Cancelar» starting after the label ends.
+     */
+    @Test
+    fun `the wait is a thin line and the cancel sits beside the label`() {
+        val root = cameraRoot()
+        val card = root.findViewWithTag<View>(CameraActivity.LOADING_TAG)
+        val label = texts(card).first { it.text.toString() == context.getString(R.string.recognizing) }
+        val cancel = texts(card).first { it.text.toString() == context.getString(R.string.recognition_cancel) }
+
+        assertTrue(
+            "the waiting bar is ${card.height}px tall: it is a card again, not a line",
+            card.height < context.dp(80),
+        )
+        assertTrue(
+            "«Cancelar» is not beside the label: ${cancel.left} vs ${label.right}",
+            cancel.left >= label.right,
+        )
+        assertTrue(
+            "the only way out of the wait is ${cancel.minHeight}dp tall: too small for a finger",
+            cancel.minHeight >= context.dp(36),
+        )
+    }
+
     @Test
     fun `the panel's cancel is red and sits at the right end`() {
         val panel = ResultOverlay(context).apply { showLoading { } }
@@ -96,7 +124,11 @@ class ReadingCardTest {
             context.getColor(R.color.warn),
             (cancel.background as? GradientDrawable)?.color?.defaultColor,
         )
-        assertEquals("«Cancelar» is not at the right end of its row", row.width, cancel.right)
+        assertEquals(
+            "«Cancelar» is not at the right end of its row",
+            row.width - row.paddingRight,
+            cancel.right,
+        )
     }
 
     /** The camera screen with the reading card on screen, laid out at the display's size. */

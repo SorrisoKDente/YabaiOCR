@@ -13,7 +13,6 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
 import android.os.Bundle
-import android.util.TypedValue
 import android.view.Display
 import android.view.Gravity
 import android.view.OrientationEventListener
@@ -21,9 +20,6 @@ import android.view.Surface
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -44,7 +40,7 @@ import dev.yabai.ocr.capture.DeviceRotation
 import dev.yabai.ocr.capture.placeInPhoneFrame
 import dev.yabai.ocr.capture.PhotoWait
 import dev.yabai.ocr.capture.ScreenMetrics
-import dev.yabai.ocr.overlay.actionButton
+import dev.yabai.ocr.overlay.loadingBar
 import dev.yabai.ocr.overlay.roundedBackground
 import dev.yabai.ocr.service.FloatingOcrService
 import dev.yabai.ocr.util.dp
@@ -243,54 +239,19 @@ class CameraActivity : AppCompatActivity() {
     /**
      * The picture stays put while the engines read it; this is the only thing that moves.
      *
-     * The card spans the window, and the label takes the line the spinner leaves: measured to its own
-     * content, «Reconhecendo o texto…» came out cut (R50).
+     * The wait is the panel's own thin bar ([loadingBar], R57): the camera had a card, a wording and
+     * a layout of its own, and «Reconhecendo o texto…» came out cut in it (R50). One builder for the
+     * two means the wait cannot look different depending on whether the picture came from the bubble
+     * or the camera.
      */
-    private fun buildLoading(): View = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(18), dp(14), dp(18), dp(12))
-        background = roundedBackground(0xCC1B1D24.toInt(), dp(16).toFloat(), 0x33FFFFFF)
+    private fun buildLoading(): View = loadingBar(
+        label = getString(R.string.recognizing),
+        textColor = Color.WHITE,
+        onCancel = { cancelReading() },
+        background = roundedBackground(0xCC1B1D24.toInt(), dp(16).toFloat(), 0x33FFFFFF),
+    ).apply {
         visibility = View.GONE
         tag = LOADING_TAG
-        addView(
-            LinearLayout(this@CameraActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                addView(
-                    ProgressBar(this@CameraActivity).apply {
-                        isIndeterminate = true
-                        indeterminateTintList = ColorStateList.valueOf(Color.WHITE)
-                    },
-                )
-                addView(
-                    TextView(this@CameraActivity).apply {
-                        text = getString(R.string.camera_reading)
-                        setTextColor(Color.WHITE)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                        setPadding(dp(14), 0, 0, 0)
-                    },
-                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-                )
-            },
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ),
-        )
-        // The ✕ closes the screen without stopping the reading; this is the way out that keeps it (R48m).
-        addView(
-            actionButton(
-                getString(R.string.recognition_cancel),
-                background = getColor(R.color.warn),
-            ) { cancelReading() },
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply {
-                gravity = Gravity.END
-                topMargin = dp(10)
-            },
-        )
     }
 
     private fun buildShutter(): View = FrameLayout(this).apply {

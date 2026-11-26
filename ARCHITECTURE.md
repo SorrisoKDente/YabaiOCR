@@ -105,7 +105,7 @@ antes de citá-los.
 | `LensProto.kt` | leitor de protobuf à mão (varint, campos, tamanhos) |
 | `LensResultBuilder.kt` | monta `LensResult` a partir da resposta bruta, na ordem de leitura |
 | `FuriganaMode.kt` | `REMOVE` / `PARENTHESES`: o que fazer com a leitura impressa ao lado do kanji |
-| `RubyGeometry.kt` | geometria de rubi (leitura sobre o kanji) para desenhar no overlay/picker |
+| `RubyGeometry.kt` | geometria de rubi (leitura sobre o kanji) para desenhar no overlay/picker; as peças do `LensBlock` levam as leituras já impressas para o picker não as duplicar (R57) |
 
 **Regra de ouro:** o texto reconhecido é o dado. Nada aqui "corrige" caractere reconhecido.
 
@@ -210,7 +210,7 @@ rodam com as flags acima.
 | `KWinScreenshotCapture.kt` | caminho principal no KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + QImage cru, fallback para o portal |
 | `PortalScreenshotCapture.kt` | portal `Screenshot` do KDE (Wayland) via D-Bus; compatibilidade quando o ScreenShot2 não existe |
 | `SegmentPickerWindow.kt` | seletor de tela inteira: desenha as caixas e devolve o trecho escolhido |
-| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | geometria das caixas, leituras no picker e posicionamento da janela |
+| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | geometria das caixas, leituras no picker e posicionamento da janela; o rubi não é desenhado sobre a furigana impressa nem sobre outra peça de texto e encolhe para caber na folga antes de desistir (R57, R58) |
 | `RegionSelectionWindow.kt` | recorte à mão com alças (`CropHandle`) |
 
 ### Hover
@@ -324,9 +324,10 @@ valem destaque:
 | `service/LookupOverlayService.kt` | busca do dicionário sobre outras apps |
 | `service/YabaiTileService.kt` | bloco de configurações rápidas |
 | `overlay/OverlayController.kt` | ciclo de vida dos overlays |
-| `overlay/ResultOverlay.kt` | painel de resultado (texto, tradução, ações, dicionário; o spinner do reconhecimento com o «Cancelar» — R48m) |
+| `overlay/ResultOverlay.kt` | painel de resultado (texto, tradução, ações, dicionário; a espera pelo reconhecimento é a barra fina compartilhada — R48m, R57) |
+| `overlay/LoadingBar.kt` | a barra fina da espera (spinner, rótulo com peso e «Cancelar» vermelho ao lado), usada pelo painel e pela câmera (R57) |
 | `overlay/TextPickerOverlay.kt` | seletor de trechos sobre a captura, com a página virada para o quadro do celular (R48g) e a barra de ações e a dica acompanhando o giro (R48g, R48h) |
-| `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` / `PageTurn.kt` | regra de "sempre mostrar o seletor", alvos de toque, zoom, leituras e o giro da página para o quadro do celular (R48g) |
+| `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` / `PageTurn.kt` | regra de "sempre mostrar o seletor", alvos de toque, zoom, leituras (sem cobrir a furigana impressa nem o texto vizinho, encolhendo para caber na folga — R57, R58) e o giro da página para o quadro do celular (R48g) |
 | `overlay/RegionOverlay.kt` | recorte à mão |
 | `overlay/AppPickerOverlay.kt` | escolha do app de IA |
 | `overlay/KanjiOverlay.kt` / `KanjiCardText.kt` | card de kanji (traços, leituras, compostos) |

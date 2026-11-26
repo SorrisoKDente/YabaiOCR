@@ -238,6 +238,11 @@ fun main(args: Array<String>) {
         if (!hoverState.active) {
             hoverState.matches = emptyList()
             hoverState.point = null
+            // A refusal has a reason — no dictionary, say — and the notice window says it instead
+            // of leaving the switch silently off (R57). The reason is read from the manager, not
+            // from the status line: that one is published asynchronously and would still carry the
+            // previous message here.
+            if (enabled) hoverNotice = hoverOcrManager.lastRefusal ?: hoverState.status
         }
     }
 

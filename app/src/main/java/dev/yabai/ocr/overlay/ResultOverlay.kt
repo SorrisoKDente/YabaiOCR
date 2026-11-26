@@ -871,7 +871,8 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * The panel while the engines read, with the way out of the wait (R48m).
      *
      * [onCancel] is its «Cancelar»: a page can take seconds, and a spinner with no way out is a
-     * screen the user can only escape by dismissing the panel, losing the capture anyway.
+     * screen the user can only escape by dismissing the panel, losing the capture anyway. The bar is
+     * shared with the camera screen ([loadingBar], R57).
      */
     fun showLoading(onCancel: () -> Unit) {
         card.removeAllViews()
@@ -886,41 +887,13 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // reference of a previous panel behind rather than folding this spinner away.
         headerRow = null
         minimised = false
+        // One thin line, the same one the camera shows: spinner, label with the room it needs and
+        // the red «Cancelar» beside it (R57).
         card.addView(
-            LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(0, dp(10), 0, dp(10))
-                addView(
-                    LinearLayout(context).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        addView(ProgressBar(context).apply { isIndeterminate = true })
-                        // The label takes whatever the spinner leaves: the row is as wide as the card,
-                        // so «Reconhecendo o texto…» has room to be read whole (R50).
-                        addView(
-                            textLabel(
-                                context.getString(R.string.recognizing),
-                                16f,
-                                context.getColor(R.color.text_primary),
-                            ).apply { setPadding(dp(14), 0, 0, 0) },
-                            LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f),
-                        )
-                    },
-                    LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
-                )
-                // «Cancelar» is the way out of the wait, so it is red like every way out and sits at
-                // the right end of the card, out of the line the text is read on (R50).
-                addView(
-                    actionButton(
-                        context.getString(R.string.recognition_cancel),
-                        background = context.getColor(R.color.warn),
-                    ) { onCancel() },
-                    LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-                        gravity = Gravity.END
-                        topMargin = dp(12)
-                    },
-                )
-            },
+            context.loadingBar(
+                label = context.getString(R.string.recognizing),
+                textColor = context.getColor(R.color.text_primary),
+            ) { onCancel() },
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
         )
     }

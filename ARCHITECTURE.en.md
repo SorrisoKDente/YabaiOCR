@@ -106,7 +106,7 @@ before quoting them.
 | `LensProto.kt` | hand-written protobuf reader (varint, fields, lengths) |
 | `LensResultBuilder.kt` | builds `LensResult` from the raw response, in reading order |
 | `FuriganaMode.kt` | `REMOVE` / `PARENTHESES`: what to do with the printed reading next to the kanji |
-| `RubyGeometry.kt` | ruby geometry (reading above the kanji) for the overlay/picker |
+| `RubyGeometry.kt` | ruby geometry (reading above the kanji) for the overlay/picker; the `LensBlock` pieces carry the printed readings so the picker does not double them (R57) |
 
 **Golden rule:** the recognized text is the data. Nothing here "fixes" a recognized character.
 
@@ -212,7 +212,7 @@ flags above.
 | `KWinScreenshotCapture.kt` | primary path on KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + raw QImage, fallback to the portal |
 | `PortalScreenshotCapture.kt` | KDE `Screenshot` portal (Wayland) over D-Bus; compatibility when ScreenShot2 is absent |
 | `SegmentPickerWindow.kt` | full-screen picker: draws the boxes and returns the chosen segment |
-| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | box geometry, picker readings and window placement |
+| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | box geometry, picker readings and window placement; ruby is not drawn over printed furigana or another piece of text and shrinks to fit the gap before giving up (R57, R58) |
 | `RegionSelectionWindow.kt` | manual crop with handles (`CropHandle`) |
 
 ### Hover
@@ -327,8 +327,9 @@ worth knowing:
 | `service/LookupOverlayService.kt` | dictionary lookup over other apps |
 | `service/YabaiTileService.kt` | quick settings tile |
 | `overlay/OverlayController.kt` | overlay lifecycle |
-| `overlay/ResultOverlay.kt` | result panel (text, translation, actions, dictionary; the recognition spinner with its «Cancel» — R48m) |
-| `overlay/TextPickerOverlay.kt` | segment picker over the capture, with the page turned into the phone's frame (R48g) and the action bar and the hint following that turn (R48g, R48h) |
+| `overlay/ResultOverlay.kt` | result panel (text, translation, actions, dictionary; the wait for a reading is the shared thin bar — R48m, R57) |
+| `overlay/LoadingBar.kt` | the thin wait bar (spinner, weighted label and red «Cancel» beside it), shared by the panel and the camera (R57) |
+| `overlay/TextPickerOverlay.kt` | segment picker over the capture, with the page turned into the phone's frame (R48g), the action bar and the hint following that turn (R48g, R48h), and ruby that steps aside, or shrinks into the gap, instead of covering another piece of text (R57, R58) |
 | `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` / `PageTurn.kt` | "always show the picker" rule, touch targets, zoom, readings and the page's turn into the phone's frame (R48g) |
 | `overlay/RegionOverlay.kt` | manual crop |
 | `overlay/AppPickerOverlay.kt` | AI app choice |

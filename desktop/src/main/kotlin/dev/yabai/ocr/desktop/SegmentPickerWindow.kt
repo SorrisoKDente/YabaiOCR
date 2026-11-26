@@ -40,6 +40,7 @@ import dev.yabai.ocr.core.dict.LookupEngine
 import dev.yabai.ocr.core.lens.LensResult
 import dev.yabai.ocr.core.lens.LensSegment
 import dev.yabai.ocr.core.lens.PixelBox
+import dev.yabai.ocr.core.lens.withoutPrintedReadings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.awt.Dimension
@@ -228,6 +229,11 @@ fun SegmentPickerWindow(
                 blockRects = blocks.map { block ->
                     block.box?.let { PickerBoxes.toCanvas(it, imageSize, canvas) }
                 }
+                // Every piece of the page, so a reading can step aside instead of covering a
+                // neighbouring column of text (R57).
+                val rubyBlocked = blocks.flatMap { block ->
+                    block.lines.mapNotNull { line -> PickerBoxes.toCanvas(line.box, imageSize, canvas) }
+                }
 
                 val taken = mutableListOf<Rectangle>()
 
@@ -249,7 +255,7 @@ fun SegmentPickerWindow(
                     )
 
                     if (readingMode == DesktopPickerReadingMode.RUBY) {
-                        drawRuby(block, imageSize, canvas, textMeasurer)
+                        drawRuby(block, imageSize, canvas, textMeasurer, rubyBlocked)
                     }
 
                     if (readingMode == DesktopPickerReadingMode.LABEL) {
@@ -387,12 +393,13 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRuby(
     imageSize: Dimension,
     canvas: Dimension,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    blocked: List<Rectangle>,
 ) {
     for (line in block.lines) {
         val vertical = HoverTextSelector.isVertical(line.box)
         for (reading in line.readings) {
             val span = PickerBoxes.toCanvas(reading.box, imageSize, canvas)
-            val spot = PickerRuby.spot(span, vertical, reading.text.length) ?: continue
+            val spot = PickerRuby.spot(span, vertical, reading.text.length, blocked) ?: continue
             val style = TextStyle(
                 color = if (reading.certain) Color.White else Color(0xFFFFD479),
                 fontSize = spot.size.toSp(),
@@ -466,7 +473,11 @@ private fun scanScreen(
                     // boxes: without readings the picker still clicks and crops.
                     runCatching {
                         val matches = engine.lookup(piece.text, only = only)
-                        engine.readings(piece.text, matches, only).mapNotNull { reading ->
+                        // The page's own furigana is already there; a second reading would cover
+                        // the print and say the same thing twice (R57).
+                        val readings = engine.readings(piece.text, matches, only)
+                            .withoutPrintedReadings(piece.printed, { it.start }, { it.end })
+                        readings.mapNotNull { reading ->
                             if (reading.start >= reading.end) return@mapNotNull null
                             PickerReading(
                                 text = reading.text,

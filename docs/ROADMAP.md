@@ -9681,3 +9681,130 @@ o mesmo conjunto de chaves.
   estreitas seguem por conferir, e por isso o E2E desta entrada está pendente. O resto do app não
   mudou de comportamento: a ordem dos ajustes dentro de cada aba é a que já existia, e
   `DictionaryActivity`, o manual e o serviço flutuante seguem como estavam.
+### R57 — Bolha flutuante nomeada, rubi sem duplicar furigana, espera em uma linha e hover com dicionário  `[x]` (26/11/2026)
+
+**Pedido.** «A checkbox de prender a bolha nas bordas precisa falar que é a bolha flutuante.» «A
+opção do rubi ajustar para não aparecer furigana onde já tem furigana, e tentar não sobrepor outros
+textos» — no desktop e no celular. «Quando aparece o texto "Reconhecendo", ele deve ficar em um
+retângulo mais fino e o botão de cancelar ao lado dele»; a câmera usava outro texto e outro cartão.
+«Caso o usuário tente ativar o hover e não tiver nenhum dicionário, deve ter um aviso.»
+
+- **Rótulo.** `setting_bubble_on_edge` passou a «Prender a bolha flutuante nas bordas» / «Snap the
+  floating bubble to screen edges», e a dica de comportamento diz o mesmo. A opção prende a bolha
+  do serviço, não uma bolha da tela de Ajustes; sem o adjetivo o usuário não tinha como saber.
+- **Furigana impressa.** O Lens já devolve a leitura impressa como linha própria e `RubyGeometry` a
+  reconhece. O que faltava era o picker saber onde ela está: `LensSegment` ganhou `printed`
+  (`PrintedReading(start, count)`), preenchido em `LensResultBuilder` para cada peça, e atravessa
+  `OcrPiece`/`PendingPiece` no celular e o `LensSegment` do desktop. `withoutPrintedReadings` corta
+  as leituras do dicionário que cobrem esses caracteres, nos dois seletores — antes o segundo rubi
+  caía exatamente sobre a furigana impressa, dobrando a leitura e cobrindo o desenho.
+- **Sobreposição.** `RubyLayout.spot` (celular) e `PickerRuby.spot` (desktop) recebem as caixas de
+  todas as peças de texto da página. O rubi continua indo para o lado da tipografia japonesa —
+  direita de uma coluna, acima de uma linha —, mas passa para o outro lado quando o preferido
+  cobriria outra coluna/linha; se os dois lados estiverem ocupados, ele não é desenhado; R58 passou a encolher antes de desistir. Uma leitura
+  a menos é melhor que uma leitura sobre o texto que o usuário está tentando ler.
+- **Espera.** `overlay/LoadingBar.kt` tem a barra única: spinner de 20 dp, rótulo com peso e
+  «Cancelar» vermelho ao lado, tudo em 12/6/8/6 dp de padding. `ResultOverlay.showLoading` e
+  `CameraActivity.buildLoading` usam a mesma função; a câmera deixou de ter cartão, layout e texto
+  próprios e usa `recognizing` («Reconhecendo…»), como o painel. `camera_reading` foi removida dos
+  dois idiomas. O `Cancelar` deixa de ficar na diagonal abaixo do texto (R50) e a espera cai de
+  mais de 110 dp de altura para uma linha.
+- **Hover.** `hoverDictionaryRefusal(titles)` devolve `hoverNeedsDictionary` quando não há
+  dicionário instalado, e `HoverOcrManager.setEnabled` recusa ligar nesse caso; `Main.applyHover`
+  leva o motivo para a mesma janela de aviso das falhas de captura. Antes o modo ligava e a resposta
+  vinha vazia, o que parece defeito e não falta de download.
+- **Arquivos.** `core/lens/LensModels.kt`, `LensResultBuilder.kt`, `app/ocr/OcrEngine.kt`,
+  `LensOcrEngine.kt`, `service/FloatingOcrService.kt`, `overlay/PickerReadingLayout.kt`,
+  `TextPickerOverlay.kt`, `LoadingBar.kt` (novo), `ResultOverlay.kt`, `CameraActivity.kt`,
+  `desktop/PickerReadings.kt`, `SegmentPickerWindow.kt`, `HoverCapability.kt`,
+  `HoverOcrManager.kt`, `Main.kt`, `i18n/DesktopStrings.kt`, strings pt-BR/en, e os testes
+  `ReadingCardTest`, `CameraCaptureTest`, `PickerReadingLayoutTest`, `PrintedRubyTest` (novo),
+  `BubbleLabelTest` (novo), `PickerReadingsTest`, `HoverCapabilityTest`, `LensProtoParsingTest`.
+
+| mutação | teste que acusa |
+| --- | --- |
+| «Cancelar» da espera sem o vermelho | `the camera's cancel is red…` e `the panel's cancel is red…` — `ReadingCardTest.kt:64` e `:118` |
+| desktop desenha rubi sem as caixas vizinhas | `the picker skips printed furigana and keeps ruby off the other text` — `PickerReadingsTest.kt:110` |
+| celular desenha rubi sem as caixas vizinhas | `the mobile picker skips readings over printed furigana` — `PrintedRubyTest.kt:25` |
+| desktop ignora a furigana impressa | o mesmo teste de `PickerReadingsTest` — `:106` |
+| hover não pergunta por dicionário | `the hover asks for a dictionary before it starts` — `HoverCapabilityTest.kt:86` |
+| rótulo volta a não dizer qual bolha | `the snap setting names the floating bubble` — `BubbleLabelTest.kt:25` |
+
+Testes: **app 505 por variante (1010)**, 0 falhas; **desktop 620** (614 executados, 6 pulados),
+0 falhas (`--rerun-tasks`); **core 210** (184 executados, 26 pulados), 0 falhas. `BubblePlacementTest`
+tinha um alvo de arrasto de 250 px que já cabia na tela de 320 px, então esperava o clamp empurrar a
+bolha para fora; o alvo passou a 500 px para o teste exercitar a borda de verdade — sem tocar no
+código de produção.
+
+- **Limite.** Nada foi visto em aparelho nem em emulador: a barra fina, o rubi ao lado da furigana
+  impressa e o aviso do hover seguem por conferir em tela. A furigana impressa só é reconhecida no
+  caminho do Lens; o PP-OCR offline não separa a leitura do texto, então nele o rubi do dicionário
+  continua sem essa comparação. O aviso do hover foi provado pela mensagem e pela chamada, não por
+  um clique no E2E do desktop.
+**Revisão (segunda passada).**
+
+- **Hover, ordem.** `setEnabled` devolve cedo quando o estado já é o pedido: pedir para manter ligado
+  não relê os dicionários nem pode recusar — o que desligaria a UI com o ponteiro ainda sendo
+  observado.
+- **Hover, aviso.** `publishStatus` entrega por `SwingUtilities.invokeLater`, e o `Main` lia
+  `hoverState.status` logo depois: anunciava o status anterior, não o motivo da recusa. O manager
+  guarda `lastRefusal` de forma síncrona e o aviso lê esse campo.
+- **Texto do aviso.** «instalado e ativado»: a checagem usa os dicionários **habilitados**
+  (`DesktopDictLoader.installedTitles(settings)`), então um dicionário apenas desativado também
+  recusa.
+- **Toque.** O «Cancelar» da barra passou de 28 dp para 36 dp de altura mínima (48 dp de largura
+  mínima): é a única saída de uma espera que pode durar segundos.
+- **Offsets.** `LensOcrEngine` descarta `printed` quando normalizar/aparar mudou o comprimento do
+  texto da peça; sem isso o rubi podia ser suprimido nos caracteres errados.
+
+| mutação | teste que acusa |
+| --- | --- |
+| remover o retorno cedo de `setEnabled` | `the hover asks for a dictionary before it starts` — `HoverCapabilityTest.kt:92` |
+| o aviso voltar a ler `hoverState.status` | o mesmo teste — `:107` |
+| «Cancelar» voltar a 28 dp | `the wait is a thin line…` — `ReadingCardTest.kt:98` |
+| remover a guarda de comprimento em `LensOcrEngine` | `the mobile picker skips readings over printed furigana` — `PrintedRubyTest.kt:31` |
+### R58 — Rubi encolhe para caber na folga em vez de desaparecer  `[x]` (26/11/2026)
+
+**Pedido.** «A regra de não sobrepor pode fazer o rubi sumir em colunas verticais apertadas. Ajuste
+para preservar a leitura onde houver qualquer folga, inclusive reduzindo o tamanho, e só não desenhar
+quando não houver espaço mesmo, mantendo a prioridade de não cobrir outro texto.»
+
+- **Causa raiz.** A regra de R57 era tudo-ou-nada: o rubi tentava o tamanho cheio (55% da coluna) no
+  lado preferido, depois o outro lado, e desistia. Numa coluna vertical de mangá o vão entre colunas
+  costuma ser 15–20% da largura, então o tamanho cheio nunca cabia e o rubi sumia na maior parte da
+  página — a regra que impedia a sobreposição acabava escondendo a leitura.
+- **Correção.** `RubyLayout.spot` (celular) e `PickerRuby.spot` (desktop) agora medem a **folga até a
+  caixa de texto mais próxima** no lado em que a leitura vai (`freeWidth`/`freeHeight`, dentro da
+  faixa vertical/horizontal que a leitura ocupa). Cada lado é tentado em duas etapas: primeiro o
+  tamanho cheio, no lugar de sempre; depois, se o vão for menor, a leitura **encolhe** para
+  `folga − 2·AIR` (1 px de ar de cada lado), respeitando `MIN_SIZE`/`MIN_SIZE_PX` = 7 px. O lado
+  preferido (direita de coluna, acima de linha) é tentado antes do outro, e cada colocação continua
+  passando pela checagem final de sobreposição (`isFree`), que é quem garante que nada cobre outro
+  texto. Só não há rubi quando os dois lados não comportam nem 7 px.
+- **Efeito.** O rubi passa a existir onde houver qualquer folga legível, mesmo que pequeno; onde não
+  houver, nada é desenhado. O teste `a narrow gutter shrinks the reading instead of dropping it`
+  parte de um vão de 11 px e recebe a leitura com 9 px; `a reading disappears only when both gutters
+  are too narrow` fixa o único caso de ausência. Dois casos de borda ganharam teste na revisão: a
+  leitura no fim da coluna (`a reading at the end of a column…`, `y` = 138 − 9·2) e o encaixe no
+  tamanho cheio a 1 px da coluna quando o deslocamento usual de 15% tocaria a vizinha
+  (`a full-size reading hugs…`).
+- **Arquivos.** `app/src/main/java/dev/yabai/ocr/overlay/PickerReadingLayout.kt`,
+  `desktop/src/main/kotlin/dev/yabai/ocr/desktop/PickerReadings.kt`,
+  `app/src/test/java/dev/yabai/ocr/overlay/PickerReadingLayoutTest.kt`,
+  `desktop/src/test/kotlin/dev/yabai/ocr/desktop/PickerReadingsTest.kt`, `ARCHITECTURE.md`/`.en.md`.
+
+| mutação | teste que acusa |
+| --- | --- |
+| celular não encolhe (exige o tamanho cheio) | `a narrow gutter shrinks…` e `a row shrinks upward…` — `PickerReadingLayoutTest.kt:78` |
+| desktop não encolhe | os mesmos casos em `PickerReadingsTest.kt:65` |
+| encolher sem ar (`AIR = 0`) no celular | `a narrow gutter shrinks…` — tamanho 11 em vez de 9 |
+| encolher sem ar no desktop | o mesmo caso em `PickerReadingsTest.kt:65` |
+| encaixe no tamanho cheio volta ao deslocamento de 15% | `a full-size reading hugs…` no celular e no desktop |
+
+Testes: **app 510 por variante (1020)**, 0 falhas; **desktop 624** (618 executados, 6 pulados), 0
+falhas; **core 210** (184 executados, 26 pulados), 0 falhas (`--rerun-tasks`).
+
+- **Limite.** Nada foi visto em tela: o tamanho mínimo de 7 px foi escolhido por legibilidade, não
+  medido numa página real; num vão muito estreito a leitura fica minúscula e o usuário pode preferir
+  a faixa legível. A furigana impressa continua só sendo detectada no caminho do Lens, e o rubi
+  horizontal ainda ocupa a linha inteira do vão quando o texto acima está perto.

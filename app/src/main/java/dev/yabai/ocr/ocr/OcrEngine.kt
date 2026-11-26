@@ -2,13 +2,21 @@ package dev.yabai.ocr.ocr
 
 import android.graphics.Bitmap
 import android.graphics.Rect
+import dev.yabai.ocr.core.lens.PrintedReading
 
 /**
  * One piece of a block: a column of vertical text, a row of horizontal text, with where it was
  * printed. The readings of a piece are drawn beside this box, so a reading lands next to the
  * characters it belongs to and not next to the block as a whole.
+ *
+ * [printed] are the stretches the page itself already prints a reading over: the picker must not
+ * draw a second reading there (R57).
  */
-data class OcrPiece(val text: String, val rect: Rect?)
+data class OcrPiece(
+    val text: String,
+    val rect: Rect?,
+    val printed: List<PrintedReading> = emptyList(),
+)
 
 /**
  * One tappable chunk of recognised text.
