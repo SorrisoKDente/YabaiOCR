@@ -7,6 +7,9 @@
         <item name="android:letterSpacing">0.06</item>
     </style>
 
+    <style name="YabaiOcr">
+    </style>
+
     <!--
       The tab labels (R56). 12sp and no capitals: «Dicionários» is the longest name and it has to fit
       a quarter of a 320 dp screen without being wrapped or cut.
