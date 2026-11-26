@@ -9593,3 +9593,48 @@ verde nesta máquina pela primeira vez desde R52.
 - **Limite.** Nada do comportamento do app mudou (só o teste), então não houve E2E. Num display menor
   que 620×620 o teste é pulado em vez de rodar num cenário encolhido; Windows e macOS seguem sem
   execução nesta máquina.
+
+### R55 — Voltar só com a seta, e agentes/skills no `.github`  `[x]` (25/11/2026)
+
+**Contexto.** As duas telas com barra de volta — o manual da Ajuda e o gerenciador de dicionários —
+gastavam a largura de uma frase no botão («◀ Voltar ao Menu Anterior» / «◀ Back to Previous Menu»),
+empurrando o título da tela para a direita. E os agentes e skills do projeto moravam em `.opencode/`,
+com um `opencode.jsonc` que o repositório não usa mais.
+
+- **Causa raiz.** A seta e o significado eram a mesma string (`btnBackToPrevious`): o texto era o
+  rótulo e a única coisa que o botão desenhava, sem nome acessível separado. Na reorganização, o que
+  existia dependia do OpenCode era só o config (`default_agent: yabai`); as skills já eram
+  `SKILL.md` com frontmatter `name`/`description`, o mesmo formato que o GitHub Copilot lê.
+- **Correção (barra).** `backToPreviousIcon` (`"◀"`, igual nos dois idiomas) é o que o botão desenha;
+  `btnBackToPrevious` ficou só com o significado (`"Voltar ao Menu Anterior"` / `"Back to Previous
+  Menu"`) e vai como `contentDescription` no `Modifier.semantics`, então o botão continua anunciado
+  em vez de virar um glifo sem nome. Mesma mudança nas duas barras, como pedido.
+- **Reorganização.** `git mv .opencode/agents .github/agents` e `.opencode/skills .github/skills`
+  (mesma estrutura: `SKILL.md` + `scripts/` e `references/`), `opencode.jsonc` removido e `.opencode/`
+  apagada. O frontmatter foi adaptado ao formato do Copilot: no agente saíram `mode`, `color` e
+  `permissions` e a guarda de `git push`/`reset --hard`/`clean` foi para o corpo; nas skills o `name`
+  passou a ser o slug da pasta (`yabai-regression`, `yabai-desktop-e2e`, …), que é o que o Copilot
+  exige e o que casa com o diretório. Caminhos internos (`AGENTS.md`, agente e skills) atualizados.
+- **Arquivos.** `HelpWindow.kt`, `DictionaryManagerWindow.kt`, `i18n/DesktopStrings.kt`,
+  `desktop/src/test/.../BackBarIconTest.kt`, `.github/agents/yabai.md`, `.github/skills/**`,
+  `AGENTS.md`, `ARCHITECTURE.md`, `ARCHITECTURE.en.md`, `LANGUAGES.md`, os dois READMEs.
+
+Testes: **614 no total** (613 verdes + 1 pulado, 0 falhas) com os dois novos de `BackBarIconTest`. As
+duas metades da mudança foram provadas por mutação:
+
+| mutação | teste que acusa |
+| --- | --- |
+| a barra da Ajuda volta a imprimir o rótulo dentro do botão | `both back bars draw only the arrow and keep the label as the accessible name` — `AssertionError at BackBarIconTest.kt:30` |
+| a barra dos dicionários perde o `contentDescription` | o mesmo teste — `AssertionError at BackBarIconTest.kt:38` |
+
+E2E nesta máquina (`./gradlew :desktop:run`, cliques por `XTest`, captura por `xwd`): a barra do
+manual desenha um botão de **64×36 px** com só a seta e o título «Help & Tips» logo ao lado (x=92),
+antes o rótulo ocupava a linha inteira; o «◀» devolveu à tela anterior (General). A barra do
+gerenciador de dicionários foi aberta pelo caminho do usuário — aba **Dictionaries**, «Manage» — e
+mostra o mesmo botão só com a seta (**67×39 px**, x 13..79, título «Dictionary Manager» em x=92); o
+«◀» devolveu à aba Dictionaries com a pasta, os 9 dicionários e as opções intactas.
+
+- **Limite.** Na primeira rodada um clique perdido marcou «Keep last dictionary query on reopen» como
+  desmarcado; `settings.properties` foi restaurado do backup (`cmp` idêntico) e a segunda rodada, que
+  abriu o gerenciador, não alterou o arquivo. Nenhum processo `MainKt` ficou aberto. Pasta nova no
+  repositório: `.github/` agora tem `agents/` e `skills/` ao lado de `workflows/` e `FUNDING.yml`.

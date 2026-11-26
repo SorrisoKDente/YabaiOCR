@@ -638,7 +638,9 @@ object DesktopStrings {
         "O instalador da versão $version foi baixado e aberto. Conclua e abra o app de novo."
     val updateManualFallback: String get() = if (isEnglish) "This build cannot update itself (it is not an AppImage). Opening the release page." else "Esta instalação não atualiza sozinha (não é um AppImage). Abrindo a página do release."
 
-    val btnBackToPrevious: String get() = if (isEnglish) "◀ Back to Previous Menu" else "◀ Voltar ao Menu Anterior"
+    /** What the back arrow of the Help and dictionary screens means; the bar draws only [backToPreviousIcon]. */
+    val btnBackToPrevious: String get() = if (isEnglish) "Back to Previous Menu" else "Voltar ao Menu Anterior"
+    val backToPreviousIcon: String = "◀"
     val tabQueryDicts: String get() = if (isEnglish) "🔍 Query Dictionaries" else "🔍 Consultar Dicionários"
     val tabInstalledDicts: String get() = if (isEnglish) "📚 Installed Dictionaries" else "📚 Dicionários Instalados"
     val tabDownloadCatalog: String get() = if (isEnglish) "🌐 Download Catalog" else "🌐 Catálogo de Downloads"

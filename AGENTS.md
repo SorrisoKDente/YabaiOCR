@@ -52,7 +52,7 @@ sem que isso seja o comportamento pedido e testado.
 Windows/PowerShell, na raiz:
 
 ```powershell
-.\gradlew.bat :desktop:test --console=plain       # suíte desktop (612 testes em 25/11/2026)
+.\gradlew.bat :desktop:test --console=plain       # suíte desktop (614 testes em 25/11/2026)
 .\gradlew.bat :desktop:compileKotlin              # compilação rápida do desktop
 .\gradlew.bat :desktop:run --args="--minimized"   # app na bandeja, sem abrir Ajustes
 .\gradlew.bat :core:test                          # core (JVM puro)
@@ -67,7 +67,7 @@ Opções do `:core`:
 .\gradlew.bat :core:test -Pdicts="E:\Documentos\DicionariosJapones" # ZIPs reais do Yomitan
 ```
 
-A suíte desktop tem **612 testes** (611 verdes + 1 pulado; nenhum depende da área de trabalho da
+A suíte desktop tem **614 testes** (613 verdes + 1 pulado; nenhum depende da área de trabalho da
 máquina), o `:core` padrão (sem `-Plive`/`-Pdicts`) em **208** e o app, com
 Robolectric, em **986** (493 em cada variante, debug e release) na verificação de 25/11/2026. Se os
 números mudarem, confirme que os testes novos são intencionais e atualize ROADMAP/AGENTS.
@@ -81,7 +81,7 @@ Toda correção de bug ou mudança de comportamento precisa de:
 3. a suíte inteira verde depois da restauração.
 
 Use a skill `yabai-regression` e o script
-`.opencode/skills/yabai-regression/scripts/mutation-proof.ps1`. Mutação que não derruba
+`.github/skills/yabai-regression/scripts/mutation-proof.ps1`. Mutação que não derruba
 nenhum teste significa que o teste não cobre a causa — reescreva o teste, não aceite o verde.
 
 ## Segurança de ambiente e configurações
@@ -126,7 +126,7 @@ nenhum teste significa que o teste não cobre a causa — reescreva o teste, nã
 - Mudou comportamento? Atualize README/ROADMAP na mesma tarefa. Não deixe o README prometer algo que
   o código não faz.
 - Use a skill `yabai-docs` e o template
-  `.opencode/skills/yabai-docs/references/entry-template.md`.
+  `.github/skills/yabai-docs/references/entry-template.md`.
 
 **Documento público é bilíngue.** O original é em inglês: `README.md`, `ARCHITECTURE.en.md`,
 `CONTRIBUTING.en.md`. A versão em pt-BR vem ao lado (`README.pt-BR.md`, `ARCHITECTURE.md`,
@@ -141,7 +141,8 @@ do módulo (item 3), os fluxos (item 5) e a tabela «onde mexer para cada pedido
 
 ## Skills do projeto
 
-As skills vivem em `.opencode/skills/<nome>/SKILL.md` e são carregadas sob demanda. Não existe skill
+As skills vivem em `.github/skills/<nome>/SKILL.md` e o agente do projeto em `.github/agents/yabai.md`,
+no formato do GitHub Copilot (frontmatter `name`/`description`). São carregadas sob demanda. Não existe skill
 para tarefa de rotina: se a mudança é pequena e o AGENTS já responde, trabalhe direto.
 
 | skill | quando usar |

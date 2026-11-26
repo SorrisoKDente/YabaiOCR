@@ -1,5 +1,5 @@
 ---
-name: Yabai Android App
+name: yabai-android-app
 description: Mexer no app Android do Yabai OCR — overlays, FloatingOcrService, MediaProjection, captura de tela, dicionários, tradução offline e testes com Robolectric sem aparelho. Use ao alterar o módulo :app, permissões, serviço em primeiro plano, painéis ou telas.
 ---
 

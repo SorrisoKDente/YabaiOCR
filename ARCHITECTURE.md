@@ -74,6 +74,9 @@ antes de citá-los.
 ├── settings.gradle.kts         # inclui :core, :desktop e :app
 ├── gradle/libs.versions.toml   # todas as dependências e versões
 ├── AGENTS.md                   # regras de trabalho no repositório
+├── .github/                    # agentes e skills do projeto (formato do GitHub Copilot)
+│   ├── agents/yabai.md         # persona do engenheiro: causa raiz, mutação, E2E
+│   └── skills/<nome>/SKILL.md  # skills carregadas sob demanda (+ scripts e referências)
 ├── ARCHITECTURE.md             # este documento
 ├── ARCHITECTURE.en.md          # este documento em inglês
 ├── CONTRIBUTING.md / .en.md    # como contribuir (compilar, testar, enviar)
@@ -182,7 +185,7 @@ rodam com as flags acima.
 | `DictionaryMatchText.kt` | a linha «forma lida → verbete · forma antiga» que o hover e o resultado desenham (R46e) |
 | `ReleaseNotesWindow.kt` | preview em Markdown das notas do release do GitHub, aberto em Ajustes → Sobre |
 | `LicenseWindow.kt` | texto da licença empacotado no jar, lido em Ajustes → Sobre |
-| `HelpWindow.kt` | o manual «Explicações e Dicas» como tela da janela principal (`HelpContent(settings, onBackRequested)`), aberto pelo «❓ Ajuda» do cabeçalho: barra com «◀ Voltar ao Menu Anterior», a referência de botões (`helpButtons()`, ícone à esquerda, nome e o que faz) e uma entrada por função (capturas, hover, busca rápida, dicionários, resultado, renderizadores, motores e bandeja), em pt/en |
+| `HelpWindow.kt` | o manual «Explicações e Dicas» como tela da janela principal (`HelpContent(settings, onBackRequested)`), aberto pelo «❓ Ajuda» do cabeçalho: barra com a seta de volta (`backToPreviousIcon`, «◀»; o nome acessível é `btnBackToPrevious`), a referência de botões (`helpButtons()`, ícone à esquerda, nome e o que faz) e uma entrada por função (capturas, hover, busca rápida, dicionários, resultado, renderizadores, motores e bandeja), em pt/en |
 | `UpdateInstaller.kt` | baixa o asset com progresso, troca o AppImage em execução (backup `.old`), abre o instalador em Windows/macOS e reinicia |
 | `InstanceLock.kt` | trava de arquivo em `~/.yabai_ocr/instance.lock`: uma instância por usuário, antes de D-Bus e bandeja |
 | `KdeCapturePermission.kt` | opção «captura silenciosa no KDE»: grava `~/.config/environment.d/yabai-ocr.conf` com `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, porque o KWin só autoriza `ScreenShot2` a um `Exec` fixo em diretório de root |
@@ -190,7 +193,7 @@ rodam com as flags acima.
 | `DictionaryUpdateMonitor.kt` | checagem periódica dos dicionários no escopo da aplicação (`--minimized` incluso), oferta por revisão remota e chave de «já avisado» |
 | `NativeLibraryPath.kt` | aponta `jnativehook.lib.path` para `~/.cache/yabai-ocr/native` no Linux, antes de tocar em `GlobalScreen` (AppImage é somente leitura) |
 | `QuickDictWindow.kt` | busca rápida de dicionário em janela própria |
-| `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos |
+| `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos; a mesma barra de volta (seta «◀») do manual quando aberto como tela (`onBackRequested`) |
 | `DesktopTheme.kt` | paletas clara/escura, `contrastRatio`, aplicação do tema |
 | `AppIconGenerator.kt` | ícone em runtime (janela, bandeja) e selo de hover no canto inferior direito |
 | `AppScrollbar.kt` | `ScrollableLazyColumn`/`ScrollableColumn`: os containers roláveis com a barra de rolagem que o Compose Desktop não desenha |
@@ -473,5 +476,6 @@ Ajustes (desktop/app) → PPOcrModelDownloader → ~23 MB em ppocr_v6/
 | [LANGUAGES.md](LANGUAGES.md) | i18n: chaves, onde vivem, o que falta traduzir |
 | [LINUX.md](docs/LINUX.md) / [STEAMOS.md](docs/STEAMOS.md) | Linux e Steam Deck |
 | [AGENTS.md](AGENTS.md) | regras de trabalho no repositório (agentes e pessoas) |
+| [.github/agents/yabai.md](.github/agents/yabai.md) / [.github/skills](.github/skills/) | persona do engenheiro e skills do projeto, no formato do GitHub Copilot |
 | [CONTRIBUTING.md](CONTRIBUTING.md) / [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | como compilar, testar e enviar uma mudança |
 | [ACCESSIBILITY_SERVICE_GUIDE.md](ACCESSIBILITY_SERVICE_GUIDE.md) | serviço de acessibilidade |

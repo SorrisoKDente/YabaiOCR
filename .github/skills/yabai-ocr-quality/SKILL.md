@@ -1,5 +1,5 @@
 ---
-name: Yabai OCR Quality
+name: yabai-ocr-quality
 description: Mexer no reconhecimento e no texto japonês do Yabai OCR — Lens/protobuf, blocks e caixas, ordem de leitura, furigana, normalização CJK e dicionários. Use ao mudar OCR, parsing, leituras, segmentação, lookup ou qualquer coisa que possa alterar o texto reconhecido.
 ---
 

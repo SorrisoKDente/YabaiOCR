@@ -1,5 +1,5 @@
 ---
-name: Yabai Docs
+name: yabai-docs
 description: Atualizar o README do usuário e o ROADMAP de decisões do Yabai OCR com causa raiz, tabela de mutações e evidência E2E no formato que o projeto já usa. Use ao concluir uma correção, mudar comportamento visível, adicionar ajuste/atalho ou registrar uma decisão.
 ---
 
@@ -89,4 +89,4 @@ Cada linha precisa ter sido **executada**: mutou, o teste nomeado falhou, restau
 - [ ] Linhas quebradas em ~100 colunas, como o resto do arquivo.
 
 Use
-`.opencode/skills/yabai-docs/references/entry-template.md` como ponto de partida.
+`.github/skills/yabai-docs/references/entry-template.md` como ponto de partida.

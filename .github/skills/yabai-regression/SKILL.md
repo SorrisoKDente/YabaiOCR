@@ -1,5 +1,5 @@
 ---
-name: Yabai Regression
+name: yabai-regression
 description: Escrever e provar testes de regressão no Yabai OCR, incluindo a prova de mutação (mutar a causa, ver o teste falhar, restaurar e ver passar). Use ao corrigir bug, mudar comportamento de OCR/desktop/Android ou revisar se um teste realmente cobre a causa.
 ---
 
@@ -47,11 +47,11 @@ fun `a display scaled at 150 percent asks for the native device size`() {
 Use o script (backup, mutação literal, teste filtrado, restauração em `finally`, hash conferido):
 
 O caminho abaixo é relativo à raiz do repositório (o `SKILL.md` fica em
-`.opencode/skills/yabai-regression/`):
+`.github/skills/yabai-regression/`):
 
 ```powershell
 # mutação que deve derrubar o teste
-.\.opencode\skills\yabai-regression\scripts\mutation-proof.ps1 `
+.\.github\skills\yabai-regression\scripts\mutation-proof.ps1 `
   -File "desktop\src\main\kotlin\dev\yabai\ocr\desktop\ScreenCapture.kt" `
   -Find "(bounds.width * scaleX).roundToInt()," `
   -Replace "bounds.width," `
@@ -59,7 +59,7 @@ O caminho abaixo é relativo à raiz do repositório (o `SKILL.md` fica em
   -Task ":desktop:test"
 
 # o mesmo para o core
-.\.opencode\skills\yabai-regression\scripts\mutation-proof.ps1 `
+.\.github\skills\yabai-regression\scripts\mutation-proof.ps1 `
   -File "core\src\main\kotlin\dev\yabai\ocr\core\jp\JapaneseText.kt" `
   -Find "previous != null && next != null && isCjk(previous) && isCjk(next)" `
   -Replace "false" `

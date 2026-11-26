@@ -1,5 +1,5 @@
 ---
-name: Yabai Desktop E2E
+name: yabai-desktop-e2e
 description: Verificar o Yabai OCR Desktop de verdade no Windows — iniciar com --minimized, capturar telas com java.awt.Robot, comparar pixels antes/depois e validar picker, recorte, hover e HiDPI. Use quando a mudança for visual, de captura de tela, atalhos, bandeja ou janelas Compose.
 ---
 
@@ -56,7 +56,7 @@ Espere a linha `[Hotkey] gancho global de teclado ativo.`.
 
 ### 3. Sonda
 
-Copie `.opencode/skills/yabai-desktop-e2e/references/RobotProbe.java` para `$probe`, ajuste os
+Copie `.github/skills/yabai-desktop-e2e/references/RobotProbe.java` para `$probe`, ajuste os
 atalhos e o ponto de clique, e rode:
 
 ```powershell
@@ -72,7 +72,7 @@ picker realça a caixa sob o cursor.
 ### 4. Comparar os pixels
 
 ```powershell
-& .\.opencode\skills\yabai-desktop-e2e\scripts\compare-regions.ps1 `
+& .\.github\skills\yabai-desktop-e2e\scripts\compare-regions.ps1 `
     -Before (Join-Path $probe "0-antes.png") `
     -After  (Join-Path $probe "1-seletor.png") `
     -Region "pagina branca=850,210,140,180", "xadrez 1px=520,435,460,20", `

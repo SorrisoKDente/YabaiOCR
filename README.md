@@ -133,7 +133,7 @@ preference is one click away instead of a long scroll. Default shortcuts (all co
 | `Ctrl + Shift + X` | cycles the hover readings |
 
 The **❓ Help** button opens **Help & Tips**, the same manual title the phone uses, as a screen of the
-same window with a «◀ Back to Previous Menu» button. It explains every action — the two captures,
+same window, with a back arrow (◀) at the top left. It explains every action — the two captures,
 hover, the quick search, the dictionaries, the result window, the graphics renderers, the recognition
 engines and the tray — with the shortcuts you actually configured. The Android **Help** screen
 explains the same on the phone, including the camera and the bubble's gestures.

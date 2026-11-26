@@ -134,7 +134,7 @@ preferência está a um clique, em vez de uma rolagem longa. Atalhos padrão (to
 | `Ctrl + Shift + X` | alterna entre as leituras do hover |
 
 O botão **❓ Ajuda** abre **Explicações e Dicas**, o mesmo título usado no celular, como uma tela da
-própria janela, com o botão «◀ Voltar ao Menu Anterior». Ela explica cada função — as duas capturas,
+própria janela, com a seta de voltar (◀) no canto superior esquerdo. Ela explica cada função — as duas capturas,
 o hover, a busca rápida, os dicionários, a janela de resultado, os renderizadores gráficos, os
 motores de reconhecimento e a bandeja — com os atalhos que você configurou. A tela **Ajuda** do
 Android explica o mesmo no celular, incluindo a câmera e os gestos da bolha.

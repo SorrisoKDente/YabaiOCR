@@ -75,6 +75,9 @@ before quoting them.
 ├── settings.gradle.kts         # includes :core, :desktop and :app
 ├── gradle/libs.versions.toml   # every dependency and version
 ├── AGENTS.md                   # working rules for the repository
+├── .github/                    # project agents and skills (GitHub Copilot format)
+│   ├── agents/yabai.md         # the engineer persona: root cause, mutation, E2E
+│   └── skills/<name>/SKILL.md  # skills loaded on demand (+ scripts and references)
 ├── ARCHITECTURE.md             # this document (Portuguese)
 ├── ARCHITECTURE.en.md          # this document (English)
 ├── CONTRIBUTING.md / .en.md    # how to contribute
@@ -183,7 +186,7 @@ flags above.
 | `DictionaryMatchText.kt` | the «read form → entry · old form» line the hover and the result draw (R46e) |
 | `ReleaseNotesWindow.kt` | Markdown preview of the GitHub release notes, opened from Settings → About |
 | `LicenseWindow.kt` | license text bundled in the jar, opened from Settings → About |
-| `HelpWindow.kt` | the «Help & Tips» manual as a screen of the main window (`HelpContent(settings, onBackRequested)`), opened by the header's «❓ Help»: a bar with «◀ Back to Previous Menu», the button reference (`helpButtons()`, icon on the left, name and what it does) and one entry per action (captures, hover, quick search, dictionaries, result, renderers, engines and tray), in pt/en |
+| `HelpWindow.kt` | the «Help & Tips» manual as a screen of the main window (`HelpContent(settings, onBackRequested)`), opened by the header's «❓ Help»: a bar with the back arrow (`backToPreviousIcon`, «◀»; its accessible name is `btnBackToPrevious`), the button reference (`helpButtons()`, icon on the left, name and what it does) and one entry per action (captures, hover, quick search, dictionaries, result, renderers, engines and tray), in pt/en |
 | `UpdateInstaller.kt` | downloads the asset with progress, swaps the running AppImage (`.old` backup), opens the installer on Windows/macOS and restarts |
 | `InstanceLock.kt` | file lock at `~/.yabai_ocr/instance.lock`: one instance per user, before D-Bus and the tray |
 | `KdeCapturePermission.kt` | the «silent capture on KDE» switch: writes `~/.config/environment.d/yabai-ocr.conf` with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, because KWin only authorizes `ScreenShot2` to a fixed `Exec` under a root-writable directory |
@@ -191,7 +194,7 @@ flags above.
 | `DictionaryUpdateMonitor.kt` | periodic dictionary check in the application scope (including `--minimized`), offer per remote revision, the «already announced» key and `dictionaryAnnouncement` (announce, stay quiet, or clear the tray tooltip) |
 | `NativeLibraryPath.kt` | points `jnativehook.lib.path` at `~/.cache/yabai-ocr/native` on Linux before `GlobalScreen` is touched (an AppImage is read-only) |
 | `QuickDictWindow.kt` | quick dictionary lookup in its own window |
-| `DictionaryManagerWindow.kt` | manager content: search, installed, catalog, credits |
+| `DictionaryManagerWindow.kt` | manager content: search, installed, catalog, credits; the same back bar (arrow «◀») as the manual when opened as a screen (`onBackRequested`) |
 | `DictLookup.kt` | runs one dictionary query and reports failure instead of throwing inside a `LaunchedEffect` |
 | `DesktopTheme.kt` | light/dark palettes, `contrastRatio`, theme application |
 | `AppIconGenerator.kt` | runtime icon (window, tray) and the hover badge in the bottom-right corner |
@@ -477,5 +480,6 @@ Settings (desktop/app) → PPOcrModelDownloader → ~23 MB in ppocr_v6/
 | [LANGUAGES.md](LANGUAGES.md) | i18n: keys, where they live, what is missing |
 | [LINUX.md](docs/LINUX.md) / [STEAMOS.md](docs/STEAMOS.md) | Linux and Steam Deck |
 | [AGENTS.md](AGENTS.md) | working rules for the repository (agents and people) |
+| [.github/agents/yabai.md](.github/agents/yabai.md) / [.github/skills](.github/skills/) | the engineer persona and the project skills, in the GitHub Copilot format |
 | [CONTRIBUTING.en.md](CONTRIBUTING.en.md) | how to build, test and send a change |
 | [ACCESSIBILITY_SERVICE_GUIDE.md](ACCESSIBILITY_SERVICE_GUIDE.md) | accessibility service |

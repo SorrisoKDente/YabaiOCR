@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -133,12 +135,15 @@ fun HelpContent(settings: DesktopSettings, onBackRequested: () -> Unit) {
             ) {
                 Button(
                     onClick = onBackRequested,
+                    modifier = Modifier.semantics {
+                        contentDescription = DesktopStrings.btnBackToPrevious
+                    },
                     colors = ButtonDefaults.buttonColors(
                         backgroundColor = yabaiPalette().field,
                         contentColor = MaterialTheme.colors.onSurface,
                     ),
                 ) {
-                    Text(DesktopStrings.btnBackToPrevious, fontWeight = FontWeight.SemiBold)
+                    Text(DesktopStrings.backToPreviousIcon, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(
