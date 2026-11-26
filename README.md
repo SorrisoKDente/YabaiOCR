@@ -168,7 +168,10 @@ app release when both exist, because an app update ends in a restart that would 
 download; each is announced once per remote revision, so an ignored update is not offered again.
 
 **Android**: install the APK, grant **overlay** and **screen capture** (MediaProjection), pick an
-engine and tap start. The floating bubble triggers the capture.
+engine and tap start. The floating bubble triggers the capture. The phone's settings are split into
+tabs too — **General** (language, start/stop and permissions), **Reading** (engine, behaviour,
+translation and AI), **Dictionaries** and **About** (updates and supporting the project) — like the
+desktop's.
 
 ## OCR engines
 

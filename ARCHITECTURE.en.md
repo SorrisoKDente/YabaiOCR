@@ -292,7 +292,7 @@ worth knowing:
 
 | file | role |
 | --- | --- |
-| `MainActivity.kt` | settings and permissions; picks the engine, downloads models, starts the service |
+| `MainActivity.kt` | settings and permissions in four tabs (**General**, **Reading**, **Dictionaries**, **About**), like the desktop: a fixed `TabLayout` and one page laid out at a time (R56); picks the engine, downloads models, starts the service |
 | `StartOcrActivity.kt` | launcher/shortcut to start the capture |
 | `LookupActivity.kt` | opens the dictionary lookup from a text |
 | `CameraActivity.kt` | the bubble's camera, a screen of its own on CameraX: live preview, a shutter with no confirmation, the picture held behind the spinner while the service reads it, and the file handoff; it leaves once the boxes are on screen; the photo's rotation follows the phone's own orientation, not the display, at the shutter and after the phone is turned; the preview and the frozen photo sit in the phone's frame, and that frame is what it hands the service for the picker's page; it closes itself when the user goes to the home screen or the list of apps, but only once the camera is running, because the permission dialog announces a leave too; it measures the screen from the whole display, the same measurement as the picker's page, and it keeps the shutter and the ✕ on the phone's edges — bottom centre and top-right corner — changing only which side of the window shows each edge as the display turns, instead of turning them with the picture (R48p); when the phone turns the window, it measures the frame again so the camera stays the whole screen, turns «Recognising…» with that frame, and the indicator carries the «Cancel» that tells the service and hands the preview back (R46d, R47a, R48a, R48d, R48f, R48g, R48h, R48i, R48j, R48k, R48l, R48m, R48p) |
@@ -353,7 +353,8 @@ worth knowing:
 
 ### Resources
 
-`app/src/main/res/`: `layout/activity_main.xml` and `activity_help.xml`, `values/` (pt-BR),
+`app/src/main/res/`: `layout/activity_main.xml` (header, `TabLayout` and the four
+`pageGeneral`/`pageReading`/`pageDictionaries`/`pageAbout` pages) and `activity_help.xml`, `values/` (pt-BR),
 `values-en/`, `values-night/colors.xml`, `drawable/` (`ic_scan.png` is the bubble's icon;
 `ic_stat_scan.xml` is the monochrome variant for the notification and the tile),
 `mipmap-anydpi-v26/`.

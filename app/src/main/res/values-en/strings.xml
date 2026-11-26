@@ -5,6 +5,12 @@
     <string name="hero_title">Yabai OCR</string>
     <string name="hero_subtitle">Read Japanese in any app. The bubble floats over your screen: tap it, select an area, and text goes to your clipboard.</string>
 
+    <!-- The four tabs of the settings screen (R56), in the order the strip lists them. -->
+    <string name="tab_general">General</string>
+    <string name="tab_reading">Reading</string>
+    <string name="tab_dictionaries">Dictionaries</string>
+    <string name="tab_about">About</string>
+
     <string name="section_permissions">Permissions</string>
     <string name="section_shortcuts">Quick Shortcuts</string>
     <string name="section_engine">Recognition Engine</string>
@@ -321,7 +327,7 @@
     <string name="help_button_dictionary_title">Dictionary</string>
     <string name="help_button_dictionary_desc">Opens the dictionary search without capturing anything.</string>
     <string name="help_button_settings_title">Settings</string>
-    <string name="help_button_settings_desc">Language, theme, OCR engine, engine priority and panel behaviour.</string>
+    <string name="help_button_settings_desc">Theme at the top of the screen; language, OCR engine, engine priority and panel behaviour in the tabs (General, Reading, Dictionaries, About).</string>
     <string name="help_button_stop_title">Stop</string>
     <string name="help_button_stop_desc">Stops the floating OCR; the bubble can also be dragged onto the ✕.</string>
 

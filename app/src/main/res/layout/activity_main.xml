@@ -1,18 +1,18 @@
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:orientation="vertical">
 
+    <!-- Top Header with Title and Help Button -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:paddingStart="20dp"
         android:paddingTop="24dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="32dp">
+        android:paddingEnd="20dp">
 
-        <!-- Top Header with Title and Help Button -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -59,817 +59,892 @@
             android:text="@string/hero_subtitle"
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
+    </LinearLayout>
 
-        <!-- Language -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_language" />
+    <!-- The tabs: general, reading, dictionaries and about, the same four subjects as the desktop.
+         The strip stays put while the page under it scrolls, so the way to another subject is always
+         one tap away instead of a long scroll. -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/settingsTabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@color/panel_bg"
+        app:tabGravity="fill"
+        app:tabIndicatorColor="@color/accent"
+        app:tabMode="fixed"
+        app:tabPaddingEnd="4dp"
+        app:tabPaddingStart="4dp"
+        app:tabSelectedTextColor="@color/accent"
+        app:tabTextAppearance="@style/YabaiOcr.TabText"
+        app:tabTextColor="@color/text_secondary" />
 
-        <RadioGroup
-            android:id="@+id/langGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="8dp"
-            android:saveEnabled="false">
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
 
-            <RadioButton
-                android:id="@+id/langSystem"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
-                android:text="@string/lang_system"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-
-            <RadioButton
-                android:id="@+id/langPtBr"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
-                android:text="@string/lang_pt_br"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-
-            <RadioButton
-                android:id="@+id/langEnUs"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
-                android:text="@string/lang_en_us"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-        </RadioGroup>
-
-        <!-- Quick Start / Stop Card -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:id="@+id/statusText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/status_stopped"
-                android:textColor="@color/accent"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/btnStart"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/start_button" />
-
-            <Button
-                android:id="@+id/btnStop"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/stop_button"
-                android:textColor="@color/text_primary"
-                android:visibility="gone" />
-        </LinearLayout>
-
-        <!-- 1. Permissions -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_permissions" />
+    <ScrollView
+        android:id="@+id/settingsScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
             android:orientation="vertical"
-            android:padding="14dp">
+            android:paddingStart="20dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="32dp">
 
+            <!-- Geral: language, the start/stop card, permissions and the quick-settings tile. -->
             <LinearLayout
+                android:id="@+id/pageGeneral"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/permission_overlay"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/permission_overlay_desc"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/overlayStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btnOverlayPermission"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/permission_grant" />
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="12dp"
-                android:background="@color/divider" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/permission_notifications"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="@string/permission_notifications_desc"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/notificationStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btnNotificationPermission"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/permission_grant" />
-        </LinearLayout>
-
-        <!-- Shortcuts (Quick Settings) -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_shortcuts" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/shortcut_qs_title"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="@string/shortcut_qs_desc"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <!-- 4. Engine -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_engine" />
-
-        <RadioGroup
-            android:id="@+id/engineGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="8dp"
-            android:saveEnabled="false">
-
-            <RadioButton
-                android:id="@+id/engineAuto"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="6dp"
-                android:paddingBottom="2dp"
-                android:text="@string/engine_auto"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/engine_auto_desc"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <RadioButton
-                android:id="@+id/enginePpOcr"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="6dp"
-                android:paddingBottom="2dp"
-                android:text="@string/engine_pp_ocr"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/engine_pp_ocr_desc"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginBottom="12dp"
                 android:orientation="vertical">
 
-                <Button
-                    android:id="@+id/btnDownloadPpOcr"
+                <!-- Language -->
+                <TextView
+                    style="@style/SectionHeader"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/pp_ocr_download"
-                    android:visibility="gone" />
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_language" />
 
-                <TextView
-                    android:id="@+id/txtPpOcrStatus"
+                <RadioGroup
+                    android:id="@+id/langGroup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    android:visibility="gone" />
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:saveEnabled="false">
+
+                    <RadioButton
+                        android:id="@+id/langSystem"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:text="@string/lang_system"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
+                    <RadioButton
+                        android:id="@+id/langPtBr"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:text="@string/lang_pt_br"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
+                    <RadioButton
+                        android:id="@+id/langEnUs"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:text="@string/lang_en_us"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+                </RadioGroup>
+
+                <!-- Quick Start / Stop Card -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:id="@+id/statusText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/status_stopped"
+                        android:textColor="@color/accent"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnStart"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/start_button" />
+
+                    <Button
+                        android:id="@+id/btnStop"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/stop_button"
+                        android:textColor="@color/text_primary"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- 1. Permissions -->
+                <TextView
+                    style="@style/SectionHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_permissions" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/permission_overlay"
+                                android:textColor="@color/text_primary"
+                                android:textSize="15sp" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/permission_overlay_desc"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/overlayStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnOverlayPermission"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/permission_grant" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/divider" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/permission_notifications"
+                                android:textColor="@color/text_primary"
+                                android:textSize="15sp" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/permission_notifications_desc"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/notificationStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/btnNotificationPermission"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/permission_grant" />
+                </LinearLayout>
+
+                <!-- Shortcuts (Quick Settings) -->
+                <TextView
+                    style="@style/SectionHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_shortcuts" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/shortcut_qs_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/shortcut_qs_desc"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
             </LinearLayout>
 
-            <RadioButton
-                android:id="@+id/engineLens"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="6dp"
-                android:paddingBottom="2dp"
-                android:text="@string/engine_lens"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/engine_lens_desc"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <RadioButton
-                android:id="@+id/engineMlKit"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="6dp"
-                android:paddingBottom="2dp"
-                android:text="@string/engine_mlkit"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginBottom="4dp"
-                android:text="@string/engine_mlkit_desc"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-        </RadioGroup>
-
-        <LinearLayout
-            android:id="@+id/enginePriorityContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="12dp"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/engine_priority_title"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="8dp"
-                android:text="@string/engine_priority_desc"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-
+            <!-- Leitura: engine, behaviour, translation and the AI question. -->
             <LinearLayout
-                android:id="@+id/priorityListLayout"
+                android:id="@+id/pageReading"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical" />
-        </LinearLayout>
-
-        <!-- 3. Behaviour -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_behaviour" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="10dp">
-
-            <CheckBox
-                android:id="@+id/checkAutoCopy"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_auto_copy"
-                android:textColor="@color/text_primary" />
-
-            <CheckBox
-                android:id="@+id/checkShowSegments"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_show_segments"
-                android:textColor="@color/text_primary" />
-
-            <CheckBox
-                android:id="@+id/checkPickText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_pick_text"
-                android:textColor="@color/text_primary" />
-
-            <CheckBox
-                android:id="@+id/checkBubbleOnEdge"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_bubble_on_edge"
-                android:textColor="@color/text_primary" />
-
-            <CheckBox
-                android:id="@+id/checkUpscale"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_upscale"
-                android:textColor="@color/text_primary" />
-
-            <CheckBox
-                android:id="@+id/checkShowImage"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_show_image"
-                android:textColor="@color/text_primary" />
-
-            <CheckBox
-                android:id="@+id/checkFurigana"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/setting_furigana"
-                android:textColor="@color/text_primary" />
-
-            <CheckBox
-                android:id="@+id/checkFuriganaReadings"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="@string/setting_furigana_readings"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/setting_picker_reading"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-
-            <RadioGroup
-                android:id="@+id/groupPickerReading"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
                 android:orientation="vertical"
-                android:saveEnabled="false">
+                android:visibility="gone">
 
-                <RadioButton
-                    android:id="@+id/readingOff"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/picker_reading_off"
-                    android:textColor="@color/text_primary" />
-
-                <RadioButton
-                    android:id="@+id/readingRuby"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/picker_reading_ruby"
-                    android:textColor="@color/text_primary" />
-
-                <RadioButton
-                    android:id="@+id/readingLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/picker_reading_label"
-                    android:textColor="@color/text_primary" />
-            </RadioGroup>
-        </LinearLayout>
-
-        <!-- 5. Dictionaries -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_dictionary" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <!-- The lookup has no «off»: what is left of the card is what it reads from (R46a). -->
-            <TextView
-                android:id="@+id/dictionarySummary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Button
-                android:id="@+id/btnManageDictionaries"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/dictionary_manage_button" />
-
-            <CheckBox
-                android:id="@+id/checkDictionaryKeepLast"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/setting_dictionary_keep_last"
-                android:textColor="@color/text_primary" />
-
-            <!-- R35d, moved here by R46b: it changes what the dictionaries are asked, so it belongs
-                 beside them, like the same switch on the desktop. -->
-            <CheckBox
-                android:id="@+id/checkStripReadings"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="@string/dictionary_strip_readings"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:id="@+id/stripReadingsHint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:text="@string/dictionary_strip_readings_hint"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <!-- 6. Translation -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_translation" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="10dp">
-
-            <CheckBox
-                android:id="@+id/checkTranslate"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_translate"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginTop="8dp"
-                android:text="@string/setting_translate_target"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-
-            <RadioGroup
-                android:id="@+id/translateTargetGroup"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="24dp"
-                android:orientation="horizontal"
-                android:saveEnabled="false">
-
-                <RadioButton
-                    android:id="@+id/translatePt"
+                <!-- 4. Engine -->
+                <TextView
+                    style="@style/SectionHeader"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/translate_target_pt"
-                    android:textColor="@color/text_primary" />
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_engine" />
 
-                <RadioButton
-                    android:id="@+id/translateEn"
+                <RadioGroup
+                    android:id="@+id/engineGroup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:saveEnabled="false">
+
+                    <RadioButton
+                        android:id="@+id/engineAuto"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="2dp"
+                        android:text="@string/engine_auto"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/engine_auto_desc"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <RadioButton
+                        android:id="@+id/enginePpOcr"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="2dp"
+                        android:text="@string/engine_pp_ocr"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/engine_pp_ocr_desc"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginBottom="12dp"
+                        android:orientation="vertical">
+
+                        <Button
+                            android:id="@+id/btnDownloadPpOcr"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/pp_ocr_download"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/txtPpOcrStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <RadioButton
+                        android:id="@+id/engineLens"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="2dp"
+                        android:text="@string/engine_lens"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/engine_lens_desc"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <RadioButton
+                        android:id="@+id/engineMlKit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="2dp"
+                        android:text="@string/engine_mlkit"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginBottom="4dp"
+                        android:text="@string/engine_mlkit_desc"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+                </RadioGroup>
+
+                <LinearLayout
+                    android:id="@+id/enginePriorityContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="12dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/engine_priority_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp"
+                        android:text="@string/engine_priority_desc"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp" />
+
+                    <LinearLayout
+                        android:id="@+id/priorityListLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+
+                <!-- 3. Behaviour -->
+                <TextView
+                    style="@style/SectionHeader"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:text="@string/translate_target_en"
-                    android:textColor="@color/text_primary" />
-            </RadioGroup>
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_behaviour" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <CheckBox
+                        android:id="@+id/checkAutoCopy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_auto_copy"
+                        android:textColor="@color/text_primary" />
+
+                    <CheckBox
+                        android:id="@+id/checkShowSegments"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_show_segments"
+                        android:textColor="@color/text_primary" />
+
+                    <CheckBox
+                        android:id="@+id/checkPickText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_pick_text"
+                        android:textColor="@color/text_primary" />
+
+                    <CheckBox
+                        android:id="@+id/checkBubbleOnEdge"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_bubble_on_edge"
+                        android:textColor="@color/text_primary" />
+
+                    <CheckBox
+                        android:id="@+id/checkUpscale"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_upscale"
+                        android:textColor="@color/text_primary" />
+
+                    <CheckBox
+                        android:id="@+id/checkShowImage"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_show_image"
+                        android:textColor="@color/text_primary" />
+
+                    <CheckBox
+                        android:id="@+id/checkFurigana"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/setting_furigana"
+                        android:textColor="@color/text_primary" />
+
+                    <CheckBox
+                        android:id="@+id/checkFuriganaReadings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/setting_furigana_readings"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/setting_picker_reading"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
+                    <RadioGroup
+                        android:id="@+id/groupPickerReading"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:orientation="vertical"
+                        android:saveEnabled="false">
+
+                        <RadioButton
+                            android:id="@+id/readingOff"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/picker_reading_off"
+                            android:textColor="@color/text_primary" />
+
+                        <RadioButton
+                            android:id="@+id/readingRuby"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/picker_reading_ruby"
+                            android:textColor="@color/text_primary" />
+
+                        <RadioButton
+                            android:id="@+id/readingLabel"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/picker_reading_label"
+                            android:textColor="@color/text_primary" />
+                    </RadioGroup>
+                </LinearLayout>
+
+                <!-- 6. Translation -->
+                <TextView
+                    style="@style/SectionHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_translation" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <CheckBox
+                        android:id="@+id/checkTranslate"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_translate"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/setting_translate_target"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <RadioGroup
+                        android:id="@+id/translateTargetGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="24dp"
+                        android:orientation="horizontal"
+                        android:saveEnabled="false">
+
+                        <RadioButton
+                            android:id="@+id/translatePt"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/translate_target_pt"
+                            android:textColor="@color/text_primary" />
+
+                        <RadioButton
+                            android:id="@+id/translateEn"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="16dp"
+                            android:text="@string/translate_target_en"
+                            android:textColor="@color/text_primary" />
+                    </RadioGroup>
+                </LinearLayout>
+
+                <!-- 6. Asking an AI -->
+                <TextView
+                    style="@style/SectionHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_ai" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <CheckBox
+                        android:id="@+id/checkAskAi"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setting_ai_button"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/setting_ai_prompt"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <EditText
+                        android:id="@+id/editAiPrompt"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginTop="4dp"
+                        android:importantForAutofill="no"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:maxLines="4"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/setting_ai_app"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
+                    <Button
+                        android:id="@+id/btnAiApp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/ai_app_always" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:lineSpacingExtra="3dp"
+                        android:text="@string/ai_note"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Dicionários: the installed ones and what the lookup reads from them. -->
+            <LinearLayout
+                android:id="@+id/pageDictionaries"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- 5. Dictionaries -->
+                <TextView
+                    style="@style/SectionHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_dictionary" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <!-- The lookup has no «off»: what is left of the card is what it reads from (R46a). -->
+                    <TextView
+                        android:id="@+id/dictionarySummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/btnManageDictionaries"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/dictionary_manage_button" />
+
+                    <CheckBox
+                        android:id="@+id/checkDictionaryKeepLast"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/setting_dictionary_keep_last"
+                        android:textColor="@color/text_primary" />
+
+                    <!-- R35d, moved here by R46b: it changes what the dictionaries are asked, so it belongs
+                         beside them, like the same switch on the desktop. -->
+                    <CheckBox
+                        android:id="@+id/checkStripReadings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/dictionary_strip_readings"
+                        android:textColor="@color/text_primary" />
+
+                    <TextView
+                        android:id="@+id/stripReadingsHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="34dp"
+                        android:text="@string/dictionary_strip_readings_hint"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Sobre: updates, and the optional way to support the project. -->
+            <LinearLayout
+                android:id="@+id/pageAbout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- App updates -->
+                <TextView
+                    style="@style/SectionHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_updates" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:id="@+id/updateVersionText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/update_version_unknown"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/btnCheckAppUpdate"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/update_check_button" />
+
+                    <CheckBox
+                        android:id="@+id/checkAppUpdatesOnStart"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/update_check_on_start"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/appUpdateStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:lineSpacingExtra="2dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/btnReleaseNotes"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/update_release_notes_button"
+                        android:textColor="@color/text_primary"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/btnDownloadUpdate"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/update_download_button"
+                        android:textColor="@color/text_primary"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+                <!-- Support the project: the app is free and non-commercial, donations are optional. -->
+                <TextView
+                    style="@style/SectionHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/section_donate" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:lineSpacingExtra="2dp"
+                        android:text="@string/donate_body"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/btnDonateKofi"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/donate_kofi" />
+
+                    <TextView
+                        android:id="@+id/pixKeyText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/donate_pix_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13sp" />
+
+                    <Button
+                        android:id="@+id/btnCopyPix"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/donate_copy_pix"
+                        android:textColor="@color/text_primary" />
+
+                    <Button
+                        android:id="@+id/btnShowLicense"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/donate_license"
+                        android:textColor="@color/text_primary" />
+
+                </LinearLayout>
+            </LinearLayout>
+
         </LinearLayout>
-
-        <!-- 6. Asking an AI -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_ai" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="10dp">
-
-            <CheckBox
-                android:id="@+id/checkAskAi"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/setting_ai_button"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginTop="2dp"
-                android:text="@string/setting_ai_prompt"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/editAiPrompt"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginTop="4dp"
-                android:importantForAutofill="no"
-                android:inputType="textMultiLine|textCapSentences"
-                android:maxLines="4"
-                android:textColor="@color/text_primary"
-                android:textColorHint="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginTop="10dp"
-                android:text="@string/setting_ai_app"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-
-            <Button
-                android:id="@+id/btnAiApp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="34dp"
-                android:layout_marginTop="4dp"
-                android:text="@string/ai_app_always" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:lineSpacingExtra="3dp"
-                android:text="@string/ai_note"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <!-- App updates -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_updates" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <TextView
-                android:id="@+id/updateVersionText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/update_version_unknown"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp" />
-
-            <Button
-                android:id="@+id/btnCheckAppUpdate"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/update_check_button" />
-
-            <CheckBox
-                android:id="@+id/checkAppUpdatesOnStart"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/update_check_on_start"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/appUpdateStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:lineSpacingExtra="2dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:visibility="gone" />
-
-            <Button
-                android:id="@+id/btnReleaseNotes"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/update_release_notes_button"
-                android:textColor="@color/text_primary"
-                android:visibility="gone" />
-
-            <Button
-                android:id="@+id/btnDownloadUpdate"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/update_download_button"
-                android:textColor="@color/text_primary"
-                android:visibility="gone" />
-
-        </LinearLayout>
-
-        <!-- Support the project: the app is free and non-commercial, donations are optional. -->
-        <TextView
-            style="@style/SectionHeader"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/section_donate" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/bg_panel"
-            android:orientation="vertical"
-            android:padding="14dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:lineSpacingExtra="2dp"
-                android:text="@string/donate_body"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <Button
-                android:id="@+id/btnDonateKofi"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/donate_kofi" />
-
-            <TextView
-                android:id="@+id/pixKeyText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="@string/donate_pix_title"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp" />
-
-            <Button
-                android:id="@+id/btnCopyPix"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/donate_copy_pix"
-                android:textColor="@color/text_primary" />
-
-            <Button
-                android:id="@+id/btnShowLicense"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/donate_license"
-                android:textColor="@color/text_primary" />
-
-        </LinearLayout>
-
-
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</LinearLayout>

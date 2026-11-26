@@ -9638,3 +9638,46 @@ mostra o mesmo botão só com a seta (**67×39 px**, x 13..79, título «Diction
   desmarcado; `settings.properties` foi restaurado do backup (`cmp` idêntico) e a segunda rodada, que
   abriu o gerenciador, não alterou o arquivo. Nenhum processo `MainKt` ficou aberto. Pasta nova no
   repositório: `.github/` agora tem `agents/` e `skills/` ao lado de `workflows/` e `FUNDING.yml`.
+
+### R56 — Ajustes do celular em abas  `[x]` (26/11/2026)
+
+**Contexto.** A tela de Ajustes do Android era uma rolagem só, com nove seções — idioma, iniciar/parar,
+permissões, atalhos rápidos, motor, comportamento, dicionários, tradução, IA, atualizações e apoio ao
+projeto. O desktop se divide em abas desde R53; no celular, achar «Dicionários» ou «Atualizações» era
+atravessar uma tela e meia, e toda visita começava do topo.
+
+- **Causa raiz.** A hierarquia não tinha assuntos: um único `ScrollView` continha todas as seções e
+  nada no layout dizia a que assunto cada uma pertencia. Quem rolava até o fim perdia de vista o que
+  fica no topo e é o que muda com mais frequência — idioma, estado do serviço e permissões.
+- **Correção.** `activity_main.xml` ganhou um `TabLayout` fixo sob o cabeçalho e o `ScrollView` passou
+  a ter quatro páginas (`pageGeneral`, `pageReading`, `pageDictionaries`, `pageAbout`), como as do
+  desktop: **Geral** (idioma, iniciar/parar, permissões, atalhos rápidos), **Leitura** (motor,
+  comportamento, tradução, IA), **Dicionários** e **Sobre** (atualizações e apoio ao projeto). Uma só
+  página é disposta por vez — as outras ficam `GONE` —, então a rolagem é a de uma tela, e trocar de
+  aba devolve a página ao topo. Todos os ids existentes foram preservados, então nenhuma ligação de
+  `MainActivity` mudou; o que entrou foi `bindTabs()` (quatro abas, uma página por vez, e a aba
+  guardada em `onSaveInstanceState` para o giro não voltar para «Geral»). Rótulos novos
+  `tab_general`/`tab_reading`/`tab_dictionaries`/`tab_about` em pt-BR e en, e o estilo
+  `YabaiOcr.TabText` (12sp, sem caixa alta) porque «Dicionários» precisa caber num quarto de tela de
+  320 dp.
+- **Arquivos.** `app/src/main/res/layout/activity_main.xml`, `app/src/main/res/values/styles.xml`,
+  `app/src/main/res/values/strings.xml`, `app/src/main/res/values-en/strings.xml`,
+  `app/src/main/java/dev/yabai/ocr/MainActivity.kt`,
+  `app/src/test/java/dev/yabai/ocr/SettingsTabsTest.kt`, `ARCHITECTURE.md`/`.en.md`, `LANGUAGES.md`,
+  os dois READMEs.
+
+Testes: três casos novos em `SettingsTabsTest` — uma aba por página com só a selecionada visível, a
+página abrindo no começo e cada ajuste dentro da sua aba. **Não executados nesta máquina:** o `:app`
+não configura sem o toolchain JDK 17 e o SDK do Android (`Failed to calculate the value of task
+':app:testDebugUnitTest' property 'javaLauncher'`). Verificado aqui: o XML novo é bem-formado; o
+conjunto de ids bate com o anterior (56 preservados, 6 novos — `settingsTabs`, `settingsScroll` e as
+quatro páginas —, nenhum duplicado); nenhuma referência `@string`/`@color`/`@style`/`@drawable` ficou
+pendente; as quatro chaves de aba existem nos dois idiomas e os dois arquivos de strings continuam com
+o mesmo conjunto de chaves.
+
+- **Limite.** A mutação que derruba cada caso (deixar as quatro páginas visíveis; tirar o
+  `scroll.scrollTo(0, 0)` da troca de aba) não pôde ser provada sem compilar o `:app`. Nada foi visto
+  em emulador nem em aparelho: espaçamento das abas, cor do indicador e quebra dos rótulos em telas
+  estreitas seguem por conferir, e por isso o E2E desta entrada está pendente. O resto do app não
+  mudou de comportamento: a ordem dos ajustes dentro de cada aba é a que já existia, e
+  `DictionaryActivity`, o manual e o serviço flutuante seguem como estavam.

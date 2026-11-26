@@ -170,7 +170,9 @@ interromperia o download de um dicionário; cada uma é avisada uma vez por revi
 atualização ignorada não volta a aparecer.
 
 **Android**: instale o APK, conceda **sobreposição** e **captura de tela** (MediaProjection), escolha
-o motor e toque em iniciar. A bolha flutuante dispara a captura.
+o motor e toque em iniciar. A bolha flutuante dispara a captura. Os ajustes do celular também ficam em
+abas — **Geral** (idioma, iniciar/parar e permissões), **Leitura** (motor, comportamento, tradução e
+IA), **Dicionários** e **Sobre** (atualizações e apoio ao projeto) —, como os do desktop.
 
 ## Motores de OCR
 

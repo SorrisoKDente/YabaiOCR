@@ -46,6 +46,14 @@ O Android já utiliza o padrão idiomático de arquivos de recursos (`res/values
 - **Caminho:** `app/src/main/res/values-en/strings.xml`
 - **Conteúdo:** Tradução de todas as chaves declaradas em `app/src/main/res/values/strings.xml` (~290 chaves).
 
+**Abas dos Ajustes (R56).** A tela de Ajustes do celular passou a ser dividida em abas, como a do
+desktop, e cada categoria abaixo vive em uma delas: **Geral** (`tab_general` — idioma, iniciar/parar,
+permissões e atalhos rápidos), **Leitura** (`tab_reading` — motor, comportamento, tradução e IA),
+**Dicionários** (`tab_dictionaries`) e **Sobre** (`tab_about` — atualizações e apoio ao projeto).
+`"Geral"` → `"General"`, `"Leitura"` → `"Reading"`, `"Dicionários"` → `"Dictionaries"`,
+`"Sobre"` → `"About"`; os quatro rótulos existem nos dois arquivos e nenhum outro texto mudou de
+idioma.
+
 #### Mapeamento por Categoria de Recursos:
 1. **Cabeçalho e Permissões (`1. Permissões` / `1. Permissions`):**
    - `hero_title` ("Yabai OCR")

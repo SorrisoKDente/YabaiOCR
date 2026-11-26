@@ -5,6 +5,12 @@
     <string name="hero_title">Yabai OCR</string>
     <string name="hero_subtitle">Leia japonês em qualquer app. A bolha flutua por cima da tela, você toca, escolhe a área e o texto vai para a área de transferência.</string>
 
+    <!-- The four tabs of the settings screen (R56), in the order the strip lists them. -->
+    <string name="tab_general">Geral</string>
+    <string name="tab_reading">Leitura</string>
+    <string name="tab_dictionaries">Dicionários</string>
+    <string name="tab_about">Sobre</string>
+
     <string name="section_permissions">Permissões</string>
     <string name="section_shortcuts">Atalhos rápidos</string>
     <string name="section_engine">Motor de reconhecimento</string>
@@ -320,7 +326,7 @@
     <string name="help_button_dictionary_title">Dicionário</string>
     <string name="help_button_dictionary_desc">Abre a busca nos dicionários sem capturar nada.</string>
     <string name="help_button_settings_title">Ajustes</string>
-    <string name="help_button_settings_desc">Idioma, tema, motor de OCR, prioridade dos motores e comportamento do painel.</string>
+    <string name="help_button_settings_desc">Tema no topo da tela; idioma, motor de OCR, prioridade dos motores e comportamento do painel nas abas (Geral, Leitura, Dicionários, Sobre).</string>
     <string name="help_button_stop_title">Encerrar</string>
     <string name="help_button_stop_desc">Desliga o OCR flutuante; a bolha também pode ser arrastada até o ✕.</string>
 

@@ -289,7 +289,7 @@ valem destaque:
 
 | arquivo | papel |
 | --- | --- |
-| `MainActivity.kt` | ajustes e permissões; escolhe motor, baixa modelos, inicia o serviço |
+| `MainActivity.kt` | ajustes e permissões em quatro abas (**Geral**, **Leitura**, **Dicionários** e **Sobre**), como no desktop: `TabLayout` fixo e uma página disposta por vez (R56); escolhe motor, baixa modelos, inicia o serviço |
 | `StartOcrActivity.kt` | atalho/atalho de tela para iniciar a captura |
 | `LookupActivity.kt` | abre a busca do dicionário a partir de um texto |
 | `CameraActivity.kt` | a câmera da bolha, tela própria com CameraX: pré-visualização, disparo sem confirmação, a foto parada atrás do indicador enquanto o serviço lê e a entrega do arquivo; sai quando os balões estão na tela; o giro da foto segue a orientação do aparelho, não a tela, do disparo e depois de virar o celular; a pré-visualização e a foto parada ficam no quadro do celular, e é esse mesmo quadro que ela entrega ao serviço para a página do seletor; fecha-se quando o usuário vai para a home ou a lista de apps, mas só com a câmera já rodando, porque o diálogo de permissão também anuncia uma saída; mede a tela pelo display inteiro, a mesma medida da página do seletor, e deixa o disparo e o ✕ presos às bordas do celular — embaixo ao centro e no canto superior direito —, trocando só o lado da janela que mostra cada borda conforme a rotação do display, sem girá-los com a foto (R48p); com a janela virada pelo celular, mede o quadro de novo para a câmera continuar sendo a tela inteira, gira o «Reconhecendo…» com esse quadro e tem no indicador o «Cancelar» que avisa o serviço e devolve a pré-visualização (R46d, R47a, R48a, R48d, R48f, R48g, R48h, R48i, R48j, R48k, R48l, R48m, R48p) |
@@ -350,7 +350,8 @@ valem destaque:
 
 ### Recursos
 
-`app/src/main/res/`: `layout/activity_main.xml` e `activity_help.xml`, `values/` (pt-BR),
+`app/src/main/res/`: `layout/activity_main.xml` (cabeçalho, `TabLayout` e as quatro páginas
+`pageGeneral`/`pageReading`/`pageDictionaries`/`pageAbout`) e `activity_help.xml`, `values/` (pt-BR),
 `values-en/`, `values-night/colors.xml`, `drawable/` (`ic_scan.png` é o ícone do balão;
 `ic_stat_scan.xml` é a variante monocrômica da notificação e do tile), `mipmap-anydpi-v26/`.
 Toda string de interface vive em `values/strings.xml` **e** `values-en/strings.xml` — ver

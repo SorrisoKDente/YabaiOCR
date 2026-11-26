@@ -33,6 +33,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -166,6 +167,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, HelpActivity::class.java))
         }
 
+        bindTabs(savedInstanceState?.getInt(STATE_TAB) ?: 0)
         bindThemeSelector()
         bindAppUpdates()
         bindLanguageSelector()
@@ -212,7 +214,62 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // A rotation must not send the reader back to Geral in the middle of a setting.
+        outState.putInt(STATE_TAB, findViewById<TabLayout>(R.id.settingsTabs).selectedTabPosition)
+    }
+
     // --- settings wiring -----------------------------------------------------------------------
+
+    /** The page each tab shows, in the order the strip lists them. */
+    private val tabPages = listOf(
+        R.id.pageGeneral,
+        R.id.pageReading,
+        R.id.pageDictionaries,
+        R.id.pageAbout,
+    )
+
+    /**
+     * The screen split into tabs, the way the desktop settings already were (R56).
+     *
+     * Nine full-height sections in one scroll meant passing language, permissions, engine,
+     * behaviour, dictionaries, translation, AI, updates and donations to reach the last one, and the
+     * subject a reader was looking for could be a screen and a half away. The tabs keep the same
+     * content and the same view ids — only one page is laid out at a time, and the strip stays put,
+     * so another subject is always one tap away whatever the current page's height.
+     */
+    private fun bindTabs(restoreTab: Int) {
+        val tabs = findViewById<TabLayout>(R.id.settingsTabs)
+        val scroll = findViewById<ScrollView>(R.id.settingsScroll)
+
+        fun show(index: Int) {
+            tabPages.forEachIndexed { position, id ->
+                findViewById<View>(id).visibility =
+                    if (position == index) View.VISIBLE else View.GONE
+            }
+            // A page starts at its own beginning: carrying the previous page's offset over lands
+            // the new one halfway down, with its first card out of sight.
+            scroll.scrollTo(0, 0)
+        }
+
+        tabs.addTab(tabs.newTab().setText(R.string.tab_general))
+        tabs.addTab(tabs.newTab().setText(R.string.tab_reading))
+        tabs.addTab(tabs.newTab().setText(R.string.tab_dictionaries))
+        tabs.addTab(tabs.newTab().setText(R.string.tab_about))
+
+        tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) = show(tab.position)
+
+            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+
+            /** Tapping the tab already open is the familiar «go back to the top of this page». */
+            override fun onTabReselected(tab: TabLayout.Tab) = scroll.scrollTo(0, 0)
+        })
+
+        show(0)
+        tabs.getTabAt(restoreTab)?.select()
+    }
 
     /**
      * The theme control is the button in the header, and only it.
@@ -1029,6 +1086,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private companion object {
+        /** Which tab the settings were showing, kept across a rotation (R56). */
+        const val STATE_TAB = "settingsTab"
     }
 }
 
