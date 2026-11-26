@@ -2,6 +2,7 @@ package dev.yabai.ocr.desktop
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.awt.Desktop
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -95,6 +96,44 @@ internal object UpdateInstaller {
         OsFamily.WINDOWS, OsFamily.MACOS ->
             UpdatePlan.Installer(Path.of(System.getProperty("java.io.tmpdir"), fileNameFor(downloadUrl)))
         else -> null
+    }
+
+    /**
+     * The command that opens the installer when the desktop cannot do it.
+     *
+     * A `.msi` is not an executable: `ProcessBuilder` fails on it, and a release that publishes only
+     * an MSI would look like a failed update even though the file arrived. The command is kept
+     * separate so the mapping is testable without running an installer.
+     */
+    internal fun installerCommand(family: OsFamily, installer: Path): List<String> = when {
+        family == OsFamily.MACOS -> listOf("open", installer.toString())
+        family == OsFamily.WINDOWS &&
+            installer.fileName.toString().endsWith(".msi", ignoreCase = true) ->
+            listOf("msiexec", "/i", installer.toString())
+        else -> listOf(installer.toString())
+    }
+
+    /**
+     * Hands the downloaded installer to the operating system.
+     *
+     * `Desktop.open` goes through the shell: Windows shows the UAC prompt and routes an `.msi` to
+     * `msiexec`, neither of which `ProcessBuilder` can do. The command fallback exists for a runtime
+     * without a desktop (a headless session, a minimal JRE).
+     */
+    private fun launchInstaller(family: OsFamily, installer: Path): Boolean {
+        val opened = runCatching {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                Desktop.getDesktop().open(installer.toFile())
+                true
+            } else {
+                false
+            }
+        }.getOrDefault(false)
+        if (opened) return true
+        return runCatching {
+            ProcessBuilder(installerCommand(family, installer)).start()
+            true
+        }.getOrDefault(false)
     }
 
     /**
@@ -234,10 +273,8 @@ internal object UpdateInstaller {
 
             is UpdatePlan.Installer -> {
                 download(downloadUrl, plan.path, onProgress)
-                if (family == OsFamily.MACOS) {
-                    ProcessBuilder("open", plan.path.toString()).start()
-                } else {
-                    ProcessBuilder(plan.path.toString()).start()
+                if (!launchInstaller(family, plan.path)) {
+                    throw IOException("could not open ${plan.path.fileName}")
                 }
                 UpdateOutcome.InstallerLaunched(plan.path)
             }

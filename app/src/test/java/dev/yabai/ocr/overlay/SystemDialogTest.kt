@@ -71,6 +71,34 @@ class SystemDialogTest {
         assertEquals(listOf("result dismissed"), callbacks.calls)
     }
 
+    /**
+     * R60: HOME also closes the picker over a camera photo.
+     *
+     * The picker is a full-screen focusable overlay, so the launcher does not take the screen from
+     * it; like the result panel it has to listen for the system dialog. The buttons «Cancelar»,
+     * «Tirar outra foto» and «Texto todo» were left over the launcher.
+     */
+    @Test
+    fun `o home fecha o picker da foto da camera`() {
+        val callbacks = RecordingCallbacks()
+        val controller = controller(callbacks)
+        assertTrue(
+            "the picker did not open",
+            controller.showTextPicker(
+                listOf(PickerBlock(Rect(0, 0, 200, 200))),
+                PickerReadingMode.OFF,
+                null,
+                retake = true,
+            ),
+        )
+        assertTrue("the picker was not on screen", controller.isTextPickerVisible())
+
+        systemDialog("homekey")
+
+        assertFalse("the camera photo stayed over the launcher", controller.isTextPickerVisible())
+        assertTrue("a picker was counted as a dismissed result", callbacks.calls.isEmpty())
+    }
+
     /** The power menu is not the user walking away: the panel is still there when it closes. */
     @Test
     fun `um motivo que nao e sair nao fecha o painel`() {

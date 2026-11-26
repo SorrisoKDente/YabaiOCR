@@ -187,10 +187,10 @@ flags above.
 | `ReleaseNotesWindow.kt` | Markdown preview of the GitHub release notes, opened from Settings → About |
 | `LicenseWindow.kt` | license text bundled in the jar, opened from Settings → About |
 | `HelpWindow.kt` | the «Help & Tips» manual as a screen of the main window (`HelpContent(settings, onBackRequested)`), opened by the header's «❓ Help»: a bar with the back arrow (`backToPreviousIcon`, «◀»; its accessible name is `btnBackToPrevious`), the button reference (`helpButtons()`, icon on the left, name and what it does) and one entry per action (captures, hover, quick search, dictionaries, result, renderers, engines and tray), in pt/en |
-| `UpdateInstaller.kt` | downloads the asset with progress, swaps the running AppImage (`.old` backup), opens the installer on Windows/macOS and restarts |
+| `UpdateInstaller.kt` | downloads the asset with progress, swaps the running AppImage (`.old` backup), hands the installer to the system shell (file association, `.msi` through `msiexec`) and restarts |
 | `InstanceLock.kt` | file lock at `~/.yabai_ocr/instance.lock`: one instance per user, before D-Bus and the tray |
 | `KdeCapturePermission.kt` | the «silent capture on KDE» switch: writes `~/.config/environment.d/yabai-ocr.conf` with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1`, because KWin only authorizes `ScreenShot2` to a fixed `Exec` under a root-writable directory |
-| `UpdatesNoticeWindow.kt` | single updates notice: the app version (downloads with progress, restarts, opens the notes) and the dictionaries with a newer revision, in one window |
+| `UpdatesNoticeWindow.kt` | single updates notice: the app version (a bar with the download percentage, restarts, opens the notes) and the dictionaries with a newer revision, in one window; `UpdateDownloadProgress`/`UpdateInstallerNotice` are shared with the About tab and, on Windows/macOS, the end of the download says to continue in the installer (R60) |
 | `DictionaryUpdateMonitor.kt` | periodic dictionary check in the application scope (including `--minimized`), offer per remote revision, the «already announced» key and `dictionaryAnnouncement` (announce, stay quiet, or clear the tray tooltip) |
 | `NativeLibraryPath.kt` | points `jnativehook.lib.path` at `~/.cache/yabai-ocr/native` on Linux before `GlobalScreen` is touched (an AppImage is read-only) |
 | `QuickDictWindow.kt` | quick dictionary lookup in its own window |
@@ -323,14 +323,14 @@ worth knowing:
 | `capture/ScreenMetrics.kt` | the single screen measurement — the whole display, bars included — used by the bubble (R23), the camera screen and the picker's page (R48j) |
 | `capture/PhotoWait.kt` | the limit on the camera screen's wait for a photo's reading, and the fallback that hands control back (R48c) |
 | `capture/PhotoPage.kt` | photo geometry on the picker's page (uniform fit, boxes, page allocation) and the page's size in the phone's frame (R48g) and that frame applied to the camera screen's views (R48h) (R47a, R48g, R48h) |
-| `service/FloatingOcrService.kt` | foreground service: capture, OCR, shows the result; every reading runs in `startReading`, which holds the `Job` «Cancel» cancels (R48m) |
+| `service/FloatingOcrService.kt` | foreground service: capture, OCR, shows the result; every reading runs in `startReading`, which holds the `Job` «Cancel» cancels (R48m); a screen turn clamps the bubble again (`onConfigurationChanged`, R60) |
 | `service/LookupOverlayService.kt` | dictionary lookup over other apps |
 | `service/YabaiTileService.kt` | quick settings tile |
-| `overlay/OverlayController.kt` | overlay lifecycle |
+| `overlay/OverlayController.kt` | overlay lifecycle: bubble (position, drag and the rotation clamp — R51/R60), menus, picker and panels; HOME/recents close the result, the kanji reader and the picker (R60) |
 | `overlay/ResultOverlay.kt` | result panel (text, translation, actions, dictionary; the wait for a reading is the shared thin bar — R48m, R57) |
 | `overlay/LoadingBar.kt` | the thin wait bar (spinner, weighted label and red «Cancel» beside it), shared by the panel and the camera (R57) |
-| `overlay/TextPickerOverlay.kt` | segment picker over the capture, with the page turned into the phone's frame (R48g), the action bar and the hint following that turn (R48g, R48h), and ruby that steps aside, or shrinks into the gap, instead of covering another piece of text (R57, R58) |
-| `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` / `PageTurn.kt` | "always show the picker" rule, touch targets, zoom, readings and the page's turn into the phone's frame (R48g) |
+| `overlay/TextPickerOverlay.kt` | segment picker over the capture, with the page turned into the phone's frame (R48g), the action bar and the hint following that turn (R48g, R48h), ruby that steps aside, or shrinks into the gap, instead of covering another piece of text (R57, R58), and a red «Cancel» (R60) |
+| `overlay/PickerDecision.kt` / `PickerTargets.kt` / `PickerZoom.kt` / `PickerReadingLayout.kt` / `PickerReading.kt` / `PageTurn.kt` | "always show the picker" rule, touch targets, zoom, readings (never over printed furigana or the next piece; shrinking into a narrow gap — R57, R58; ruby sized by the column's width, not by the kana count — R60) and the page's turn into the phone's frame (R48g) |
 | `overlay/RegionOverlay.kt` | manual crop |
 | `overlay/AppPickerOverlay.kt` | AI app choice |
 | `overlay/KanjiOverlay.kt` / `KanjiCardText.kt` | kanji card (strokes, readings, compounds) |
@@ -342,7 +342,7 @@ worth knowing:
 | --- | --- |
 | `update/AppUpdateChecker.kt` | reads the latest GitHub release, compares it with `BuildConfig.VERSION_NAME` and returns the notes |
 | `update/MarkdownView.kt` | draws the notes (blocks from `:core`) in a `TextView` with bold, code and tappable links |
-| `update/ApkInstall.kt` | downloads the APK with `DownloadManager` into the app's downloads folder and stops there (no install, no permission) |
+| `update/ApkInstall.kt` | downloads the APK with `DownloadManager` into the app's downloads folder and stops there (no install, no permission); `ApkDownloadProgress`/`progress` read its bytes for the screen's bar (R60) |
 | `dict/DictionaryCatalog.kt` | catalog of available dictionaries |
 | `dict/DictionaryDownloader.kt` | ZIP download/install |
 | `dict/DictionaryRepository.kt` | installed dictionaries, filter and order |

@@ -9860,3 +9860,143 @@ variante** e core **210** inalterados.
   Repetido depois da revisão do R59: mesmo botão no mesmo lugar, mesma aba Instalados.
 - **Limite.** O caminho com dicionário instalado não foi exercitado; o E2E cobre só o aviso e a
   abertura da aba.
+### R60 — A atualização mostra a porcentagem e diz onde continuar  `[x]` (26/11/2026)
+
+**Pedido.** «A atualização dá versão de Windows, como ele abre um instalador separado, quando estiver
+baixando deixe mostrando a porcentagem de download e quando terminar, deixe um aviso para continuar
+no instalador. Na versão mobile faça parecido, mostre uma barra de progresso quando estiver baixando,
+quando terminar de baixar, diga para instalar pelo dispositivo.»
+
+- **Causa.** O desktop já recebia a porcentagem em `UpdateInstaller.download`, mas ela só existia
+  dentro do rótulo do botão: fácil de perder e sem noção de quanto falta. No Windows/macOS o
+  instalador separado era aberto e o texto final («foi baixado e aberto. Conclua e abra o app de
+  novo») lia como se a atualização já estivesse aplicada. No Android a tela mostrava só «Baixando
+  atualização…», sem nenhum avanço visível entre o toque e o broadcast de conclusão.
+- **Correção.** `UpdateDownloadProgress` (em `UpdatesNoticeWindow.kt`, usado também pela aba Sobre)
+  desenha `LinearProgressIndicator` determinado quando há total e indeterminado quando não há, com a
+  porcentagem em texto; `UpdateInstallerNotice` pinta o aviso de fim de download. As duas entradas do
+  desktop (janela de aviso e Ajustes → Sobre) mostram a barra durante o download; em
+  `UpdateOutcome.InstallerLaunched` o texto «✅ Download concluído. Continue no instalador da versão X
+  que foi aberto para concluir a atualização.» substitui a linha antiga. No Android, `ApkInstall`
+  ganhou `ApkDownloadProgress`/`progress`, que leem `COLUMN_BYTES_DOWNLOADED_SO_FAR` e
+  `COLUMN_TOTAL_SIZE_BYTES` do `DownloadManager` (devolvendo `null` quando o download terminou ou
+  falhou), e `MainActivity.pollUpdateProgress` atualiza a `ProgressBar` e a linha
+  «Baixando atualização… N%» a cada 400 ms até o broadcast; a mensagem final virou «✅ Download
+  concluído: <arquivo> — Instale pelo dispositivo: abra o arquivo e confirme.». O percentual é
+  limitado a 0–100. Strings novas em pt/en (`update_downloading_percent` no Android, o texto do aviso
+  em `DesktopStrings.updateInstallerLaunched`) e o layout ganhou `appUpdateProgress`.
+- **Arquivos.** `desktop/UpdatesNoticeWindow.kt`, `desktop/SettingsWindow.kt`,
+  `desktop/i18n/DesktopStrings.kt`, `app/update/ApkInstall.kt`, `app/MainActivity.kt`,
+  `app/res/layout/activity_main.xml`, `values/strings.xml`, `values-en/strings.xml`,
+  `UpdateDownloadNoticeTest.kt`, `UpdateDownloadOnlyTest.kt`, ARCHITECTURE/`.en.md`, AGENTS e READMEs.
+
+| mutação | teste que acusa |
+| --- | --- |
+| o aviso volta a «conclua e abra o app» (sem «continue no instalador») | `a finished download tells the user to continue in the installer` — `UpdateDownloadNoticeTest.kt` |
+| o percentual do Android para em 99 (`coerceIn(0, 99)`) | `the progress bar has a percentage only when the total size is known` — `UpdateDownloadOnlyTest.kt` |
+
+Testes: **desktop 628** (622 executados, 6 pulados), 0 falhas (`--rerun-tasks`); **app 1022** (511
+em cada variante, debug e release), 0 falhas; **core 210** inalterado.
+
+- **Limite.** O download real não foi visto em tela: vê-lo no app exigiria apontar para o release do
+  GitHub e executar um instalador de verdade nesta máquina (Windows), ou um aparelho Android. A
+  barra e o aviso ficaram cobertos pelos testes de texto/fonte e pela compilação, mas não por um E2E.
+### R61 — Bolha, rubi, «Cancelar», HOME na câmera e o texto inicial da ajuda  `[x]` (26/11/2026)
+
+**Pedido.** «Mobile: Bolha flutuante continua sumindo em alguns momentos quando rotaciona a tela
+(identifiquei principalmente quando a bolha está no lado direito da tela, o celular rotacionado 90°
+para esquerda e depois eu deixo ele em pé novamente). O rubi aparece meio deslocado em alguns
+momentos, alguns momentos no tamanho normal acima e logo abaixo na mesma coluna com o mesmo espaço,
+ele parece bem menor. O botão cancelar depois de reconhecer o texto no celular, seja com a captura da
+tela toda, recorte, foto, ele aparece azul, o correto seria vermelho. O botão de lista de
+aplicativos/home, deve fechar a imagem reconhecida da câmera (onde aparece «Cancelar», «Tirar outra
+foto», «Texto todo»), semelhante ao que ele faz a captura da tela inteira por exemplo. Desktop: Esse
+texto pode ser retirado da aba de ajuda: "Primeiro uma referência de cada botão, com o ícone que ele
+mostra, e depois cada função na ordem em que você costuma encontrá-la. Os atalhos abaixo são os que
+estão configurados agora — todos podem ser trocados nos Ajustes."»
+
+- **Bolha.** R51 já prendia a bolha dentro da tela num `DisplayManager.DisplayListener`, mas o
+  callback pode chegar antes de `getRealMetrics` refletir o tamanho novo: uma bolha encostada à
+  direita em deitado ficava além da direita em pé, desenhada pelo `FLAG_LAYOUT_NO_LIMITS` e fora do
+  alcance do dedo. `onDisplayChanged` agora chama `keepBubbleOnScreen()` na hora e de novo num
+  `post`, depois do layout contra o display novo; o serviço também ganhou
+  `onConfigurationChanged` chamando o mesmo clamp, como segunda chance em aparelhos cuja ordem de
+  callbacks difere.
+- **Rubi.** O tamanho da leitura vertical era `min(width × 0.55, height / kana)`. O segundo termo
+  fazia a leitura de **um** kanji com três kana valer um terço da leitura de dois kana na mesma
+  coluna — o «mesmo espaço, bem menor» do print. O tamanho passa a ser só `width × 0.55`, como o de
+  uma linha horizontal; a leitura pode passar do trecho dos caracteres, e o `yFor`/checagem de
+  sobreposição continuam prendendo-a na coluna e fora do texto vizinho (R57/R58 preservados).
+- **Cancelar.** A barra do picker usa o `actionButton` padrão, cujo fundo é o azul de destaque: a
+  saída ficava igual a «Texto todo». O «Cancelar» agora usa `R.color.warn` (vermelho), com o mesmo
+  texto branco e cantos do resto da barra.
+- **HOME/recentes.** `OverlayController` escutava `ACTION_CLOSE_SYSTEM_DIALOGS` só enquanto havia
+  painel de resultado ou leitor de kanji; o picker é uma janela focável de tela cheia e continuava
+  sobre o launcher. Ele entra na mesma escuta (`listenForSystemDialogs` ao abrir), é fechado em
+  `dismissForSystemDialog`, e a escuta só é desligada quando não sobra picker, painel ou kanji. Sem
+  callback de serviço: fechar o picker não conta como resultado dispensado.
+- **Ajuda (desktop).** O parágrafo `helpIntro` (pt/en) foi retirado de `HelpWindow` e de
+  `DesktopStrings`; o manual agora começa em «Botões».
+- **Arquivos.** `app/.../overlay/PickerReadingLayout.kt`, `TextPickerOverlay.kt`,
+  `OverlayController.kt`, `app/.../service/FloatingOcrService.kt`,
+  `app/src/test/.../overlay/PickerReadingLayoutTest.kt`, `TextPickerOverlayTest.kt`,
+  `SystemDialogTest.kt`, `BubblePlacementTest.kt`, `desktop/HelpWindow.kt`,
+  `desktop/i18n/DesktopStrings.kt`, `LANGUAGES.md`, ARCHITECTURE/`.en.md`, AGENTS e ROADMAP.
+
+| mutação | teste que acusa |
+| --- | --- |
+| voltar `height / characters` ao tamanho do rubi vertical | `a long reading of a short column keeps the ruby size` — `PickerReadingLayoutTest.kt` |
+| voltar o fundo azul do «Cancelar» | `cancel is red instead of the accent` — `TextPickerOverlayTest.kt` |
+| tirar `hideTextPicker()` de `dismissForSystemDialog` | `o home fecha o picker da foto da camera` — `SystemDialogTest.kt` |
+| tirar o clamp de `onConfigurationChanged` | `a configuracao nova tambem prende a bolha na tela` — `BubblePlacementTest.kt` |
+
+Testes: **app 1030** (515 em cada variante, debug e release), 0 falhas; **desktop 628** (622
+executados, 6 pulados), 0 falhas; core **210** inalterado.
+
+- **Limite.** Nada foi rodado em aparelho nem emulador: a correção da bolha é medida pelo clamp e
+  pela leitura de fonte dos dois callbacks (o Robolectric não gira a tela), e o rubi pelo cálculo de
+  `RubyLayout.spot`, não pelos pixels desenhados. O print do usuário foi ampliado para confirmar a
+  diferença de tamanho, mas a tela nova não foi vista. Se o sistema **remover** a janela da bolha (e
+  não só deslocá-la), o clamp não a recria — o caso continua fora, como no limite de R51.
+### R62 — Revisão dos ajustes ainda não commitados  `[x]` (26/11/2026)
+
+**Pedido.** «Veja tudo que ainda não foi commitado com olhos frescos. Verifique potenciais bugs e
+deficiências e corrija/melhore o que for possível.»
+
+- **Instalador no Windows.** `UpdateInstaller` abria o instalador com
+  `ProcessBuilder(plan.path.toString())`. Um `.msi` não é executável (erro 193) e um `.exe` com
+  manifesto de administrador falha com erro 740, porque `CreateProcess` não passa pelo shell. O
+  instalador agora é entregue com `Desktop.open` — que usa o shell do Windows, pede a confirmação
+  do sistema e resolve a associação do `.msi` — com `msiexec /i`/`open`/execução direta como
+  fallback sem desktop. A escolha do comando ficou numa função pura, testável sem abrir instalador
+  de verdade.
+- **Segundo download com o instalador aberto.** Depois de `InstallerLaunched`, `isDownloading` cai
+  para falso e o botão «Baixar» voltava a habilitar: um segundo clique baixaria e abriria outro
+  instalador enquanto o primeiro rodava. Com `installerNotice` presente o botão fica desabilitado,
+  mostra «Baixada» e o download de dicionários também espera (`appBusy`), pois o instalador pode
+  fechar o app no meio.
+- **Polling do Android.** `ApkInstall.progress` devolve `null` quando a linha do DownloadManager
+  ainda não apareceu — e a tela desistia no primeiro `null`, deixando a barra presa em
+  «Baixando…» sem porcentagem. Agora ela tenta de novo por ~4 s antes de desistir; o broadcast de
+  conclusão continua sendo o fim de verdade.
+- **Revisão do que já estava feito.** Os quatro ajustes de R61 foram relidos: o clamp da bolha tem
+  os dois callbacks, o rubi não depende mais do número de kana, o «Cancelar» usa `R.color.warn` e o
+  picker entra e sai da escuta de `ACTION_CLOSE_SYSTEM_DIALOGS` sem deixar receptor registrado.
+  Nenhuma mudança extra necessária.
+- **Arquivos.** `desktop/.../UpdateInstaller.kt`, `UpdatesNoticeWindow.kt`, `SettingsWindow.kt`,
+  `desktop/src/test/.../UpdateInstallerTest.kt`, `UpdateDownloadNoticeTest.kt`,
+  `app/.../MainActivity.kt`, AGENTS, ARCHITECTURE/`.en.md` e ROADMAP.
+
+| mutação | teste que acusa |
+| --- | --- |
+| tratar `.msi` como executável direto (remover o ramo `msiexec`) | `an msi installer is handed to msiexec and a dmg to the system opener` — `UpdateInstallerTest.kt` |
+| reabilitar o botão com `installerNotice` presente | `an open installer does not offer a second download` — `UpdateDownloadNoticeTest.kt` |
+| desistir no primeiro progresso ausente (remover o retry) | `a missing progress row is retried before the bar gives up` — `UpdateDownloadOnlyTest.kt` |
+| gastar um retry a menos (trocar `>` por `>=`) | `a row that never appears gives up after the retry budget` — `UpdateDownloadOnlyTest.kt` |
+
+Testes: **app 1034** (517 em cada variante), 0 falhas; **desktop 630** (624 executados, 6 pulados),
+0 falhas; core **210** inalterado.
+
+- **Limite.** Nenhum instalador real foi aberto: o teste cobre o comando de fallback, não o
+  `Desktop.open`/diálogo do sistema; o retry do polling é testado com um sampler falso, sem um
+  download real do DownloadManager. Nada foi visto em aparelho.

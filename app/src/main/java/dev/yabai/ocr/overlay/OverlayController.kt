@@ -388,9 +388,18 @@ class OverlayController(
 
             override fun onDisplayRemoved(displayId: Int) = Unit
 
-            /** The screen turned (or was resized): the bubble has to stay where a finger reaches. */
+            /**
+             * The screen turned (or was resized): the bubble has to stay where a finger reaches.
+             *
+             * The callback can arrive before the display reports its new size, so the bubble is
+             * clamped again once the window has been laid out against the new display. Without the
+             * second pass a bubble at the right edge of a landscape screen stayed past the right
+             * edge of the portrait one, drawn but out of reach (R60).
+             */
             override fun onDisplayChanged(displayId: Int) {
-                if (displayId == Display.DEFAULT_DISPLAY) keepBubbleOnScreen()
+                if (displayId != Display.DEFAULT_DISPLAY) return
+                keepBubbleOnScreen()
+                bubbleView?.post { keepBubbleOnScreen() }
             }
         }
         runCatching { manager.registerDisplayListener(listener, null) }
@@ -958,13 +967,19 @@ class OverlayController(
         if (!addWindow(overlay, baseParams(MATCH_PARENT, MATCH_PARENT, focusable = true))) return false
         overlay.show(blocks, mode, page, retake, turn)
         pickerView = overlay
+        // HOME and recents have to close the photo the camera just read, as they close the result
+        // panel and the kanji reader (R60).
+        listenForSystemDialogs()
         return true
     }
+
+    internal fun isTextPickerVisible(): Boolean = pickerView != null
 
     fun hideTextPicker() {
         val view = pickerView ?: return
         removeWindow(view)
         pickerView = null
+        stopListeningForSystemDialogsIfIdle()
     }
 
     // --- kanji reader --------------------------------------------------------------------------
@@ -1279,7 +1294,7 @@ class OverlayController(
      * other deaf to HOME (R41). This is the check that keeps that true.
      */
     private fun stopListeningForSystemDialogsIfIdle() {
-        if (resultView != null || kanjiView != null) return
+        if (resultView != null || kanjiView != null || pickerView != null) return
         stopListeningForSystemDialogs()
     }
 
@@ -1300,12 +1315,13 @@ class OverlayController(
      */
     private fun dismissForSystemDialog(reason: String?) {
         if (reason != SYSTEM_DIALOG_REASON_HOME && reason != SYSTEM_DIALOG_REASON_RECENTS) return
-        if (resultView == null && kanjiView == null) return
+        if (resultView == null && kanjiView == null && pickerView == null) return
         // The result panel first: its service callback is what turns the bubble off or stops the
         // ReadEra service. The kanji reader has no such callback, but it is a panel over the page
-        // that is gone all the same.
+        // that is gone all the same; so is the picker over a camera photo (R60).
         if (resultView != null) dismissResult()
         hideKanji()
+        hideTextPicker()
     }
 
     fun hideResult() {

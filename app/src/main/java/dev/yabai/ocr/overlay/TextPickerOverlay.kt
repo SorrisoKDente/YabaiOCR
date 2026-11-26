@@ -96,7 +96,14 @@ class TextPickerOverlay(context: Context) : FrameLayout(context) {
         gravity = Gravity.CENTER
         setPadding(dp(8), dp(8), dp(8), dp(8))
         background = roundedBackground(context.getColor(R.color.panel_bg), dp(16).toFloat(), 0x22FFFFFF)
-        addView(actionButton(context.getString(R.string.picker_cancel)) { onCancel?.invoke() })
+        // Red, like the way out of every other capture flow: blue is what «Texto todo» and the
+        // other forward actions wear, and the two looked alike in the same bar (R60).
+        addView(
+            actionButton(
+                context.getString(R.string.picker_cancel),
+                background = context.getColor(R.color.warn),
+            ) { onCancel?.invoke() },
+        )
         addView(
             retakeButton,
             LinearLayout.LayoutParams(

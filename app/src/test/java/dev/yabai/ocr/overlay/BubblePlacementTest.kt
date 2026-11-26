@@ -192,6 +192,10 @@ class BubblePlacementTest {
             onDisplayChanged.contains("keepBubbleOnScreen()"),
         )
         assertTrue(
+            "the display change does not clamp again after the new size settles",
+            onDisplayChanged.contains("post"),
+        )
+        assertTrue(
             "the display listener is not registered with the bubble",
             source.substringAfter("fun showBubble()", "").substringBefore("fun hideBubble()")
                 .contains("listenForDisplayChanges()"),
@@ -201,6 +205,28 @@ class BubblePlacementTest {
             source.substringAfter("fun hideBubble()", "").substringBefore("fun onBubbleTouch")
                 .contains("stopListeningForDisplayChanges()") &&
                 source.contains("unregisterDisplayListener"),
+        )
+    }
+
+    /**
+     * R60: the service clamps the bubble on its own configuration change as well.
+     *
+     * The display callback can arrive before the display reports the new size — the case of a bubble
+     * at the right edge of a landscape screen left past the right edge of the portrait one. The
+     * service callback lands with the new resources, so it is the second chance. The source is read
+     * for the same reason the display listener is: Robolectric does not turn a phone.
+     */
+    @Test
+    fun `a configuracao nova tambem prende a bolha na tela`() {
+        val source = sequenceOf(File(SERVICE_SOURCE), File("../$SERVICE_SOURCE"))
+            .firstOrNull { it.isFile }?.readText().orEmpty()
+        assertTrue("FloatingOcrService.kt not found", source.isNotEmpty())
+
+        val callback = source.substringAfter("override fun onConfigurationChanged", "")
+            .substringBefore("}")
+        assertTrue(
+            "the service ignores the screen turning",
+            callback.contains("overlays.keepBubbleOnScreen()"),
         )
     }
 
@@ -271,5 +297,8 @@ class BubblePlacementTest {
     private companion object {
         /** The controller the wiring guard reads, from the module root or the repo root. */
         const val SOURCE = "app/src/main/java/dev/yabai/ocr/overlay/OverlayController.kt"
+
+        /** The service, for the configuration-change guard. */
+        const val SERVICE_SOURCE = "app/src/main/java/dev/yabai/ocr/service/FloatingOcrService.kt"
     }
 }

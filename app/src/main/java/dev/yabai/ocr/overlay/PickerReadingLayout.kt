@@ -49,10 +49,13 @@ object RubyLayout {
 
         if (vertical) {
             val spanTop = top + height * from.coerceIn(0f, 1f)
-            // As thin as the glyphs of the line it explains, and never more than the line can hold:
-            // five kana beside two kanji are exactly the case, and squeezing them into the two
-            // characters' own stretch would make them unreadable.
-            val size = minOf(width * SIZE_RATIO, height / characters)
+            // As thin as the glyphs of the line it explains. The size used to be divided by how
+            // many kana the reading has, which made a one-kanji column with a three-kana reading a
+            // third of the size of a two-kana reading in the same gutter — the reading looked
+            // broken instead of small (R60). The stack may run past the characters' own stretch;
+            // [yFor] keeps it inside the column where it can, and the overlap check keeps it off
+            // the neighbouring text.
+            val size = width * SIZE_RATIO
             if (size < MIN_SIZE) return null
             // Anchored on the characters it reads, but pushed up rather than running past the
             // bottom of the column.

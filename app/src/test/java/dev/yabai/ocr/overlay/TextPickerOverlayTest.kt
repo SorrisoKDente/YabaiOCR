@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
+import dev.yabai.ocr.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -80,6 +81,22 @@ class TextPickerOverlayTest {
         assertEquals("the page lost width to the action bar", 320, page.width)
         assertEquals("the page lost height to the action bar", 640, page.height)
         assertEquals("the page was pushed down to make room for the bar", 0, page.top)
+    }
+
+    /**
+     * R60: «Cancelar» is red, not the accent blue of the forward actions.
+     *
+     * The picker's bar was built from the plain action button, so «Cancelar» and «Texto todo» had
+     * the same fill and the way out looked like the way forward.
+     */
+    @Test
+    fun `cancel is red instead of the accent`() {
+        val overlay = picker({}, {})
+        val cancel = (overlay.actionBar as android.view.ViewGroup).getChildAt(0)
+        val fill = (cancel.background as android.graphics.drawable.GradientDrawable)
+            .color?.defaultColor
+
+        assertEquals(context.getColor(R.color.warn), fill)
     }
 
     /** The height of the bar the picker has to clear, with the same fallback the picker uses. */

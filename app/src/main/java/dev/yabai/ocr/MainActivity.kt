@@ -22,6 +22,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
@@ -35,6 +36,8 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import dev.yabai.ocr.ai.AskAi
@@ -77,6 +80,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnCheckAppUpdate: Button
     private lateinit var checkAppUpdatesOnStart: CheckBox
     private lateinit var appUpdateStatus: TextView
+    private lateinit var appUpdateProgress: ProgressBar
     private lateinit var btnReleaseNotes: Button
     private lateinit var btnDownloadUpdate: Button
 
@@ -89,6 +93,9 @@ class MainActivity : AppCompatActivity() {
     /** Id of the APK download in progress; the completion broadcast is matched against it. */
     private var updateDownloadId: Long = -1L
     private var updateDownloadReceiver: BroadcastReceiver? = null
+
+    /** Polls DownloadManager's byte counters; cancelled when the download ends. */
+    private var updateProgressJob: Job? = null
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -311,6 +318,7 @@ class MainActivity : AppCompatActivity() {
         btnCheckAppUpdate = findViewById(R.id.btnCheckAppUpdate)
         checkAppUpdatesOnStart = findViewById(R.id.checkAppUpdatesOnStart)
         appUpdateStatus = findViewById(R.id.appUpdateStatus)
+        appUpdateProgress = findViewById(R.id.appUpdateProgress)
         btnReleaseNotes = findViewById(R.id.btnReleaseNotes)
         btnDownloadUpdate = findViewById(R.id.btnDownloadUpdate)
 
@@ -348,14 +356,19 @@ class MainActivity : AppCompatActivity() {
 
         appUpdateStatus.visibility = View.VISIBLE
         appUpdateStatus.text = getString(R.string.update_downloading)
+        appUpdateProgress.visibility = View.VISIBLE
+        appUpdateProgress.isIndeterminate = true
+        appUpdateProgress.progress = 0
         updateDownloadId = runCatching {
             ApkInstall.downloadApk(this, url, update.latestVersion)
         }.getOrElse {
             appUpdateStatus.text = getString(R.string.update_download_failed)
+            appUpdateProgress.visibility = View.GONE
             -1L
         }
         if (updateDownloadId < 0) return
         btnDownloadUpdate.isEnabled = false
+        pollUpdateProgress(updateDownloadId)
     }
 
     // --- supporting the project ----------------------------------------------------------------
@@ -428,6 +441,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onUpdateDownloadFinished(downloadId: Long) {
+        updateProgressJob?.cancel()
+        appUpdateProgress.visibility = View.GONE
         val update = pendingUpdate ?: return
         btnDownloadUpdate.isEnabled = true
         appUpdateStatus.visibility = View.VISIBLE
@@ -435,6 +450,35 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.update_download_done, ApkInstall.fileName(update.latestVersion))
         } else {
             getString(R.string.update_download_failed)
+        }
+    }
+
+    /**
+     * Keeps the bar in step with DownloadManager until the file arrives.
+     *
+     * The system downloader writes no progress callback, so the screen reads its byte counters while
+     * the transfer runs. The completion broadcast stops the loop; matching the id is the second
+     * guard, so a newer download is never painted with the previous one's progress.
+     */
+    private fun pollUpdateProgress(downloadId: Long) {
+        updateProgressJob?.cancel()
+        updateProgressJob = lifecycleScope.launch {
+            while (updateDownloadId == downloadId) {
+                val progress = withContext(Dispatchers.IO) {
+                    ApkInstall.awaitProgress { ApkInstall.progress(this@MainActivity, downloadId) }
+                } ?: break
+
+                val percent = progress.percent
+                if (percent == null) {
+                    // The server has not reported a size yet.
+                    appUpdateProgress.isIndeterminate = true
+                } else {
+                    appUpdateProgress.isIndeterminate = false
+                    appUpdateProgress.progress = percent
+                    appUpdateStatus.text = getString(R.string.update_downloading_percent, percent)
+                }
+                delay(400L)
+            }
         }
     }
 

@@ -55,6 +55,35 @@ class UpdateInstallerTest {
         )
     }
 
+    /**
+     * R62: an MSI is not an executable, and the release can publish one instead of an EXE.
+     *
+     * `ProcessBuilder("…msi")` fails with error 193, so a downloaded update looked broken at the
+     * moment it was supposed to install. The fallback command names `msiexec` (and `open` on macOS).
+     */
+    @Test
+    fun `an msi installer is handed to msiexec and a dmg to the system opener`() {
+        assertEquals(
+            listOf("msiexec", "/i", "C:\\Temp\\Yabai_OCR-1.2.0.msi"),
+            UpdateInstaller.installerCommand(
+                OsFamily.WINDOWS,
+                Path.of("C:\\Temp\\Yabai_OCR-1.2.0.msi"),
+            ),
+        )
+        val dmg = Path.of("/tmp/Yabai_OCR-1.2.0.dmg")
+        assertEquals(
+            listOf("open", dmg.toString()),
+            UpdateInstaller.installerCommand(OsFamily.MACOS, dmg),
+        )
+        assertEquals(
+            listOf("C:\\Temp\\Yabai_OCR-1.2.0.exe"),
+            UpdateInstaller.installerCommand(
+                OsFamily.WINDOWS,
+                Path.of("C:\\Temp\\Yabai_OCR-1.2.0.exe"),
+            ),
+        )
+    }
+
     @Test
     fun `replacing keeps the old file as a backup and leaves the new one executable`() {
         val running = temp.newFile("Yabai_OCR.AppImage").toPath()

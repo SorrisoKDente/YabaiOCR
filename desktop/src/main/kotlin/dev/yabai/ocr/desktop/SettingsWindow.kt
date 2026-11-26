@@ -2136,6 +2136,7 @@ private fun AboutTab(
                             var isInstallingUpdate by remember { mutableStateOf(false) }
                             var installProgress by remember { mutableStateOf<Int?>(null) }
                             var installMessage by remember { mutableStateOf<String?>(null) }
+                            var installerNotice by remember { mutableStateOf<String?>(null) }
                             // Set once the AppImage on disk is the new build: only a restart is left.
                             var readyToRestart by remember { mutableStateOf<Path?>(null) }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2153,7 +2154,7 @@ private fun AboutTab(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             OutlinedButton(
-                                enabled = !isInstallingUpdate && readyToRestart == null,
+                                enabled = !isInstallingUpdate && readyToRestart == null && installerNotice == null,
                                 onClick = {
                                     val info = updateInfo ?: return@OutlinedButton
                                     val url = info.downloadUrl
@@ -2172,6 +2173,7 @@ private fun AboutTab(
                                     isInstallingUpdate = true
                                     installProgress = null
                                     installMessage = null
+                                    installerNotice = null
                                     downloadError = null
                                     downloadScope.launch {
                                         val attempt = withContext(Dispatchers.IO) {
@@ -2198,7 +2200,7 @@ private fun AboutTab(
                                             }
 
                                             outcome is UpdateOutcome.InstallerLaunched -> {
-                                                installMessage = DesktopStrings.updateInstallerLaunched(info.latestVersion)
+                                                installerNotice = DesktopStrings.updateInstallerLaunched(info.latestVersion)
                                             }
 
                                             attempt.isFailure -> {
@@ -2221,11 +2223,15 @@ private fun AboutTab(
                                 Text(
                                     when {
                                         isInstallingUpdate -> DesktopStrings.updateDownloading(installProgress)
-                                        readyToRestart != null -> DesktopStrings.updateInstalled
+                                        readyToRestart != null || installerNotice != null ->
+                                            DesktopStrings.updateInstalled
                                         updateInfo?.downloadUrl != null -> DesktopStrings.btnInstallUpdate
                                         else -> DesktopStrings.btnDownloadOnGithub
                                     }
                                 )
+                            }
+                            if (isInstallingUpdate) {
+                                UpdateDownloadProgress(installProgress)
                             }
                             if (readyToRestart != null) {
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -2248,6 +2254,8 @@ private fun AboutTab(
                                     Text(DesktopStrings.btnRestartNow)
                                 }
                             }
+                            installerNotice?.let { UpdateInstallerNotice(it) }
+
                             val installNote = installMessage
                             if (installNote != null) {
                                 Spacer(modifier = Modifier.height(6.dp))

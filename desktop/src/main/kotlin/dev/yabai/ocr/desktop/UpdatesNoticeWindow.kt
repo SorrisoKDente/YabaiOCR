@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Divider
+import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Surface
@@ -79,13 +81,16 @@ internal fun UpdatesNoticeWindow(
                 var progress by remember { mutableStateOf<Int?>(null) }
                 var message by remember { mutableStateOf<String?>(null) }
                 var readyToRestart by remember { mutableStateOf<Path?>(null) }
+                var installerNotice by remember { mutableStateOf<String?>(null) }
                 var installingDictionaries by remember { mutableStateOf(false) }
                 var dictionaryProgress by remember { mutableStateOf<String?>(null) }
                 var dictionariesInstalled by remember { mutableStateOf(false) }
 
                 // An app update ends in a restart, which would kill a dictionary download halfway.
                 // One at a time, and the window says which one comes first.
-                val appBusy = isDownloading || readyToRestart != null
+                // An installer that is already open owns the update: a second download would launch a
+                // second one, and a dictionary download would die when the installer closes the app.
+                val appBusy = isDownloading || readyToRestart != null || installerNotice != null
 
                 Column(
                     modifier = Modifier
@@ -111,7 +116,7 @@ internal fun UpdatesNoticeWindow(
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                enabled = !isDownloading && readyToRestart == null,
+                                enabled = !isDownloading && readyToRestart == null && installerNotice == null,
                                 onClick = {
                                     val url = app.downloadUrl
                                     if (url.isNullOrBlank()) {
@@ -129,6 +134,7 @@ internal fun UpdatesNoticeWindow(
                                     isDownloading = true
                                     progress = null
                                     message = null
+                                    installerNotice = null
                                     scope.launch {
                                         val attempt = withContext(Dispatchers.IO) {
                                             runCatching {
@@ -154,7 +160,7 @@ internal fun UpdatesNoticeWindow(
                                             }
 
                                             outcome is UpdateOutcome.InstallerLaunched -> {
-                                                message = DesktopStrings.updateInstallerLaunched(app.latestVersion)
+                                                installerNotice = DesktopStrings.updateInstallerLaunched(app.latestVersion)
                                             }
 
                                             attempt.isFailure -> {
@@ -176,7 +182,8 @@ internal fun UpdatesNoticeWindow(
                                 Text(
                                     when {
                                         isDownloading -> DesktopStrings.updateDownloading(progress)
-                                        readyToRestart != null -> DesktopStrings.updateInstalled
+                                        readyToRestart != null || installerNotice != null ->
+                                            DesktopStrings.updateInstalled
                                         app.downloadUrl != null -> DesktopStrings.btnDownloadUpdate
                                         else -> DesktopStrings.btnDownloadOnGithub
                                     }
@@ -205,6 +212,9 @@ internal fun UpdatesNoticeWindow(
                             OutlinedButton(onClick = onOpenReleaseNotes) {
                                 Text(DesktopStrings.btnViewReleaseNotes)
                             }
+                        }
+                        if (isDownloading) {
+                            UpdateDownloadProgress(progress)
                         }
                     }
 
@@ -307,6 +317,8 @@ internal fun UpdatesNoticeWindow(
                         }
                     }
 
+                    installerNotice?.let { UpdateInstallerNotice(it) }
+
                     val note = message
                     if (note != null) {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -322,5 +334,52 @@ internal fun UpdatesNoticeWindow(
                 }
             }
         }
+    }
+}
+
+/**
+ * The update download in progress: a bar and the percentage in words.
+ *
+ * The percentage used to live only inside the button label, where it was easy to miss and gave no
+ * sense of distance. Both entrances — the notice window and the About tab — download the same way, so
+ * both draw this.
+ */
+@Composable
+internal fun UpdateDownloadProgress(percent: Int?) {
+    Spacer(modifier = Modifier.height(8.dp))
+    if (percent == null) {
+        // No Content-Length yet: a bar that moves is honest about not knowing the total.
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    } else {
+        LinearProgressIndicator(progress = percent / 100f, modifier = Modifier.fillMaxWidth())
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text = DesktopStrings.updateDownloading(percent),
+        style = MaterialTheme.typography.caption,
+        color = MaterialTheme.colors.secondary,
+    )
+}
+
+/**
+ * «Download finished, continue in the installer».
+ *
+ * Windows and macOS hand the update to a separate installer. When the download ends the remaining
+ * steps are in that other window, so this notice says so instead of leaving a success line that reads
+ * like the update is already applied.
+ */
+@Composable
+internal fun UpdateInstallerNotice(text: String) {
+    Spacer(modifier = Modifier.height(10.dp))
+    Surface(
+        color = MaterialTheme.colors.primary.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(6.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(10.dp),
+            style = MaterialTheme.typography.body2,
+        )
     }
 }

@@ -4,8 +4,10 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import dev.yabai.ocr.update.ApkInstall
 import java.lang.reflect.Modifier
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -74,5 +76,51 @@ class UpdateDownloadOnlyTest {
     @Test
     fun `the downloaded file is the one the status names`() {
         assertEquals("yabai-ocr-1.0.7.apk", ApkInstall.fileName("1.0.7"))
+    }
+
+    @Test
+    fun `the progress bar has a percentage only when the total size is known`() {
+        assertEquals(0, ApkInstall.ApkDownloadProgress(0, 1_000).percent ?: -1)
+        assertEquals(42, ApkInstall.ApkDownloadProgress(420, 1_000).percent ?: -1)
+        // A row that overshoots must not draw past the end of the bar.
+        assertEquals(100, ApkInstall.ApkDownloadProgress(1_200, 1_000).percent ?: -1)
+        // DownloadManager reports -1 until the server sends a Content-Length.
+        assertNull(ApkInstall.ApkDownloadProgress(420, -1).percent)
+        assertNull(ApkInstall.ApkDownloadProgress(420, 0).percent)
+    }
+
+    /**
+     * R62: DownloadManager can answer null for a moment right after the enqueue. The bar stopped on
+     * that first null and stayed at «Baixando…» without a percentage for the whole transfer.
+     */
+    @Test
+    fun `a missing progress row is retried before the bar gives up`() = runBlocking {
+        var samples = 0
+        val waits = mutableListOf<Long>()
+        val progress = ApkInstall.awaitProgress(
+            maxMisses = 2,
+            retryDelayMs = 400L,
+            wait = { waits += it },
+        ) {
+            samples++
+            if (samples < 3) null else ApkInstall.ApkDownloadProgress(500, 1_000)
+        }
+
+        assertEquals("the missing row was not retried", 3, samples)
+        assertEquals("the retry must wait between samples", listOf(400L, 400L), waits)
+        assertEquals("the first visible sample must reach the bar", 50, progress?.percent ?: -1)
+    }
+
+    /** The budget has to end: a download that already finished also answers null. */
+    @Test
+    fun `a row that never appears gives up after the retry budget`() = runBlocking {
+        var samples = 0
+        val progress = ApkInstall.awaitProgress(maxMisses = 3, wait = {}) {
+            samples++
+            null
+        }
+
+        assertNull("a row that never appears must stop the poll", progress)
+        assertEquals("one try plus three retries", 4, samples)
     }
 }

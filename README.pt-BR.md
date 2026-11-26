@@ -151,12 +151,15 @@ pacotes ela vem da tag do build (`-PyabaiVersion`), não de um número fixo. Qua
 botão «📄 Notas da versão» abre o Markdown publicado no release do GitHub, e a checagem ao abrir o app
 pode ser desligada no mesmo cartão.
 
-**Atualizar sem navegador.** «⬇️ Baixar Atualização» baixa o próprio pacote: no AppImage o arquivo em
-execução vira `<nome>.old`, o novo toma o lugar e «Reiniciar agora» abre a versão nova. No Android o
-APK é baixado pelo `DownloadManager` para a pasta de downloads do app e **para aí**: o app não
-instala nem pede a permissão «instalar apps desconhecidos» — você abre o APK quando quiser. Fora do
-AppImage — `gradle run`, distribuição descompactada — o desktop não substitui a instalação sozinho e
-abre a página do release.
+**Atualizar sem navegador.** «⬇️ Baixar Atualização» baixa o próprio pacote e mostra uma **barra de
+progresso com a porcentagem** enquanto ele chega: no AppImage o arquivo em execução vira `<nome>.old`,
+o novo toma o lugar e «Reiniciar agora» abre a versão nova. No Windows e no macOS o fim do download
+abre o instalador separado e o app avisa «Download concluído — continue no instalador para concluir a
+atualização». No Android o APK é baixado pelo `DownloadManager` para a pasta de downloads do app com
+barra de progresso, e ao terminar o app avisa para **instalar pelo dispositivo** e mostra o nome do
+arquivo baixado; ele não instala nem pede a permissão «instalar apps desconhecidos». Fora do AppImage —
+`gradle run`, distribuição descompactada — o desktop não substitui a instalação sozinho e abre a
+página do release.
 
 **Aviso de atualização.** Com «Verificar atualizações ao abrir o aplicativo» ligado, o desktop abre uma
 janela com o download (e as notas) assim que encontra uma versão nova, mesmo iniciando na bandeja; no

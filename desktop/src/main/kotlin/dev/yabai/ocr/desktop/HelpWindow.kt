@@ -161,13 +161,6 @@ fun HelpContent(settings: DesktopSettings, onBackRequested: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 item {
-                    Text(
-                        text = DesktopStrings.helpIntro,
-                        style = MaterialTheme.typography.body2.copy(lineHeight = 20.sp),
-                        color = MaterialTheme.colors.secondary,
-                    )
-                }
-                item {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = DesktopStrings.helpButtonsTitle,

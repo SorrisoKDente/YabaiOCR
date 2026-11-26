@@ -150,11 +150,14 @@ builds it comes from the build tag (`-PyabaiVersion`), not from a fixed number. 
 newer, **📄 Release notes** renders the Markdown published with it, and the check on startup can be
 turned off in the same card.
 
-**Updating without a browser.** **⬇️ Download Update** fetches the package itself: on the AppImage the
-running file becomes `<name>.old`, the new one takes its place and **Restart now** opens it. On
-Android the APK goes through `DownloadManager` into the app's downloads folder and **stops there**:
-the app neither installs it nor asks for the «install unknown apps» permission — you open the APK
-whenever you want. Outside an AppImage — `gradle run`, an unpacked distribution — the desktop build
+**Updating without a browser.** **⬇️ Download Update** fetches the package itself and shows a
+**progress bar with the percentage** while it arrives: on the AppImage the running file becomes
+`<name>.old`, the new one takes its place and **Restart now** opens it. On Windows and macOS the end
+of the download opens the separate installer and the app says «Download complete — continue in the
+installer to finish the update». On Android the APK goes through `DownloadManager` into the app's
+downloads folder with a progress bar, and when it ends the app tells you to **install it on the
+device** and shows the downloaded file's name; it neither installs it nor asks for the «install
+unknown apps» permission. Outside an AppImage — `gradle run`, an unpacked distribution — the desktop build
 does not replace its own installation and opens the release page instead.
 
 **Update notice.** With «Check for updates when the app starts» on, the desktop opens a window with

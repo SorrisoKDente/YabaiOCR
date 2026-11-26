@@ -367,8 +367,9 @@
     <string name="update_link_failed">Não foi possível abrir o link.</string>
     <string name="update_close">Fechar</string>
     <string name="update_downloading">Baixando atualização…</string>
+    <string name="update_downloading_percent">Baixando atualização… %1$d%%</string>
     <string name="update_download_failed">Não foi possível baixar a atualização.</string>
-    <string name="update_download_done">Atualização baixada: %1$s</string>
+    <string name="update_download_done">✅ Download concluído: %1$s\nInstale pelo dispositivo: abra o arquivo e confirme.</string>
 
     <!-- Support the project -->
     <string name="section_donate">Apoiar o Projeto</string>

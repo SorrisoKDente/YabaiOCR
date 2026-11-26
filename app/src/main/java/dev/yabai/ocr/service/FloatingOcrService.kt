@@ -11,6 +11,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.media.projection.MediaProjection
@@ -277,6 +278,19 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         lastPhoto = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
+    }
+
+    /**
+     * The screen turned while the bubble is up (R60).
+     *
+     * The display listener clamps the bubble too, but it can run before the new size is readable —
+     * a bubble parked at the right edge of a landscape screen was then left past the right edge of
+     * the portrait one, drawn but out of reach. This callback arrives with the new resources, so it
+     * is the second chance to bring the bubble back inside the screen.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        overlays.keepBubbleOnScreen()
     }
 
     // --- startup -------------------------------------------------------------------------------

@@ -80,6 +80,23 @@ class PickerReadingLayoutTest {
         assertTrue(spot.stacked)
     }
 
+    /**
+     * R60: a column's ruby keeps its size whatever the length of the reading.
+     *
+     * The size was `min(width × 0.55, height / kana)`: a single kanji whose reading has three kana
+     * came out at a third of the size of a two-kana reading in the same gutter, which the reader
+     * saw as «the same column, the same space, much smaller».
+     */
+    @Test
+    fun `a long reading of a short column keeps the ruby size`() {
+        val spot = RubyLayout.spot(
+            left = 0f, top = 0f, width = 30f, height = 34f,
+            vertical = true, from = 0f, to = 1f, characters = 3,
+        )!!
+
+        assertEquals(16.5f, spot.size, 0.001f)
+    }
+
     /** The pushed-up placement at the end of a column still uses the measured band. */
     @Test
     fun `a reading at the end of a column shrinks and stays inside it`() {

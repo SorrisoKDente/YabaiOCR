@@ -387,10 +387,6 @@ object DesktopStrings {
     val tabReading: String get() = if (isEnglish) "Reading" else "Leitura"
     val tabDictionaries: String get() = if (isEnglish) "Dictionaries" else "Dicionários"
     val tabAbout: String get() = if (isEnglish) "About" else "Sobre"
-    val helpIntro: String get() = if (isEnglish)
-        "First a reference to every button, with the icon it shows, and then each action in the order you usually meet it. The shortcuts below are the ones configured right now — every one of them can be changed in Settings."
-    else
-        "Primeiro uma referência de cada botão, com o ícone que ele mostra, e depois cada função na ordem em que você costuma encontrá-la. Os atalhos abaixo são os que estão configurados agora — todos podem ser trocados nos Ajustes."
 
     // Help manual — button reference (the first section)
     val helpButtonsTitle: String get() = if (isEnglish) "Buttons" else "Botões"
@@ -643,9 +639,9 @@ object DesktopStrings {
     val btnLater: String get() = if (isEnglish) "Not now" else "Agora não"
     val updateRestartFailed: String get() = if (isEnglish) "The update is in place, but the restart failed. Open the app again." else "A atualização está no lugar, mas não foi possível reiniciar. Abra o app de novo."
     fun updateInstallerLaunched(version: String): String = if (isEnglish)
-        "The $version installer was downloaded and opened. Finish it and open the app again."
+        "✅ Download complete. Continue in the $version installer that opened to finish the update."
     else
-        "O instalador da versão $version foi baixado e aberto. Conclua e abra o app de novo."
+        "✅ Download concluído. Continue no instalador da versão $version que foi aberto para concluir a atualização."
     val updateManualFallback: String get() = if (isEnglish) "This build cannot update itself (it is not an AppImage). Opening the release page." else "Esta instalação não atualiza sozinha (não é um AppImage). Abrindo a página do release."
 
     /** What the back arrow of the Help and dictionary screens means; the bar draws only [backToPreviousIcon]. */
