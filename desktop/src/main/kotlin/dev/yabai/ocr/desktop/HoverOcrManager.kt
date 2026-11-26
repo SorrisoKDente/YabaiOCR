@@ -52,6 +52,14 @@ internal class HoverOcrManager(
      * so the lifecycle can be tested without pausing a real collector.
      */
     private val trimHeap: () -> Unit = { System.gc() },
+    /**
+     * Titles of the enabled dictionaries, in the configured priority order, read from each
+     * dictionary's `meta.json` — never by opening it (D81). Injected so lifecycle tests do not depend
+     * on the folder of the machine: an empty folder refuses to start the hover (R57).
+     */
+    private val dictionaryTitles: () -> List<String> = {
+        DesktopDictLoader.installedTitles(DesktopSettings())
+    },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /**
@@ -121,6 +129,14 @@ internal class HoverOcrManager(
     var lastRefusal: String? = null
         private set
 
+    /**
+     * Whether [lastRefusal] is the missing-dictionary refusal, so its notice can offer the screen
+     * that fixes it (R59). Written with [lastRefusal], for the same synchronous reader.
+     */
+    @Volatile
+    var lastRefusalNeedsDictionaries: Boolean = false
+        private set
+
     fun isRunning(): Boolean = isEnabled
 
     fun toggle(): Boolean {
@@ -134,6 +150,7 @@ internal class HoverOcrManager(
         // being watched.
         if (isEnabled == enabled) return isEnabled
         lastRefusal = null
+        lastRefusalNeedsDictionaries = false
         if (enabled && backendKind == HoverBackendKind.UNSUPPORTED) {
             val reason = hoverBackendLabel(HoverBackendKind.UNSUPPORTED)
             lastRefusal = reason
@@ -143,8 +160,9 @@ internal class HoverOcrManager(
         if (enabled) {
             // The card is the dictionary: without one there is nothing to show, and turning the
             // hover on would look like a feature that does nothing (R57).
-            hoverDictionaryRefusal(getInstalledDictionaryTitles())?.let { reason ->
+            hoverDictionaryRefusal(dictionaryTitles())?.let { reason ->
                 lastRefusal = reason
+                lastRefusalNeedsDictionaries = true
                 publishStatus(reason)
                 return false
             }
@@ -228,11 +246,7 @@ internal class HoverOcrManager(
      * From each dictionary's `meta.json`, never by opening it: the card asks for this list on every
      * composition, and opening the compiled dictionaries reads their whole key index (D81).
      */
-    fun getInstalledDictionaryTitles(): List<String> =
-        // R47f: the card offers the same order the dictionaries screen configures. Reading the
-        // folder listed the files alphabetically, so the hover switcher disagreed with every other
-        // chooser in the app.
-        DesktopDictLoader.installedTitles(DesktopSettings())
+    fun getInstalledDictionaryTitles(): List<String> = dictionaryTitles()
 
     /** Define um filtro de dicionário específico para o Hover e atualiza instantaneamente. */
     fun setFilterAndRefresh(newFilter: String) {

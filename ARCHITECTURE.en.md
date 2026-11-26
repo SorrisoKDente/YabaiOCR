@@ -179,7 +179,7 @@ flags above.
 
 | file | role |
 | --- | --- |
-| `Main.kt` | entry point: main window with three screens (`MainScreen`: Settings, Help & Tips, Dictionary Manager), tray, shortcuts, opens picker/crop/result; keeps the Settings tab so coming back from the manual lands on it |
+| `Main.kt` | entry point: main window with three screens (`MainScreen`: Settings, Help & Tips, Dictionary Manager), tray, shortcuts, opens picker/crop/result; keeps the Settings tab so coming back from the manual lands on it; the no-dictionary hover notice opens the manager on the installed tab (R59) |
 | `DesktopSettings.kt` | `settings.properties` in `~/.yabai_ocr`: shortcuts, engine, theme, dictionaries, AI, translation |
 | `SettingsWindow.kt` | the Settings screen: `SettingsTopBar` (title, `LanguageMenu`, «❓ Help»), `SettingsTabRow` and five tabs (`SettingsTab`) with each area's cards — General (appearance, renderer, monitor, startup, Linux, KDE), Shortcuts, Reading (engine + PP-OCR download, hover, result, translation, AI), Dictionaries and About; `TabColumn` is the shared scrollable body |
 | `ResultWindow.kt` | result panel: editable text, image, buttons (copy, AI, crop) |
@@ -194,12 +194,12 @@ flags above.
 | `DictionaryUpdateMonitor.kt` | periodic dictionary check in the application scope (including `--minimized`), offer per remote revision, the «already announced» key and `dictionaryAnnouncement` (announce, stay quiet, or clear the tray tooltip) |
 | `NativeLibraryPath.kt` | points `jnativehook.lib.path` at `~/.cache/yabai-ocr/native` on Linux before `GlobalScreen` is touched (an AppImage is read-only) |
 | `QuickDictWindow.kt` | quick dictionary lookup in its own window |
-| `DictionaryManagerWindow.kt` | manager content: search, installed, catalog, credits; the same back bar (arrow «◀») as the manual when opened as a screen (`onBackRequested`) |
+| `DictionaryManagerWindow.kt` | manager content: search, installed, catalog, credits; the same back bar (arrow «◀») as the manual when opened as a screen (`onBackRequested`); opens on the requested tab (`initialTab`, R59) |
 | `DictLookup.kt` | runs one dictionary query and reports failure instead of throwing inside a `LaunchedEffect` |
 | `DesktopTheme.kt` | light/dark palettes, `contrastRatio`, theme application |
 | `AppIconGenerator.kt` | runtime icon (window, tray) and the hover badge in the bottom-right corner |
 | `AppScrollbar.kt` | `ScrollableLazyColumn`/`ScrollableColumn`: the scrollable containers with the scrollbar Compose Desktop does not draw |
-| `CaptureNoticeWindow.kt` | floating capture notice |
+| `CaptureNoticeWindow.kt` | floating capture and hover notice, with an optional action beside «OK» (`actionLabel`/`onAction`, R59) |
 | `i18n/DesktopStrings.kt` | **every** pt/en desktop string (nothing hardcoded in the screens) |
 
 ### Screen capture

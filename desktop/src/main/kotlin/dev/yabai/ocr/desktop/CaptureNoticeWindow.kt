@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +22,9 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.rememberWindowState
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 
+/** A second button in a notice, beside «OK». */
+data class NoticeAction(val label: String, val onClick: () -> Unit)
+
 /**
  * Visible explanation when a capture cannot happen (permission denied, unsupported session, or any
  * unexpected failure). Before this window existed the failure only reached stderr and the user saw
@@ -28,6 +32,9 @@ import dev.yabai.ocr.desktop.i18n.DesktopStrings
  *
  * The window packs itself to its content: [rememberWindowState] defaults to 800×600 dp, so on a
  * display scaled at 150–200% the notice filled a quarter of the frame and the rest stayed blank.
+ *
+ * [action] adds a second way out beside «OK» — the hover notice uses it to open the installed
+ * dictionaries when that is what is missing (R59).
  */
 @Composable
 fun CaptureNoticeWindow(
@@ -35,6 +42,7 @@ fun CaptureNoticeWindow(
     onDismiss: () -> Unit,
     title: String = DesktopStrings.captureNoticeTitle,
     heading: String = DesktopStrings.captureNoticeHeading,
+    action: NoticeAction? = null,
 ) {
     Window(
         onCloseRequest = onDismiss,
@@ -66,6 +74,12 @@ fun CaptureNoticeWindow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
                     ) {
+                        if (action != null) {
+                            OutlinedButton(onClick = action.onClick) {
+                                Text(action.label)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
                         Button(onClick = onDismiss) {
                             Text("OK")
                         }

@@ -186,9 +186,11 @@ object DesktopStrings {
      * the card would come up empty with no way to tell why (R57).
      */
     val hoverNeedsDictionary: String get() = if (isEnglish)
-        "Hover mode needs at least one installed and enabled dictionary. Download or enable one (Settings → Dictionaries) to use it."
+        "Hover mode needs at least one installed and enabled dictionary. Download or enable one to use it."
     else
-        "O Modo Hover precisa de pelo menos um dicionário instalado e ativado. Baixe ou ative um em Ajustes → Dicionários para usar a função."
+        "O Modo Hover precisa de pelo menos um dicionário instalado e ativado. Baixe ou ative um para usar a função."
+    /** The notice's way out of [hoverNeedsDictionary]: the installed list, where it is fixed (R59). */
+    val hoverOpenDictionaries: String get() = if (isEnglish) "Open installed dictionaries" else "Abrir dicionários instalados"
     val hoverAllDicts: String get() = if (isEnglish) "🌐 All Dictionaries (Default)" else "🌐 Todos os Dicionários (Padrão)"
 
     // Engine

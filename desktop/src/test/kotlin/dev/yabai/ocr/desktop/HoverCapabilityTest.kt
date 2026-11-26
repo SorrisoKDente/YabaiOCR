@@ -85,14 +85,14 @@ class HoverCapabilityTest {
 
         assertTrue(
             "the hover starts with no dictionary to answer with",
-            source.contains("hoverDictionaryRefusal(getInstalledDictionaryTitles())"),
+            source.contains("hoverDictionaryRefusal(dictionaryTitles())"),
         )
         // Asking to keep the hover on must not re-read the dictionaries and refuse: that would
         // switch the UI off while the pointer is still being watched.
         assertTrue(
             "an already-enabled hover is re-checked against the dictionaries before anything else",
             source.indexOf("if (isEnabled == enabled) return isEnabled") in 0 until
-                source.indexOf("hoverDictionaryRefusal(getInstalledDictionaryTitles())"),
+                source.indexOf("hoverDictionaryRefusal(dictionaryTitles())"),
         )
         assertTrue(
             "the refusal reason is not kept synchronously for the notice",
@@ -106,7 +106,55 @@ class HoverCapabilityTest {
         ).first { it.exists() }.readText()
         assertTrue(
             "the hover notice reads the asynchronous status line instead of the refusal reason",
-            main.contains("hoverNotice = hoverOcrManager.lastRefusal"),
+            main.contains("message = hoverOcrManager.lastRefusal ?: hoverState.status"),
+        )
+    }
+
+    /**
+     * R59: the missing-dictionary notice is the one place the user is told what to download, so it
+     * carries the way there instead of leaving them to find Ajustes → Dicionários.
+     */
+    @Test
+    fun `the no-dictionary notice opens the installed dictionaries`() {
+        fun source(name: String) = listOf(
+            File("src/main/kotlin/dev/yabai/ocr/desktop/$name"),
+            File("desktop/src/main/kotlin/dev/yabai/ocr/desktop/$name"),
+        ).first { it.exists() }.readText()
+
+        val manager = source("HoverOcrManager.kt")
+        assertTrue(
+            "the missing-dictionary refusal is not marked for the notice",
+            manager.contains("lastRefusalNeedsDictionaries = true"),
+        )
+
+        val main = source("Main.kt")
+        assertTrue(
+            "the notice does not carry the refusal that offers the dictionary action",
+            main.contains("mutableStateOf<HoverNotice?>(null)") &&
+                main.contains("offersDictionaries = hoverOcrManager.lastRefusalNeedsDictionaries") &&
+                main.contains("action = if (hoverMessage.offersDictionaries)") &&
+                main.contains("NoticeAction(DesktopStrings.hoverOpenDictionaries)"),
+        )
+        assertTrue(
+            "the notice's action does not open the installed dictionaries",
+            main.contains("mainDictInitialTab = DICTIONARY_TAB_INSTALLED") &&
+                main.contains("mainScreen = MainScreen.DICTIONARIES") &&
+                main.contains("showMainWindow = true") &&
+                main.contains("mainWindowRequest++"),
+        )
+
+        val notice = source("CaptureNoticeWindow.kt")
+        assertTrue(
+            "the notice window cannot draw an action button",
+            notice.contains("action: NoticeAction?") &&
+                notice.contains("OutlinedButton(onClick = action.onClick)"),
+        )
+
+        val dictionaryScreen = source("DictionaryManagerWindow.kt")
+        assertTrue(
+            "the dictionary screen cannot open on the installed tab",
+            dictionaryScreen.contains("initialTab: Int = DICTIONARY_TAB_QUERY") &&
+                dictionaryScreen.contains("remember(initialTab)"),
         )
     }
 

@@ -32,12 +32,20 @@ import java.net.URI
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
+/** The tabs of [DictionaryManagerContent], in the order the `TabRow` shows them. */
+internal const val DICTIONARY_TAB_QUERY = 0
+internal const val DICTIONARY_TAB_INSTALLED = 1
+internal const val DICTIONARY_TAB_CATALOG = 2
+
 @Composable
 fun DictionaryManagerContent(
     initialQuery: String = "",
+    initialTab: Int = DICTIONARY_TAB_QUERY,
     onBackRequested: (() -> Unit)? = null
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0: Search, 1: Installed, 2: Catalog
+    // A new [initialTab] is a new request (the hover notice asks for the installed ones), while
+    // clicking a tab only moves `selectedTab`.
+    var selectedTab by remember(initialTab) { mutableStateOf(initialTab) }
     var installedRefreshKey by remember { mutableStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -79,27 +87,27 @@ fun DictionaryManagerContent(
             contentColor = MaterialTheme.colors.primary
         ) {
             Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
+                selected = selectedTab == DICTIONARY_TAB_QUERY,
+                onClick = { selectedTab = DICTIONARY_TAB_QUERY },
                 text = { Text(DesktopStrings.tabQueryDicts, fontWeight = FontWeight.SemiBold) }
             )
             Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
+                selected = selectedTab == DICTIONARY_TAB_INSTALLED,
+                onClick = { selectedTab = DICTIONARY_TAB_INSTALLED },
                 text = { Text(DesktopStrings.tabInstalledDicts, fontWeight = FontWeight.SemiBold) }
             )
             Tab(
-                selected = selectedTab == 2,
-                onClick = { selectedTab = 2 },
+                selected = selectedTab == DICTIONARY_TAB_CATALOG,
+                onClick = { selectedTab = DICTIONARY_TAB_CATALOG },
                 text = { Text(DesktopStrings.tabDownloadCatalog, fontWeight = FontWeight.SemiBold) }
             )
         }
 
         Box(modifier = Modifier.fillMaxSize().padding(20.dp)) {
             when (selectedTab) {
-                0 -> SearchTab(initialQuery = initialQuery, refreshKey = installedRefreshKey)
-                1 -> InstalledTab(refreshKey = installedRefreshKey, onRefresh = { installedRefreshKey++ })
-                2 -> CatalogTab(onInstalledChanged = { installedRefreshKey++ })
+                DICTIONARY_TAB_QUERY -> SearchTab(initialQuery = initialQuery, refreshKey = installedRefreshKey)
+                DICTIONARY_TAB_INSTALLED -> InstalledTab(refreshKey = installedRefreshKey, onRefresh = { installedRefreshKey++ })
+                DICTIONARY_TAB_CATALOG -> CatalogTab(onInstalledChanged = { installedRefreshKey++ })
             }
         }
     }

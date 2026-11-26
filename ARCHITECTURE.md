@@ -178,7 +178,7 @@ rodam com as flags acima.
 
 | arquivo | papel |
 | --- | --- |
-| `Main.kt` | ponto de entrada: janela principal com três telas (`MainScreen`: Ajustes, Explicações e Dicas, Gerenciador de Dicionários), bandeja, atalhos, abre picker/recorte/resultado; guarda a aba de Ajustes para voltar do manual nela |
+| `Main.kt` | ponto de entrada: janela principal com três telas (`MainScreen`: Ajustes, Explicações e Dicas, Gerenciador de Dicionários), bandeja, atalhos, abre picker/recorte/resultado; guarda a aba de Ajustes para voltar do manual nela; o aviso de hover sem dicionário abre o gerenciador na aba de instalados (R59) |
 | `DesktopSettings.kt` | `settings.properties` em `~/.yabai_ocr`: atalhos, motor, tema, dicionários, IA, tradução |
 | `SettingsWindow.kt` | a tela de Ajustes: `SettingsTopBar` (título, `LanguageMenu`, «❓ Ajuda»), `SettingsTabRow` e cinco abas (`SettingsTab`) com os cartões de cada área — Geral (aparência, renderizador, monitor, inicialização, Linux, KDE), Atalhos, Leitura (motor + download do PP-OCR, hover, resultado, tradução, IA), Dicionários e Sobre; `TabColumn` é o corpo rolável comum |
 | `ResultWindow.kt` | painel de resultado: texto editável, imagem, botões (copiar, IA, recortar) |
@@ -193,11 +193,11 @@ rodam com as flags acima.
 | `DictionaryUpdateMonitor.kt` | checagem periódica dos dicionários no escopo da aplicação (`--minimized` incluso), oferta por revisão remota e chave de «já avisado» |
 | `NativeLibraryPath.kt` | aponta `jnativehook.lib.path` para `~/.cache/yabai-ocr/native` no Linux, antes de tocar em `GlobalScreen` (AppImage é somente leitura) |
 | `QuickDictWindow.kt` | busca rápida de dicionário em janela própria |
-| `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos; a mesma barra de volta (seta «◀») do manual quando aberto como tela (`onBackRequested`) |
+| `DictionaryManagerWindow.kt` | conteúdo do gerenciador: busca, instalados, catálogo, créditos; a mesma barra de volta (seta «◀») do manual quando aberto como tela (`onBackRequested`); abre na aba pedida (`initialTab`, R59) |
 | `DesktopTheme.kt` | paletas clara/escura, `contrastRatio`, aplicação do tema |
 | `AppIconGenerator.kt` | ícone em runtime (janela, bandeja) e selo de hover no canto inferior direito |
 | `AppScrollbar.kt` | `ScrollableLazyColumn`/`ScrollableColumn`: os containers roláveis com a barra de rolagem que o Compose Desktop não desenha |
-| `CaptureNoticeWindow.kt` | aviso flutuante de captura |
+| `CaptureNoticeWindow.kt` | aviso flutuante de captura e de hover, com ação opcional ao lado de «OK» (`actionLabel`/`onAction`, R59) |
 | `i18n/DesktopStrings.kt` | **todas** as strings pt/en do desktop (nada fixo nas telas) |
 
 ### Captura de tela

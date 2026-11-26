@@ -9808,3 +9808,55 @@ falhas; **core 210** (184 executados, 26 pulados), 0 falhas (`--rerun-tasks`).
   medido numa página real; num vão muito estreito a leitura fica minúscula e o usuário pode preferir
   a faixa legível. A furigana impressa continua só sendo detectada no caminho do Lens, e o rubi
   horizontal ainda ocupa a linha inteira do vão quando o texto acima está perto.
+
+### R59 — O aviso de «sem dicionário» leva direto aos dicionários instalados  `[x]` (26/11/2026)
+
+**Pedido.** «No aviso quando não houver dicionário, adicione uma opção para o usuário poder clicar e
+ir direto para a parte de dicionários instalados. Se você achar que faz mais sentido ir para a tela de
+catálogo, pode colocar para abrir direto a tela de catálogo direto.»
+
+- **Causa.** O aviso de R57 dizia que faltava dicionário e mandava para «Ajustes → Dicionários», mas só
+  tinha «OK»: o usuário fechava o aviso, abria a janela principal e procurava a aba sozinho. O texto
+  apontava o caminho sem oferecer o caminho.
+- **Correção.** `CaptureNoticeWindow` ganhou `actionLabel`/`onAction` opcionais, desenhados como botão
+  ao lado de «OK». `HoverOcrManager` marca a recusa específica (`lastRefusalNeedsDictionaries`, escrito
+  junto de `lastRefusal`), o `Main` guarda isso em `hoverNoticeOffersDictionaries` e a ação abre a tela
+  de dicionários já na aba **Instalados** (`DICTIONARY_TAB_INSTALLED`), com `showMainWindow = true` e
+  `mainWindowRequest++` para trazer a janela à frente. `DictionaryManagerContent` passou a aceitar
+  `initialTab`, e as abas deixaram de ser 0/1/2 soltos. Ficou em Instalados — e não no catálogo — porque
+  é onde o usuário vê o que já tem, ativa/desativa e importa; o catálogo fica a um clique.
+  `hoverNeedsDictionary` perdeu o parêntese com o caminho, agora que o botão faz o trabalho (pt/en).
+- **Suíte exposta.** Quatro testes de ciclo de vida do hover (`HoverOcrManagerLifecycleTest`) falharam
+  na rodada: eles ligavam o hover sem dicionário e dependiam da pasta real da máquina, que está vazia.
+  `HoverOcrManager` agora aceita `installedDictionaryTitles` injetável (default: a leitura real) e
+  esses testes passam uma lista fixa, independentes do que está instalado.
+- **Revisão (segunda passada).** O aviso virou **um** estado (`HoverNotice`: mensagem + se oferece o
+  atalho) em vez de duas variáveis que podiam divergir; a janela recebe **uma** `NoticeAction`
+  (`label` + `onClick`) em vez de dois parâmetros opcionais que aceitavam combinação inválida;
+  `HoverOcrManager` ficou com um único ponto de leitura (`dictionaryTitles`, default lê `meta.json`
+  na ordem configurada), sem o lambda opcional e o campo derivado. Ficaram como estavam: a flag
+  `lastRefusalNeedsDictionaries` (uma recusa, um booleano, sem comparar texto de UI), as constantes
+  `DICTIONARY_TAB_*` (tiraram os 0/1/2 soltos), `initialTab`/`remember(initialTab)` (a tela pode já
+  estar aberta quando o aviso aparece) e `mainDictInitialTab`.
+- **Arquivos.** `CaptureNoticeWindow.kt`, `HoverOcrManager.kt`, `Main.kt`,
+  `DictionaryManagerWindow.kt`, `HoverOcrManagerLifecycleTest.kt`, `HoverCapabilityTest.kt`,
+  `DesktopStrings.kt`, README/README.pt-BR, `ARCHITECTURE.md`/`.en.md`.
+
+| mutação | teste que acusa |
+| --- | --- |
+| a recusa não é marcada (`lastRefusalNeedsDictionaries = false`) | `the no-dictionary notice opens the installed dictionaries` |
+| a ação abre a aba de busca (`DICTIONARY_TAB_QUERY`) | o mesmo teste |
+
+Testes: **desktop 625** (619 executados, 6 pulados), 0 falhas (`--rerun-tasks`); app **510 por
+variante** e core **210** inalterados.
+
+- **E2E.** App real com `--minimized`, pasta `E:\Download\test` vazia e atalho de hover (Ctrl + Shift + H):
+  o aviso «Hover indisponível» apareceu com o botão «Abrir dicionários instalados»; o clique abriu a
+  janela «Yabai OCR - Gerenciador de Dicionários» já na aba «📚 Dicionários Instalados» (sublinhada),
+  mostrando «Nenhum dicionário instalado no momento». Capturas em
+  `C:\Users\Eric PC\AppData\Local\Temp\opencode\yabai-e2e\1-aviso.png` e `2-instalados.png`.
+  `settings.properties` restaurado com SHA-256 idêntico ao do backup (`f4d667ae…`) e nenhum
+  `MainKt` deixado aberto (contagem 0).
+  Repetido depois da revisão do R59: mesmo botão no mesmo lugar, mesma aba Instalados.
+- **Limite.** O caminho com dicionário instalado não foi exercitado; o E2E cobre só o aviso e a
+  abertura da aba.

@@ -51,6 +51,11 @@ private data class CapturedScreen(val image: BufferedImage, val screenBounds: Re
 internal fun trayTooltipAfterDictionaryNotice(appUpdate: AppUpdateInfo?): String =
     appUpdate?.let { DesktopStrings.appVersionNotice(it.latestVersion) }.orEmpty()
 
+private data class HoverNotice(
+    val message: String,
+    val offersDictionaries: Boolean = false,
+)
+
 fun main(args: Array<String>) {
     // One instance per user. The D-Bus name `dev.yabai.Ocr`, the tray item and the global shortcuts
     // have a single owner, and closing the window only hides the app, so launching the AppImage
@@ -166,6 +171,9 @@ fun main(args: Array<String>) {
     // and coming back has to land on the tab the reader left (R53).
     var settingsTab by remember { mutableStateOf(SettingsTab.GENERAL) }
     var mainDictInitialQuery by remember { mutableStateOf("") }
+    // The tray and the Settings card open the search tab, as they always did; the hover notice asks
+    // for the installed ones, which is where the missing dictionary is fixed (R59).
+    var mainDictInitialTab by remember { mutableStateOf(DICTIONARY_TAB_QUERY) }
     var showMainWindow by remember { mutableStateOf(!startMinimized) } // Open main window by default on run
 
     var showQuickDict by remember { mutableStateOf(false) }
@@ -190,7 +198,7 @@ fun main(args: Array<String>) {
     // Turning hover on where the session has no global pointer used to be a silent no-op: the
     // failure is said out loud instead, in the same notice window a failed capture uses. A
     // dictionary without the word is not this: it is said inside the card (see HoverStateHolder).
-    var hoverNotice by remember { mutableStateOf<String?>(null) }
+    var hoverNotice by remember { mutableStateOf<HoverNotice?>(null) }
 
     val hoverOcrManager = remember {
         HoverOcrManager(
@@ -229,7 +237,7 @@ fun main(args: Array<String>) {
                 hoverBackendKind == HoverBackendKind.UNSUPPORTED ||
                 hoverBackendKind == HoverBackendKind.GNOME
             ) {
-                hoverNotice = hoverState.status
+                hoverNotice = HoverNotice(hoverState.status)
             }
             return
         }
@@ -242,7 +250,12 @@ fun main(args: Array<String>) {
             // of leaving the switch silently off (R57). The reason is read from the manager, not
             // from the status line: that one is published asynchronously and would still carry the
             // previous message here.
-            if (enabled) hoverNotice = hoverOcrManager.lastRefusal ?: hoverState.status
+            if (enabled) {
+                hoverNotice = HoverNotice(
+                    message = hoverOcrManager.lastRefusal ?: hoverState.status,
+                    offersDictionaries = hoverOcrManager.lastRefusalNeedsDictionaries,
+                )
+            }
         }
     }
 
@@ -511,6 +524,7 @@ fun main(args: Array<String>) {
             },
             onFullDictRequested = {
                 mainDictInitialQuery = ""
+                mainDictInitialTab = DICTIONARY_TAB_QUERY
                 mainScreen = MainScreen.DICTIONARIES
                 showMainWindow = true
                 mainWindowRequest++
@@ -748,10 +762,24 @@ fun main(args: Array<String>) {
     val hoverMessage = hoverNotice
     if (hoverMessage != null) {
         CaptureNoticeWindow(
-            message = hoverMessage,
+            message = hoverMessage.message,
             onDismiss = { hoverNotice = null },
             title = DesktopStrings.hoverNoticeTitle,
             heading = DesktopStrings.hoverNoticeHeading,
+            // The refusal explains where to fix it; the button goes there instead of making the
+            // reader find Ajustes → Dicionários on their own (R59).
+            action = if (hoverMessage.offersDictionaries) {
+                NoticeAction(DesktopStrings.hoverOpenDictionaries) {
+                    hoverNotice = null
+                    mainDictInitialQuery = ""
+                    mainDictInitialTab = DICTIONARY_TAB_INSTALLED
+                    mainScreen = MainScreen.DICTIONARIES
+                    showMainWindow = true
+                    mainWindowRequest++
+                }
+            } else {
+                null
+            },
         )
     }
 
@@ -908,6 +936,7 @@ fun main(args: Array<String>) {
                             },
                             onManageDictionariesRequested = {
                                 mainDictInitialQuery = ""
+                                mainDictInitialTab = DICTIONARY_TAB_QUERY
                                 mainScreen = MainScreen.DICTIONARIES
                             },
                             selectedTab = settingsTab,
@@ -922,6 +951,7 @@ fun main(args: Array<String>) {
 
                         MainScreen.DICTIONARIES -> DictionaryManagerContent(
                             initialQuery = mainDictInitialQuery,
+                            initialTab = mainDictInitialTab,
                             onBackRequested = {
                                 mainScreen = MainScreen.SETTINGS
                             },

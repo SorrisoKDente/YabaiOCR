@@ -29,6 +29,9 @@ class HoverOcrManagerLifecycleTest {
         capture: ((java.awt.Rectangle) -> java.awt.image.BufferedImage)? = null,
         releaseOcrSessions: () -> Unit = {},
         trimHeap: () -> Unit = {},
+        // These tests are about releasing what the hover opened, not about the dictionary gate:
+        // a real empty dictionary folder would refuse to start it (R57).
+        installedDictionaryTitles: () -> List<String> = { listOf("Test") },
     ) = HoverOcrManager(
         onResultsReady = { _, _, _, _ -> },
         onDismiss = {},
@@ -38,6 +41,7 @@ class HoverOcrManagerLifecycleTest {
         dictionaryCache = cache,
         releaseOcrSessions = releaseOcrSessions,
         trimHeap = trimHeap,
+        dictionaryTitles = installedDictionaryTitles,
     )
 
     @Test

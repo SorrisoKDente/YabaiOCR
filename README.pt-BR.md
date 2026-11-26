@@ -30,7 +30,8 @@ desktop e no Android), então o app continua útil sem conexão.
   de receber a página toda.
 - **Hover no desktop**: pare o mouse sobre um texto japonês e o cartão aparece com a palavra e o
   verbete. Com um dicionário escolhido, é dele que vem a resposta; quando ele não tem o verbete o app
-  avisa, em vez de trocar de dicionário sozinho.
+  avisa, em vez de trocar de dicionário sozinho. O hover precisa de pelo menos um dicionário
+  instalado e ativado — o aviso leva direto à lista de instalados.
 - **Dicionários offline** no formato do Yomitan (Jitendex, JMdict, KANJIDIC e outros), com busca por
   termo, leitura ou definição, filtro por dicionário e ordem de preferência.
 - **Furigana**: leitura impressa preservada, leitura gerada pelo dicionário, ou as duas.
