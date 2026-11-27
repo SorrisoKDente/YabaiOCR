@@ -979,6 +979,10 @@ private fun HoverTooltipOverlay(
     // the hover has something to show, so a tray-only start still pays nothing for it.
     var cardCreated by remember { mutableStateOf(false) }
     LaunchedEffect(cardShown) { if (cardShown) cardCreated = true }
+    // Read once per word, like the dictionary list below: every status line the hover publishes
+    // recomposes this overlay, and the settings are a file read. A fresh read per word is also what
+    // makes turning the Anki buttons on show up without a restart.
+    val showAnki = remember(hMatches, hPoint) { DesktopSettings().showAnkiButton }
     if (cardCreated) {
         HoverTooltipWindow(
             matches = hMatches,
@@ -987,6 +991,7 @@ private fun HoverTooltipOverlay(
             mousePoint = hPoint ?: LAST_HOVER_POINT,
             activeFilter = hoverState.activeFilter,
             notice = hMissing?.let { DesktopStrings.hoverDictionaryMissingEntry(it) },
+            showAnki = showAnki,
             // Read once per card, not once per recomposition: every status line the hover publishes
             // recomposes this overlay, and the list is nine `meta.json` reads on the UI thread.
             installedDictTitles = remember(hMatches, hPoint) {

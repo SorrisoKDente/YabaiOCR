@@ -248,26 +248,11 @@ fun ResultWindow(
                                     onClick = {
                                         val note = AnkiNote.sentence(recognizedText, matches)
                                         scope.launch {
-                                            val result = withContext(Dispatchers.IO) {
-                                                AnkiSender(settings).send(note)
+                                            val sent = withContext(Dispatchers.IO) {
+                                                sendToAnki(settings, note)
                                             }
-                                            ankiNotice = when (result.status) {
-                                                AnkiSendStatus.ADDED -> {
-                                                    ankiUndo = result.noteId
-                                                    DesktopStrings.ankiAdded(settings.ankiDeck)
-                                                }
-                                                AnkiSendStatus.ALREADY_IN_ANKI -> {
-                                                    // Nothing was created, so there is nothing to undo.
-                                                    ankiUndo = null
-                                                    DesktopStrings.ankiAlreadyThere
-                                                }
-                                                // The card is already in the queue; saying so is the
-                                                // difference between «nothing happened» and «it is saved».
-                                                AnkiSendStatus.QUEUED -> {
-                                                    ankiUndo = null
-                                                    DesktopStrings.ankiQueued(result.detail)
-                                                }
-                                            }
+                                            ankiNotice = sent.text
+                                            ankiUndo = sent.undoId
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF8C5A2E)),
@@ -630,23 +615,11 @@ fun ResultWindow(
                                                         onAnki = { word ->
                                                             val note = AnkiNote.word(word, recognizedText)
                                                             scope.launch {
-                                                                val result = withContext(Dispatchers.IO) {
-                                                                    AnkiSender(settings).send(note)
+                                                                val sent = withContext(Dispatchers.IO) {
+                                                                    sendToAnki(settings, note)
                                                                 }
-                                                                ankiNotice = when (result.status) {
-                                                                    AnkiSendStatus.ADDED -> {
-                                                                        ankiUndo = result.noteId
-                                                                        DesktopStrings.ankiAdded(settings.ankiDeck)
-                                                                    }
-                                                                    AnkiSendStatus.ALREADY_IN_ANKI -> {
-                                                                        ankiUndo = null
-                                                                        DesktopStrings.ankiAlreadyThere
-                                                                    }
-                                                                    AnkiSendStatus.QUEUED -> {
-                                                                        ankiUndo = null
-                                                                        DesktopStrings.ankiQueued(result.detail)
-                                                                    }
-                                                                }
+                                                                ankiNotice = sent.text
+                                                                ankiUndo = sent.undoId
                                                             }
                                                         }
                                                     )

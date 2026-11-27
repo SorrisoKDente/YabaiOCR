@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
@@ -52,7 +54,10 @@ import androidx.compose.ui.window.WindowExceptionHandlerFactory
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import kotlin.coroutines.resume
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import dev.yabai.ocr.core.dict.TokenMatch
 import java.awt.Point
@@ -77,6 +82,8 @@ fun HoverTooltipWindow(
      */
     notice: String? = null,
     installedDictTitles: List<String> = emptyList(),
+    /** Whether the Anki button shows beside each word (Settings → About → Anki). */
+    showAnki: Boolean = false,
     onSelectDictionary: (String) -> Unit = {},
     onDismiss: () -> Unit,
     onBoundsChanged: (Rectangle?) -> Unit = {},
@@ -102,6 +109,7 @@ fun HoverTooltipWindow(
             activeFilter = activeFilter,
             notice = notice,
             installedDictTitles = installedDictTitles,
+            showAnki = showAnki,
             onSelectDictionary = onSelectDictionary,
             onDismiss = onDismiss,
             onBoundsChanged = onBoundsChanged,
@@ -117,6 +125,7 @@ private fun HoverTooltipCardWindow(
     activeFilter: String = "",
     notice: String? = null,
     installedDictTitles: List<String> = emptyList(),
+    showAnki: Boolean = false,
     onSelectDictionary: (String) -> Unit = {},
     onDismiss: () -> Unit,
     onBoundsChanged: (Rectangle?) -> Unit = {},
@@ -140,8 +149,20 @@ private fun HoverTooltipCardWindow(
     // next word, and it would open the card taller than the content it is about to show.
     LaunchedEffect(visible) { if (!visible) dictMenuOpen = false }
 
-    val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles, notice) {
-        estimateHeight(matches, dictMenuOpen, installedDictTitles.size, notice != null)
+    // The Anki answer belongs to the word it was asked for: the next word is a new card.
+    var ankiNotice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(matches) { ankiNotice = null }
+
+    // The estimate counts the notice block: the Anki answer shares it, so the card grows for it
+    // instead of cutting the last definition off.
+    val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles, notice, ankiNotice) {
+        estimateHeight(
+            matches,
+            dictMenuOpen,
+            installedDictTitles.size,
+            notice != null || ankiNotice != null,
+        )
     }
 
     // Where the card goes, decided before the window exists: Compose places a new window from
@@ -339,16 +360,21 @@ private fun HoverTooltipCardWindow(
                         )
                     }
 
-                    val noticeText = notice
-                    if (noticeText != null) {
-                        Text(
-                            text = noticeText,
+                    val cardNotices = listOfNotNull(notice, ankiNotice)
+                    if (cardNotices.isNotEmpty()) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.body2,
-                            color = Color(0xFFE5A93C),
-                        )
+                        ) {
+                            for (line in cardNotices) {
+                                Text(
+                                    text = line,
+                                    style = MaterialTheme.typography.body2,
+                                    color = Color(0xFFE5A93C),
+                                )
+                            }
+                        }
                         Divider(color = Color(0xFF2E3344), thickness = 0.5.dp)
                     }
 
@@ -373,12 +399,34 @@ private fun HoverTooltipCardWindow(
                                             style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold),
                                             color = Color.White,
                                         )
-                                        if (match.dictionaryTitle.isNotBlank()) {
-                                            Text(
-                                                text = match.dictionaryTitle,
-                                                style = MaterialTheme.typography.caption,
-                                                color = Color(0xFFA0A6B8),
-                                            )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (match.dictionaryTitle.isNotBlank()) {
+                                                Text(
+                                                    text = match.dictionaryTitle,
+                                                    style = MaterialTheme.typography.caption,
+                                                    color = Color(0xFFA0A6B8),
+                                                )
+                                            }
+                                            // One word, one card: the hover knows no sentence.
+                                            if (showAnki) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = DesktopStrings.ankiAddWordShort,
+                                                    modifier = Modifier.clickable {
+                                                        scope.launch {
+                                                            val sent = withContext(Dispatchers.IO) {
+                                                                sendToAnki(
+                                                                    DesktopSettings(),
+                                                                    wordNote(match),
+                                                                )
+                                                            }
+                                                            ankiNotice = sent.text
+                                                        }
+                                                    }.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                    fontSize = 10.sp,
+                                                    color = Color(0xFFE5A93C),
+                                                )
+                                            }
                                         }
                                     }
 

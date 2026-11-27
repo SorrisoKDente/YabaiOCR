@@ -615,6 +615,9 @@ object DesktopStrings {
     // Anki — the card buttons, the queue and the manual entry
     val ankiAddSentence: String get() = if (isEnglish) "＋ Anki (sentence)" else "＋ Anki (frase)"
     val ankiAddWord: String get() = if (isEnglish) "＋ Anki card for this word" else "＋ Cartão Anki desta palavra"
+
+    /** The button beside a word in the quick dictionary and in the hover card, where the row is narrow. */
+    val ankiAddWordShort: String = "＋ Anki"
     fun ankiAdded(deck: String): String = if (isEnglish)
         "Sent to Anki · deck «$deck»"
     else

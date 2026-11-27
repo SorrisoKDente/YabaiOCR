@@ -21,6 +21,7 @@ import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -63,6 +64,8 @@ fun QuickDictWindow(activation: Int = 0, onClose: () -> Unit) {
     var translationMode by remember { mutableStateOf(settings.searchByTranslation) }
     var status by remember { mutableStateOf("") }
     var lookupError by remember { mutableStateOf<String?>(null) }
+    var ankiNotice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     // Load dictionaries from configured dictionary directory
     val engine = remember {
@@ -88,6 +91,8 @@ fun QuickDictWindow(activation: Int = 0, onClose: () -> Unit) {
     }
 
     LaunchedEffect(query, selectedFilter, translationMode) {
+        // The answer belongs to the word it was asked for, not to the next search.
+        ankiNotice = null
         val current = engine
         if (current != null && query.isNotBlank()) {
             val onlySet = if (selectedFilter.isBlank()) emptySet() else setOf(selectedFilter)
@@ -281,6 +286,16 @@ fun QuickDictWindow(activation: Int = 0, onClose: () -> Unit) {
                         }
                     }
 
+                    val sent = ankiNotice
+                    if (sent != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = sent,
+                            style = MaterialTheme.typography.caption,
+                            color = palette.warning
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
 
                     if (engine == null) {
@@ -347,6 +362,28 @@ fun QuickDictWindow(activation: Int = 0, onClose: () -> Unit) {
                                                 style = MaterialTheme.typography.body2,
                                                 color = MaterialTheme.colors.onSurface
                                             )
+
+                                            // One word, one card: this window knows no sentence.
+                                            if (settings.showAnkiButton) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                TextButton(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val notice = withContext(Dispatchers.IO) {
+                                                                sendToAnki(settings, wordNote(match))
+                                                            }
+                                                            ankiNotice = notice.text
+                                                        }
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        DesktopStrings.ankiAddWordShort,
+                                                        fontSize = 11.sp,
+                                                        color = palette.warning
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

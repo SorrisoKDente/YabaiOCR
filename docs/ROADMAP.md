@@ -10125,7 +10125,7 @@ credencial de Anki, não pede conta: essa é a parte que torna a integração ba
 | A3 | `[x]` | **Cliente AnkiConnect** no `:desktop` (handshake, baralho, tipo de nota, duplicata, envio, desfazer) | médio |
 | A4 | `[ ]` | **Cliente AnkiDroid** no `:app` (`ContentProvider`, permissão, `<queries>`, criação de baralho/tipo) | médio |
 | A5 | `[ ]` | **Botões no painel do celular**: por palavra e da frase, com aviso no próprio painel e «Desfazer» | fácil |
-| A6 | `[~]` | **Botões no desktop**: janela de resultado, dicionário rápido e cartão do hover | fácil |
+| A6 | `[x]` | **Botões no desktop**: janela de resultado, dicionário rápido e cartão do hover | fácil |
 | A7 | `[~]` | **Ajustes nos dois lados** (ativar, baralho, tipo de nota, endereço, etiquetas) e strings pt-BR/en | fácil |
 | A8 | `[ ]` | **Fallback sem Anki**: TSV para importar, compartilhar texto no Android | fácil |
 | A9 | `[ ]` | **Testes, prova de mutação e E2E** com Anki e AnkiDroid de verdade | médio |
@@ -10141,11 +10141,11 @@ primeiro campo, motivo da falha e teto de 500 cartões. A3 fecha: o cliente fala
 está no Anki», porque guardado ele faria todo reenvio falhar do mesmo jeito. E só a duplicata conta
 como resolvida: o cliente pergunta com `canAddNotesWithErrorDetail` e lê o texto do add-on, porque
 `canAddNotes` devolve `false` também quando o tipo de nota recusa o cartão — tratar essa recusa como
-«já está» apagaria da fila um cartão que nunca chegou ao Anki. A6 está em `[~]`: os
-botões existem na janela de resultado, por frase e por palavra; dicionário rápido e cartão do hover
-ficam para a próxima. A7 está em `[~]`: ajustes, fila e strings pt-BR/en no desktop; o Android não foi
-tocado. A4, A5 e A8 seguem abertos, e A9 não fecha sem E2E com Anki e AnkiDroid de verdade — nesta
-máquina não há nenhum dos dois, então o que existe é teste de unidade (14 no `:core`, 16 no
+«já está» apagaria da fila um cartão que nunca chegou ao Anki. A6 fechou: os botões existem na janela
+de resultado (frase e palavra), no dicionário rápido e no cartão do hover, e os três painéis mandam
+pelo mesmo caminho (`AnkiPanel.sendToAnki`), com o aviso no próprio painel. A7 está em `[~]`: ajustes,
+fila e strings pt-BR/en no desktop; o Android não foi tocado. A4, A5 e A8 seguem abertos, e A9 não fecha sem E2E com Anki e AnkiDroid de verdade — nesta
+máquina não há nenhum dos dois, então o que existe é teste de unidade (14 no `:core`, 20 no
 `:desktop`) e sete provas de mutação: rubi montado sobre a forma do dicionário, remoção da fila antes
 da confirmação, fila sem a chave de dedupe, duplicata guardada em vez de resolvida, queda para o
 `/api/v1` desligada, qualquer recusa do add-on tratada como duplicata e qualquer recusa tratada como
@@ -10299,6 +10299,12 @@ Pronto quando: os dois botões existem nos lugares certos, o do aviso reflete os
   parte das palavras é lida no desktop, e mandar a frase inteira de um hover seria mandar o parágrafo
   errado. As duas já recebem `List<TokenMatch>` (`results` no dicionário rápido, `matches` no cartão
   do hover), então o botão nasce ao lado de cada palavra, não do cartão inteiro.
+- `AnkiPanel.kt`: `sendToAnki` é o caminho único — cartão → fila → AnkiConnect → texto do painel —,
+  para os três botões não discordarem sobre o que aconteceu; `wordNote` monta o cartão por palavra.
+  No dicionário rápido e no hover não há frase reconhecida, então o campo `Frase` fica **vazio** em
+  vez de repetir a palavra como se fosse o exemplo dela.
+- A altura do cartão do hover já conta um bloco de aviso (`NOTICE_BLOCK_HEIGHT`): a resposta do Anki
+  divide esse bloco em vez de crescer por fora da estimativa e cortar a última definição.
 - `DesktopStrings` ganha os rótulos nos dois idiomas; nada de texto fixo na tela.
 
 Pronto quando: os três sítios chamam o mesmo caminho (fila → AnkiConnect), com teste de UI que não
