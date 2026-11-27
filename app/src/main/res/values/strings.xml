@@ -364,6 +364,8 @@
     <string name="update_release_notes_title">Notas da versão %1$s</string>
     <string name="update_release_notes_empty">Este release não tem notas.</string>
     <string name="update_download_button">⬇️ Baixar</string>
+    <string name="update_dialog_version">✨ Nova versão do aplicativo disponível: v%1$s</string>
+    <string name="update_dialog_body">Uma versão mais recente do Yabai OCR foi lançada no GitHub. O download aparece em «Sobre», com a barra de progresso e o arquivo salvo.</string>
     <string name="update_link_failed">Não foi possível abrir o link.</string>
     <string name="update_close">Fechar</string>
     <string name="update_downloading">Baixando atualização…</string>

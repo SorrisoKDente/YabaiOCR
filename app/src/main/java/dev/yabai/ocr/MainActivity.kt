@@ -2,6 +2,7 @@ package dev.yabai.ocr
 
 import android.Manifest
 import android.app.Activity
+import android.app.Dialog
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.ClipData
@@ -10,6 +11,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -18,6 +21,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.View
+import android.view.Window
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -339,6 +344,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Enqueues the APK download.
+     *
+     * `DownloadManager` lives in another process, so a test cannot watch what it does; it swaps this
+     * for a fake to prove that the buttons which offer «Baixar» really reach the download and hand it
+     * the release's URL, the way `DictionaryActivity.remote` stands in for the network.
+     */
+    internal var apkDownloader: (Context, String, String) -> Long = ApkInstall::downloadApk
+
+    /**
      * Downloads the APK into Downloads and stops there.
      *
      * Installing would need the «install unknown apps» permission and the system installer on top of
@@ -360,7 +374,7 @@ class MainActivity : AppCompatActivity() {
         appUpdateProgress.isIndeterminate = true
         appUpdateProgress.progress = 0
         updateDownloadId = runCatching {
-            ApkInstall.downloadApk(this, url, update.latestVersion)
+            apkDownloader(this, url, update.latestVersion)
         }.getOrElse {
             appUpdateStatus.text = getString(R.string.update_download_failed)
             appUpdateProgress.visibility = View.GONE
@@ -579,13 +593,44 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showUpdateFoundDialog(update: AppUpdate) {
         if (isFinishing || isDestroyed) return
-        AlertDialog.Builder(this)
-            .setTitle(R.string.update_available_title)
-            .setMessage(getString(R.string.update_available_message, update.latestVersion))
-            .setPositiveButton(R.string.update_download_button) { _, _ -> downloadUpdate() }
-            .setNeutralButton(R.string.update_release_notes_button) { _, _ -> showReleaseNotes(update) }
-            .setNegativeButton(R.string.update_close, null)
-            .show()
+
+        val content = layoutInflater.inflate(R.layout.dialog_update_available, null)
+        content.findViewById<TextView>(R.id.dialogUpdateVersion).text =
+            getString(R.string.update_dialog_version, update.latestVersion)
+
+        // A plain Dialog, not an AlertDialog: the card, its background and its border are the
+        // layout's own, so the notice looks like the desktop window instead of the platform's
+        // default dialog surface.
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(content)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        content.findViewById<Button>(R.id.dialogUpdateDownload).setOnClickListener {
+            dialog.dismiss()
+            // «Baixar» starts the download and opens «Sobre»: the progress bar, the percentage and
+            // the saved file live there, and a dialog that closes on the tap would otherwise leave
+            // the download without any visible feedback.
+            showAboutPage()
+            downloadUpdate()
+        }
+        content.findViewById<Button>(R.id.dialogUpdateNotes).setOnClickListener {
+            dialog.dismiss()
+            showReleaseNotes(update)
+        }
+        content.findViewById<Button>(R.id.dialogUpdateLater).setOnClickListener { dialog.dismiss() }
+
+        dialog.show()
+        dialog.window?.setLayout(
+            minOf((resources.displayMetrics.widthPixels * 0.92f).toInt(), dp(440)),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+        )
+    }
+
+    /** Opens the «Sobre» tab, where the update controls and the download progress live. */
+    private fun showAboutPage() {
+        val tabs = findViewById<TabLayout>(R.id.settingsTabs)
+        tabs.getTabAt(tabPages.indexOf(R.id.pageAbout))?.select()
     }
 
     private fun bindLanguageSelector() {

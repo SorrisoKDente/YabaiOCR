@@ -6,8 +6,10 @@ import java.awt.Component
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
+import java.awt.geom.Area
 import java.awt.geom.Ellipse2D
 import java.awt.geom.Line2D
+import java.awt.geom.Path2D
 import java.awt.geom.RoundRectangle2D
 import javax.swing.Icon
 
@@ -64,10 +66,26 @@ internal fun paintTrayGlyph(g: Graphics, glyph: TrayGlyph, x: Int, y: Int, size:
                 g2.draw(Line2D.Float(s * 0.30f, s * 0.84f, s * 0.70f, s * 0.84f))
             }
             TrayGlyph.SCISSORS -> {
-                g2.draw(Line2D.Float(s * 0.30f, s * 0.20f, s * 0.78f, s * 0.74f))
-                g2.draw(Line2D.Float(s * 0.70f, s * 0.20f, s * 0.22f, s * 0.74f))
-                g2.fill(Ellipse2D.Float(s * 0.06f, s * 0.64f, s * 0.26f, s * 0.26f))
-                g2.fill(Ellipse2D.Float(s * 0.68f, s * 0.64f, s * 0.26f, s * 0.26f))
+                // Two blades that cross at the pivot, each leaving the ring handle it belongs to.
+                // The old drawing (two strokes over two filled dots) read as an × with dots.
+                g2.stroke = BasicStroke(
+                    maxOf(1.2f, s * 0.10f),
+                    BasicStroke.CAP_ROUND,
+                    BasicStroke.JOIN_ROUND,
+                )
+                // Each blade leaves its handle at the ring's top, where they meet.
+                g2.draw(Line2D.Float(s * 0.24f, s * 0.645f, s * 0.86f, s * 0.10f))
+                g2.draw(Line2D.Float(s * 0.76f, s * 0.645f, s * 0.14f, s * 0.10f))
+                // The handles are rings, not blobs: the hole is what makes them read as handles.
+                g2.stroke = BasicStroke(
+                    maxOf(1.1f, s * 0.085f),
+                    BasicStroke.CAP_ROUND,
+                    BasicStroke.JOIN_ROUND,
+                )
+                g2.draw(Ellipse2D.Float(s * 0.09f, s * 0.64f, s * 0.30f, s * 0.30f))
+                g2.draw(Ellipse2D.Float(s * 0.61f, s * 0.64f, s * 0.30f, s * 0.30f))
+                // The screw the two blades turn on.
+                g2.fill(Ellipse2D.Float(s * 0.44f, s * 0.356f, s * 0.12f, s * 0.12f))
             }
             TrayGlyph.MAGNIFIER -> {
                 g2.draw(Ellipse2D.Float(s * 0.12f, s * 0.12f, s * 0.52f, s * 0.52f))
@@ -90,13 +108,35 @@ internal fun paintTrayGlyph(g: Graphics, glyph: TrayGlyph, x: Int, y: Int, size:
                 g2.draw(Line2D.Float(s * 0.24f, s * 0.84f, s * 0.76f, s * 0.84f))
             }
             TrayGlyph.GEAR -> {
-                g2.draw(Ellipse2D.Float(s * 0.22f, s * 0.22f, s * 0.56f, s * 0.56f))
-                for (tooth in 0 until 8) {
-                    val angle = tooth * Math.PI / 4.0
-                    val cx = s / 2f + (Math.cos(angle) * s * 0.42).toFloat()
-                    val cy = s / 2f + (Math.sin(angle) * s * 0.42).toFloat()
-                    g2.fill(Ellipse2D.Float(cx - s * 0.06f, cy - s * 0.06f, s * 0.12f, s * 0.12f))
+                // A cog silhouette with a real hole. The old drawing was a circle with eight dots
+                // around it, which read as a sun rather than a gear.
+                val cx = s / 2f
+                val cy = s / 2f
+                val teeth = 8
+                val step = 2 * Math.PI / teeth
+                val outer = s * 0.47f
+                val root = s * 0.35f
+                val body = Path2D.Float()
+                var first = true
+                for (tooth in 0 until teeth) {
+                    val a = tooth * step
+                    val corners = listOf(
+                        outer to a - step * 0.17,
+                        outer to a + step * 0.17,
+                        root to a + step * 0.32,
+                        root to a + step * 0.68,
+                    )
+                    for ((radius, angle) in corners) {
+                        val px = cx + (Math.cos(angle) * radius).toFloat()
+                        val py = cy + (Math.sin(angle) * radius).toFloat()
+                        if (first) body.moveTo(px, py) else body.lineTo(px, py)
+                        first = false
+                    }
                 }
+                body.closePath()
+                val gear = Area(body)
+                gear.subtract(Area(Ellipse2D.Float(cx - s * 0.14f, cy - s * 0.14f, s * 0.28f, s * 0.28f)))
+                g2.fill(gear)
             }
             TrayGlyph.EXIT -> {
                 g2.draw(Line2D.Float(s * 0.22f, s * 0.22f, s * 0.78f, s * 0.78f))

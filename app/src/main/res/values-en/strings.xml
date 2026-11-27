@@ -364,6 +364,8 @@
     <string name="update_release_notes_title">Release notes for %1$s</string>
     <string name="update_release_notes_empty">This release has no notes.</string>
     <string name="update_download_button">⬇️ Download</string>
+    <string name="update_dialog_version">✨ New app version available: v%1$s</string>
+    <string name="update_dialog_body">A newer Yabai OCR release is available on GitHub. The download runs under "About", with the progress bar and the saved file.</string>
     <string name="update_link_failed">Could not open the link.</string>
     <string name="update_close">Close</string>
     <string name="update_downloading">Downloading update…</string>

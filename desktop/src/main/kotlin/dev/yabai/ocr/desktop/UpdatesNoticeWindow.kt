@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
@@ -18,12 +19,14 @@ import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -73,25 +76,44 @@ internal fun UpdatesNoticeWindow(
         alwaysOnTop = true,
         resizable = false,
     ) {
+        val scope = rememberCoroutineScope()
+        val app = notice.app
+        var isDownloading by remember { mutableStateOf(false) }
+        var progress by remember { mutableStateOf<Int?>(null) }
+        var message by remember { mutableStateOf<String?>(null) }
+        var readyToRestart by remember { mutableStateOf<Path?>(null) }
+        var installerNotice by remember { mutableStateOf<String?>(null) }
+        var installingDictionaries by remember { mutableStateOf(false) }
+        var dictionaryProgress by remember { mutableStateOf<String?>(null) }
+        var dictionariesInstalled by remember { mutableStateOf(false) }
+
+        // An app update ends in a restart, which would kill a dictionary download halfway.
+        // One at a time, and the window says which one comes first.
+        // An installer that is already open owns the update: a second download would launch a
+        // second one, and a dictionary download would die when the installer closes the app.
+        val appBusy = isDownloading || readyToRestart != null || installerNotice != null
+
+        // The window packs once, against the content it measured before the download started.
+        // The progress bar, the installer notice and the error line only exist afterwards, and they
+        // made the column taller than the frame — cut off at the bottom, on Windows more than on
+        // Linux. Re-fitting whenever one of those states changes keeps the last line readable.
+        val noticeWindow = window
+        LaunchedEffect(
+            isDownloading,
+            readyToRestart,
+            installerNotice,
+            message,
+            installingDictionaries,
+            dictionariesInstalled,
+            // The caption appears a moment after the install starts, so the pack that followed
+            // `installingDictionaries` had not measured it yet.
+            dictionaryProgress != null,
+        ) {
+            noticeWindow.pack()
+        }
+
         YabaiDesktopTheme(darkTheme = remember { DesktopSettings().darkTheme }) {
             Surface(color = MaterialTheme.colors.background) {
-                val scope = rememberCoroutineScope()
-                val app = notice.app
-                var isDownloading by remember { mutableStateOf(false) }
-                var progress by remember { mutableStateOf<Int?>(null) }
-                var message by remember { mutableStateOf<String?>(null) }
-                var readyToRestart by remember { mutableStateOf<Path?>(null) }
-                var installerNotice by remember { mutableStateOf<String?>(null) }
-                var installingDictionaries by remember { mutableStateOf(false) }
-                var dictionaryProgress by remember { mutableStateOf<String?>(null) }
-                var dictionariesInstalled by remember { mutableStateOf(false) }
-
-                // An app update ends in a restart, which would kill a dictionary download halfway.
-                // One at a time, and the window says which one comes first.
-                // An installer that is already open owns the update: a second download would launch a
-                // second one, and a dictionary download would die when the installer closes the app.
-                val appBusy = isDownloading || readyToRestart != null || installerNotice != null
-
                 Column(
                     modifier = Modifier
                         .width(470.dp)
@@ -116,6 +138,10 @@ internal fun UpdatesNoticeWindow(
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
+                                // A floor on the width: the label changes when the download ends,
+                                // and a button that shrinks with it drags the neighbour sideways —
+                                // the «trembling» the release-notes button used to do.
+                                modifier = Modifier.widthIn(min = 208.dp),
                                 enabled = !isDownloading && readyToRestart == null && installerNotice == null,
                                 onClick = {
                                     val url = app.downloadUrl
@@ -181,7 +207,9 @@ internal fun UpdatesNoticeWindow(
                             ) {
                                 Text(
                                     when {
-                                        isDownloading -> DesktopStrings.updateDownloading(progress)
+                                        // The percentage is in the bar below; repeating it here
+                                        // made the button resize on every sample.
+                                        isDownloading -> DesktopStrings.updatingStatus
                                         readyToRestart != null || installerNotice != null ->
                                             DesktopStrings.updateInstalled
                                         app.downloadUrl != null -> DesktopStrings.btnDownloadUpdate
@@ -208,10 +236,12 @@ internal fun UpdatesNoticeWindow(
                                     Text(DesktopStrings.btnRestartNow)
                                 }
                             }
-
-                            OutlinedButton(onClick = onOpenReleaseNotes) {
-                                Text(DesktopStrings.btnViewReleaseNotes)
-                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Its own row: beside the download button the three labels did not fit
+                        // the column and the download one came out clipped.
+                        OutlinedButton(onClick = onOpenReleaseNotes) {
+                            Text(DesktopStrings.btnViewReleaseNotes)
                         }
                         if (isDownloading) {
                             UpdateDownloadProgress(progress)
@@ -311,6 +341,10 @@ internal fun UpdatesNoticeWindow(
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = dictStatus,
+                                // One line: a name that wrapped on a later tick would grow the
+                                // column past the height the caption was packed at.
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.caption,
                                 color = MaterialTheme.colors.secondary,
                             )

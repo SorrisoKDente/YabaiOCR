@@ -50,6 +50,25 @@ class NoticeWindowLayoutTest {
         }
     }
 
+    /**
+     * The packed frame was measured before the download existed, so the progress bar, the installer
+     * notice and the error line grew the column past it and were cut off at the bottom.
+     */
+    @Test
+    fun `the update notice re-fits when a state arrives after it was packed`() {
+        val source = sourceFile("UpdatesNoticeWindow.kt").readText()
+
+        assertTrue(
+            "the notice must re-pack when the download adds lines to the column",
+            source.contains("noticeWindow.pack()"),
+        )
+        assertTrue(
+            "the re-fit must follow the download states, not run once",
+            Regex("""LaunchedEffect\([^)]*isDownloading""", RegexOption.DOT_MATCHES_ALL)
+                .containsMatchIn(source),
+        )
+    }
+
     @Test
     fun `release notes open above the always-on-top update notice`() {
         val notes = sourceFile("ReleaseNotesWindow.kt").readText()
