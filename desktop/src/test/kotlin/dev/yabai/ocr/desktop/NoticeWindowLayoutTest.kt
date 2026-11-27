@@ -69,6 +69,25 @@ class NoticeWindowLayoutTest {
         )
     }
 
+    /**
+     * Compose measures the content when it packs (`getPreferredSize` → `actualizeSize` →
+     * `measureOnly` with unbounded constraints). A re-fit through a remembered height would freeze
+     * the frame that existed before the download and cut the lines that arrive with it.
+     */
+    @Test
+    fun `the notice re-fits by measuring the content, not by resizing to a remembered height`() {
+        val source = sourceFile("UpdatesNoticeWindow.kt").readText()
+
+        assertTrue(
+            "the re-fit no longer packs the content",
+            source.contains("noticeWindow.pack()"),
+        )
+        assertFalse(
+            "the re-fit resizes the window to a height measured earlier",
+            Regex("""noticeWindow\.(setSize|setBounds|size\s*=)""").containsMatchIn(source),
+        )
+    }
+
     @Test
     fun `release notes open above the always-on-top update notice`() {
         val notes = sourceFile("ReleaseNotesWindow.kt").readText()

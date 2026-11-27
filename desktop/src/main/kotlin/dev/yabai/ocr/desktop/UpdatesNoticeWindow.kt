@@ -97,6 +97,12 @@ internal fun UpdatesNoticeWindow(
         // The progress bar, the installer notice and the error line only exist afterwards, and they
         // made the column taller than the frame — cut off at the bottom, on Windows more than on
         // Linux. Re-fitting whenever one of those states changes keeps the last line readable.
+        //
+        // `pack()` measures the content again, it does not reuse the size of the frame on screen:
+        // `ComposeWindow.getPreferredSize` → `ComposeContainer.actualizeSize` →
+        // `RootNodeOwner.measureContentWithConstraints`, which calls `measureOnly()` with unbounded
+        // constraints. And the effect body is dispatched rather than run while the new rows are
+        // being inserted, so the tree it measures is the complete one.
         val noticeWindow = window
         LaunchedEffect(
             isDownloading,
