@@ -61,7 +61,7 @@ val isLinuxHost = System.getProperty("os.name").lowercase().contains("linux")
 // Version stamped into the packages. The release workflow passes `-PyabaiVersion=<tag without v>` so
 // an installer, a portable zip and an AppImage from the same tag all carry the same number.
 val appVersion = (project.findProperty("yabaiVersion") as String?)?.trim()?.removePrefix("v")
-    ?.takeIf { it.isNotEmpty() } ?: "1.1.1"
+    ?.takeIf { it.isNotEmpty() } ?: "1.2.0"
 
 // The Windows installer accepts only `MAJOR.MINOR.BUILD` (255.255.65535) and fails configuration
 // with a trailing `$env:VERSION`-style string or a pre-release suffix. Normalising here keeps the

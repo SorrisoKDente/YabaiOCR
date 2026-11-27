@@ -10080,3 +10080,306 @@ Testes: **core 212** (186 executados, 26 pulados), **desktop 634** (628 executad
   tela nem com os modelos reais do PP-OCR (23 MB, não instalados nesta máquina): a geometria é
   provada por caixas sintéticas e o caminho do ML Kit por Robolectric, não por uma página
   fotografada. O blur de uma leitura de verdade no PP-OCR segue por conferir com `-Pppocr`.
+
+---
+
+## 28. Integração com o Anki — plano  (27/11/2026)
+
+**Pedido.** Um botão que mande a palavra — ou a frase — para o Anki, no celular e no desktop, «da
+forma mais prática possível».
+
+**A resposta curta.** Botão, sim, mas em **dois níveis**: um por palavra, que é o caso comum (é a
+palavra que se quer estudar, não o balão inteiro), e um para a frase toda, que guarda o contexto em
+que ela apareceu. E **não existe um caminho único** entre as plataformas — o que existe é um caminho
+local em cada uma, sem conta, sem chave e sem nuvem:
+
+| plataforma | caminho | por quê |
+| --- | --- | --- |
+| desktop | **AnkiConnect** (add-on `2055492159`): HTTP em `127.0.0.1:8765`, JSON `addNote` | é a API oficial de fato do Anki de desktop, roda dentro do próprio Anki (sem tocar no `collection.anki2`) e já sabe criar baralho/tipo de nota, checar duplicata e devolver o id da nota |
+| Android | **AnkiDroid API** (`content://com.ichi2.anki.flashcards`) | o AnkiDroid expõe um `ContentProvider` para outros apps inserirem notas; escrever direto no banco dele por fora não é suportado e corromperia a coleção |
+| sem AnkiDroid / sem add-on | **fallback por texto (TSV)** e compartilhamento | funciona no Android sem o AnkiDroid e no desktop com o Anki aberto sem o add-on; o usuário importa o arquivo uma vez |
+
+O Anki **sincroniza sozinho** com o AnkiWeb nos dois lados. O Yabai não fala com o AnkiWeb, não guarda
+credencial de Anki, não pede conta: essa é a parte que torna a integração barata de manter.
+
+**O que fica de fora de propósito.**
+
+- **Escrever no `collection.anki2`.** O Anki mantém a coleção aberta e travada; escrever por fora
+  exige coleção fechada, depende do schema da versão e, no pior caso, corrompe o baralho do usuário.
+- **Gerar `.apkg` na primeira versão.** `.apkg` é um zip com SQLite (schema 11/18) e mídia: dá para
+  fazer, mas é um segundo banco para manter em dia e um formato que muda com o Anki. O TSV resolve o
+  mesmo problema com uma linha por campo e é importável em qualquer versão. `.apkg` fica como
+  refinamento — é o único caminho que levaria a imagem da captura junto sem media store.
+- **Uma API de nuvem / conta.** Não existe API oficial de nuvem do Anki para terceiros; o que existe é
+  o AnkiWeb do próprio app.
+- **Um botão só, genérico, que manda «o texto».** O painel tem frase, palavra, leitura, significados e
+  a captura; um botão que joga tudo num campo só produz cartão que não se estuda. São dois botões com
+  conteúdos diferentes, não um com opções.
+
+### Itens
+
+| # | Estado | Item | Dificuldade |
+| --- | --- | --- | --- |
+| A1 | `[ ]` | **Modelo do cartão no `:core`**: `AnkiNote`, HTML com rubi e escape, texto puro para o fallback | fácil |
+| A2 | `[ ]` | **Fila de envio** que sobrevive ao app fechado (nota não se perde com o Anki fechado) | médio |
+| A3 | `[ ]` | **Cliente AnkiConnect** no `:desktop` (handshake, baralho, tipo de nota, duplicata, envio, desfazer) | médio |
+| A4 | `[ ]` | **Cliente AnkiDroid** no `:app` (`ContentProvider`, permissão, `<queries>`, criação de baralho/tipo) | médio |
+| A5 | `[ ]` | **Botões no painel do celular**: por palavra e da frase, com aviso no próprio painel e «Desfazer» | fácil |
+| A6 | `[ ]` | **Botões no desktop**: janela de resultado, dicionário rápido e cartão do hover | fácil |
+| A7 | `[ ]` | **Ajustes nos dois lados** (ativar, baralho, tipo de nota, endereço, etiquetas) e strings pt-BR/en | fácil |
+| A8 | `[ ]` | **Fallback sem Anki**: TSV para importar, compartilhar texto no Android | fácil |
+| A9 | `[ ]` | **Testes, prova de mutação e E2E** com Anki e AnkiDroid de verdade | médio |
+| A10 | `[ ]` | **Documentação**: README (×2), ARCHITECTURE (×2), AGENTS | fácil |
+
+### A1 — Modelo do cartão no `:core`
+
+O cartão é o mesmo conceito nas duas plataformas, então o modelo e a formatação moram no `:core`
+(Kotlin puro, sem Android, sem rede): quem envia é um adaptador fino de cada lado.
+
+- `core/.../anki/AnkiNote.kt` — `AnkiNote(fields: Map<String, String>, tags: List<String>)` mais dois
+  construtores: `word(match, sentence, dictionaryTitle)` e `sentence(text, matches, …)`.
+- Tipo de nota **`Yabai`**, com cinco campos, na ordem em que o Anki os mostra:
+
+  | campo | conteúdo |
+  | --- | --- |
+  | `Palavra` | a palavra **como está na frase** (a `surface`), com rubi por cima dos kanji quando a leitura existe |
+  | `Leitura` | a leitura da entrada do dicionário (a que o painel já mostra em `【 】`) |
+  | `Significado` | a definição já renderizada, uma linha por sentido, com a etiqueta gramatical |
+  | `Frase` | a frase reconhecida inteira, com a palavra em negrito |
+  | `Fonte` | dicionário + data; é o que permite achar depois de onde veio o cartão |
+
+- `core/.../anki/AnkiHtml.kt` — escape de `& < > "` e o rubi montado por
+  `AnkiHtml.ruby(surface, term, reading)` sobre `Furigana.split(term, reading)`. O `split` já
+  reparte a leitura por trecho de kanji, mas trabalha na **forma do dicionário** e devolve
+  `Run(kanji, reading)` sem posições: o helper tem de achar o trecho de kanji de cada `Run` na
+  `surface` (o que a frase imprime) antes de escrever o `<ruby>`. `食べる`/`たべる` dá `食 = た`, e
+  na `surface` `食べました` isso sai como `<ruby>食<rt>た</rt></ruby>べました`, com o kana **fora**
+  do rubi. `split` devolve `null` quando a leitura não encaixa, e o kanji do dicionário pode nem aparecer na
+  `surface` (o `両膝` de uma entrada que veio de `兩膝`, R46e): nos dois casos o cartão sai **sem
+  rubi**. Regra herdada do D2: leitura que não encaixa não é escrita; cartão com rubi no
+  kanji errado ensina o kanji errado.
+- `AnkiHtml.plain(note)` — o mesmo conteúdo sem marcação, para o fallback (A8) e para o teste que
+  compara as duas formas.
+- **Sem imagem na primeira versão.** A captura é útil no cartão de frase, mas exige `storeMediaFile`
+  (desktop) e o `AnkiMedia` do provider (AnkiDroid), mais um campo novo; fica para um item
+  seguinte, com E2E próprio.
+
+Pronto quando: um teste de `AnkiNoteTest` prende o HTML do cartão de palavra e de frase, o escape de
+`<`/`&` na definição, o rubi de `食（た）べました`, a palavra sem kanji (sem rubi) e a nota sem
+leitura; e a tabela de campos é a mesma que o tipo de nota criado em A3/A4 declara.
+
+### A2 — Fila de envio
+
+O caso que estraga a experiência não é o Anki aberto: é o AnkiDroid não instalado, o add-on faltando
+ou o Anki fechado no meio da leitura. Um botão que responde «falhou» e perde o cartão é pior do que
+não ter botão.
+
+- `core/.../anki/AnkiQueue.kt` — diário em JSON Lines (`anki-queue.jsonl`), uma linha por nota, cada
+  uma com `id`, `createdAt`, `note` e `state` (`PENDING`, `SENT`, `FAILED` com motivo). Arquivo e
+  relógio injetados, para o teste não depender do disco do usuário.
+- Local: `filesDir/anki-queue.jsonl` no Android e `~/.yabai_ocr/anki-queue.jsonl` no desktop — o mesmo
+  lugar onde já vivem os ajustes e as posições de janela.
+- **Deduplicação pela chave do cartão** (baralho + tipo + primeiro campo): tocar duas vezes na mesma
+  palavra não cria duas linhas, e o Anki também recusa duplicata do seu lado (`allowDuplicate: false`).
+- **Reenvio**: na abertura do app, no início de cada captura e quando o botão é tocado de novo. Falha
+  de rede não vira tentativa infinita: a nota fica `FAILED` com o motivo e o painel diz «guardado para
+  enviar» em vez de «adicionado».
+- **Teto de 500 linhas**: a fila não cresce para sempre porque o usuário nunca abriu o Anki; a tela de
+  ajustes mostra quantas estão pendentes e oferece limpá-las.
+
+Pronto quando: persistência, dedupe, reenvio, motivo da falha e teto estão presos por
+`AnkiQueueTest`, sem tocar em rede nem em disco real.
+
+### A3 — Cliente AnkiConnect (desktop)
+
+`desktop/.../AnkiConnect.kt`, sobre o OkHttp que o desktop já usa (o `:core` continua sem HTTP).
+
+- Endereço padrão `http://127.0.0.1:8765` (ajustável em A7; IPv4 explícito, porque `localhost` pode
+  resolver para IPv6 e o AnkiConnect só escuta em `127.0.0.1`).
+- **Handshake primeiro**: `POST /` com `{"action":"version","version":6}`. Resposta com `error` e
+  conexão recusada são coisas diferentes — add-on não instalado, Anki fechado, endereço errado —
+  e a mensagem no painel tem de dizer qual é. O add-on mantém esse **formato legado**
+  (`action`/`version`/`params`, resposta `{result, error}`) para os clientes que já existem e
+  recomenda o v1 (`/api/v1`, JSON-RPC 2.0) para integrações novas; o cliente usa o legado e cai no
+  v1 uma vez se ele for recusado, memorizando qual respondeu. Se o usuário configurou `apiKey` no
+  add-on, a chave vai no corpo (`key`) no legado e em `Authorization: Bearer` no v1 — sem ela a
+  resposta é erro de autenticação, não «Anki fechado».
+- **Operações**, nos nomes do guia legado (o guia do add-on traz o equivalente v1 de cada uma):
+  `deckNames`/`createDeck`, `modelNames`/`modelFieldNames`, `createModel` — exige `modelName`,
+  `inOrderFields` e `cardTemplates` (`Front`/`Back`), e é o que cria o tipo `Yabai` com os cinco
+  campos de A1 quando ele não existe —, `canAddNotes` (duplicata), `addNote` (com
+  `allowDuplicate: false`; o escopo padrão da checagem é a coleção, não o baralho), `deleteNotes`
+  (o «Desfazer» do A5/A6) e, mais tarde, `storeMediaFile`. No v1 os mesmos recursos aparecem como
+  `decks.*`, `noteTypes.*`, `notes.*` e `media.*`.
+- **Tempos curtos** (conexão ~1 s, leitura ~5 s) e chamada fora da thread da UI: o app tem de continuar
+  respondendo com o Anki travado.
+- Nunca `guiAddCards`: abrir a janela do Anki no meio de uma leitura tira o foco do app que o usuário
+  está lendo. A nota entra direto; o «Desfazer» é a saída.
+
+Pronto quando: `AnkiConnectTest` sobe um `HttpServer` local do JDK (sem rede externa, sem Anki) e
+confere o JSON enviado, a ordem handshake → baralho → tipo → envio, o mapeamento de cada erro e o
+tempo-limite.
+
+### A4 — Cliente AnkiDroid (app)
+
+`app/.../anki/AnkiDroidGateway.kt`, com `ContentResolver` direto — **sem dependência nova**: o contrato
+é pequeno e estável (`content://com.ichi2.anki.flashcards`, as colunas `mid`/`flds`/`tags` da nota,
+campos unidos por 0x1f e etiquetas por espaço), e uma dependência JitPack para meia dúzia de
+chamadas não se paga. A lib `com.github.ankidroid:Anki-Android:api-v1.x` fica registrada como
+alternativa se o provider crescer.
+
+- Detecção: `packageManager.resolveContentProvider("com.ichi2.anki.flashcards")`. Exige
+  `<queries><package android:name="com.ichi2.anki"/></queries>` no manifesto — sem isso o Android 11+
+  responde «não instalado» com o AnkiDroid instalado.
+- Permissão `com.ichi2.anki.permission.READ_WRITE_DATABASE` declarada no manifesto e pedida em tempo
+  de execução na primeira vez (Android 6+), a partir da tela principal. Negada = fallback do A8, não
+  um botão que estoura.
+- O usuário também precisa de **«Configurações → Avançado → Ativar API do AnkiDroid»** ligado; sem
+  isso o provider responde vazio e a mensagem no painel tem de dizer exatamente isso, com o caminho.
+- Operações, com os nomes que o contrato publica: baralho em `Deck.CONTENT_ALL_URI` (consulta por
+  `Deck.DECK_NAME`, cria com o mesmo campo se faltar); tipo de nota em `Model.CONTENT_URI` (consulta
+  por `Model.NAME`; cria com `NAME`, `FIELD_NAMES` — nomes separados por 0x1f —, `NUM_CARDS`,
+  `CSS`, `DECK_ID` e `SORT_FIELD_INDEX`, e depois os templates em `models/<id>/templates/<i>`, que é
+  o que a `AddContentApi` faz para o tipo `Yabai` de A1); duplicata pelo primeiro campo, porque o
+  provider **não** checa duplicata sozinho; inserção em `Note.CONTENT_URI` com `Note.MID`,
+  `Note.FLDS` (campos unidos por 0x1f) e `Note.TAGS`. O baralho de destino **não** vai no insert
+  simples: ou se usa o `Note.DECK_ID_QUERY_PARAM` do `bulkInsert`, ou se move o cartão depois, como
+  a própria `AddContentApi` faz. Remoção pelo URI da nota, para o «Desfazer».
+- **O app não sincroniza**: quem sincroniza com o AnkiWeb é o AnkiDroid. A nota aparece lá na próxima
+  sincronização dele.
+
+Pronto quando: Robolectric com um `ContentProvider` de mentira registrado na autoridade prende
+instalado/não instalado, permissão negada, criação de baralho e de tipo, inserção com os campos na
+ordem certa, duplicata recusada e remoção.
+
+### A5 — Botões no painel do celular
+
+- **Por palavra**: em `ResultOverlay.wordView` um alvo pequeno «＋ Anki» ao lado do cabeçalho da
+  palavra — é onde o dedo já está e é a palavra que se quer guardar. Ele **não** pode ser feito com
+  `Context.actionButton`: essa fábrica carimba `ACTION_BUTTON_TAG` em tudo o que cria, e os testes
+  de layout (`ResultOverlayLayoutTest`, `ImagePanelTest`, `AskAiPanelTest`) varrem o cartão inteiro
+  atrás dessa tag para prender a lista exata de ações — um botão por palavra multiplicaria a lista
+  a cada captura. Tag própria (`yabai.ankiWord`) e alvo de toque medido.
+- **Da frase**: na `ActionGrid`, logo depois de «Perguntar à IA» — as duas são a resposta ao texto
+  inteiro; as cópias são sobre um pedaço.
+- **Resposta no próprio painel**, pelo canal de aviso que ele já tem (`ResultOverlay.addNote`),
+  porque um toast fica atrás do app que o usuário está lendo: «Adicionado a “Yabai” · Desfazer»,
+  «Guardado para enviar quando o Anki abrir» ou o motivo exato da falha. O `addNote` escreve o
+  mesmo texto uma vez só — e aqui isso importa: dois toques seguidos não viram duas linhas de aviso.
+- Some quando não há palavra nenhuma (painel de erro) e quando o ajuste está desligado (A7).
+
+Pronto quando: os dois botões existem nos lugares certos, o do aviso reflete os três desfechos
+(enviado/guardado/falhou) e a lista de ações do painel continua a mesma dos testes de layout.
+
+### A6 — Botões no desktop
+
+- `ResultWindow.kt`: «＋ Anki» ao lado de «Copiar» e «Perguntar à IA», com o mesmo vocabulário de
+  estado dos outros botões (texto pequeno, sem diálogo).
+- `QuickDictWindow.kt` e `HoverTooltipWindow.kt`: o botão **por palavra** no cartão — é onde a maior
+  parte das palavras é lida no desktop, e mandar a frase inteira de um hover seria mandar o parágrafo
+  errado. As duas já recebem `List<TokenMatch>` (`results` no dicionário rápido, `matches` no cartão
+  do hover), então o botão nasce ao lado de cada palavra, não do cartão inteiro.
+- `DesktopStrings` ganha os rótulos nos dois idiomas; nada de texto fixo na tela.
+
+Pronto quando: os três sítios chamam o mesmo caminho (fila → AnkiConnect), com teste de UI que não
+depende de Anki aberto (o cliente é interface, com dublê no teste).
+
+### A7 — Ajustes e strings
+
+Chaves novas, as mesmas nos dois lados, na convenção que já está no código: nome plano em
+snake_case, sem prefixo de bloco (`auto_copy`, `ai_prompt`, `show_ai_button`, `dictionary_filter`).
+No `:app` cada uma é uma `const val KEY_…` do `AppSettings` (SharedPreferences
+`yabai_ocr_settings`); no desktop é o literal em `props.getProperty(…)` do `settings.properties`.
+
+| chave | padrão | o que é |
+| --- | --- | --- |
+| `show_anki_button` | desligado no desktop, ligado no celular quando o AnkiDroid é detectado | mostra os botões; é o par do `show_ai_button` que já existe |
+| `anki_deck` | `Yabai` | baralho de destino (sugerido da lista do Anki, digitável) |
+| `anki_model` | `Yabai` | tipo de nota |
+| `anki_url` | `http://127.0.0.1:8765` | só desktop; serve para AnkiConnect em outra máquina |
+| `anki_tags` | `yabai` | etiquetas extras, separadas por espaço |
+
+- Android: `AppSettings.kt` + uma seção em `MainActivity`/`activity_main.xml`, com o mesmo formato das
+  seções existentes e um botão «Testar» que diz o que falta (AnkiDroid ausente, API desligada,
+  permissão negada).
+- Desktop: `DesktopSettings.kt` + aba em `SettingsWindow.kt`, com o mesmo «Testar» falando com o
+  AnkiConnect.
+- Textos em `values/strings.xml` + `values-en/strings.xml` e em `DesktopStrings` — os dois idiomas na
+  mesma tarefa, como manda o AGENTS.
+
+Pronto quando: nenhuma string só num idioma, nenhum texto fixo em código, e o «Testar» cobre os três
+motivos de indisponibilidade.
+
+### A8 — Fallback sem Anki
+
+- **Desktop**: um `.txt` TSV (`Palavra`, `Leitura`, `Significado`, `Frase`, `Fonte`) escrito na pasta
+  de trabalho do usuário e aberto na pasta, mais o mesmo conteúdo na área de transferência. No Anki:
+  «Importar» → separador tabulação → «Permitir HTML nos campos». O `README` explica isso em cinco
+  linhas, nos dois idiomas.
+- **Android**: `ACTION_SEND` de `text/plain` com o cartão em texto puro (`AnkiHtml.plain`), o mesmo
+  caminho que o `AskAi` já usa: abre o seletor do aparelho e o usuário escolhe o app — se for o
+  AnkiDroid e ele aceitar o texto, a nota nasce lá; se nada aceitar, o botão copia e diz que copiou.
+- O fallback **não** substitui A3/A4: ele só aparece quando o caminho direto não está disponível, para
+  não transformar o caso bom em dois passos.
+
+Pronto quando: o TSV gerado é importável de verdade (uma importação feita à mão no E2E, com o número
+de notas) e o teste prende as colunas, o escape e as linhas com campo vazio.
+
+### A9 — Testes, mutação e E2E
+
+Cada item entra com o teste que falha sem ele e a prova de mutação do `mutation-proof.ps1`, como
+qualquer mudança de comportamento. As regras que mais doem, e que a prova precisa derrubar:
+
+| mutação | teste que deve acusar |
+| --- | --- |
+| `AnkiHtml` sem escape | o cartão com `<` na definição sai com `&lt;` |
+| rubi escrito com o kanji dentro do `<rt>` | `食（た）べました` vira `食<rt>食た</rt>` |
+| rubi montado sobre o `term` em vez da `surface` | o cartão de `食べました` sai com a forma do dicionário |
+| fila marcando `SENT` antes da resposta do Anki | nota perdida quando o envio falha |
+| dedupe sem o primeiro campo | a mesma palavra entra duas vezes |
+| cliente ignorando `error` do AnkiConnect | duplicata vira «adicionado» |
+| permissão do AnkiDroid não pedida | botão estoura em vez de cair no fallback |
+| `queries` sem o pacote do AnkiDroid | «não instalado» com o AnkiDroid instalado |
+
+- `core`: `AnkiNoteTest`, `AnkiHtmlTest`, `AnkiQueueTest` (sem rede, sem Android).
+- `desktop`: `AnkiConnectTest` com `HttpServer` local; o `AnkiClient` é interface, então a UI é testada
+  com dublê.
+- `app`: `AnkiDroidGatewayTest` em Robolectric com provider de mentira; `AnkiButtonsTest` para os
+  botões e o aviso.
+- **E2E de verdade** (exigido pelo AGENTS para comportamento visível): Anki de desktop com o add-on
+  instalado e o AnkiDroid num aparelho. Registrar o id da nota devolvido, o cartão aberto no Anki, o
+  «Desfazer» removendo, e o caminho de falha com o Anki fechado (nota guardada e enviada depois).
+  Backup e restauração do `settings.properties` no fim; nenhum processo deixado aberto.
+
+### A10 — Documentação
+
+- `README.md`/`README.pt-BR.md`: uma seção curta «Enviar para o Anki» com os dois pré-requisitos
+  (add-on no desktop; API do AnkiDroid no celular) e o caminho de importação do TSV.
+- `ARCHITECTURE.md`/`.en.md`: `core/anki/` (modelo, HTML, fila), `AnkiConnect.kt`,
+  `AnkiDroidGateway.kt` e o fluxo «palavra/frase → nota → Anki» na tabela de fluxos.
+- `AGENTS.md`: contagem de testes nova, no mesmo formato dos números de hoje.
+- ROADMAP: mover cada item de `[ ]` para `[x]` com data, causa, arquivos, testes, mutações e evidência
+  — o formato dos itens acima, não este plano.
+
+### Ordem de execução
+
+`A1` → `A2` → `A3` → `A6` → `A7` (desktop) → `A4` → `A5` → `A7` (app) → `A8` → `A9` → `A10`.
+
+O desktop vem primeiro porque o AnkiConnect é testável na própria máquina, sem aparelho; o Android
+depende de provider, permissão e do aparelho na mão. Cada item fecha com os testes e a mutação dele
+antes do próximo começar — a regra do topo deste arquivo.
+
+### Riscos e limites
+
+- **AnkiConnect exige o Anki aberto e o add-on instalado**; sem isso não há envio, e o aviso precisa
+  dizer qual dos dois falta. O firewall do Windows pergunta uma vez na primeira execução do Anki.
+- **A API do AnkiDroid é opt-in** («Avançado → Ativar API») e a permissão é perigosa no papel: quem
+  recusar cai no fallback, e o app nunca insiste sozinho.
+- **Duplicata é política do Anki**, não nossa: o cartão repetido é recusado pelo próprio Anki (ou pelo
+  provider), e o painel repete o motivo em vez de inventar um «já existe» próprio.
+- **Nada de sincronização**: nota criada offline aparece no AnkiWeb quando o Anki/AnkiDroid sincronizar.
+  O Yabai não tem como saber se sincronizou, e não deve fingir que sabe.
+- **Tipo de nota do usuário**: quem já tem um modelo próprio pode apontar `anki_model` para ele; os
+  campos são casados por nome, e campo faltando é erro dito na tela, não nota meio preenchida.
+
+---
