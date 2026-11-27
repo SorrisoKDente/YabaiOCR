@@ -3,7 +3,6 @@ package dev.yabai.ocr.desktop
 import java.awt.Dimension
 import java.awt.Point
 import java.awt.Rectangle
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -42,6 +41,14 @@ object PickerRuby {
     private const val AIR = 1f
 
     /**
+     * Outline thickness for a reading, in canvas pixels.
+     *
+     * Fixed at 2.6 px the outline swallowed a shrunk 7–9 px kana, closing counters and turning the
+     * reading into a dark blob. Scaled to the font it stays a contrast edge at every size.
+     */
+    fun outlineWidth(size: Float): Float = (size * 0.10f).coerceIn(1.0f, 2.5f)
+
+    /**
      * Where to draw [characters] kana for a run, or null when there is no room for even a small
      * reading on either side.
      *
@@ -56,21 +63,28 @@ object PickerRuby {
         vertical: Boolean,
         characters: Int,
         blocked: List<Rectangle> = emptyList(),
+        pageWidth: Float = Float.POSITIVE_INFINITY,
+        pageHeight: Float = Float.POSITIVE_INFINITY,
     ): RubySpot? {
         if (characters <= 0 || span.width <= 0 || span.height <= 0) return null
 
         if (vertical) {
-            // As thick as the run's glyphs, and never taller than the run can hold: five kana
-            // beside two kanji are exactly the real case, and crushing them into the run's own
-            // length would make them unreadable.
-            val size = min(span.width * SIZE_RATIO, span.height.toFloat() / characters)
+            // As thick as the run's glyphs. Dividing by the number of kana made a short run with a
+            // long reading a third of the size of a two-kana reading in the same gutter — the
+            // «same space, much smaller» readers saw (R60, R63). The stack may run past the run's
+            // own stretch; the blocked boxes still keep it off the neighbouring text.
+            val size = span.width * SIZE_RATIO
             if (size < MIN_SIZE_PX) return null
-            fun placed(at: Float, x: Float): RubySpot? =
-                RubySpot(x = x, y = span.y.toFloat(), size = at, stacked = true)
+            fun placed(at: Float, x: Float): RubySpot? {
+                val stackHeight = at * characters
+                val clampedX = x.coerceIn(0f, (pageWidth - at).coerceAtLeast(0f))
+                val clampedY = span.y.toFloat().coerceIn(0f, (pageHeight - stackHeight).coerceAtLeast(0f))
+                return RubySpot(x = clampedX, y = clampedY, size = at, stacked = true)
                     .takeIf { it.isFree(characters, blocked) }
+            }
 
             val right = span.x + span.width
-            val bandTop = span.y.toFloat()
+            val bandTop = span.y.toFloat().coerceIn(0f, (pageHeight - size * characters).coerceAtLeast(0f))
             val bandBottom = bandTop + size * characters
             placed(size, right + span.width * 0.15f)?.let { return it }
             shrunkToFit(size, freeWidth(blocked, right.toFloat(), toRight = true, bandTop, bandBottom))
@@ -85,9 +99,13 @@ object PickerRuby {
         val size = span.height * SIZE_RATIO
         if (size < MIN_SIZE_PX) return null
         val centre = span.x + span.width / 2f
-        fun placed(at: Float, y: Float): RubySpot? =
-            RubySpot(x = centre, y = y, size = at, stacked = false)
+        fun placed(at: Float, y: Float): RubySpot? {
+            val stackWidth = at * characters
+            val clampedX = centre.coerceIn(stackWidth / 2f, (pageWidth - stackWidth / 2f).coerceAtLeast(stackWidth / 2f))
+            val clampedY = y.coerceIn(0f, (pageHeight - at).coerceAtLeast(0f))
+            return RubySpot(x = clampedX, y = clampedY, size = at, stacked = false)
                 .takeIf { it.isFree(characters, blocked) }
+        }
         val bandLeft = centre - size * characters / 2f
         val bandRight = centre + size * characters / 2f
 

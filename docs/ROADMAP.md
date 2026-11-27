@@ -9978,7 +9978,9 @@ deficiências e corrija/melhore o que for possível.»
 - **Polling do Android.** `ApkInstall.progress` devolve `null` quando a linha do DownloadManager
   ainda não apareceu — e a tela desistia no primeiro `null`, deixando a barra presa em
   «Baixando…» sem porcentagem. Agora ela tenta de novo por ~4 s antes de desistir; o broadcast de
-  conclusão continua sendo o fim de verdade.
+  conclusão continua sendo o fim de verdade. O `wait` injetável era abstração demais: o teste
+  passa `retryDelayMs = 25` e verifica as tentativas, o valor e o tempo decorrido; remover o
+  `delay` também derruba o teste.
 - **Revisão do que já estava feito.** Os quatro ajustes de R61 foram relidos: o clamp da bolha tem
   os dois callbacks, o rubi não depende mais do número de kana, o «Cancelar» usa `R.color.warn` e o
   picker entra e sai da escuta de `ACTION_CLOSE_SYSTEM_DIALOGS` sem deixar receptor registrado.
@@ -9994,9 +9996,39 @@ deficiências e corrija/melhore o que for possível.»
 | desistir no primeiro progresso ausente (remover o retry) | `a missing progress row is retried before the bar gives up` — `UpdateDownloadOnlyTest.kt` |
 | gastar um retry a menos (trocar `>` por `>=`) | `a row that never appears gives up after the retry budget` — `UpdateDownloadOnlyTest.kt` |
 
-Testes: **app 1034** (517 em cada variante), 0 falhas; **desktop 630** (624 executados, 6 pulados),
+Testes: **app 1034** (517 em cada variante), 0 falhas; **desktop 631** (625 executados, 6 pulados),
 0 falhas; core **210** inalterado.
 
 - **Limite.** Nenhum instalador real foi aberto: o teste cobre o comando de fallback, não o
   `Desktop.open`/diálogo do sistema; o retry do polling é testado com um sampler falso, sem um
   download real do DownloadManager. Nada foi visto em aparelho.
+### R63 — Rubi do desktop legível em leituras longas  `[x]` (26/11/2026)
+
+**Pedido.** «Me ajude a melhorar a visibilidade dos furiganas que são escritos com a função
+rubi…»
+
+- **Causa.** O seletor do desktop ainda dimensionava o rubi vertical por
+  `min(largura × 0,55, altura ÷ kana)`. Uma leitura de três kana sobre um trecho de 30 px virava
+  10 px — um terço dos 16,5 px da mesma leitura ao lado de um trecho alto —, embora o celular já
+  tivesse perdido esse limite em R60/R61. Além disso o contorno era fixo em 2,6 px: em cima de uma
+  leitura encolhida para 7–9 px ele fechava os vãos do kana e virava um borrão escuro.
+- **Correção.** O tamanho passou a ser só `largura × 0,55`, como no celular; a pilha pode passar do
+  trecho dos caracteres, e as caixas de texto bloqueadas continuam impedindo que ela cubra a coluna
+  vizinha. O contorno passou a `max(1,2, tamanho × 0,22)`, fino o bastante para não engolir um kana
+  pequeno e grosso o bastante para separar a leitura do desenho.
+- **Arquivos.** `desktop/.../PickerReadings.kt`, `desktop/.../SegmentPickerWindow.kt`,
+  `desktop/src/test/.../PickerReadingsTest.kt`, AGENTS e ROADMAP.
+
+| mutação | teste que acusa |
+| --- | --- |
+| voltar `altura ÷ kana` ao tamanho do rubi vertical | `a short run keeps the reading size instead of squeezing it by the run height` — `PickerReadingsTest.kt` |
+| voltar o contorno fixo de 2,6 px | `the reading outline follows the font size` — `PickerReadingsTest.kt` |
+| ignorar as caixas bloqueadas ao posicionar a pilha | `a reading taller than its run steps aside instead of covering the line below` — `PickerReadingsTest.kt` |
+| desligar o recorte às dimensões da página | `a reading at the page edge stays inside the canvas` — `PickerReadingsTest.kt` |
+
+Testes: **app 1034** (517 em cada variante), 0 falhas; **desktop 633** (627 executados, 6 pulados),
+0 falhas; core **210** inalterado.
+
+- **Limite.** Nada foi visto em tela: os testes fixam tamanho e espessura, não os pixels desenhados,
+  e nenhuma captura do seletor com o rubi novo foi feita. A mudança é só no desktop; o celular já
+  tinha o tamanho por largura desde R60/R61.

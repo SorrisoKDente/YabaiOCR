@@ -39,13 +39,59 @@ class PickerReadingsTest {
         assertEquals(16.5f, spot.size, 0.01f)
     }
 
+    /**
+     * R63: the desktop used to divide the size by the number of kana, so a short run with a long
+     * reading shrank to a third of the same reading beside a tall run. The mobile picker dropped
+     * that cap in R60; the desktop now matches it, and the stack may run past the run instead.
+     */
     @Test
-    fun `a short run caps the reading by its height so every kana fits`() {
-        // Width alone would allow 33 px, but only 10 px of run per kana is available; drawing 33
-        // would stack the characters over each other and lose the end of the reading.
+    fun `a short run keeps the reading size instead of squeezing it by the run height`() {
         val spot = PickerRuby.spot(Rectangle(0, 0, 60, 30), vertical = true, characters = 3)!!
 
-        assertEquals(10f, spot.size, 0.01f)
+        assertEquals(60f * PickerRuby.SIZE_RATIO, spot.size, 0.01f)
+    }
+
+    /**
+     * R63 edge: the taller stack must still step aside for the line below instead of covering it.
+     * The reading does not fit the right gutter, but the left one is free.
+     */
+    @Test
+    fun `a reading taller than its run steps aside instead of covering the line below`() {
+        val spot = PickerRuby.spot(
+            Rectangle(100, 100, 30, 30),
+            vertical = true,
+            characters = 3,
+            blocked = listOf(Rectangle(130, 140, 50, 40)),
+        )!!
+
+        assertEquals(100f - 30f * 0.15f - 16.5f, spot.x, 0.01f)
+    }
+
+    /**
+     * R63 edge: a reading at the page edge no longer spills outside the canvas.
+     */
+    @Test
+    fun `a reading at the page edge stays inside the canvas`() {
+        val spot = PickerRuby.spot(
+            Rectangle(100, 280, 30, 30),
+            vertical = true,
+            characters = 3,
+            pageWidth = 200f,
+            pageHeight = 300f,
+        )!!
+
+        assertEquals(134.5f, spot.x, 0.01f)
+        assertEquals(250.5f, spot.y, 0.01f)
+    }
+
+    /** R63: a fixed outline swallowed small readings; it now follows the font size. */
+    @Test
+    fun `the reading outline follows the font size`() {
+        assertTrue(
+            "a small reading gets an outline as thick as the glyph: ${PickerRuby.outlineWidth(4f)}",
+            PickerRuby.outlineWidth(4f) < 2f,
+        )
+        assertEquals(1.65f, PickerRuby.outlineWidth(16.5f), 0.001f)
     }
 
     /**
@@ -168,7 +214,7 @@ class PickerReadingsTest {
         )
         assertTrue(
             "the scan draws ruby without knowing where the rest of the text is",
-            source.contains("PickerRuby.spot(span, vertical, reading.text.length, blocked)"),
+            source.contains("PickerRuby.spot(span, vertical, reading.text.length, blocked,"),
         )
     }
 

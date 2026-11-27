@@ -102,14 +102,13 @@ object ApkInstall {
     internal suspend fun awaitProgress(
         maxMisses: Int = 10,
         retryDelayMs: Long = 400L,
-        wait: suspend (Long) -> Unit = { delay(it) },
         sample: suspend () -> ApkDownloadProgress?,
     ): ApkDownloadProgress? {
         var misses = 0
         while (true) {
             sample()?.let { return it }
             if (++misses > maxMisses) return null
-            wait(retryDelayMs)
+            delay(retryDelayMs)
         }
     }
 

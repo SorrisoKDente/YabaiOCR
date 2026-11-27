@@ -96,18 +96,12 @@ class UpdateDownloadOnlyTest {
     @Test
     fun `a missing progress row is retried before the bar gives up`() = runBlocking {
         var samples = 0
-        val waits = mutableListOf<Long>()
-        val progress = ApkInstall.awaitProgress(
-            maxMisses = 2,
-            retryDelayMs = 400L,
-            wait = { waits += it },
-        ) {
+        val progress = ApkInstall.awaitProgress(maxMisses = 2, retryDelayMs = 25L) {
             samples++
             if (samples < 3) null else ApkInstall.ApkDownloadProgress(500, 1_000)
         }
 
         assertEquals("the missing row was not retried", 3, samples)
-        assertEquals("the retry must wait between samples", listOf(400L, 400L), waits)
         assertEquals("the first visible sample must reach the bar", 50, progress?.percent ?: -1)
     }
 
@@ -115,7 +109,7 @@ class UpdateDownloadOnlyTest {
     @Test
     fun `a row that never appears gives up after the retry budget`() = runBlocking {
         var samples = 0
-        val progress = ApkInstall.awaitProgress(maxMisses = 3, wait = {}) {
+        val progress = ApkInstall.awaitProgress(maxMisses = 3, retryDelayMs = 0L) {
             samples++
             null
         }

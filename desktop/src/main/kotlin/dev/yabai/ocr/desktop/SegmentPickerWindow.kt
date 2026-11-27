@@ -399,9 +399,10 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRuby(
         val vertical = HoverTextSelector.isVertical(line.box)
         for (reading in line.readings) {
             val span = PickerBoxes.toCanvas(reading.box, imageSize, canvas)
-            val spot = PickerRuby.spot(span, vertical, reading.text.length, blocked) ?: continue
+            val spot = PickerRuby.spot(span, vertical, reading.text.length, blocked, canvas.width.toFloat(), canvas.height.toFloat()) ?: continue
+            val outline = PickerRuby.outlineWidth(spot.size)
             val style = TextStyle(
-                color = if (reading.certain) Color.White else Color(0xFFFFD479),
+                color = if (reading.certain) Color.Black else Color(0xFFFFD479),
                 fontSize = spot.size.toSp(),
                 fontWeight = FontWeight.Bold,
             )
@@ -409,7 +410,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRuby(
                 var top = spot.y
                 for (character in reading.text) {
                     val layout = textMeasurer.measure(AnnotatedString(character.toString()), style)
-                    drawOutlined(layout, Offset(spot.x, top + (spot.size - layout.size.height) / 2f))
+                    drawOutlined(
+                        layout,
+                        Offset(spot.x, top + (spot.size - layout.size.height) / 2f),
+                        outline,
+                    )
                     top += spot.size
                 }
             } else {
@@ -420,22 +425,24 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRuby(
                         spot.x - layout.size.width / 2f,
                         spot.y + (spot.size - layout.size.height) / 2f,
                     ),
+                    outline,
                 )
             }
         }
     }
 }
 
-/** Text that stays readable over a photo: a dark outline first, then the fill. */
+/** Text that stays readable over a photo: a light outline first, then the fill. */
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOutlined(
     layout: androidx.compose.ui.text.TextLayoutResult,
     topLeft: Offset,
+    outline: Float,
 ) {
     drawText(
         textLayoutResult = layout,
         topLeft = topLeft,
-        drawStyle = Stroke(width = 2.6f),
-        color = Color.Black.copy(alpha = 0.85f),
+        drawStyle = Stroke(width = outline),
+        color = Color.White.copy(alpha = 0.85f),
     )
     drawText(textLayoutResult = layout, topLeft = topLeft)
 }
