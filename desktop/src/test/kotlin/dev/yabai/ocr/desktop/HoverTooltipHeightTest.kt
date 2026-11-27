@@ -112,13 +112,32 @@ class HoverTooltipHeightTest {
     fun `the in-card notice is counted in the height`() {
         // One entry, so the card is not clamped to its 130 px floor: the notice has to fit inside a
         // card that would otherwise be taller anyway.
-        val without = estimateHeight(listOf(entry()), notice = false)
-        val with = estimateHeight(listOf(entry()), notice = true)
+        val without = estimateHeight(listOf(entry()), notices = emptyList())
+        val with = estimateHeight(listOf(entry()), notices = listOf("no entry"))
 
         // «No entry in this dictionary» is drawn inside the card (a window of its own would open on
         // every hover, over the text being read); an uncounted block would be cut at the bottom.
         assertTrue("the notice added $with-$without px", with - without >= 40)
         assertTrue("even with the notice the card stays readable: $with", with <= 640)
+    }
+
+    /**
+     * Regression (A6): the hover can show the missing-dictionary notice and the Anki answer at the
+     * same time. One fixed block for the pair was sized for a single notice, so the second line —
+     * and the definition under it — was cut off below the card.
+     */
+    @Test
+    fun `each notice is counted by its own wrapped lines`() {
+        val one = estimateHeight(listOf(entry()), notices = listOf("a".repeat(80)))
+        val two = estimateHeight(
+            listOf(entry()),
+            notices = listOf("a".repeat(80), "b".repeat(80)),
+        )
+
+        // 80 characters wrap to 3 lines at the card's 32-character width, so the second notice adds
+        // its own 60 px instead of sharing the first one's block.
+        assertEquals("the second notice did not add its lines: ${two - one} px", 60, two - one)
+        assertTrue("even with both notices the card stays readable: $two", two <= 640)
     }
 
     @Test

@@ -16,6 +16,8 @@ data class AnkiSendResult(
     /** Why it is waiting, when it is; empty for a card that arrived. */
     val detail: String = "",
     val noteId: Long = -1,
+    /** The deck the card really went to: the setting, or the sender's default. */
+    val deck: String = "",
 )
 
 /**
@@ -33,8 +35,7 @@ class AnkiSender(
     fun send(note: AnkiNote): AnkiSendResult {
         val deck = settings.ankiDeck.ifBlank { DEFAULT_DECK }
         val model = settings.ankiModel.ifBlank { DEFAULT_MODEL }
-        val tagged = if (note.tags.isEmpty()) note.copy(tags = tags()) else note
-        val queued = queue.enqueue(deck, model, tagged)
+        val queued = queue.enqueue(deck, model, note.copy(tags = (note.tags + tags()).distinct()))
         return deliver(queued.deck, queued.model, queued.id, queued.note)
     }
 
@@ -56,19 +57,19 @@ class AnkiSender(
             client.ensureModel(model, AnkiFields.ORDER)
             val noteId = client.addNote(deck, model, note)
             queue.remove(queueId)
-            AnkiSendResult(AnkiSendStatus.ADDED, noteId = noteId)
+            AnkiSendResult(AnkiSendStatus.ADDED, noteId = noteId, deck = deck)
         } catch (e: AnkiException) {
             // A duplicate is Anki saying it already has the card: keeping it queued would make every
             // resend fail the same way. Any other refusal keeps the card, with Anki's reason.
             if (e.failure == AnkiFailure.DUPLICATE) {
                 queue.remove(queueId)
-                return AnkiSendResult(AnkiSendStatus.ALREADY_IN_ANKI, detail = e.message.orEmpty())
+                return AnkiSendResult(AnkiSendStatus.ALREADY_IN_ANKI, deck = deck)
             }
             queue.markFailed(queueId, e.message.orEmpty())
-            AnkiSendResult(AnkiSendStatus.QUEUED, detail = e.message.orEmpty())
+            AnkiSendResult(AnkiSendStatus.QUEUED, detail = e.message.orEmpty(), deck = deck)
         } catch (e: Exception) {
             queue.markFailed(queueId, e.message.orEmpty())
-            AnkiSendResult(AnkiSendStatus.QUEUED, detail = e.message.orEmpty())
+            AnkiSendResult(AnkiSendStatus.QUEUED, detail = e.message.orEmpty(), deck = deck)
         }
     }
 

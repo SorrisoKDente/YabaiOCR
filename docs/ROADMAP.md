@@ -10303,8 +10303,9 @@ Pronto quando: os dois botões existem nos lugares certos, o do aviso reflete os
   para os três botões não discordarem sobre o que aconteceu; `wordNote` monta o cartão por palavra.
   No dicionário rápido e no hover não há frase reconhecida, então o campo `Frase` fica **vazio** em
   vez de repetir a palavra como se fosse o exemplo dela.
-- A altura do cartão do hover já conta um bloco de aviso (`NOTICE_BLOCK_HEIGHT`): a resposta do Anki
-  divide esse bloco em vez de crescer por fora da estimativa e cortar a última definição.
+- A altura do cartão do hover conta **cada** aviso pelas linhas que ele ocupa (`wrappedLines`): o
+  aviso de dicionário sem verbete e a resposta do Anki podem aparecer juntos — cada um com a sua
+  quebra — sem crescer por fora da estimativa e cortar a última definição.
 - `DesktopStrings` ganha os rótulos nos dois idiomas; nada de texto fixo na tela.
 
 Pronto quando: os três sítios chamam o mesmo caminho (fila → AnkiConnect), com teste de UI que não

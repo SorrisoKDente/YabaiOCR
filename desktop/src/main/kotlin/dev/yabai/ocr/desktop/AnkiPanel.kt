@@ -11,8 +11,8 @@ internal data class AnkiPanelNotice(val text: String, val undoId: Long? = null)
  * The one path from a panel to Anki.
  *
  * The result window, the quick dictionary and the hover card all send through here, so the three
- * buttons cannot disagree about what happened or how it is worded — including the deck the card
- * really went to, which is the sender's default when the setting is empty.
+ * buttons cannot disagree about what happened or how it is worded — the deck comes back from the
+ * sender, so the message names the one the card really went to.
  *
  * The sender is a parameter so a test drives the whole path with a fake client, with no Anki
  * installed.
@@ -23,9 +23,8 @@ internal fun sendToAnki(
     sender: AnkiSender = AnkiSender(settings),
 ): AnkiPanelNotice {
     val result = sender.send(note)
-    val deck = settings.ankiDeck.ifBlank { AnkiSender.DEFAULT_DECK }
     return when (result.status) {
-        AnkiSendStatus.ADDED -> AnkiPanelNotice(DesktopStrings.ankiAdded(deck), result.noteId)
+        AnkiSendStatus.ADDED -> AnkiPanelNotice(DesktopStrings.ankiAdded(result.deck), result.noteId)
         AnkiSendStatus.ALREADY_IN_ANKI -> AnkiPanelNotice(DesktopStrings.ankiAlreadyThere)
         AnkiSendStatus.QUEUED -> AnkiPanelNotice(DesktopStrings.ankiQueued(result.detail))
     }

@@ -139,12 +139,12 @@ class AnkiSenderTest {
     }
 
     @Test
-    fun `the tags typed in Settings are the tags of the card`() {
+    fun `the tags typed in Settings are added to the tags the card already has`() {
         settings.ankiTags = "yabai, jlpt"
         val anki = FakeAnki()
 
-        AnkiSender(settings, queue) { anki }.send(note("食べる"))
+        AnkiSender(settings, queue) { anki }.send(note("食べる").copy(tags = listOf("minha")))
 
-        assertEquals(listOf("yabai", "jlpt"), anki.added.single().tags)
+        assertEquals(listOf("minha", "yabai", "jlpt"), anki.added.single().tags)
     }
 }

@@ -154,15 +154,12 @@ private fun HoverTooltipCardWindow(
     val scope = rememberCoroutineScope()
     LaunchedEffect(matches) { ankiNotice = null }
 
-    // The estimate counts the notice block: the Anki answer shares it, so the card grows for it
-    // instead of cutting the last definition off.
-    val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles, notice, ankiNotice) {
-        estimateHeight(
-            matches,
-            dictMenuOpen,
-            installedDictTitles.size,
-            notice != null || ankiNotice != null,
-        )
+    // A missing dictionary and the Anki answer are separate lines, and either can wrap. Counting
+    // the notices themselves (not one fixed block for the pair) is what keeps the last definition
+    // from being cut when both are on screen.
+    val notices = listOfNotNull(notice, ankiNotice)
+    val estimatedHeight = remember(matches, dictMenuOpen, installedDictTitles, notices) {
+        estimateHeight(matches, dictMenuOpen, installedDictTitles.size, notices)
     }
 
     // Where the card goes, decided before the window exists: Compose places a new window from
@@ -360,14 +357,13 @@ private fun HoverTooltipCardWindow(
                         )
                     }
 
-                    val cardNotices = listOfNotNull(notice, ankiNotice)
-                    if (cardNotices.isNotEmpty()) {
+                    if (notices.isNotEmpty()) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                         ) {
-                            for (line in cardNotices) {
+                            for (line in notices) {
                                 Text(
                                     text = line,
                                     style = MaterialTheme.typography.body2,
@@ -517,16 +513,28 @@ private fun DictionaryRow(text: String, onClick: () -> Unit) {
     )
 }
 
+/**
+ * Lines a block of text takes at the card's width.
+ *
+ * Full-width Japanese and formatted translations wrap at ~32 characters in the 460 dp card; the
+ * definitions and the notices share the rule so the estimate cannot disagree with the drawing.
+ */
+private fun wrappedLines(text: String): Int =
+    if (text.isEmpty()) 1 else (text.length / 32) + 1
+
 /** Accurately estimates content height so window wraps definitions tightly without cutting text off. */
 internal fun estimateHeight(
     matches: List<TokenMatch>,
     dictMenuOpen: Boolean = false,
     dictionaryCount: Int = 0,
-    notice: Boolean = false,
+    notices: List<String> = emptyList(),
 ): Int {
     var pixels = 58 // Header bar (28px) + container padding + safety buffer
-    // The message sits above the definitions: measured, not guessed away, or the card would cut it.
-    if (notice) pixels += NOTICE_BLOCK_HEIGHT
+    // The messages sit above the definitions and each one wraps on its own: count every line, or
+    // the second notice would be cut off below the card.
+    if (notices.isNotEmpty()) {
+        pixels += notices.sumOf { wrappedLines(it) } * NOTICE_LINE_HEIGHT + NOTICE_BLOCK_PADDING
+    }
     // The list scrolls past [DICTIONARY_MENU_MAX_ROWS], so a large install no longer makes the
     // card taller than the screen (the rows below the ceiling used to be unreachable).
     if (dictMenuOpen) {
@@ -538,10 +546,7 @@ internal fun estimateHeight(
         if (match.reasons.isNotEmpty()) pixels += 18
         if (match.entry.tags.isNotBlank()) pixels += 18
 
-        val lines = match.entry.definition.split('\n').sumOf { line ->
-            // Full-width Japanese & formatted translations wrap at ~32 chars in 460dp width
-            if (line.isEmpty()) 1 else (line.length / 32) + 1
-        }
+        val lines = match.entry.definition.split('\n').sumOf { wrappedLines(it) }
         pixels += lines * 20 + 16
     }
     return pixels.coerceIn(TOOLTIP_MIN_HEIGHT, TOOLTIP_MAX_HEIGHT)
@@ -574,14 +579,11 @@ private const val TOOLTIP_WIDTH = 460
 /** Height the card starts at, before [applySizeAndPlacement] measures the content. */
 private const val TOOLTIP_INITIAL_HEIGHT = 220
 
-/**
- * Height of one dictionary row, in pixels; the unit [estimateHeight] counts them with.
- *
- * The row has no fixed height: a 12 sp line plus the 7 dp of padding on each side is ~30 px, and
- * giving it a `height` smaller than that cut the names in half — the list showed ten half-rows.
- */
-/** Height of the in-card notice (two lines plus its padding and divider), in pixels. */
-private const val NOTICE_BLOCK_HEIGHT = 58
+/** Height of one notice line, in pixels; each notice is counted by its wrapped lines. */
+private const val NOTICE_LINE_HEIGHT = 20
+
+/** Padding above and below the notice block plus its divider, counted once. */
+private const val NOTICE_BLOCK_PADDING = 21
 
 /** Rows of the dictionary list shown before it starts scrolling. */
 private const val DICTIONARY_MENU_MAX_ROWS = 6
@@ -589,6 +591,12 @@ private const val DICTIONARY_MENU_MAX_ROWS = 6
 /** Room for the scrollbar, so a long name does not end under it. */
 private const val DICTIONARY_SCROLLBAR_GUTTER_DP = 10
 
+/**
+ * Height of one dictionary row, in pixels; the unit [estimateHeight] counts them with.
+ *
+ * The row has no fixed height: a 12 sp line plus the 7 dp of padding on each side is ~30 px, and
+ * giving it a `height` smaller than that cut the names in half — the list showed ten half-rows.
+ */
 private const val DICTIONARY_ROW_HEIGHT = 32
 
 /**
