@@ -1,5 +1,8 @@
 package dev.yabai.ocr.core.ppocr
 
+import dev.yabai.ocr.core.lens.PixelBox
+import dev.yabai.ocr.core.lens.PrintedReading
+import dev.yabai.ocr.core.lens.printedReadingsOf
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -53,9 +56,32 @@ data class PPOcrLine(
     val right: Int,
     val bottom: Int,
     val vertical: Boolean = bottom - top > right - left,
+    /**
+     * The stretches of [text] the page itself prints a reading over, found by geometry.
+     *
+     * The picker must not draw a dictionary reading there: the print is already in the picture
+     * (R64). Empty for the reading lines themselves and for text nothing annotates.
+     */
+    val printed: List<PrintedReading> = emptyList(),
 ) {
     val width: Int get() = right - left
     val height: Int get() = bottom - top
+}
+
+/**
+ * The detected lines with the furigana the page prints marked on the lines it annotates.
+ *
+ * The reader reports a reading as a line of its own, like Lens and ML Kit, so the geometry that
+ * finds it there finds it here too and the picker can leave that stretch of the base line
+ * unannotated (R64). The text is untouched: only where the print already sits is recorded.
+ */
+fun withPrintedReadings(lines: List<PPOcrLine>): List<PPOcrLine> {
+    val printed = printedReadingsOf(
+        lines.map { line -> line.text to PixelBox(line.left, line.top, line.width, line.height) },
+    )
+    return lines.mapIndexed { index, line ->
+        line.copy(printed = printed[index].orEmpty())
+    }
 }
 
 data class PPOcrBlock(

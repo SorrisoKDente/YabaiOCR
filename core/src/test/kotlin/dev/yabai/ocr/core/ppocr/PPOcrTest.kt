@@ -1,5 +1,6 @@
 package dev.yabai.ocr.core.ppocr
 
+import dev.yabai.ocr.core.lens.PrintedReading
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -195,5 +196,25 @@ class PPOcrTest {
         assertEquals(200, ordered[0].left) // rightmost column of the first row
         assertEquals(10, ordered[1].left)
         assertEquals(500, ordered[2].top) // the next row comes after the whole first row
+    }
+
+    /**
+     * R64: the offline reader reports a reading as a line of its own, like Lens does. The same
+     * geometry has to mark it, or the picker draws the dictionary reading on top of the print.
+     */
+    @Test
+    fun `a printed reading is marked on the line it annotates`() {
+        val lines = listOf(
+            // Four characters of 50 px each, the first two carrying the print above them.
+            PPOcrLine("職員さん", 0, 100, 200, 140),
+            PPOcrLine("しょくいん", 0, 80, 90, 96),
+        )
+
+        val marked = withPrintedReadings(lines)
+
+        assertEquals(listOf(PrintedReading(0, 2)), marked[0].printed)
+        assertTrue("a reading has nothing to annotate itself", marked[1].printed.isEmpty())
+        // The text is the recognised data; marking where it is printed must not touch it.
+        assertEquals(lines.map { it.text }, marked.map { it.text })
     }
 }

@@ -9763,6 +9763,14 @@ código de produção.
 | o aviso voltar a ler `hoverState.status` | o mesmo teste — `:107` |
 | «Cancelar» voltar a 28 dp | `the wait is a thin line…` — `ReadingCardTest.kt:98` |
 | remover a guarda de comprimento em `LensOcrEngine` | `the mobile picker skips readings over printed furigana` — `PrintedRubyTest.kt:31` |
+| `printed` vazio no `LensResultBuilder` | `the recorded page says where its own furigana is` — `FuriganaTest` |
+
+**Regressão na fonte (27/11/2026).** `the recorded page says where its own furigana is`
+(`FuriganaTest`) lê a resposta gravada do Lens: as duas peças que trazem `しょくいん` impresso sobre
+`職員` marcam `PrintedReading(0, 2)`, e a leitura que o dicionário devolveria para `職員` é
+descartada. Esvaziar `printed` no `LensResultBuilder` derruba o teste (mutação provada), então o
+filtro não depende só da inspeção do código. Core passou a **211** (185 executados, 26 pulados).
+
 ### R58 — Rubi encolhe para caber na folga em vez de desaparecer  `[x]` (26/11/2026)
 
 **Pedido.** «A regra de não sobrepor pode fazer o rubi sumir em colunas verticais apertadas. Ajuste
@@ -10032,3 +10040,43 @@ Testes: **app 1034** (517 em cada variante), 0 falhas; **desktop 633** (627 exec
 - **Limite.** Nada foi visto em tela: os testes fixam tamanho e espessura, não os pixels desenhados,
   e nenhuma captura do seletor com o rubi novo foi feita. A mudança é só no desktop; o celular já
   tinha o tamanho por largura desde R60/R61.
+
+### R64 — Furigana impressa também no PP-OCR e no ML Kit  `[x]` (27/11/2026)
+
+**Pedido.** «Com PP-OCR/MlKit o texto não traz informação de furigana impressa, então o rubi ainda
+pode cair sobre a leitura impressa. Investigue se dá para detectar furigana impressa também nesse
+caminho ou, se não, registre claramente a limitação nos Ajustes e na documentação.»
+
+- **Investigação.** Dá. `RubyGeometry` não depende do Lens: recebe linhas (texto + caixa) e reconhece
+  a leitura pela geometria — só kana, mais fina (≤ 60%), encostada (≤ 50%) e impressa do lado do
+  rubi. O PP-OCR e o ML Kit já entregam exatamente essas linhas (`PPOcrLine`/`OcrPiece`), então a
+  leitura que o detector separa pode ser marcada como no Lens, sem mudar o texto reconhecido.
+- **Correção.** `printedReadingsOf` (core) devolve, por índice de linha, as faixas que a página já
+  imprime; `withPrintedReadings` marca as linhas do PP-OCR antes de agrupar os blocos; `ppOcrBlocks`
+  (app) e `DesktopPPOcr.toLensBlock` levam as marcas até as peças; `mlKitPieces` faz o mesmo no ML
+  Kit, com a mesma guarda de normalização do Lens (texto encurtado não prende a leitura nos
+  caracteres errados). O texto continua sendo o dado: só se registra onde a impressão já está.
+- **Efeito.** Nos três motores o seletor pula a leitura do dicionário nos caracteres que já têm
+  furigana impressa; o resto do posicionamento (encolher, desviar de texto vizinho) segue R57/R58.
+- **Arquivos.** `core/lens/LensModels.kt`, `core/ppocr/PPOcrSpec.kt`, `core/ppocr/PPOcrEngine.kt`,
+  `app/ocr/OcrDispatcher.kt`, `app/ocr/MlKitOcrEngine.kt`, `desktop/DesktopPPOcr.kt` e os testes
+  `PPOcrTest`, `PpOcrDispatchTest`, `MlKitPiecesTest` (novo) e `DesktopOcrOrderTest`.
+  `ARCHITECTURE.md`/`.en.md` registram o papel novo do `printedReadingsOf` e das marcas no PP-OCR.
+- **Ajustes.** Não foi preciso mudar texto de Ajustes: a detecção deixou de ser exclusiva do Lens, e
+  a descrição de «Rubi sobre o texto» continua verdadeira nos três motores.
+
+| mutação | teste que acusa |
+| --- | --- |
+| PP-OCR não marca as linhas detectadas | `a printed reading is marked on the line it annotates` — `PPOcrTest` |
+| o dispatcher do app descarta `printed` | `the pp-ocr answer keeps the printed furigana of its pieces` — `PpOcrDispatchTest` |
+| o ML Kit descarta `printed` | `a printed reading is marked on the line it annotates` — `MlKitPiecesTest` |
+
+Testes: **core 212** (186 executados, 26 pulados), **desktop 634** (628 executados, 6 pulados),
+**app 1040** (520 em cada variante debug/release), 0 falhas (`--rerun-tasks`).
+
+- **Limite.** A regra só vê a leitura que o motor entrega como **linha própria**. Se o PP-OCR ou o
+  ML Kit fundirem o furigana no mesmo box do kanji, não há o que separar e o rubi do dicionário
+  ainda pode cair sobre a impressão; quem separa com mais frequência é o Lens. Nada foi visto em
+  tela nem com os modelos reais do PP-OCR (23 MB, não instalados nesta máquina): a geometria é
+  provada por caixas sintéticas e o caminho do ML Kit por Robolectric, não por uma página
+  fotografada. O blur de uma leitura de verdade no PP-OCR segue por conferir com `-Pppocr`.

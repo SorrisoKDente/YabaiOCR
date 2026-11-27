@@ -101,7 +101,7 @@ antes de citá-los.
 | arquivo | papel |
 | --- | --- |
 | `LensClient.kt` | cliente OkHttp do endpoint do Lens: envia PNG, recebe protobuf, mantém cookie jar |
-| `LensModels.kt` | `EncodedImage`, `PixelBox`, `LensSegment`, `LensBlock`, `LensResult`, `LensException` — o formato que **todo** o app consome |
+| `LensModels.kt` | `EncodedImage`, `PixelBox`, `LensSegment`, `LensBlock`, `LensResult`, `LensException` — o formato que **todo** o app consome; `printedReadingsOf` acha a furigana impressa por geometria nas linhas de **qualquer** motor (Lens, PP-OCR, ML Kit — R64) |
 | `LensProto.kt` | leitor de protobuf à mão (varint, campos, tamanhos) |
 | `LensResultBuilder.kt` | monta `LensResult` a partir da resposta bruta, na ordem de leitura |
 | `FuriganaMode.kt` | `REMOVE` / `PARENTHESES`: o que fazer com a leitura impressa ao lado do kanji |
@@ -113,7 +113,7 @@ antes de citá-los.
 
 | arquivo | papel |
 | --- | --- |
-| `PPOcrSpec.kt` | constantes e geometria: lado maior 960 (ou orçamento 3:4 em tiras), limiar 0,15, caixa 0,25, unclip 1,4, altura 48 |
+| `PPOcrSpec.kt` | constantes e geometria: lado maior 960 (ou orçamento 3:4 em tiras), limiar 0,15, caixa 0,25, unclip 1,4, altura 48; `PPOcrLine.printed` e `withPrintedReadings` marcam a furigana impressa (R64) |
 | `PPOcrPreprocess.kt` | tensor do detector (ImageNet) e da linha (girada à esquerda, 48 px, −1..1) |
 | `PPOcrPostprocess.kt` | mapa DB → caixas (componentes conexos, confiança, unclip) e ordem de leitura direita→esquerda |
 | `PPOcrEngine.kt` | sessões ONNX (det + rec), CTC guloso; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; leitura **focada** com `focus` (só reconhece as linhas perto do ponto — D94) |
@@ -210,7 +210,7 @@ rodam com as flags acima.
 | `KWinScreenshotCapture.kt` | caminho principal no KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + QImage cru, fallback para o portal |
 | `PortalScreenshotCapture.kt` | portal `Screenshot` do KDE (Wayland) via D-Bus; compatibilidade quando o ScreenShot2 não existe |
 | `SegmentPickerWindow.kt` | seletor de tela inteira: desenha as caixas e devolve o trecho escolhido |
-| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | geometria das caixas, leituras no picker e posicionamento da janela; o rubi não é desenhado sobre a furigana impressa nem sobre outra peça de texto e encolhe para caber na folga antes de desistir (R57, R58) |
+| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | geometria das caixas, leituras no picker e posicionamento da janela; o rubi não é desenhado sobre a furigana impressa nem sobre outra peça de texto e encolhe para caber na folga antes de desistir (R57, R58, R64) |
 | `RegionSelectionWindow.kt` | recorte à mão com alças (`CropHandle`) |
 
 ### Hover
@@ -244,7 +244,7 @@ rodam com as flags acima.
 | arquivo | papel |
 | --- | --- |
 | `DesktopOcr.kt` | **porta única**: ordem dos motores (`AUTO`/`LENS`/`PP_OCR`), fallback e `DesktopOcrAnswer` |
-| `DesktopPPOcr.kt` | motor offline: sessões em cache, conversão `PPOcrOutcome` → `LensResult`; a imagem é copiada para um buffer reaproveitado entre leituras (D99) |
+| `DesktopPPOcr.kt` | motor offline: sessões em cache, conversão `PPOcrOutcome` → `LensResult` mantendo as marcas de furigana impressa (R64); a imagem é copiada para um buffer reaproveitado entre leituras (D99) |
 | `PixelBuffer.kt` | o `IntArray` de pixels que o `DesktopPPOcr` reusa enquanto o tamanho da imagem não muda — o recorte do hover é a altura inteira do monitor (~8 MB a 1080p) a cada leitura (D99) |
 | `DesktopDictLoader.kt` | abre/caches o `LookupEngine` a partir da pasta de dicionários; `installedTitles`/`dictionaryTitle` leem **só o `meta.json`** (o índice de um dicionário tem dezenas de MB, e a lista de nomes do cartão é pedida a cada composição); `sizeBytes` soma o conteúdo de um `.yabai` (que é pasta) |
 
@@ -306,7 +306,7 @@ valem destaque:
 | `OcrDispatcher.kt` | escolhe o motor: Lens, ML Kit, PP-OCRv6; `AUTO` percorre a prioridade com fallback |
 | `OcrEngine.kt` | contrato (`OcrEngine`) e resultado (`OcrOutcome`, `OcrBlock`, `OcrPiece`) |
 | `LensOcrEngine.kt` | Lens sobre `Bitmap` (redimensiona, codifica, chama o core) |
-| `MlKitOcrEngine.kt` | ML Kit japonês offline, agrupando linhas com `BlockColumns` |
+| `MlKitOcrEngine.kt` | ML Kit japonês offline, agrupando linhas com `BlockColumns` e marcando a furigana impressa (`mlKitPieces`, R64) |
 | `ImagePreparer.kt` | redimensiona/amplia recortes antes do OCR |
 
 ### Captura, serviço e overlays

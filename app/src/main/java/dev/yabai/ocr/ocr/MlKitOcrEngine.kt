@@ -12,6 +12,7 @@ import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.core.layout.BlockColumns
 import dev.yabai.ocr.core.layout.ReadingOrder
 import dev.yabai.ocr.core.lens.PixelBox
+import dev.yabai.ocr.core.lens.printedReadingsOf
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -68,10 +69,7 @@ class MlKitOcrEngine : OcrEngine {
                 text = content,
                 lines = orderedLines.map { it.first },
                 rect = unionOf(indices.mapNotNull { found[it].boundingBox }),
-                pieces = orderedLines.mapNotNull { (text, box) ->
-                    val pieceText = JapaneseText.normalize(text).trim()
-                    if (pieceText.isEmpty() || box == null) null else OcrPiece(pieceText, box)
-                },
+                pieces = mlKitPieces(orderedLines),
             )
         }
         val orderedLines = blocks.flatMap { it.lines }
@@ -126,5 +124,33 @@ class MlKitOcrEngine : OcrEngine {
 
     override fun close() {
         recognizer.close()
+    }
+}
+
+/**
+ * The pieces of one paragraph, with the furigana the page prints marked on the line it annotates.
+ *
+ * ML Kit reports a reading as a line of its own — the same shape Lens and PP-OCR report — so the
+ * geometry that finds it there finds it here too, and the picker can leave the print alone (R64).
+ * The text is untouched: only where the print already sits is recorded.
+ *
+ * A normalised line shorter than the one the engine reported has moved its characters, so the
+ * stretches no longer point at the same kanji; those are dropped rather than pinning a reading to
+ * the wrong ones, as the Lens engine does.
+ */
+internal fun mlKitPieces(lines: List<Pair<String, Rect?>>): List<OcrPiece> {
+    val printed = printedReadingsOf(
+        lines.map { (text, box) -> text to box?.let { PixelBox(it.left, it.top, it.width(), it.height()) } },
+    )
+    return lines.mapIndexedNotNull { index, (text, box) ->
+        val pieceText = JapaneseText.normalize(text).trim()
+        if (pieceText.isEmpty() || box == null) return@mapIndexedNotNull null
+        OcrPiece(
+            pieceText,
+            box,
+            printed = printed[index].orEmpty()
+                .takeIf { pieceText.length == text.length }
+                .orEmpty(),
+        )
     }
 }

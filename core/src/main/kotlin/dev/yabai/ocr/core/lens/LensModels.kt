@@ -46,6 +46,23 @@ fun <T> List<T>.withoutPrintedReadings(
     end: (T) -> Int,
 ): List<T> = if (printed.isEmpty()) this else filterNot { printed.covers(start(it), end(it)) }
 
+/**
+ * For each line, the characters the page itself prints a reading over, found by geometry alone.
+ *
+ * Lens reports a reading as a line of its own and [RubyGeometry] ties it back to the characters it
+ * reads. PP-OCR and ML Kit report the same shape for the lines their detectors find, so the same
+ * rule answers for them: an offline page also keeps the picker's ruby off its printed furigana
+ * (R64). What no rule can see is a reading merged into the line's own box — there the engine hands
+ * over one line and there is nothing to leave unannotated.
+ *
+ * The value is keyed by the index of the line in [lines]; a line with no reading over it has no
+ * entry.
+ */
+fun printedReadingsOf(lines: List<Pair<String, PixelBox?>>): Map<Int, List<PrintedReading>> =
+    RubyGeometry.matches(lines)
+        .groupBy({ it.base }, { it.ruby })
+        .mapValues { (_, rubies) -> rubies.map { PrintedReading(it.start, it.count) } }
+
 /** A recognised line of text plus where it sits in the submitted image. */
 data class LensSegment(
     val text: String,

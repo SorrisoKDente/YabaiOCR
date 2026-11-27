@@ -5,6 +5,10 @@ import android.graphics.Bitmap
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.EngineChoice
 import dev.yabai.ocr.UsageTracker
+import dev.yabai.ocr.core.lens.PrintedReading
+import dev.yabai.ocr.core.ppocr.PPOcrBlock
+import dev.yabai.ocr.core.ppocr.PPOcrLine
+import dev.yabai.ocr.core.ppocr.PPOcrOutcome
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -44,6 +48,44 @@ class PpOcrDispatchTest {
         } finally {
             dispatcher.close()
         }
+    }
+
+    /**
+     * R64: the offline engine reports the furigana it finds as a line of its own. The dispatcher
+     * must hand those stretches to the picker; dropping them here brings the doubled ruby back.
+     */
+    @Test
+    fun `the pp-ocr answer keeps the printed furigana of its pieces`() {
+        val outcome = PPOcrOutcome(
+            text = "職員さんに聞いた",
+            lines = listOf("職員さんに聞いた", "しょくいん"),
+            elapsedMs = 0,
+            blocks = listOf(
+                PPOcrBlock(
+                    text = "職員さんに聞いた",
+                    lines = listOf("職員さんに聞いた", "しょくいん"),
+                    left = 0,
+                    top = 80,
+                    right = 200,
+                    bottom = 140,
+                    pieces = listOf(
+                        PPOcrLine(
+                            "職員さんに聞いた",
+                            0,
+                            100,
+                            200,
+                            140,
+                            printed = listOf(PrintedReading(0, 2)),
+                        ),
+                        PPOcrLine("しょくいん", 0, 80, 90, 96),
+                    ),
+                ),
+            ),
+        )
+
+        val blocks = ppOcrBlocks(outcome)
+
+        assertEquals(listOf(PrintedReading(0, 2)), blocks.single().pieces.first().printed)
     }
 
     @Test

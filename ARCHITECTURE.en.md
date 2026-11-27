@@ -102,7 +102,7 @@ before quoting them.
 | file | role |
 | --- | --- |
 | `LensClient.kt` | OkHttp client for the Lens endpoint: sends PNG, receives protobuf, keeps the cookie jar |
-| `LensModels.kt` | `EncodedImage`, `PixelBox`, `LensSegment`, `LensBlock`, `LensResult`, `LensException` — the format **every** app layer consumes |
+| `LensModels.kt` | `EncodedImage`, `PixelBox`, `LensSegment`, `LensBlock`, `LensResult`, `LensException` — the format **every** app layer consumes; `printedReadingsOf` finds printed furigana by geometry on the lines of **any** engine (Lens, PP-OCR, ML Kit — R64) |
 | `LensProto.kt` | hand-written protobuf reader (varint, fields, lengths) |
 | `LensResultBuilder.kt` | builds `LensResult` from the raw response, in reading order |
 | `FuriganaMode.kt` | `REMOVE` / `PARENTHESES`: what to do with the printed reading next to the kanji |
@@ -114,7 +114,7 @@ before quoting them.
 
 | file | role |
 | --- | --- |
-| `PPOcrSpec.kt` | constants and geometry: longest side 960 (or 3:4 budget on strips), 0.15 threshold, 0.25 box, 1.4 unclip, height 48 |
+| `PPOcrSpec.kt` | constants and geometry: longest side 960 (or 3:4 budget on strips), 0.15 threshold, 0.25 box, 1.4 unclip, height 48; `PPOcrLine.printed` and `withPrintedReadings` mark the printed furigana (R64) |
 | `PPOcrPreprocess.kt` | detector tensor (ImageNet) and line tensor (rotated left, 48 px, −1..1) |
 | `PPOcrPostprocess.kt` | DB map → boxes (connected components, confidence, unclip) and right-to-left reading order |
 | `PPOcrEngine.kt` | ONNX sessions (det + rec), greedy CTC; `PPOcrOutcome`/`PPOcrBlock`/`PPOcrLine`; **focused** read with `focus` (only the lines near the point are recognised — D94) |
@@ -212,7 +212,7 @@ flags above.
 | `KWinScreenshotCapture.kt` | primary path on KDE Wayland: `org.kde.KWin.ScreenShot2`, FD + raw QImage, fallback to the portal |
 | `PortalScreenshotCapture.kt` | KDE `Screenshot` portal (Wayland) over D-Bus; compatibility when ScreenShot2 is absent |
 | `SegmentPickerWindow.kt` | full-screen picker: draws the boxes and returns the chosen segment |
-| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | box geometry, picker readings and window placement; ruby is not drawn over printed furigana or another piece of text and shrinks to fit the gap before giving up (R57, R58) |
+| `PickerBoxes.kt` / `PickerReadings.kt` / `PickerWindowPlacement.kt` | box geometry, picker readings and window placement; ruby is not drawn over printed furigana or another piece of text and shrinks to fit the gap before giving up (R57, R58, R64) |
 | `RegionSelectionWindow.kt` | manual crop with handles (`CropHandle`) |
 
 ### Hover
@@ -246,7 +246,7 @@ flags above.
 | file | role |
 | --- | --- |
 | `DesktopOcr.kt` | **single entry**: engine order (`AUTO`/`LENS`/`PP_OCR`), fallback and `DesktopOcrAnswer` |
-| `DesktopPPOcr.kt` | offline engine: cached sessions, `PPOcrOutcome` → `LensResult` conversion; the image is copied into a pixels buffer reused across reads (D99) |
+| `DesktopPPOcr.kt` | offline engine: cached sessions, `PPOcrOutcome` → `LensResult` conversion keeping the printed-furigana marks (R64); the image is copied into a pixels buffer reused across reads (D99) |
 | `PixelBuffer.kt` | the `IntArray` of pixels `DesktopPPOcr` reuses while the image size is unchanged — a hover crop is the whole monitor height (~8 MB at 1080p) on every read (D99) |
 | `DesktopDictLoader.kt` | opens/caches the `LookupEngine` from the dictionary folder; `installedTitles`/`dictionaryTitle` read **`meta.json` only** (a dictionary index is tens of MB and the hover card asks for the name list on every composition); `sizeBytes` sums a `.yabai` (which is a folder) |
 
@@ -309,7 +309,7 @@ worth knowing:
 | `OcrDispatcher.kt` | picks the engine: Lens, ML Kit, PP-OCRv6; `AUTO` walks the priority with fallback |
 | `OcrEngine.kt` | contract (`OcrEngine`) and result (`OcrOutcome`, `OcrBlock`, `OcrPiece`) |
 | `LensOcrEngine.kt` | Lens over a `Bitmap` (resize, encode, call the core) |
-| `MlKitOcrEngine.kt` | offline Japanese ML Kit, grouping lines with `BlockColumns` |
+| `MlKitOcrEngine.kt` | offline Japanese ML Kit, grouping lines with `BlockColumns` and marking the printed furigana (`mlKitPieces`, R64) |
 | `ImagePreparer.kt` | resizes/upscales crops before OCR |
 
 ### Capture, service and overlays

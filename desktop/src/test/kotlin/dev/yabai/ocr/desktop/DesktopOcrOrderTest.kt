@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.core.lens.PrintedReading
 import dev.yabai.ocr.core.ppocr.PPOcrBlock
 import dev.yabai.ocr.core.ppocr.PPOcrLine
 import dev.yabai.ocr.core.ppocr.PPOcrOutcome
@@ -119,5 +120,40 @@ class DesktopOcrOrderTest {
         // A block without pieces is still one segment, not a sentence with nowhere to point at.
         assertEquals(3, result.segments.size)
         assertTrue(result.joinLines().contains("テストの文章です"))
+    }
+
+    /** R64: the offline picker must skip the dictionary ruby over the furigana the page prints. */
+    @Test
+    fun `a pp-ocr answer keeps the printed furigana of its pieces`() {
+        val outcome = PPOcrOutcome(
+            text = "職員さんに聞いた",
+            lines = listOf("職員さんに聞いた", "しょくいん"),
+            elapsedMs = 0,
+            blocks = listOf(
+                PPOcrBlock(
+                    text = "職員さんに聞いた",
+                    lines = listOf("職員さんに聞いた", "しょくいん"),
+                    left = 0,
+                    top = 80,
+                    right = 200,
+                    bottom = 140,
+                    pieces = listOf(
+                        PPOcrLine(
+                            "職員さんに聞いた",
+                            0,
+                            100,
+                            200,
+                            140,
+                            printed = listOf(PrintedReading(0, 2)),
+                        ),
+                        PPOcrLine("しょくいん", 0, 80, 90, 96),
+                    ),
+                ),
+            ),
+        )
+
+        val result = DesktopPPOcr.toLensResult(outcome)
+
+        assertEquals(listOf(PrintedReading(0, 2)), result.blocks.single().pieces.first().printed)
     }
 }

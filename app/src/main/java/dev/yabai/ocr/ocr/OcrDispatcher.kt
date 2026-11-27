@@ -9,6 +9,7 @@ import dev.yabai.ocr.core.lens.FuriganaMode
 import dev.yabai.ocr.core.lens.LensException
 import dev.yabai.ocr.core.ppocr.PPOcrEngine
 import dev.yabai.ocr.core.ppocr.PPOcrModelStore
+import dev.yabai.ocr.core.ppocr.PPOcrOutcome
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -149,19 +150,7 @@ class OcrDispatcher(
             )
         }
 
-        val blocks = outcome.blocks.map { b ->
-            OcrBlock(
-                text = b.text,
-                lines = b.lines,
-                rect = android.graphics.Rect(b.left, b.top, b.right, b.bottom),
-                pieces = b.pieces.map { p ->
-                    OcrPiece(
-                        text = p.text,
-                        rect = android.graphics.Rect(p.left, p.top, p.right, p.bottom),
-                    )
-                }
-            )
-        }
+        val blocks = ppOcrBlocks(outcome)
 
         return OcrOutcome(
             text = outcome.text,
@@ -246,4 +235,26 @@ class OcrDispatcher(
         private const val HTTP_TOO_MANY_REQUESTS = 429
         private const val HTTP_FORBIDDEN = 403
     }
+}
+
+/**
+ * The core PP-OCR answer in the app's shape.
+ *
+ * The pieces keep the stretches the page already annotates: the offline engine reports a reading as
+ * a line of its own and marks it, so the picker must not draw a dictionary reading over the print
+ * (R64). Dropping the printed stretches here would silently bring the doubled ruby back.
+ */
+internal fun ppOcrBlocks(outcome: PPOcrOutcome): List<OcrBlock> = outcome.blocks.map { block ->
+    OcrBlock(
+        text = block.text,
+        lines = block.lines,
+        rect = android.graphics.Rect(block.left, block.top, block.right, block.bottom),
+        pieces = block.pieces.map { piece ->
+            OcrPiece(
+                text = piece.text,
+                rect = android.graphics.Rect(piece.left, piece.top, piece.right, piece.bottom),
+                printed = piece.printed,
+            )
+        },
+    )
 }

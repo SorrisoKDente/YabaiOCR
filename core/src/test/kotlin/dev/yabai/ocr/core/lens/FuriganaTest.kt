@@ -251,6 +251,38 @@ class FuriganaTest {
         assertEquals(listOf("職員𠮟（しかる）"), blocks.map { it.text })
     }
 
+    /**
+     * R57 regression: the picker's ruby must not be drawn again over furigana the page already
+     * prints. The recorded page is what the pickers actually receive: `職員` carries `しょくいん`
+     * printed beside it, and each piece has to say which characters that print covers. The
+     * dictionary hands the picker the reading of `職員`, and every piece that carries it must end up
+     * with nothing to draw — otherwise the second reading lands on top of the printed one.
+     */
+    @Test
+    fun `the recorded page says where its own furigana is`() {
+        val printed = fixture(FuriganaMode.REMOVE).blocks
+            .flatMap { it.pieces }
+            .filter { it.printed.isNotEmpty() }
+
+        assertEquals(
+            "pieces with printed furigana: ${printed.map { it.text to it.printed }}",
+            2,
+            printed.size,
+        )
+        for (piece in printed) {
+            assertTrue("the reading is not over 職員: ${piece.text}", piece.text.startsWith("職員"))
+            assertEquals(listOf(PrintedReading(0, 2)), piece.printed)
+
+            val dictionaryReading = 0 to 2 // what `engine.readings` reports for 職員
+            assertTrue(
+                "the picker would draw しょくいん again over the print in ${piece.text}",
+                listOf(dictionaryReading)
+                    .withoutPrintedReadings(piece.printed, { it.first }, { it.second })
+                    .isEmpty(),
+            )
+        }
+    }
+
     // --- helpers --------------------------------------------------------------------------------
 
     private fun fixture(mode: FuriganaMode): LensResultBuilder.Built {

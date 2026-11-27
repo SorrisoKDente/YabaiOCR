@@ -71,6 +71,9 @@ class PPOcrEngine private constructor(
                 val text = recognizeLine(pixels, width, height, box)
                 if (text.isBlank()) null else box.copy(text = text)
             }
+            // Where the page prints its own reading is part of what the picker needs, and the
+            // detector already separated those kana into a line of their own (R64).
+            detected = withPrintedReadings(detected)
 
             val pixelBoxes = detected.map { PixelBox(it.left, it.top, it.width, it.height) }
             blocks = BlockColumns.groups(pixelBoxes).map { indices ->

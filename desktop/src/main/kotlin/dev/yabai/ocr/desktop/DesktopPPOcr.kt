@@ -101,6 +101,12 @@ object DesktopPPOcr {
         text = text,
         lines = lines,
         box = PixelBox(left, top, right - left, bottom - top),
-        pieces = pieces.map { LensSegment(it.text, PixelBox(it.left, it.top, it.width, it.height)) },
+        pieces = pieces.map {
+            LensSegment(
+                it.text,
+                PixelBox(it.left, it.top, it.width, it.height),
+                printed = it.printed,
+            )
+        },
     )
 }
