@@ -338,6 +338,31 @@ class DesktopSettings(
         get() = props.getProperty("ai_custom_url", "")
         set(value) { props.setProperty("ai_custom_url", value); save() }
 
+    // 7. Anki
+    /**
+     * The card buttons in the result panel. Off by default: a reader without Anki installed should
+     * not be offered a button that only explains it is not there.
+     */
+    var showAnkiButton: Boolean
+        get() = props.getProperty("show_anki_button", "false").toBoolean()
+        set(value) { props.setProperty("show_anki_button", value.toString()); save() }
+
+    var ankiDeck: String
+        get() = props.getProperty("anki_deck", "Yabai")
+        set(value) { props.setProperty("anki_deck", value); save() }
+
+    var ankiModel: String
+        get() = props.getProperty("anki_model", "Yabai")
+        set(value) { props.setProperty("anki_model", value); save() }
+
+    var ankiUrl: String
+        get() = props.getProperty("anki_url", "http://127.0.0.1:8765")
+        set(value) { props.setProperty("anki_url", value); save() }
+
+    var ankiTags: String
+        get() = props.getProperty("anki_tags", "yabai")
+        set(value) { props.setProperty("anki_tags", value); save() }
+
     // Result window position (D103). The size stays the one the window opens with: a result is read
     // where it was left, it is not a workspace to arrange.
     var resultWindowX: Int?

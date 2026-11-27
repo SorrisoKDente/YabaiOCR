@@ -1,5 +1,6 @@
 package dev.yabai.ocr.desktop
 
+import dev.yabai.ocr.core.anki.AnkiNote
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 
 import androidx.compose.foundation.Image
@@ -58,6 +59,8 @@ fun ResultWindow(
     var selectedFilter by remember { mutableStateOf(settings.dictionaryFilter) }
     var showImageToggle by remember { mutableStateOf(settings.showImage) }
     var aiNotice by remember { mutableStateOf<String?>(null) }
+    var ankiNotice by remember { mutableStateOf<String?>(null) }
+    var ankiUndo by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
 
     // D103: the result opens where the last one was left, and only while a monitor still contains
@@ -239,6 +242,41 @@ fun ResultWindow(
                                 Text(DesktopStrings.btnCopyText, fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
                             }
 
+                            // Anki: the sentence, with the first matched word in bold
+                            if (settings.showAnkiButton && recognizedText.isNotBlank()) {
+                                Button(
+                                    onClick = {
+                                        val note = AnkiNote.sentence(recognizedText, matches)
+                                        scope.launch {
+                                            val result = withContext(Dispatchers.IO) {
+                                                AnkiSender(settings).send(note)
+                                            }
+                                            ankiNotice = when (result.status) {
+                                                AnkiSendStatus.ADDED -> {
+                                                    ankiUndo = result.noteId
+                                                    DesktopStrings.ankiAdded(settings.ankiDeck)
+                                                }
+                                                AnkiSendStatus.ALREADY_IN_ANKI -> {
+                                                    // Nothing was created, so there is nothing to undo.
+                                                    ankiUndo = null
+                                                    DesktopStrings.ankiAlreadyThere
+                                                }
+                                                // The card is already in the queue; saying so is the
+                                                // difference between «nothing happened» and «it is saved».
+                                                AnkiSendStatus.QUEUED -> {
+                                                    ankiUndo = null
+                                                    DesktopStrings.ankiQueued(result.detail)
+                                                }
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF8C5A2E)),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(DesktopStrings.ankiAddSentence, fontSize = 11.sp, color = Color.White, maxLines = 1, softWrap = false)
+                                }
+                            }
+
                             // Perguntar à IA
                             if (settings.showAiButton) {
                                 Button(
@@ -308,6 +346,41 @@ fun ResultWindow(
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Text(DesktopStrings.btnCropAgain, fontSize = 11.sp, maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
+
+                    val sent = ankiNotice
+                    if (sent != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = sent,
+                                style = MaterialTheme.typography.caption,
+                                color = Color(0xFF8FBF7A)
+                            )
+                            val undoId = ankiUndo
+                            if (undoId != null && undoId > 0) {
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            val removed = withContext(Dispatchers.IO) {
+                                                runCatching {
+                                                    AnkiConnect(settings.ankiUrl).deleteNote(undoId)
+                                                }.isSuccess
+                                            }
+                                            ankiNotice = if (removed) {
+                                                DesktopStrings.ankiUndone
+                                            } else {
+                                                DesktopStrings.ankiUndoFailed
+                                            }
+                                            ankiUndo = null
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text(DesktopStrings.btnUndo, fontSize = 11.sp, color = Color(0xFF8AB4FF))
+                                }
                             }
                         }
                     }
@@ -551,7 +624,32 @@ fun ResultWindow(
                                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                                             ) {
                                                 items(matches) { match ->
-                                                    DictionaryMatchCard(match = match)
+                                                    DictionaryMatchCard(
+                                                        match = match,
+                                                        showAnki = settings.showAnkiButton,
+                                                        onAnki = { word ->
+                                                            val note = AnkiNote.word(word, recognizedText)
+                                                            scope.launch {
+                                                                val result = withContext(Dispatchers.IO) {
+                                                                    AnkiSender(settings).send(note)
+                                                                }
+                                                                ankiNotice = when (result.status) {
+                                                                    AnkiSendStatus.ADDED -> {
+                                                                        ankiUndo = result.noteId
+                                                                        DesktopStrings.ankiAdded(settings.ankiDeck)
+                                                                    }
+                                                                    AnkiSendStatus.ALREADY_IN_ANKI -> {
+                                                                        ankiUndo = null
+                                                                        DesktopStrings.ankiAlreadyThere
+                                                                    }
+                                                                    AnkiSendStatus.QUEUED -> {
+                                                                        ankiUndo = null
+                                                                        DesktopStrings.ankiQueued(result.detail)
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    )
                                                 }
                                             }
                                         }
@@ -567,7 +665,11 @@ fun ResultWindow(
 }
 
 @Composable
-private fun DictionaryMatchCard(match: TokenMatch) {
+private fun DictionaryMatchCard(
+    match: TokenMatch,
+    showAnki: Boolean = false,
+    onAnki: (TokenMatch) -> Unit = {},
+) {
     val entry = match.entry
 
     Card(
@@ -640,6 +742,16 @@ private fun DictionaryMatchCard(match: TokenMatch) {
                 style = MaterialTheme.typography.body2.copy(lineHeight = 18.sp),
                 color = Color.White
             )
+
+            if (showAnki) {
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(
+                    onClick = { onAnki(match) },
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp)
+                ) {
+                    Text(DesktopStrings.ankiAddWord, fontSize = 11.sp, color = Color(0xFFE5A93C))
+                }
+            }
         }
     }
 }

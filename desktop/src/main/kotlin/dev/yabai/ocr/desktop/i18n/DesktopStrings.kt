@@ -612,6 +612,106 @@ object DesktopStrings {
         "$helpEnginePpOcrName — $enginePpOcrDesc\n+ $helpEnginePpOcrPros\n− $helpEnginePpOcrCons",
     ).joinToString("\n\n", prefix = "$helpEnginesIntro\n\n")
 
+    // Anki — the card buttons, the queue and the manual entry
+    val ankiAddSentence: String get() = if (isEnglish) "＋ Anki (sentence)" else "＋ Anki (frase)"
+    val ankiAddWord: String get() = if (isEnglish) "＋ Anki card for this word" else "＋ Cartão Anki desta palavra"
+    fun ankiAdded(deck: String): String = if (isEnglish)
+        "Sent to Anki · deck «$deck»"
+    else
+        "Enviado para o Anki · baralho «$deck»"
+    fun ankiQueued(reason: String): String = if (isEnglish)
+        "Saved to the Anki queue — it goes when Anki answers again. $reason"
+    else
+        "Guardado na fila do Anki — vai quando o Anki responder de novo. $reason"
+    val ankiAlreadyThere: String get() = if (isEnglish)
+        "Already in Anki — the card was not created again."
+    else
+        "Já está no Anki — o cartão não foi criado de novo."
+    val ankiUndone: String get() = if (isEnglish)
+        "Card removed from Anki."
+    else
+        "Cartão removido do Anki."
+    val ankiUndoFailed: String get() = if (isEnglish)
+        "Could not remove the card from Anki."
+    else
+        "Não foi possível remover o cartão do Anki."
+    val btnUndo: String get() = if (isEnglish) "Undo" else "Desfazer"
+
+    val sectionAnki: String get() = if (isEnglish) "Anki" else "Anki"
+    val showAnkiButton: String get() = if (isEnglish)
+        "Show the Anki buttons in the result"
+    else
+        "Mostrar os botões do Anki no resultado"
+    val showAnkiButtonDesc: String get() = if (isEnglish)
+        "Adds a «＋ Anki» button to the sentence and to each word. It needs Anki Desktop open with " +
+            "the AnkiConnect add-on (code 2055492159); nothing is written into the collection directly."
+    else
+        "Acrescenta «＋ Anki» à frase e a cada palavra. Precisa do Anki Desktop aberto com o add-on " +
+            "AnkiConnect (código 2055492159); nada é escrito na coleção diretamente."
+    val ankiDeckLabel: String get() = if (isEnglish) "Deck" else "Baralho"
+    val ankiModelLabel: String get() = if (isEnglish) "Note type" else "Tipo de nota"
+    val ankiUrlLabel: String get() = if (isEnglish) "AnkiConnect address" else "Endereço do AnkiConnect"
+    val ankiTagsLabel: String get() = if (isEnglish) "Tags, separated by commas" else "Tags, separadas por vírgulas"
+    val ankiTest: String get() = if (isEnglish) "Test connection" else "Testar conexão"
+    val ankiTesting: String get() = if (isEnglish) "Talking to Anki…" else "Falando com o Anki…"
+    fun ankiTestOk(version: Int): String = if (isEnglish)
+        "AnkiConnect answered (API $version)."
+    else
+        "O AnkiConnect respondeu (API $version)."
+    fun ankiTestFailed(reason: String): String = if (isEnglish)
+        "No answer: $reason"
+    else
+        "Sem resposta: $reason"
+    fun ankiQueueCount(count: Int): String = when {
+        count == 0 && isEnglish -> "The queue is empty."
+        count == 0 -> "A fila está vazia."
+        isEnglish -> "$count card(s) waiting to be sent."
+        else -> "$count cartão(ões) esperando para ser enviado(s)."
+    }
+    val ankiRetry: String get() = if (isEnglish) "Retry the queue" else "Reenviar a fila"
+    val ankiRetrying: String get() = if (isEnglish) "Retrying…" else "Reenviando…"
+    fun ankiRetried(arrived: Int, queued: Int): String = if (isEnglish)
+        "$arrived sent; $queued still waiting."
+    else
+        "$arrived enviado(s); $queued ainda esperando."
+
+    val helpAnkiTitle: String get() = if (isEnglish) "Anki: turning a reading into a card" else "Anki: transformar uma leitura em cartão"
+    val helpAnkiBody: String get() = if (isEnglish)
+        "With the buttons on (Settings → About → Anki), the result window shows «＋ Anki» for the " +
+            "sentence and for each word. The word card carries the word with its ruby, the reading, " +
+            "the meaning, the sentence it came from and the dictionary; the sentence card carries the " +
+            "whole text with the first word in bold.\n\n" +
+            "What you need: Anki Desktop installed and open; the AnkiConnect add-on (code " +
+            "2055492159), installed in Anki under Tools → Add-ons → Get Add-ons; the add-on listening " +
+            "on 127.0.0.1:8765, which is its default. The app creates the «Yabai» deck and the " +
+            "«Yabai» note type on the first card, so there is nothing to set up inside Anki. There is " +
+            "no account, no cloud and no sync here: the card is handed to the Anki you have open.\n\n" +
+            "If Anki is closed or the add-on is missing, the card is not lost: it waits in a local " +
+            "queue (Settings → About → Anki shows how many and retries them). Until then the result " +
+            "says the card was saved, not sent.\n\n" +
+            "A card Anki already has is not written twice: the panel says «already in Anki» and the " +
+            "card leaves the queue, so a resend never keeps asking for the same word."
+    else
+        "Com os botões ligados (Ajustes → Sobre → Anki), a janela de resultado mostra «＋ Anki» " +
+            "para a frase e para cada palavra. O cartão de palavra leva a palavra com rubi, a leitura, " +
+            "o significado, a frase de onde ela veio e o dicionário; o cartão de frase leva o texto " +
+            "inteiro com a primeira palavra em negrito.\n\n" +
+            "O que você precisa ter: o Anki Desktop instalado e aberto; o add-on AnkiConnect (código " +
+            "2055492159), instalado no Anki em Ferramentas → Add-ons → Obter add-ons; o add-on " +
+            "escutando em 127.0.0.1:8765, que é o padrão dele. O app cria o baralho «Yabai» e o tipo " +
+            "de nota «Yabai» no primeiro cartão, então não há nada para configurar dentro do Anki. Não " +
+            "há conta, nuvem nem sincronização aqui: o cartão é entregue ao Anki que você tem aberto.\n\n" +
+            "Se o Anki estiver fechado ou o add-on faltar, o cartão não se perde: ele espera numa fila " +
+            "local (Ajustes → Sobre → Anki mostra quantos e reenvia). Até lá o resultado diz que o " +
+            "cartão foi guardado, não enviado.\n\n" +
+            "Um cartão que o Anki já tem não é escrito de novo: o painel avisa «já está no Anki» e o " +
+            "cartão sai da fila, então um reenvio nunca fica pedindo a mesma palavra."
+    val helpBtnAnkiName: String get() = if (isEnglish) "Anki" else "Anki"
+    val helpBtnAnkiWhat: String get() = if (isEnglish)
+        "Sends the sentence, or one word, to Anki as a card"
+    else
+        "Manda a frase, ou uma palavra, para o Anki como cartão"
+
     val helpTrayTitle: String get() = if (isEnglish)
         "Tray icon, settings and shortcuts"
     else

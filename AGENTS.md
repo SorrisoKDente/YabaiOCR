@@ -52,7 +52,7 @@ sem que isso seja o comportamento pedido e testado.
 Windows/PowerShell, na raiz:
 
 ```powershell
-.\gradlew.bat :desktop:test --console=plain       # suíte desktop (634 testes em 27/11/2026)
+.\gradlew.bat :desktop:test --console=plain       # suíte desktop (652 testes em 27/11/2026)
 .\gradlew.bat :desktop:compileKotlin              # compilação rápida do desktop
 .\gradlew.bat :desktop:run --args="--minimized"   # app na bandeja, sem abrir Ajustes
 .\gradlew.bat :core:test                          # core (JVM puro)
@@ -67,8 +67,8 @@ Opções do `:core`:
 .\gradlew.bat :core:test -Pdicts="E:\Documentos\DicionariosJapones" # ZIPs reais do Yomitan
 ```
 
-A suíte desktop tem **634 testes** (628 executados + 6 pulados nesta máquina; nenhum depende da
-área de trabalho da máquina), o `:core` padrão (sem `-Plive`/`-Pdicts`) em **212** (186 executados
+A suíte desktop tem **652 testes** (646 executados + 6 pulados nesta máquina; nenhum depende da
+área de trabalho da máquina), o `:core` padrão (sem `-Plive`/`-Pdicts`) em **226** (200 executados
 + 26 pulados) e o app, com Robolectric, em **1040** (520 em cada variante, debug e release), na
 verificação de 27/11/2026. Se os números mudarem, confirme que os testes novos são intencionais e
 atualize ROADMAP/AGENTS.

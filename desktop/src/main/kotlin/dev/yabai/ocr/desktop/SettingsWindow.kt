@@ -21,9 +21,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.yabai.ocr.core.DonationInfo
+import dev.yabai.ocr.core.anki.AnkiQueue
 import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
 import dev.yabai.ocr.desktop.i18n.DesktopStrings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.EventQueue
@@ -2031,6 +2033,123 @@ private fun DictionariesTab(
     }
 }
 
+/**
+ * The Anki switch, the destination and the queue, in one card.
+ *
+ * A reader who never installed the add-on still sees the prerequisites here, next to the switch that
+ * turns the buttons on — not in a manual page they would have to look for after the button failed.
+ */
+@Composable
+private fun AnkiSettingsCard(settings: DesktopSettings) {
+    var enabled by remember { mutableStateOf(settings.showAnkiButton) }
+    var deck by remember { mutableStateOf(settings.ankiDeck) }
+    var model by remember { mutableStateOf(settings.ankiModel) }
+    var url by remember { mutableStateOf(settings.ankiUrl) }
+    var tags by remember { mutableStateOf(settings.ankiTags) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var queued by remember { mutableStateOf(queueSize()) }
+    val scope = rememberCoroutineScope()
+
+    // The card is usually sent from the result window, which this one does not control: a count read
+    // once when the tab was built would keep saying «empty» after the card left the queue.
+    LaunchedEffect(Unit) {
+        while (true) {
+            queued = withContext(Dispatchers.IO) { queueSize() }
+            delay(QUEUE_POLL_MS)
+        }
+    }
+
+    SettingCard(title = DesktopStrings.sectionAnki) {
+        SettingCheckboxItem(
+            checked = enabled,
+            title = DesktopStrings.showAnkiButton,
+            description = DesktopStrings.showAnkiButtonDesc,
+            onCheckedChange = {
+                enabled = it
+                settings.showAnkiButton = it
+            }
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+        AnkiField(DesktopStrings.ankiDeckLabel, deck) { deck = it; settings.ankiDeck = it }
+        AnkiField(DesktopStrings.ankiModelLabel, model) { model = it; settings.ankiModel = it }
+        AnkiField(DesktopStrings.ankiUrlLabel, url) { url = it; settings.ankiUrl = it }
+        AnkiField(DesktopStrings.ankiTagsLabel, tags) { tags = it; settings.ankiTags = it }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(
+                enabled = !busy,
+                onClick = {
+                    busy = true
+                    status = DesktopStrings.ankiTesting
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) { AnkiSender(settings).testConnection() }
+                        withContext(Dispatchers.Main) {
+                            busy = false
+                            status = result.fold(
+                                onSuccess = { DesktopStrings.ankiTestOk(it) },
+                                onFailure = { DesktopStrings.ankiTestFailed(it.message.orEmpty()) },
+                            )
+                        }
+                    }
+                }
+            ) {
+                Text(DesktopStrings.ankiTest)
+            }
+
+            if (queued > 0) {
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        status = DesktopStrings.ankiRetrying
+                        scope.launch {
+                            val arrived = withContext(Dispatchers.IO) { AnkiSender(settings).retryQueued() }
+                            withContext(Dispatchers.Main) {
+                                busy = false
+                                queued = queueSize()
+                                status = DesktopStrings.ankiRetried(arrived, queued)
+                            }
+                        }
+                    }
+                ) {
+                    Text(DesktopStrings.ankiRetry)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = status ?: DesktopStrings.ankiQueueCount(queued),
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colors.secondary
+        )
+    }
+}
+
+/** How often the Anki card rereads the queue while it is on screen. */
+private const val QUEUE_POLL_MS = 2_000L
+
+/** How many cards are waiting for Anki, read without blocking the window for long. */
+private fun queueSize(): Int = runCatching {
+    AnkiQueue(File(defaultDesktopHome(), "anki-queue.jsonl")).pending().size
+}.getOrDefault(0)
+
+@Composable
+private fun AnkiField(label: String, value: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label, fontSize = 12.sp) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        textStyle = MaterialTheme.typography.body2,
+    )
+}
+
 @Composable
 private fun AboutTab(
     settings: DesktopSettings,
@@ -2041,6 +2160,11 @@ private fun AboutTab(
     var checkUpdatesOnStart by remember { mutableStateOf(settings.checkUpdatesOnStart) }
 
     TabColumn {
+        // --- 8. Anki ---
+        item {
+            AnkiSettingsCard(settings)
+        }
+
         // --- 7. Sobre e Atualizações do Aplicativo ---
         item {
             var isCheckingUpdate by remember { mutableStateOf(false) }

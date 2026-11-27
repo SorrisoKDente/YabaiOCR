@@ -10120,16 +10120,36 @@ credencial de Anki, não pede conta: essa é a parte que torna a integração ba
 
 | # | Estado | Item | Dificuldade |
 | --- | --- | --- | --- |
-| A1 | `[ ]` | **Modelo do cartão no `:core`**: `AnkiNote`, HTML com rubi e escape, texto puro para o fallback | fácil |
-| A2 | `[ ]` | **Fila de envio** que sobrevive ao app fechado (nota não se perde com o Anki fechado) | médio |
-| A3 | `[ ]` | **Cliente AnkiConnect** no `:desktop` (handshake, baralho, tipo de nota, duplicata, envio, desfazer) | médio |
+| A1 | `[x]` | **Modelo do cartão no `:core`**: `AnkiNote`, HTML com rubi e escape, texto puro para o fallback | fácil |
+| A2 | `[x]` | **Fila de envio** que sobrevive ao app fechado (nota não se perde com o Anki fechado) | médio |
+| A3 | `[x]` | **Cliente AnkiConnect** no `:desktop` (handshake, baralho, tipo de nota, duplicata, envio, desfazer) | médio |
 | A4 | `[ ]` | **Cliente AnkiDroid** no `:app` (`ContentProvider`, permissão, `<queries>`, criação de baralho/tipo) | médio |
 | A5 | `[ ]` | **Botões no painel do celular**: por palavra e da frase, com aviso no próprio painel e «Desfazer» | fácil |
-| A6 | `[ ]` | **Botões no desktop**: janela de resultado, dicionário rápido e cartão do hover | fácil |
-| A7 | `[ ]` | **Ajustes nos dois lados** (ativar, baralho, tipo de nota, endereço, etiquetas) e strings pt-BR/en | fácil |
+| A6 | `[~]` | **Botões no desktop**: janela de resultado, dicionário rápido e cartão do hover | fácil |
+| A7 | `[~]` | **Ajustes nos dois lados** (ativar, baralho, tipo de nota, endereço, etiquetas) e strings pt-BR/en | fácil |
 | A8 | `[ ]` | **Fallback sem Anki**: TSV para importar, compartilhar texto no Android | fácil |
 | A9 | `[ ]` | **Testes, prova de mutação e E2E** com Anki e AnkiDroid de verdade | médio |
 | A10 | `[ ]` | **Documentação**: README (×2), ARCHITECTURE (×2), AGENTS | fácil |
+
+**Estado em 27/11/2026 — primeira fatia, só desktop.** Fecham A1 e A2: `AnkiNote`/`AnkiHtml`
+(escape, rubi sobre a `surface`, texto puro) e a fila JSON Lines com deduplicação por baralho + tipo +
+primeiro campo, motivo da falha e teto de 500 cartões. A3 fecha: o cliente fala o JSON legado
+(`version: 6`, o que toda versão do add-on responde) e cai no JSON-RPC `/api/v1` (`api.describe`,
+`decks.*`, `noteTypes.*`, `notes.*`, chave em `Authorization: Bearer`) quando o legado responde
+404/405, memorizando o formato que respondeu; cria baralho e tipo, checa duplicata, adiciona e apaga
+(desfazer). A recusa por duplicata não vira falha de envio: o cartão sai da fila e o painel diz «já
+está no Anki», porque guardado ele faria todo reenvio falhar do mesmo jeito. E só a duplicata conta
+como resolvida: o cliente pergunta com `canAddNotesWithErrorDetail` e lê o texto do add-on, porque
+`canAddNotes` devolve `false` também quando o tipo de nota recusa o cartão — tratar essa recusa como
+«já está» apagaria da fila um cartão que nunca chegou ao Anki. A6 está em `[~]`: os
+botões existem na janela de resultado, por frase e por palavra; dicionário rápido e cartão do hover
+ficam para a próxima. A7 está em `[~]`: ajustes, fila e strings pt-BR/en no desktop; o Android não foi
+tocado. A4, A5 e A8 seguem abertos, e A9 não fecha sem E2E com Anki e AnkiDroid de verdade — nesta
+máquina não há nenhum dos dois, então o que existe é teste de unidade (14 no `:core`, 16 no
+`:desktop`) e sete provas de mutação: rubi montado sobre a forma do dicionário, remoção da fila antes
+da confirmação, fila sem a chave de dedupe, duplicata guardada em vez de resolvida, queda para o
+`/api/v1` desligada, qualquer recusa do add-on tratada como duplicata e qualquer recusa tratada como
+resolvida.
 
 ### A1 — Modelo do cartão no `:core`
 
@@ -10184,8 +10204,7 @@ não ter botão.
 - **Reenvio**: na abertura do app, no início de cada captura e quando o botão é tocado de novo. Falha
   de rede não vira tentativa infinita: a nota fica `FAILED` com o motivo e o painel diz «guardado para
   enviar» em vez de «adicionado».
-- **Teto de 500 linhas**: a fila não cresce para sempre porque o usuário nunca abriu o Anki; a tela de
-  ajustes mostra quantas estão pendentes e oferece limpá-las.
+- **Teto de 500 linhas**: a fila não cresce para sempre porque o usuário nunca abriu o Anki; a tela de ajustes mostra quantas estão pendentes e oferece reenviá-las (não há botão de limpar: a fila só perde um cartão quando o Anki o recebe ou quando ele já está lá).
 
 Pronto quando: persistência, dedupe, reenvio, motivo da falha e teto estão presos por
 `AnkiQueueTest`, sem tocar em rede nem em disco real.
@@ -10207,7 +10226,8 @@ Pronto quando: persistência, dedupe, reenvio, motivo da falha e teto estão pre
 - **Operações**, nos nomes do guia legado (o guia do add-on traz o equivalente v1 de cada uma):
   `deckNames`/`createDeck`, `modelNames`/`modelFieldNames`, `createModel` — exige `modelName`,
   `inOrderFields` e `cardTemplates` (`Front`/`Back`), e é o que cria o tipo `Yabai` com os cinco
-  campos de A1 quando ele não existe —, `canAddNotes` (duplicata), `addNote` (com
+  campos de A1 quando ele não existe —, `canAddNotesWithErrorDetail` (duplicata: o `error` do add-on é o que separa «já está no Anki» de um
+  cartão que o tipo de nota recusa — `canAddNotes` só devolve `false` nos dois casos), `addNote` (com
   `allowDuplicate: false`; o escopo padrão da checagem é a coleção, não o baralho), `deleteNotes`
   (o «Desfazer» do A5/A6) e, mais tarde, `storeMediaFile`. No v1 os mesmos recursos aparecem como
   `decks.*`, `noteTypes.*`, `notes.*` e `media.*`.

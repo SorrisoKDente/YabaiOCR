@@ -41,6 +41,7 @@ class HelpManualTest {
                 "quick-search",
                 "dictionaries",
                 "result",
+                "anki",
                 "renderers",
                 "engines",
                 "tray",
