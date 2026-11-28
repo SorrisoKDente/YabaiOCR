@@ -46,6 +46,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.anki.AnkiDroidGateway
 import dev.yabai.ocr.core.DonationInfo
 import dev.yabai.ocr.core.ppocr.PPOcrModelDownloader
 import dev.yabai.ocr.core.ppocr.PPOcrModelStore
@@ -126,6 +127,14 @@ class MainActivity : AppCompatActivity() {
         refreshPermissions()
     }
 
+    /**
+     * The AnkiDroid provider permission (A5). Asked from this screen, once, because a floating
+     * panel cannot show the system dialog without losing the window it belongs to.
+     */
+    private val ankiPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+
     private val projectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -188,11 +197,24 @@ class MainActivity : AppCompatActivity() {
         bindTranslationAndDictionaries()
         bindAskAi()
         bindDonation()
+        requestAnkiPermissionIfNeeded()
 
         btnStart.setOnClickListener { onStartClicked() }
         btnStop.setOnClickListener { stopService() }
 
         registerUpdateDownloadReceiver()
+    }
+
+    /**
+     * Asks for AnkiDroid's read/write permission the first time the app opens with the provider
+     * visible. A denial is remembered: the panel then queues the card and says why.
+     */
+    private fun requestAnkiPermissionIfNeeded() {
+        if (!settings.showAnkiButton || settings.ankiPermissionAsked) return
+        val gateway = AnkiDroidGateway(this)
+        if (!gateway.isInstalled() || gateway.hasPermission()) return
+        settings.ankiPermissionAsked = true
+        ankiPermissionLauncher.launch(AnkiDroidGateway.PERMISSION)
     }
 
     override fun onResume() {

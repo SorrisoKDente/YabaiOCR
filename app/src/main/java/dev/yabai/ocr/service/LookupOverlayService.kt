@@ -12,6 +12,9 @@ import android.provider.Settings
 import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.R
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.anki.AnkiDroidPanel
+import dev.yabai.ocr.core.anki.AnkiNote
+import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.searchWords
 import dev.yabai.ocr.overlay.OverlayController
@@ -39,6 +42,7 @@ class LookupOverlayService : Service() {
     private val scope = MainScope()
     private val settings by lazy { AppSettings(this) }
     private lateinit var overlays: OverlayController
+    private lateinit var anki: AnkiDroidPanel
 
     /** The main looper, for the one delayed step this service has: the first panel (R38). */
     private val handler = Handler(Looper.getMainLooper())
@@ -90,8 +94,19 @@ class LookupOverlayService : Service() {
                 override fun onImageToggleRequested() = Unit
                 override fun onAskAiRequested(text: String) = askAi(text)
                 override fun onAskAiToRequested(packageName: String, text: String) = openAi(packageName, text)
+
+                override fun onAnkiWordRequested(match: TokenMatch, sentence: String) {
+                    anki.send(
+                        AnkiNote.word(match, sentence),
+                        match.surface.ifBlank { match.entry.term },
+                    )
+                }
             }
         }
+        anki = AnkiDroidPanel(this, scope) { notice ->
+            overlays.showResultNote(notice.text, notice.undo)
+        }
+        anki.retryQueued()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -161,6 +176,7 @@ class LookupOverlayService : Service() {
             stale = stale,
             initialQuery = query,
             canAskAi = settings.showAiButton,
+            canAnki = settings.showAnkiButton,
             searchByTranslation = settings.searchByTranslation,
         )
         // No window, no reason to stay: a service with no panel would be a process the user cannot

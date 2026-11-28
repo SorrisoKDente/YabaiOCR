@@ -37,6 +37,9 @@ desktop e no Android), então o app continua útil sem conexão.
 - **Furigana**: leitura impressa preservada, leitura gerada pelo dicionário, ou as duas.
 - **Card de kanji** com traços, leituras e compostos.
 - **Tradução offline** da frase reconhecida e botão para perguntar a uma IA externa.
+- **Cartões para o AnkiDroid** no Android: mande uma palavra ou a frase inteira pelo painel de
+  resultado, desfaça no mesmo painel e guarde o cartão numa fila quando o AnkiDroid não estiver
+  disponível.
 - **Motores de OCR à escolha**, com modo automático e ordem de prioridade.
 
 ## Requisitos
@@ -176,7 +179,11 @@ atualização ignorada não volta a aparecer.
 **Android**: instale o APK, conceda **sobreposição** e **captura de tela** (MediaProjection), escolha
 o motor e toque em iniciar. A bolha flutuante dispara a captura. Os ajustes do celular também ficam em
 abas — **Geral** (idioma, iniciar/parar e permissões), **Leitura** (motor, comportamento, tradução e
-IA), **Dicionários** e **Sobre** (atualizações e apoio ao projeto) —, como os do desktop.
+IA), **Dicionários** e **Sobre** (atualizações e apoio ao projeto) —, como os do desktop. No
+resultado, o **＋ Anki** ao lado de uma palavra — ou o botão da frase depois de **Perguntar à IA** —
+manda um cartão para o AnkiDroid; quando o cartão foi adicionado, o aviso no painel desfaz, e um
+cartão que não pôde ser enviado fica numa fila. O AnkiDroid precisa estar instalado; o app pede a
+permissão dele uma vez na tela principal.
 
 ## Motores de OCR
 

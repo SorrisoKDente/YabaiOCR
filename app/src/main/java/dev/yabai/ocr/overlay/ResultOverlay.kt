@@ -104,6 +104,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
          * business, not the panel's.
          */
         fun onAskAi(text: String)
+
+        /**
+         * The user wants one word of the answer sent to AnkiDroid. [sentence] is the recognised
+         * text the word came from, or empty in the dictionary search.
+         */
+        fun onAnkiWord(match: TokenMatch, sentence: String) {}
+
+        /** The user wants the whole answer sent to AnkiDroid. */
+        fun onAnkiSentence(text: String, matches: List<TokenMatch>) {}
         fun onDismiss()
     }
 
@@ -229,6 +238,15 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         callbacks?.onAskAi(textToSend())
     }
 
+    /** The whole-answer card; hidden until the lookup has at least one word to put in it. */
+    private val btAnki = context.actionButton(context.getString(R.string.result_anki)) {
+        // The matches were found in [lastAnalysedText]; using an edit that has not been analysed yet
+        // would put the bold at the old offsets.
+        callbacks?.onAnkiSentence(lastAnalysedText, wordsState?.matches.orEmpty())
+    }.apply {
+        contentDescription = context.getString(R.string.result_anki_description)
+    }
+
     private var translationText: String? = null
 
     /**
@@ -261,6 +279,9 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * there is no capture behind a search to go back to.
      */
     private var searching: Boolean = false
+
+    /** Whether this card offers the «＋ Anki» buttons (A5). */
+    private var canAnki: Boolean = false
 
     /** True while the panel is writing into the editor, so its own change is not read as the user's. */
     private var writingText: Boolean = false
@@ -581,6 +602,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         stale: List<String> = emptyList(),
         initialQuery: String = "",
         canAskAi: Boolean = false,
+        canAnki: Boolean = false,
         searchByTranslation: Boolean = false,
     ) {
         card.removeAllViews()
@@ -588,6 +610,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // An analysis scheduled for the card being replaced must not reach the dictionary as a query.
         analyseHandler.removeCallbacks(analyseSoon)
         this.searchByTranslation = searchByTranslation
+        this.canAnki = canAnki
         searchModeButton = null
         searching = true
         canGoBack = false
@@ -709,7 +732,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // dictionary answers with definitions, not with a translation, and a button with that name
         // would promise something the card never shows.
         val actions = ActionGrid(context).apply { setPadding(0, dp(10), 0, 0) }
-        for (view in listOf(btCopyOriginal, btAskAi)) {
+        for (view in listOf(btCopyOriginal, btAskAi, btAnki)) {
             (view.parent as? ViewGroup)?.removeView(view)
         }
         btCopyOriginal.visibility = View.VISIBLE
@@ -916,6 +939,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         image: Bitmap? = null,
         showImage: Boolean = false,
         canAskAi: Boolean = false,
+        canAnki: Boolean = false,
         /** A photo has no boxes to re-pick, but it does have a camera to go back to (R47a). */
         canRetakePhoto: Boolean = false,
     ) {
@@ -927,6 +951,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         configureResultEditor()
         this.showLines = showLines
         this.segmentLines = segmentLines
+        this.canAnki = canAnki
         translationText = null
         lastAnalysedText = text
         lastShownText = text
@@ -978,7 +1003,7 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         // These views outlive the card they were put in — they are fields, not fresh views — and a
         // previous card may still hold them. Adding a view that already has a parent is an error, not
         // a move, so a second capture on the same panel would fail without this.
-        for (view in listOf(translationSection, wordsSection, btCopyOriginal, btCopyTranslation, btAskAi)) {
+        for (view in listOf(translationSection, wordsSection, btCopyOriginal, btCopyTranslation, btAskAi, btAnki)) {
             (view.parent as? ViewGroup)?.removeView(view)
         }
         translationSection.removeAllViews()
@@ -1017,6 +1042,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
             // buttons are the answer to a piece of it.
             btAskAi.visibility = View.VISIBLE
             actions.add(btAskAi)
+        }
+        if (canAnki) {
+            // It stays in the grid while the lookup runs, so the actions below it do not jump when
+            // the first word arrives; it only becomes visible once there is a card to make.
+            btAnki.visibility = View.GONE
+            actions.add(btAnki)
         }
         if (image != null) {
             // A toggle: what it does is visible in the layout the moment it is pressed, and the choice
@@ -1067,14 +1098,45 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
      * the message would be invisible exactly when it matters. The same text asked for twice is
      * written once — pressing the button again while the answer is still there is not news.
      */
-    fun addNote(message: String) {
+    fun addNote(message: String, undo: (() -> Unit)? = null) {
         if (message.isBlank() || message in noteTexts) return
         if (notesContainer.parent == null) {
             // Under the header, where [showResult] puts the notes it was built with. A card with no
             // header (loading, error) takes it at the top.
             card.addView(notesContainer, if (card.childCount > 0) 1 else 0)
         }
-        notesContainer.addView(noteView(message))
+        if (undo == null) {
+            notesContainer.addView(noteView(message))
+        } else {
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            row.addView(
+                noteView(message),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+            )
+            val button = context.actionButton(
+                context.getString(R.string.anki_undo),
+                textColor = context.getColor(R.color.accent),
+                background = 0x00000000,
+            ).apply {
+                tag = ANKI_UNDO_TAG
+                minWidth = dp(48)
+                minHeight = dp(44)
+                contentDescription = context.getString(R.string.anki_undo_description)
+            }
+            val onUndo = undo
+            button.setOnClickListener {
+                // The whole line goes, not just the button: «adicionado …» would otherwise stay
+                // above the «removido» that follows it.
+                notesContainer.removeView(row)
+                noteTexts.remove(message)
+                onUndo()
+            }
+            row.addView(button)
+            notesContainer.addView(row)
+        }
         noteTexts += message
     }
 
@@ -1199,6 +1261,13 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
 
     fun setWords(state: WordsState) {
         wordsSection.removeAllViews()
+        btAnki.visibility = if (
+            canAnki && !searching && state is WordsState.Done && state.matches.isNotEmpty()
+        ) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
         // A list of dictionaries belongs to the answer it was opened over. A new lookup makes it
         // stale, so it goes away with the old answer instead of reappearing over the next one (R16).
         if (state !is WordsState.Done) {
@@ -1455,7 +1524,24 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
                 append("  【").append(match.entry.reading).append("】")
             }
         }
-        column.addView(selectableLabel(head, 16f, context.getColor(R.color.text_primary), bold = true))
+        val headRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        headRow.addView(
+            selectableLabel(head, 16f, context.getColor(R.color.text_primary), bold = true),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+        )
+        if (canAnki) {
+            headRow.addView(
+                ankiWordButton(match),
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { marginStart = dp(8) },
+            )
+        }
+        column.addView(headRow)
 
         val details = buildList {
             if (match.reasons.isNotEmpty()) add(match.reasons.joinToString(" + ") { reasonLabel(it) })
@@ -1486,6 +1572,32 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
         )
         return column
     }
+
+    /**
+     * The per-word «＋ Anki».
+     *
+     * It does **not** use [ACTION_BUTTON_TAG]: the layout tests walk the card collecting every view
+     * with that tag to pin the panel's exact action list, and one button per dictionary word would
+     * turn that list into a moving target. Its own tag keeps the action grid honest.
+     */
+    private fun ankiWordButton(match: TokenMatch): TextView =
+        context.actionButton(
+            context.getString(R.string.result_anki),
+            textColor = context.getColor(R.color.accent),
+            background = 0x00000000,
+        ) {
+            callbacks?.onAnkiWord(match, if (searching) "" else lastAnalysedText)
+        }.apply {
+            tag = ANKI_WORD_TAG
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            minWidth = dp(48)
+            minHeight = dp(44)
+            contentDescription = context.getString(
+                R.string.result_anki_word_description,
+                match.surface.ifBlank { match.entry.term },
+            )
+        }
 
     /**
      * The definition with its senses picked out: the numbering bold, and notes and examples smaller,
@@ -2027,6 +2139,12 @@ class ResultOverlay(context: Context) : FrameLayout(context) {
          * it is the handle a layout test has on a block that only exists after typing.
          */
         const val SUGGESTIONS_TAG = "yabai.suggestions"
+
+        /** The per-word «＋ Anki», deliberately outside [ACTION_BUTTON_TAG]. */
+        const val ANKI_WORD_TAG = "yabai.ankiWord"
+
+        /** The «Desfazer» beside an Anki notice. */
+        const val ANKI_UNDO_TAG = "yabai.ankiUndo"
 
         /** Folded sections point their chevron to the right; a folded panel points it up. */
         private const val FOLDED_ROTATION = -90f

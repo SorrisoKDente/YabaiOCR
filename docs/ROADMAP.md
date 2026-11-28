@@ -10124,7 +10124,7 @@ credencial de Anki, não pede conta: essa é a parte que torna a integração ba
 | A2 | `[x]` | **Fila de envio** que sobrevive ao app fechado (nota não se perde com o Anki fechado) | médio |
 | A3 | `[x]` | **Cliente AnkiConnect** no `:desktop` (handshake, baralho, tipo de nota, duplicata, envio, desfazer) | médio |
 | A4 | `[x]` | **Cliente AnkiDroid** no `:app` (`ContentProvider`, permissão, `<queries>`, criação de baralho/tipo) | médio |
-| A5 | `[ ]` | **Botões no painel do celular**: por palavra e da frase, com aviso no próprio painel e «Desfazer» | fácil |
+| A5 | `[x]` | **Botões no painel do celular**: por palavra e da frase, com aviso no próprio painel e «Desfazer» | fácil |
 | A6 | `[x]` | **Botões no desktop**: janela de resultado, dicionário rápido e cartão do hover | fácil |
 | A7 | `[~]` | **Ajustes nos dois lados** (ativar, baralho, tipo de nota, endereço, etiquetas) e strings pt-BR/en | fácil |
 | A8 | `[ ]` | **Fallback sem Anki**: TSV para importar, compartilhar texto no Android | fácil |
@@ -10147,9 +10147,12 @@ pelo mesmo caminho (`AnkiPanel.sendToAnki`), com o aviso no próprio painel. A7 
 fila e strings pt-BR/en no desktop. A4 fechou o cliente do Android: `AnkiDroidGateway` fala o
 provider direto (`com.ichi2.anki.flashcards`), confere instalação e permissão, cria baralho e tipo de
 nota, casa os campos por nome, recusa duplicata pelo primeiro campo, move os cartões para o baralho
-e apaga para o «Desfazer»; a permissão e o `<queries>` estão no manifesto. A5 e A8 seguem abertos, e A9 não fecha sem E2E com Anki e AnkiDroid de verdade — nesta
+e apaga para o «Desfazer»; a permissão e o `<queries>` estão no manifesto. A5 fechou os botões do
+celular: palavra e frase chamam o mesmo caminho (fila → provider), com aviso no painel e «Desfazer»,
+e a permissão é pedida uma vez na tela principal. A8 segue aberto, e A9 não fecha sem E2E com Anki
+e AnkiDroid de verdade — nesta
 máquina não há nenhum dos dois, então o que existe é teste de unidade (14 no `:core`, 20 no
-`:desktop`, 12 no `:app` em Robolectric) e sete provas de mutação: rubi montado sobre a forma do dicionário, remoção da fila antes
+`:desktop`, 23 no `:app` em Robolectric) e sete provas de mutação: rubi montado sobre a forma do dicionário, remoção da fila antes
 da confirmação, fila sem a chave de dedupe, duplicata guardada em vez de resolvida, queda para o
 `/api/v1` desligada, qualquer recusa do add-on tratada como duplicata e qualquer recusa tratada como
 resolvida.
@@ -10286,8 +10289,8 @@ movimentação do cartão falhar, a nota recém-inserida é apagada em vez de fi
 `AnkiDroidFailure` separa AnkiDroid ausente,
 permissão negada, API desligada, campo faltando, insert e delete. A permissão e o
 `<queries><package android:name="com.ichi2.anki"/>` estão no manifesto e `PERMISSION` fica exposta
-para a tela pedir o acesso na primeira vez; como ainda não existe botão do Anki (A5), o pedido em
-tempo de execução entra junto com ele, para não abrir um diálogo de permissão sem contexto. O
+para a tela pedir o acesso na primeira vez; o pedido em tempo de execução ficou no A5, em
+`MainActivity`, para não abrir um diálogo de permissão sem o contexto do painel. O
 template do tipo `Yabai` saiu para `core/.../anki/AnkiTemplate.kt`, usado pelo AnkiConnect e pelo
 AnkiDroid, para os dois lados criarem o mesmo cartão. `AnkiDroidGatewayTest` tem doze casos
 Robolectric contra um `ContentProvider` de mentira: AnkiDroid ausente, permissão negada, API
@@ -10316,6 +10319,21 @@ prova de mutação fica para o ambiente com SDK, junto do A9. Nenhum AnkiDroid r
 
 Pronto quando: os dois botões existem nos lugares certos, o do aviso reflete os três desfechos
 (enviado/guardado/falhou) e a lista de ações do painel continua a mesma dos testes de layout.
+
+**Implementado (28/11/2026).** `ResultOverlay` ganhou o alvo «＋ Anki» ao lado do cabeçalho de cada
+palavra, com tag própria (`yabai.ankiWord`) e alvo de 44 dp, e o botão da frase na `ActionGrid`
+logo depois de «Perguntar à IA»; os dois só aparecem com `canAnki`, e o da frase espera a primeira
+palavra do dicionário. O caminho único é `anki/AnkiDroidPanel.kt` → `anki/AnkiDroidSender.kt`:
+o cartão entra na `AnkiQueue` **antes** da tentativa, sai quando o provider confirma, fica com o
+motivo quando o AnkiDroid não está disponível e é descartado quando o tipo de nota não tem os
+campos do `Yabai`. O aviso usa `ResultOverlay.addNote` com um «Desfazer» que chama
+`deleteNote`; o texto é escrito uma vez só. A permissão é pedida uma vez em `MainActivity`
+(`anki_permission_asked`) e uma recusa não vira insistência. O painel de busca também ganhou o
+botão por palavra, com a frase vazia, como no dicionário rápido do desktop. Onze testes novos:
+seis em `AnkiButtonsTest` (posição, texto/frase enviados, espera da primeira palavra, ajuste
+desligado, painel de erro e «Desfazer»/dedupe) e cinco em `AnkiDroidSenderTest` (fila, duplicata,
+campo faltando, retry e undo). Os testes **não foram executados nesta máquina** (sem SDK Android);
+a prova de mutação do A5 fica para o ambiente com SDK, junto do A9.
 
 ### A6 — Botões no desktop
 

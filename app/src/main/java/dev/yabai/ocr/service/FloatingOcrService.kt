@@ -32,12 +32,15 @@ import dev.yabai.ocr.MainActivity
 import dev.yabai.ocr.R
 import dev.yabai.ocr.UsageTracker
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.anki.AnkiDroidPanel
 import dev.yabai.ocr.capture.CameraPhoto
 import dev.yabai.ocr.capture.PhotoPageGeometry
 import dev.yabai.ocr.capture.PhotoPageLayout
 import dev.yabai.ocr.capture.ScreenCaptureSession
 import dev.yabai.ocr.capture.ScreenMetrics
+import dev.yabai.ocr.core.anki.AnkiNote
 import dev.yabai.ocr.core.dict.LookupEngine
+import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.core.jp.JapaneseText
 import dev.yabai.ocr.core.lens.PrintedReading
 import dev.yabai.ocr.core.lens.withoutPrintedReadings
@@ -91,6 +94,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     private lateinit var settings: AppSettings
     private lateinit var overlays: OverlayController
     private lateinit var dispatcher: OcrDispatcher
+    private lateinit var anki: AnkiDroidPanel
 
     private var capture: ScreenCaptureSession? = null
     private var projection: MediaProjection? = null
@@ -212,6 +216,10 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
         overlays = OverlayController(this).apply {
             callbacks = this@FloatingOcrService
         }
+        anki = AnkiDroidPanel(this, scope) { notice ->
+            overlays.showResultNote(notice.text, notice.undo)
+        }
+        anki.retryQueued()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -599,6 +607,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             stale = stale,
             initialQuery = initialQuery,
             canAskAi = settings.showAiButton,
+            canAnki = settings.showAnkiButton,
             searchByTranslation = settings.searchByTranslation,
         )
     }
@@ -634,6 +643,18 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
     override fun onAskAiRequested(text: String) {
         askAi(text)
     }
+
+    override fun onAnkiWordRequested(match: TokenMatch, sentence: String) {
+        anki.send(AnkiNote.word(match, sentence), ankiLabel(match))
+    }
+
+    override fun onAnkiSentenceRequested(text: String, matches: List<TokenMatch>) {
+        val first = matches.minByOrNull { it.start } ?: return
+        anki.send(AnkiNote.sentence(text, matches), ankiLabel(first))
+    }
+
+    private fun ankiLabel(match: TokenMatch): String =
+        match.surface.ifBlank { match.entry.term }
 
     private fun clearPending() {
         pendingBlocks = emptyList()
@@ -1024,6 +1045,7 @@ class FloatingOcrService : Service(), OverlayController.Callbacks {
             image = image,
             showImage = settings.showImage,
             canAskAi = settings.showAiButton,
+            canAnki = settings.showAnkiButton,
             canRetakePhoto = canRetakePhoto,
         )
         analyse(text)

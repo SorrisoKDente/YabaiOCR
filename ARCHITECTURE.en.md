@@ -355,6 +355,8 @@ worth knowing:
 | `ai/AskAi.kt` | builds the question and opens the chosen AI app |
 | `translate/OfflineTranslator.kt` | offline translation with ML Kit |
 | `anki/AnkiDroidGateway.kt` | the AnkiDroid provider client (A4): install and permission, deck and `Yabai` note type created when missing, fields matched by name, duplicate by first field before creating a deck/note type, insertion with the cards moved to the deck (the note is removed if the card cannot move), and removal for «Undo»; speaks `content://com.ichi2.anki.flashcards` directly, with no dependency (the `<queries>` and permission live in the manifest) |
+| `anki/AnkiDroidSender.kt` | the Android queue (A5): writes the card before trying the provider, removes it on success/duplicate, keeps it with the reason when AnkiDroid is unavailable and drops what the note type cannot accept; also the retry and undo, and turns each outcome into the panel's text |
+| `anki/AnkiDroidPanel.kt` | the panel's one path to AnkiDroid (A5): sends off the main thread, shows the notice in the panel and wires «Undo» to the provider |
 
 ### Resources
 
@@ -426,6 +428,14 @@ MainActivity/service → MediaProjection capture
         → OcrDispatcher.recognize (Lens / ML Kit / PP-OCRv6, AUTO with fallback)
         → ResultOverlay (+ TextPickerOverlay when the full screen has blocks)
         → dictionary and translation in the same panel
+```
+
+### Anki on Android
+
+```
+«＋ Anki» in the panel (word or sentence) → AnkiDroidPanel → AnkiDroidSender (queue before the attempt)
+        → AnkiDroidGateway (provider) → notice in the panel itself, with «Undo»
+        → failure: the card stays queued and is retried when the service starts
 ```
 
 ### Offline models (PP-OCRv6)

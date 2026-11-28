@@ -32,6 +32,7 @@ import dev.yabai.ocr.AppSettings
 import dev.yabai.ocr.R
 import dev.yabai.ocr.ai.AskAi
 import dev.yabai.ocr.capture.ScreenMetrics
+import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.util.dp
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -108,6 +109,12 @@ class OverlayController(
 
         /** The user picked [packageName] from the list of apps in the panel. */
         fun onAskAiToRequested(packageName: String, text: String)
+
+        /** The user wants one word of the answer sent to AnkiDroid (A5). */
+        fun onAnkiWordRequested(match: TokenMatch, sentence: String) {}
+
+        /** The user wants the whole answer sent to AnkiDroid (A5). */
+        fun onAnkiSentenceRequested(text: String, matches: List<TokenMatch>) {}
     }
 
     var callbacks: Callbacks? = null
@@ -1083,6 +1090,14 @@ class OverlayController(
                     this@OverlayController.callbacks?.onAskAiRequested(text)
                 }
 
+                override fun onAnkiWord(match: TokenMatch, sentence: String) {
+                    this@OverlayController.callbacks?.onAnkiWordRequested(match, sentence)
+                }
+
+                override fun onAnkiSentence(text: String, matches: List<TokenMatch>) {
+                    this@OverlayController.callbacks?.onAnkiSentenceRequested(text, matches)
+                }
+
                 override fun onDismiss() {
                     dismissResult()
                 }
@@ -1134,6 +1149,7 @@ class OverlayController(
         image: Bitmap? = null,
         showImage: Boolean = false,
         canAskAi: Boolean = false,
+        canAnki: Boolean = false,
         /** The text came from a camera photo, so the panel can offer another shot (R47a). */
         canRetakePhoto: Boolean = false,
     ) {
@@ -1147,6 +1163,7 @@ class OverlayController(
             image,
             showImage,
             canAskAi,
+            canAnki,
             canRetakePhoto,
         )
     }
@@ -1171,6 +1188,7 @@ class OverlayController(
         stale: List<String> = emptyList(),
         initialQuery: String = "",
         canAskAi: Boolean = false,
+        canAnki: Boolean = false,
         searchByTranslation: Boolean = false,
     ) {
         if (!canDrawOverlays()) return
@@ -1182,6 +1200,7 @@ class OverlayController(
             stale,
             initialQuery,
             canAskAi,
+            canAnki,
             searchByTranslation,
         )
         panel.post { panel.showKeyboard() }
@@ -1240,8 +1259,8 @@ class OverlayController(
      * Writes a note in the panel that is already open — see [ResultOverlay.addNote]. The service uses
      * it for news that arrives after the capture, where a toast would be hidden behind another app.
      */
-    fun showResultNote(message: String) {
-        resultView?.addNote(message)
+    fun showResultNote(message: String, undo: (() -> Unit)? = null) {
+        resultView?.addNote(message, undo)
     }
 
     private fun statusBarHeight(): Int {

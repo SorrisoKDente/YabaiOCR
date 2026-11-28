@@ -256,6 +256,24 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit { putBoolean(KEY_SHOW_AI_BUTTON, value) }
 
     /**
+     * Show the «＋ Anki» buttons in the panel (A5).
+     *
+     * On by default on the phone; the settings switch arrives with A7. A card that cannot be sent
+     * now stays in the queue instead of being lost.
+     */
+    var showAnkiButton: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_ANKI_BUTTON, true)
+        set(value) = prefs.edit { putBoolean(KEY_SHOW_ANKI_BUTTON, value) }
+
+    /**
+     * Whether the AnkiDroid permission was already asked once. It is asked from the main screen, not
+     * from the floating panel, and only once: a denial is respected, and A7's «Testar» can ask again.
+     */
+    var ankiPermissionAsked: Boolean
+        get() = prefs.getBoolean(KEY_ANKI_PERMISSION_ASKED, false)
+        set(value) = prefs.edit { putBoolean(KEY_ANKI_PERMISSION_ASKED, value) }
+
+    /**
      * How often to check the publishers for new dictionary versions (R43).
      *
      * The check itself is a few HEAD requests or 1 KB descriptors; the download only happens when
@@ -409,6 +427,8 @@ class AppSettings(context: Context) {
         private const val KEY_TRANSLATE_TARGET = "translate_target"
         private const val KEY_SHOW_IMAGE = "show_image"
         private const val KEY_SHOW_AI_BUTTON = "show_ai_button"
+        private const val KEY_SHOW_ANKI_BUTTON = "show_anki_button"
+        private const val KEY_ANKI_PERMISSION_ASKED = "anki_permission_asked"
         private const val KEY_AI_PROMPT = "ai_prompt"
         private const val KEY_AI_PACKAGE = "ai_package"
         private const val KEY_DICTIONARY_UPDATE_INTERVAL = "dictionary_update_interval"

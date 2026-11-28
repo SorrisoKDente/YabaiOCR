@@ -14,6 +14,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.yabai.ocr.ai.AskAi
+import dev.yabai.ocr.anki.AnkiDroidPanel
+import dev.yabai.ocr.core.anki.AnkiNote
+import dev.yabai.ocr.core.dict.TokenMatch
 import dev.yabai.ocr.dict.DictionaryRepository
 import dev.yabai.ocr.dict.searchWords
 import dev.yabai.ocr.overlay.ResultOverlay
@@ -41,6 +44,7 @@ class LookupActivity : AppCompatActivity() {
     private val scope = MainScope()
     private val settings by lazy { AppSettings(this) }
     private lateinit var overlay: ResultOverlay
+    private lateinit var anki: AnkiDroidPanel
 
     /** The query the panel is on, so the dictionary chooser re-runs the right one. */
     private var searching = ""
@@ -70,6 +74,14 @@ class LookupActivity : AppCompatActivity() {
                 override fun onRetryOffline() = Unit
                 override fun onImageToggle() = Unit
                 override fun onAskAi(text: String) = askAi(text)
+
+                override fun onAnkiWord(match: TokenMatch, sentence: String) {
+                    anki.send(
+                        AnkiNote.word(match, sentence),
+                        match.surface.ifBlank { match.entry.term },
+                    )
+                }
+
                 override fun onDismiss() = finish()
                 override fun onSearchChanged(text: String) = lookup(text)
                 override fun onSearchModeChanged(searchByTranslation: Boolean) {
@@ -91,6 +103,10 @@ class LookupActivity : AppCompatActivity() {
             ),
         )
         setContentView(host)
+        anki = AnkiDroidPanel(this, scope) { notice ->
+            overlay.addNote(notice.text, notice.undo)
+        }
+        anki.retryQueued()
         // The doorway theme is transparent so the panel can replace it without a flash; this path is
         // a screen of its own (no overlay permission) and needs its own paper.
         window.setBackgroundDrawable(ColorDrawable(getColor(R.color.panel_bg)))
@@ -170,6 +186,7 @@ class LookupActivity : AppCompatActivity() {
             stale = stale,
             initialQuery = incomingText(intent),
             canAskAi = settings.showAiButton,
+            canAnki = settings.showAnkiButton,
             searchByTranslation = settings.searchByTranslation,
         )
     }

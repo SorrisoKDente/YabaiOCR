@@ -352,6 +352,8 @@ valem destaque:
 | `ai/AskAi.kt` | monta a pergunta e abre o app de IA escolhido |
 | `translate/OfflineTranslator.kt` | tradução offline com ML Kit |
 | `anki/AnkiDroidGateway.kt` | o cliente do provider do AnkiDroid (A4): instalação e permissão, baralho e tipo `Yabai` criados quando faltam, campos casados pelo nome, duplicata pelo primeiro campo antes de criar baralho/tipo, inserção com os cartões movidos para o baralho (a nota é apagada se o cartão não se mover) e remoção para o «Desfazer»; fala `content://com.ichi2.anki.flashcards` direto, sem dependência (o `<queries>` e a permissão estão no manifesto) |
+| `anki/AnkiDroidSender.kt` | a fila do Android (A5): escreve o cartão antes de tentar o provider, remove no sucesso/duplicata, guarda com o motivo quando o AnkiDroid está indisponível e descarta o que o tipo de nota não aceita; também é o retry e o undo, e traduz cada desfecho para o texto do painel |
+| `anki/AnkiDroidPanel.kt` | o caminho único do painel para o AnkiDroid (A5): envia fora da main thread, mostra o aviso no painel e liga o «Desfazer» ao provider |
 
 ### Recursos
 
@@ -422,6 +424,14 @@ MainActivity/service → MediaProjection captura
         → OcrDispatcher.recognize (Lens / ML Kit / PP-OCRv6, AUTO com fallback)
         → ResultOverlay (+ TextPickerOverlay quando a tela inteira tem blocos)
         → dicionário e tradução no mesmo painel
+```
+
+### Anki no Android
+
+```
+painel «＋ Anki» (palavra ou frase) → AnkiDroidPanel → AnkiDroidSender (fila antes da tentativa)
+        → AnkiDroidGateway (provider) → aviso no próprio painel, com «Desfazer»
+        → falha: o cartão fica na fila e é retentado quando o serviço sobe
 ```
 
 ### Modelos offline (PP-OCRv6)
