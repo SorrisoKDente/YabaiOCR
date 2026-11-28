@@ -351,6 +351,7 @@ valem destaque:
 | `dict/KanjiDefault.kt` | qual dicionário responde pelo card de kanji |
 | `ai/AskAi.kt` | monta a pergunta e abre o app de IA escolhido |
 | `translate/OfflineTranslator.kt` | tradução offline com ML Kit |
+| `anki/AnkiDroidGateway.kt` | o cliente do provider do AnkiDroid (A4): instalação e permissão, baralho e tipo `Yabai` criados quando faltam, campos casados pelo nome, duplicata pelo primeiro campo antes de criar baralho/tipo, inserção com os cartões movidos para o baralho (a nota é apagada se o cartão não se mover) e remoção para o «Desfazer»; fala `content://com.ichi2.anki.flashcards` direto, sem dependência (o `<queries>` e a permissão estão no manifesto) |
 
 ### Recursos
 

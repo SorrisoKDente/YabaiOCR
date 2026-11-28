@@ -16,6 +16,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+      AnkiDroid's API (A4): the provider is the only supported way to add a note, and writing the
+      collection file from outside would corrupt it. The permission is asked at runtime by the
+      panel on the first card (A5), not at install.
+    -->
+    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
+
+    <!--
       The bubble's camera (R46d): one photo, read once and deleted. Not required, so the app still
       installs on a device without a camera.
     -->
@@ -40,6 +47,9 @@
             <action android:name="android.intent.action.SEND" />
             <data android:mimeType="text/plain" />
         </intent>
+        <!-- AnkiDroid's content provider (A4). Without this the provider is invisible on Android
+             11+, and AnkiDroid would look uninstalled on a phone that has it. -->
+        <package android:name="com.ichi2.anki" />
     </queries>
 
     <application

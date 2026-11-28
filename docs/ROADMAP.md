@@ -10123,7 +10123,7 @@ credencial de Anki, não pede conta: essa é a parte que torna a integração ba
 | A1 | `[x]` | **Modelo do cartão no `:core`**: `AnkiNote`, HTML com rubi e escape, texto puro para o fallback | fácil |
 | A2 | `[x]` | **Fila de envio** que sobrevive ao app fechado (nota não se perde com o Anki fechado) | médio |
 | A3 | `[x]` | **Cliente AnkiConnect** no `:desktop` (handshake, baralho, tipo de nota, duplicata, envio, desfazer) | médio |
-| A4 | `[ ]` | **Cliente AnkiDroid** no `:app` (`ContentProvider`, permissão, `<queries>`, criação de baralho/tipo) | médio |
+| A4 | `[x]` | **Cliente AnkiDroid** no `:app` (`ContentProvider`, permissão, `<queries>`, criação de baralho/tipo) | médio |
 | A5 | `[ ]` | **Botões no painel do celular**: por palavra e da frase, com aviso no próprio painel e «Desfazer» | fácil |
 | A6 | `[x]` | **Botões no desktop**: janela de resultado, dicionário rápido e cartão do hover | fácil |
 | A7 | `[~]` | **Ajustes nos dois lados** (ativar, baralho, tipo de nota, endereço, etiquetas) e strings pt-BR/en | fácil |
@@ -10144,9 +10144,12 @@ como resolvida: o cliente pergunta com `canAddNotesWithErrorDetail` e lê o text
 «já está» apagaria da fila um cartão que nunca chegou ao Anki. A6 fechou: os botões existem na janela
 de resultado (frase e palavra), no dicionário rápido e no cartão do hover, e os três painéis mandam
 pelo mesmo caminho (`AnkiPanel.sendToAnki`), com o aviso no próprio painel. A7 está em `[~]`: ajustes,
-fila e strings pt-BR/en no desktop; o Android não foi tocado. A4, A5 e A8 seguem abertos, e A9 não fecha sem E2E com Anki e AnkiDroid de verdade — nesta
+fila e strings pt-BR/en no desktop. A4 fechou o cliente do Android: `AnkiDroidGateway` fala o
+provider direto (`com.ichi2.anki.flashcards`), confere instalação e permissão, cria baralho e tipo de
+nota, casa os campos por nome, recusa duplicata pelo primeiro campo, move os cartões para o baralho
+e apaga para o «Desfazer»; a permissão e o `<queries>` estão no manifesto. A5 e A8 seguem abertos, e A9 não fecha sem E2E com Anki e AnkiDroid de verdade — nesta
 máquina não há nenhum dos dois, então o que existe é teste de unidade (14 no `:core`, 20 no
-`:desktop`) e sete provas de mutação: rubi montado sobre a forma do dicionário, remoção da fila antes
+`:desktop`, 12 no `:app` em Robolectric) e sete provas de mutação: rubi montado sobre a forma do dicionário, remoção da fila antes
 da confirmação, fila sem a chave de dedupe, duplicata guardada em vez de resolvida, queda para o
 `/api/v1` desligada, qualquer recusa do add-on tratada como duplicata e qualquer recusa tratada como
 resolvida.
@@ -10271,6 +10274,29 @@ alternativa se o provider crescer.
 Pronto quando: Robolectric com um `ContentProvider` de mentira registrado na autoridade prende
 instalado/não instalado, permissão negada, criação de baralho e de tipo, inserção com os campos na
 ordem certa, duplicata recusada e remoção.
+
+**Implementado (28/11/2026).** `app/.../anki/AnkiDroidGateway.kt` fala o provider direto, sem
+dependência nova, com a autoridade injetável (o teste registra o dublê na mesma autoridade).
+`send(note, baralho, tipo)` resolve baralho e tipo (criando o `Yabai` com os cinco campos, o CSS, o
+baralho padrão e o template), casa os campos do cartão **pelo nome** na ordem que o tipo declara,
+confere o primeiro campo antes de inserir, põe `mid`/`flds`/`tags`, move cada cartão para o baralho e
+devolve o id da nota; `deleteNote(id)` é o «Desfazer». Antes de criar qualquer coisa, o cliente
+procura o tipo e confere a duplicata: um cartão repetido não deixa baralho nem tipo novos. Se a
+movimentação do cartão falhar, a nota recém-inserida é apagada em vez de ficar no baralho padrão.
+`AnkiDroidFailure` separa AnkiDroid ausente,
+permissão negada, API desligada, campo faltando, insert e delete. A permissão e o
+`<queries><package android:name="com.ichi2.anki"/>` estão no manifesto e `PERMISSION` fica exposta
+para a tela pedir o acesso na primeira vez; como ainda não existe botão do Anki (A5), o pedido em
+tempo de execução entra junto com ele, para não abrir um diálogo de permissão sem contexto. O
+template do tipo `Yabai` saiu para `core/.../anki/AnkiTemplate.kt`, usado pelo AnkiConnect e pelo
+AnkiDroid, para os dois lados criarem o mesmo cartão. `AnkiDroidGatewayTest` tem doze casos
+Robolectric contra um `ContentProvider` de mentira: AnkiDroid ausente, permissão negada, API
+desligada, baralho reaproveitado, tipo criado com os cinco campos e o template, tipo sem um dos
+campos recusado sem criar baralho, campos na ordem do tipo, duplicata não inserida duas vezes,
+duplicata que não cria baralho nem tipo, cartão que não se move e a nota é removida, remoção pelo id
+e o manifesto declarando a permissão e o `<queries>` do AnkiDroid. Os
+testes **não foram executados nesta máquina** (sem SDK Android): não há como compilar `:app` aqui, e a
+prova de mutação fica para o ambiente com SDK, junto do A9. Nenhum AnkiDroid real foi usado.
 
 ### A5 — Botões no painel do celular
 

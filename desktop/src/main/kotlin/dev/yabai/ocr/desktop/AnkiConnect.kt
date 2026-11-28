@@ -6,6 +6,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import dev.yabai.ocr.core.anki.AnkiFields
 import dev.yabai.ocr.core.anki.AnkiNote
+import dev.yabai.ocr.core.anki.AnkiTemplate
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -112,9 +113,9 @@ class AnkiConnect(
                     add("templates", JsonArray().apply {
                         add(
                             JsonObject().apply {
-                                addProperty("name", "Card 1")
-                                addProperty("questionHtml", FRONT)
-                                addProperty("answerHtml", BACK)
+                                addProperty("name", AnkiTemplate.NAME)
+                                addProperty("questionHtml", AnkiTemplate.FRONT)
+                                addProperty("answerHtml", AnkiTemplate.BACK)
                             },
                         )
                     })
@@ -135,9 +136,9 @@ class AnkiConnect(
                     JsonArray().apply {
                         add(
                             JsonObject().apply {
-                                addProperty("Name", "Card 1")
-                                addProperty("Front", FRONT)
-                                addProperty("Back", BACK)
+                                addProperty("Name", AnkiTemplate.NAME)
+                                addProperty("Front", AnkiTemplate.FRONT)
+                                addProperty("Back", AnkiTemplate.BACK)
                             },
                         )
                     },
@@ -334,11 +335,6 @@ class AnkiConnect(
 
         /** The v1 JSON-RPC protocol level, what `api.describe` reports as `apiMajor`. */
         const val V1_MAJOR = 1
-
-        /** The card the app creates: the word with its ruby, then the reading, the meaning and the sentence. */
-        const val FRONT = "{{Palavra}}"
-        const val BACK =
-            "{{FrontSide}}<hr id=answer>{{Leitura}}<br>{{Significado}}<br>{{Frase}}<br><small>{{Fonte}}</small>"
 
         /**
          * A second of patience to connect and five to answer: Anki is local, and a collector busy

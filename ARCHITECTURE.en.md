@@ -354,6 +354,7 @@ worth knowing:
 | `dict/KanjiDefault.kt` | which dictionary answers the kanji card |
 | `ai/AskAi.kt` | builds the question and opens the chosen AI app |
 | `translate/OfflineTranslator.kt` | offline translation with ML Kit |
+| `anki/AnkiDroidGateway.kt` | the AnkiDroid provider client (A4): install and permission, deck and `Yabai` note type created when missing, fields matched by name, duplicate by first field before creating a deck/note type, insertion with the cards moved to the deck (the note is removed if the card cannot move), and removal for «Undo»; speaks `content://com.ichi2.anki.flashcards` directly, with no dependency (the `<queries>` and permission live in the manifest) |
 
 ### Resources
 
